@@ -24,6 +24,9 @@ export const CLOCK_HEADER = 'x-kolibri-now';
 
 const pad = (n: number, len: number) => n.toString(36).padStart(len, '0');
 
+// Strict, because stamps compare as plain strings: `~` or `9999…` would outrank every real one.
+const WIRE = /^[0-9a-z]{11}-[0-9a-z]{4}-[A-Za-z0-9_.:-]{1,64}$/;
+
 export class Clock {
   nodeId: string;
   private millis = 0;
@@ -70,6 +73,14 @@ export class Clock {
       this.millis = wall;
       this.counter = 0;
     }
+  }
+
+  /** A remote stamp as stored: null if malformed, a local one if more than `leeway` ms ahead, else observed. */
+  admit(remote: unknown, leeway: number): HLC | null {
+    if (typeof remote !== 'string' || !WIRE.test(remote)) return null;
+    if (parse(remote)!.millis > this.wallClock() + leeway) return this.now();
+    this.observe(remote);
+    return remote;
   }
 }
 

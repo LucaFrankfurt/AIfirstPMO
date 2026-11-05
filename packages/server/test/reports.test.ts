@@ -21,6 +21,7 @@ import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
+import { addDays, todayIn } from '@kolibri/shared';
 
 const { server } = await import('../src/index.ts');
 /* Registration is limited to five per two minutes, on purpose. This file makes
@@ -60,8 +61,7 @@ async function tool<T = any>(token: string, name: string, args: Record<string, u
   return response.result.structuredContent as T;
 }
 
-const day = 86_400_000;
-const isoDay = (offset: number) => new Date(Date.now() + offset * day).toISOString().slice(0, 10);
+const isoDay = (offset: number) => addDays(todayIn(), offset);
 
 before(async () => {
   await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));

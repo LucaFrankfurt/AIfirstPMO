@@ -7,6 +7,7 @@ import {
   findMentions as mentionsIn,
   hlcGreater,
   htmlText,
+  isCrossWorkspace,
   projectScope,
   reconcileReactions,
   type AttachmentSubject,
@@ -70,6 +71,13 @@ export function serialize(entity: EntityName, row: Row | undefined): Row | undef
   return out;
 }
 
+/** `serialize` for one reader: a share link opens with its maker's eyes, so only the maker is sent its token. */
+export function serializeFor(entity: EntityName, row: Row | undefined, userId: string): Row | undefined {
+  const out = serialize(entity, row);
+  if (out && entity === 'share' && out.created_by !== userId) out.token = null;
+  return out;
+}
+
 export function readRaw(entity: EntityName, id: string): Row | undefined {
   return get<Row>(`SELECT * FROM ${ENTITIES[entity].table} WHERE id = ?`, id);
 }
@@ -83,6 +91,10 @@ export function readOrThrow(entity: EntityName, id: string): Row {
   if (!row || row.deleted_at) throw notFound(`${entity} ${id} not found`);
   return row;
 }
+
+/** Whether a write scoped to `workspaceId` may touch this stored row at all. */
+export const inWriteScope = (entity: EntityName, row: Row, workspaceId: string): boolean =>
+  row.workspace_id === workspaceId || (row.workspace_id == null && isCrossWorkspace(entity));
 
 /**
  * The single write path for every entity: REST, sync push, MCP and the seeder
@@ -101,6 +113,10 @@ export function writeEntity(entity: EntityName, id: string, patch: Record<string
   return tx(() => {
     const table = def.table;
     const existing = get<Row>(`SELECT * FROM ${table} WHERE id = ?`, id);
+    // An id names a row anywhere in the database; a write only reaches its own workspace's.
+    if (existing && !opts.system && !inWriteScope(entity, existing, opts.workspaceId)) {
+      throw notFound(`${entity} ${id} not found`);
+    }
     const clocks: Record<string, string> = existing?.clocks ? safeJson(existing.clocks) : {};
     const now = Date.now();
     const created = !existing;
@@ -635,14 +651,24 @@ export const SEARCHABLE: Partial<Record<EntityName, (row: Row) => { title: strin
 export function indexForSearch(entity: EntityName, row: Row): boolean {
   const project = SEARCHABLE[entity];
   if (!project) return false;
-  run(`DELETE FROM search_index WHERE kind = ? AND ref_id = ?`, entity, row.id);
+  unindexForSearch(entity, String(row.id));
   if (row.deleted_at || row.archived) return false;
   const { title, body } = project(row);
-  run(
+  const doc = run(
     `INSERT INTO search_index (kind, ref_id, workspace_id, project_id, title, body) VALUES (?, ?, ?, ?, ?, ?)`,
     entity, row.id, row.workspace_id, row.project_id ?? null, title, stripMarkdown(body).slice(0, 20_000),
-  );
+  ).lastInsertRowid;
+  run(`INSERT INTO search_refs (kind, ref_id, doc) VALUES (?, ?, ?)`, entity, row.id, doc);
   return true;
+}
+
+/** Take a subject out of the full-text index by rowid, through `search_refs`. */
+export function unindexForSearch(kind: string, refId: string): void {
+  const ref = get<Row>(`SELECT doc FROM search_refs WHERE kind = ? AND ref_id = ?`, kind, refId);
+  if (!ref) return;
+  // `ref_id` too, in case the index was rebuilt by hand and the rowid now holds another subject.
+  run(`DELETE FROM search_index WHERE rowid = ? AND ref_id = ?`, ref.doc, refId);
+  run(`DELETE FROM search_refs WHERE kind = ? AND ref_id = ?`, kind, refId);
 }
 
 const stripMarkdown = (text: string): string =>

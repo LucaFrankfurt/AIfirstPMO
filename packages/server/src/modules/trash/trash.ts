@@ -23,6 +23,7 @@ import { all, get, nextSeq, run, tx, type Row } from '../../kernel/platform/db/i
 import { env } from '../../kernel/platform/env.ts';
 import { uid } from '../../kernel/platform/ids.ts';
 import { keyFor, remove as removeBlob } from '../../kernel/files/storage.ts';
+import { unindexForSearch } from '../../kernel/write-path/repo.ts';
 
 /**
  * What can be emptied.
@@ -81,7 +82,13 @@ export function purgeable(workspaceId: string, before: number): Counts {
  * Notifications go for the plainer reason that they are links: one pointing at
  * a task that no longer exists is an inbox row that opens on nothing.
  */
-function forgetTrail(entity: EntityName, id: string): void {
+function forgetTrail(entity: EntityName, id: string, named: Set<string>): void {
+  // Earlier versions carry the text itself, so they go with the row, and the pictures they showed are candidates too.
+  const versions = entity === 'page' ? ['page_versions', 'page_id'] : entity === 'artboard' ? ['artboard_versions', 'artboard_id'] : null;
+  if (versions) {
+    for (const version of all<Row>(`SELECT content FROM ${versions[0]} WHERE ${versions[1]} = ?`, id)) hashesIn(version, named);
+    run(`DELETE FROM ${versions[0]} WHERE ${versions[1]} = ?`, id);
+  }
   const column = entity === 'task' ? 'task_id' : entity === 'page' ? 'page_id' : entity === 'project' ? 'project_id' : null;
   if (!column) return;
   run(`DELETE FROM activities WHERE ${column} = ?`, id);
@@ -130,7 +137,24 @@ const REFERENCES: [table: string, column: string][] = [
   // day it can, and a blob emptied out from under it then is a broken picture
   // nobody can trace back to a trash run.
   ['artboards', 'content'],
+  ['pages', 'cover_url'],
+  ['workspaces', 'logo_url'],
+  ['decisions', 'description'],
+  ['kpis', 'description'],
+  ['budgets', 'description'],
+  ['products', 'description'],
+  // A version can be restored, and its pictures with it.
+  ['page_versions', 'content'],
+  ['artboard_versions', 'content'],
 ];
+
+/** Every `/files/<hash>` a row names, in any column. */
+function hashesIn(row: Row | undefined, into: Set<string>): void {
+  for (const value of Object.values(row ?? {})) {
+    if (typeof value !== 'string' || !value.includes('/files/')) continue;
+    for (const match of value.matchAll(/\/files\/([0-9a-f]{64})/g)) into.add(match[1]);
+  }
+}
 
 /**
  * Delete the bytes nothing points at any more.
@@ -140,13 +164,15 @@ const REFERENCES: [table: string, column: string][] = [
  * attachment row went would take the picture out of the page as well, so the
  * question asked is the stricter one: does anything at all still name this
  * hash.
+ * Only blobs named by purged rows are candidates (DAT-01).
  */
-export function reclaimFiles(workspaceId: string): { blobs: number; bytes: number } {
-  const files = all<Row>(`SELECT hash, mime, size, storage FROM files WHERE workspace_id = ?`, workspaceId);
+export function reclaimFiles(workspaceId: string, hashes: Iterable<string>): { blobs: number; bytes: number } {
   let blobs = 0;
   let bytes = 0;
 
-  for (const file of files) {
+  for (const hash of hashes) {
+    const file = get<Row>(`SELECT hash, mime, size, storage FROM files WHERE workspace_id = ? AND hash = ?`, workspaceId, hash);
+    if (!file) continue;
     const needle = `%/files/${file.hash}%`;
     const referenced = REFERENCES.some(([table, column]) =>
       !!get<Row>(`SELECT 1 AS found FROM ${table} WHERE ${column} LIKE ? LIMIT 1`, needle));
@@ -180,6 +206,7 @@ export function emptyTrash(
   before: number,
 ): Emptied {
   const now = Date.now();
+  const named = new Set<string>();
   const purged = tx(() => {
     let count = 0;
     for (const entity of PURGEABLE) {
@@ -189,9 +216,10 @@ export function emptyTrash(
         workspaceId, before,
       );
       for (const row of doomed) {
+        hashesIn(get<Row>(`SELECT * FROM ${table} WHERE id = ?`, row.id), named);
         run(`DELETE FROM ${table} WHERE id = ?`, row.id);
-        run(`DELETE FROM search_index WHERE kind = ? AND ref_id = ?`, entity, row.id);
-        forgetTrail(entity, String(row.id));
+        unindexForSearch(entity, String(row.id));
+        forgetTrail(entity, String(row.id), named);
         run(
           `INSERT INTO purges (id, workspace_id, entity, row_id, reason, created_at, updated_at, seq, clocks)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, '{}')`,
@@ -204,7 +232,7 @@ export function emptyTrash(
   });
 
   // The bytes afterwards, once the rows that referred to them are actually gone.
-  const { blobs, bytes } = reclaimFiles(workspaceId);
+  const { blobs, bytes } = reclaimFiles(workspaceId, named);
   return { purged, blobs, bytes };
 }
 

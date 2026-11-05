@@ -6,14 +6,13 @@
  * every endpoint here either reads one or changes one. Signing in is next door;
  * mail, Telegram and push moved to their own adapters.
  *
- * `/api/people` sits here rather than with chat because it answers "who has an
- * account on this instance", which is a membership question — see the note on
- * the handler for why the answer is not "who shares a workspace with you".
+ * `/api/people` sits here rather than with chat because it answers "who shares
+ * a workspace with you", which is a membership question.
  */
-import type { WorkspaceFeatures, WorkspaceRole } from '@kolibri/shared';
+import { WORKSPACE_ROLES, type WorkspaceFeatures, type WorkspaceRole } from '@kolibri/shared';
 import { all, get, run, type Row } from '../../platform/db/index.ts';
 import { env } from '../../platform/env.ts';
-import { requireAuth, requireWorkspace, sessionInfo } from '../auth.ts';
+import { requireAuth, requireWorkspace, requireWrite, sessionInfo } from '../auth.ts';
 import { addMember, createProject, createWorkspace, serverClock } from '../../write-path/bootstrap.ts';
 import { featuresOf } from '../../platform/features.ts';
 import { badRequest, conflict, forbidden, notFound, readJson, type Router } from '../../platform/http.ts';
@@ -23,9 +22,16 @@ import { byAddress, enforce, LIMITS } from '../ratelimit.ts';
 import { queueInvite } from '../../../adapters/mail/mail.ts';
 import { writeEntity } from '../../write-path/repo.ts';
 
+/** A role somebody asked to hand out: a known one, and `owner` only from an owner. */
+function grantable(role: unknown, granter: WorkspaceRole): WorkspaceRole {
+  if (!(WORKSPACE_ROLES as readonly unknown[]).includes(role)) throw badRequest('Unknown role');
+  if (role === 'owner' && granter !== 'owner') throw forbidden('Only an owner may make somebody an owner');
+  return role as WorkspaceRole;
+}
+
 export function registerWorkspaceRoutes(router: Router): void {
   router.post('/api/workspaces', async (ctx) => {
-    const auth = requireAuth(ctx);
+    const auth = requireWrite(ctx);
     const body = await readJson<{ name?: string; slug?: string }>(ctx);
     if (!body.name?.trim()) throw badRequest('Workspace name is required');
     const workspace = createWorkspace(body.name, auth.userId, body.slug);
@@ -35,6 +41,7 @@ export function registerWorkspaceRoutes(router: Router): void {
 
   router.patch('/api/workspaces/:id', async (ctx) => {
     requireWorkspace(ctx, ctx.params.id, 'admin');
+    requireWrite(ctx);
     const body = await readJson<{ name?: string; logo_url?: string; features?: WorkspaceFeatures }>(ctx);
     const fields = ['name', 'logo_url'].filter((f) => body[f as 'name'] !== undefined);
     if (fields.length) {
@@ -68,23 +75,27 @@ export function registerWorkspaceRoutes(router: Router): void {
   });
 
   router.patch('/api/workspaces/:id/members/:userId', async (ctx) => {
-    requireWorkspace(ctx, ctx.params.id, 'admin');
+    const mine = requireWorkspace(ctx, ctx.params.id, 'admin');
+    requireWrite(ctx);
     const body = await readJson<{ role?: WorkspaceRole }>(ctx);
+    const role = grantable(body.role ?? 'member', mine);
     const member = get<Row>(`SELECT * FROM workspace_members WHERE workspace_id = ? AND user_id = ?`, ctx.params.id, ctx.params.userId);
     if (!member) throw notFound('Member not found');
+    if (member.role === 'owner' && mine !== 'owner') throw forbidden('Only an owner may change an owner');
     const owners = all<Row>(`SELECT id FROM workspace_members WHERE workspace_id = ? AND role = 'owner' AND deleted_at IS NULL`, ctx.params.id);
-    if (member.role === 'owner' && owners.length === 1 && body.role !== 'owner') throw conflict('A workspace needs at least one owner');
-    writeEntity('member', member.id, { role: body.role ?? 'member' }, {
+    if (member.role === 'owner' && owners.length === 1 && role !== 'owner') throw conflict('A workspace needs at least one owner');
+    writeEntity('member', member.id, { role }, {
       workspaceId: ctx.params.id, actorId: requireAuth(ctx).userId, hlc: serverClock.now(), system: true,
     });
     return { ok: true };
   });
 
   router.delete('/api/workspaces/:id/members/:userId', (ctx) => {
-    const auth = requireAuth(ctx);
-    if (auth.userId !== ctx.params.userId) requireWorkspace(ctx, ctx.params.id, 'admin');
+    const auth = requireWrite(ctx);
+    const mine = auth.userId !== ctx.params.userId ? requireWorkspace(ctx, ctx.params.id, 'admin') : null;
     const member = get<Row>(`SELECT * FROM workspace_members WHERE workspace_id = ? AND user_id = ?`, ctx.params.id, ctx.params.userId);
     if (!member) throw notFound('Member not found');
+    if (member.role === 'owner' && mine && mine !== 'owner') throw forbidden('Only an owner may remove an owner');
     const owners = all<Row>(`SELECT id FROM workspace_members WHERE workspace_id = ? AND role = 'owner' AND deleted_at IS NULL`, ctx.params.id);
     if (member.role === 'owner' && owners.length === 1) throw conflict('A workspace needs at least one owner');
     writeEntity('member', member.id, {}, {
@@ -96,16 +107,10 @@ export function registerWorkspaceRoutes(router: Router): void {
   /* ---------------------------------------------------------------- people */
 
   /**
-   * Everybody with an account here.
+   * Everybody the caller shares a workspace with — not every account on the
+   * instance, which on one open to sign-up is every stranger's address book.
    *
-   * A direct conversation is between two people rather than inside an
-   * organisation, so who you can write to is not "who shares a workspace with
-   * you" — that would mean two colleagues on the same instance had to be put in
-   * the same project before they could say hello. It is everybody on the
-   * instance, which is what a self-hosted instance *is*: a set of people who
-   * work together, with sign-up closed once they all have an account.
-   *
-   * Two limits on that, both deliberate:
+   * Two more limits, both deliberate:
    *
    * - **A guest gets nothing.** The only thing this list is for is starting a
    *   conversation, and a guest cannot write one. Handing them the instance's
@@ -128,9 +133,12 @@ export function registerWorkspaceRoutes(router: Router): void {
     return all<Row>(
       `SELECT id, name, email, avatar_url FROM users
         WHERE deleted_at IS NULL AND id <> ?1
+          AND EXISTS (SELECT 1 FROM workspace_members m
+                       WHERE m.user_id = users.id AND m.deleted_at IS NULL
+                         AND m.workspace_id IN (SELECT value FROM json_each(?4)))
           AND (?2 = '' OR lower(name) LIKE ?3 OR lower(email) LIKE ?3)
         ORDER BY name LIMIT 100`,
-      auth.userId, query, like,
+      auth.userId, query, like, JSON.stringify([...auth.memberships.keys()]),
     );
   });
 
@@ -146,9 +154,10 @@ export function registerWorkspaceRoutes(router: Router): void {
   });
 
   router.post('/api/workspaces/:id/invites', async (ctx) => {
-    const auth = requireAuth(ctx);
-    requireWorkspace(ctx, ctx.params.id, 'admin');
+    const auth = requireWrite(ctx);
+    const mine = requireWorkspace(ctx, ctx.params.id, 'admin');
     const body = await readJson<{ email?: string; role?: WorkspaceRole; expiresInDays?: number }>(ctx);
+    const role = grantable(body.role ?? 'member', mine);
     const code = shortCode(10);
     // Validated, and not only because a typo is worth catching: this address
     // is handed to a mail relay, and until now anything at all could be typed
@@ -160,7 +169,7 @@ export function registerWorkspaceRoutes(router: Router): void {
     run(
       `INSERT INTO invites (id, workspace_id, email, role, code, created_by, created_at, expires_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      uid(), ctx.params.id, email, body.role ?? 'member', code, auth.userId,
+      uid(), ctx.params.id, email, role, code, auth.userId,
       Date.now(), Date.now() + (body.expiresInDays ?? 14) * 86_400_000,
     );
 
@@ -197,7 +206,7 @@ export function registerWorkspaceRoutes(router: Router): void {
   router.post('/api/invites/:code/accept', (ctx) => {
     // Invite codes are short, so guessing them is worth somebody's time.
     enforce(ctx, byAddress(ctx, LIMITS.invite, 'invite'));
-    const auth = requireAuth(ctx);
+    const auth = requireWrite(ctx);
     const workspaceId = acceptInvite(ctx.params.code, auth.userId);
     return { workspaceId, session: sessionInfo(auth.userId) };
   });

@@ -63,7 +63,7 @@ before(async () => {
   const project = await otherDevice(`/api/workspaces/${workspaceId}/projects`, { name: 'Client', key: 'CLI' });
   projectId = project.id;
 
-  await sync.start(workspaceId);
+  await sync.start(workspaceId, userId);
 });
 
 after(() => {
@@ -180,13 +180,9 @@ describe('two devices editing one task', () => {
    * on winning for five minutes against everybody who edited afterwards. That
    * is the same disagreement that made "geändert vor 5 Minuten" appear under a
    * task saved a second ago, seen from the write path instead of the screen.
-   *
-   * Both halves are here because the first is what the second fixes: a device
-   * stamping on its own wrong clock takes the field from a later writer, and
-   * one stamping on the workspace's does not. This client is the corrected one
-   * in both — its stamp comes out of the real outbox, not out of the test.
+   * The server restamps a stamp that runs ahead of it, so the later writer wins (DAT-04).
    */
-  it('loses a field to a device whose clock is five minutes fast, if that device stamps its own', async () => {
+  it('keeps a field from a device whose clock is five minutes fast, even if that device stamps its own', async () => {
     const taskId = mutations.createTask({ project_id: projectId, title: 'Whose turn' }, userId);
     await sync.flush();
     await settle(20);
@@ -201,7 +197,7 @@ describe('two devices editing one task', () => {
     await settle(20);
 
     const onServer = await otherDevice(`/api/tasks/${taskId}`);
-    assert.equal(onServer.title, 'From the fast device', 'the wrong clock takes the field from the later writer — the bug, still reachable from outside');
+    assert.equal(onServer.title, 'From here, later', 'the wrong clock took the field from the later writer');
   });
 
   it('settles it by who wrote last, once both stamp on the workspace clock', async () => {
@@ -255,7 +251,7 @@ describe('coming back after a reload', () => {
     // whole point — would look like a module that does not exist.
     const fresh = `${'../src/kernel/sync/sync.ts'}?reload=1`;
     const reloaded = (await import(fresh)) as typeof sync;
-    await reloaded.start(workspaceId);
+    await reloaded.start(workspaceId, userId);
     await settle(30);
 
     assert.equal(store.byId('project', projectId)?.name, 'Client', 'the workspace is there with the network down');

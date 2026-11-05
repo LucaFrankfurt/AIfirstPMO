@@ -99,6 +99,13 @@ export const de: Catalogue = {
   'sync.clockBehind': 'Die Uhr dieses Geräts geht {amount} nach der des Servers. Zeitangaben zählen nach der des Servers.',
   'sync.sessionExpired': 'Sitzung abgelaufen — bitte erneut anmelden',
   'sync.failed': 'Synchronisierung fehlgeschlagen',
+  'sync.refused': 'Der Server nimmt keine Änderungen von diesem Gerät an: {reason}. Sie bleiben hier in der Warteschlange.',
+  'sync.tooLarge': 'Eine Änderung war zu groß für den Server und wurde nicht gespeichert',
+  'sync.rejected_one': '{count} Änderung nicht gespeichert',
+  'sync.rejected_other': '{count} Änderungen nicht gespeichert',
+  'sync.dismissRejected': 'Verwerfen',
+  'sync.unsentOnSignOut_one': '{count} Änderung hat den Server noch nicht erreicht und existiert nur auf diesem Gerät. Abmelden löscht sie. Trotzdem abmelden?',
+  'sync.unsentOnSignOut_other': '{count} Änderungen haben den Server noch nicht erreicht und existieren nur auf diesem Gerät. Abmelden löscht sie. Trotzdem abmelden?',
 
   /* ---------------------------------------------------------- priorities */
   'priority.urgent': 'Dringend',
@@ -1642,6 +1649,7 @@ export const de: Catalogue = {
   'share.make': 'Link erstellen',
   'share.making': 'Wird erstellt…',
   'share.minting': 'Link wird vorbereitet…',
+  'share.notYours': 'Von jemand anderem angelegt — nur diese Person kann ihn kopieren.',
   'share.link': 'Link',
   'share.revoke': 'Diesen Link abschalten',
   'share.revokeConfirm': 'Diesen Link abschalten? Wer ihn hat, kann dann nicht mehr lesen.',
@@ -1915,6 +1923,7 @@ export const de: Catalogue = {
   'project.labels': 'Labels',
   'project.newLabel': 'Neues Label',
   'project.labelRemoveHint': 'Zum Entfernen anklicken',
+  'project.deleteLabelConfirm': 'Label „{name}“ löschen? Es verschwindet von allen Aufgaben, die es tragen.',
   'project.archive': 'Projekt archivieren',
   'project.unarchive': 'Projekt aus dem Archiv holen',
   'project.delete': 'Projekt löschen',
@@ -1949,6 +1958,8 @@ export const de: Catalogue = {
   'cycle.scopeStrandConfirm_other': 'Trotzdem speichern? {count} Aufgaben bleiben in diesem Zyklus, ohne dass ihr Projekt darin ist.',
   'cycle.sharedHint': 'Jedes Projekt in diesem Arbeitsbereich nutzt diesen Zyklus. Wird er gelöscht, verschwindet er überall.',
   'cycle.sharedSomeHint': 'Die auf diesem Zyklus genannten Projekte nutzen ihn gemeinsam. Wird er gelöscht, verschwindet er bei allen.',
+  'cycle.deleteConfirm': 'Zyklus „{name}“ löschen?',
+  'cycle.deleteSharedConfirm': 'Geteilten Zyklus „{name}“ löschen? Er verschwindet aus allen Projekten, die ihn nutzen.',
   'cycle.showTasks': 'Aufgaben anzeigen',
   'cycle.open': 'Zyklus öffnen',
   'cycle.edit': 'Zyklus bearbeiten',
@@ -1992,6 +2003,8 @@ export const de: Catalogue = {
   'module.scopeStrandConfirm_other': 'Trotzdem speichern? {count} Aufgaben bleiben in diesem Modul, ohne dass ihr Projekt darin ist.',
   'module.sharedHint': 'Jedes Projekt in diesem Arbeitsbereich arbeitet an diesem Modul. Wird es gelöscht, verschwindet es überall.',
   'module.sharedSomeHint': 'Die auf diesem Modul genannten Projekte arbeiten gemeinsam daran. Wird es gelöscht, verschwindet es bei allen.',
+  'module.deleteConfirm': 'Modul „{name}“ löschen?',
+  'module.deleteSharedConfirm': 'Geteiltes Modul „{name}“ löschen? Es verschwindet aus allen Projekten, die daran arbeiten.',
   'module.danger': 'Achtung',
 
   /* --------------------------------------------------------------- pages */
@@ -3416,5 +3429,6 @@ export const de: Catalogue = {
   'misc.screenUnavailableHint': 'Sie wird separat geladen, und das Netz oder eine neue Version kam dazwischen. Ein Neuladen behebt das meistens.',
   'misc.screenFailedTitle': 'Diese Ansicht ist auf einen Fehler gestoßen',
   'misc.screenFailedHint': 'Das ist ein Fehler in Kolibri, nicht im Netz. Der Rest funktioniert weiter — eine andere Ansicht öffnen oder neu laden, um es hier noch einmal zu versuchen.',
+  'misc.appFailedHint': 'Das ist ein Fehler in Kolibri, nicht im Netz. Neu laden startet die App wieder.',
   'misc.reload': 'Neu laden',
 };

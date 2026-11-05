@@ -168,8 +168,21 @@ describe('buildTitle', () => {
   it('front-loads kind and route so a ticket list is scannable', () => {
     assert.equal(
       buildTitle(report(), { kindLabels: KIND_LABELS }),
-      '[Bug] /companies/abc?tab=visits — Der Speichern-Button reagiert nicht.',
+      '[Bug] /companies/abc — Der Speichern-Button reagiert nicht.',
     );
+  });
+
+  it('keeps tokens and e-mail addresses in the URL out of title and body unless fullUrl is set', () => {
+    const leaky = report({ client: { url: 'https://app.example/reset-password?token=s3cr3t&email=max%40example.com#access_token=abc' } });
+    const title = buildTitle(leaky);
+    const body = buildDescriptionMarkdown(leaky);
+    for (const secret of ['s3cr3t', 'max%40example.com', 'access_token']) {
+      assert.ok(!title.includes(secret) && !body.includes(secret), secret);
+    }
+    assert.ok(title.startsWith('[Bug] /reset-password — '));
+    assert.ok(body.includes('| URL | https://app.example/reset-password |'));
+    assert.ok(buildTitle(leaky, { fullUrl: true }).includes('?token=s3cr3t'));
+    assert.ok(buildDescriptionMarkdown(leaky, { fullUrl: true }).includes('#access_token=abc'));
   });
 
   it("uses the app's label for each of its kinds", () => {
@@ -209,8 +222,10 @@ describe('buildTitle', () => {
 });
 
 describe('routeOf', () => {
-  it('keeps path and query — they are the filter/id state a bug needs to reproduce', () => {
-    assert.equal(routeOf('https://setaside.de/companies?status=LEAD&page=2'), '/companies?status=LEAD&page=2');
+  it('keeps the path only, unless asked for the query too', () => {
+    assert.equal(routeOf('https://setaside.de/companies?status=LEAD&page=2#top'), '/companies');
+    assert.equal(routeOf('/reset?token=x#y'), '/reset');
+    assert.equal(routeOf('https://setaside.de/companies?status=LEAD&page=2', true), '/companies?status=LEAD&page=2');
   });
 
   it('drops the origin, so the route reads the same from any environment', () => {

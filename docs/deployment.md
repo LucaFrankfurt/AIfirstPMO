@@ -10,7 +10,7 @@ That is the deployment. Everything below is detail.
 
 | Service | Published on | Purpose |
 |---|---|---|
-| `kolibri` | `:4000` | the app |
+| `kolibri` | `127.0.0.1:4000` — `KOLIBRI_BIND` to widen | the app |
 | `minio` | `127.0.0.1:9000`, console `127.0.0.1:9001` | uploads; the bucket is created by the app on boot |
 | `caddy` | `:80`, `:443` — profile `tls` | automatic HTTPS for `KOLIBRI_DOMAIN` |
 | `mailpit` | `127.0.0.1:8025` — dev overlay only | a capture inbox for trying email out |
@@ -83,7 +83,7 @@ file, and the screen the right place for the relay somebody needs on a Sunday.
 |---|---|---|
 | `PORT` | `4000` | Listen port inside the container |
 | `KOLIBRI_SECRET` | generated | Signs sessions and API tokens. Generated once and stored in the data volume if unset. **Changing it signs everyone out.** |
-| `KOLIBRI_PUBLIC_URL` | empty | Absolute base URL. Invite links, email links, and **every address in the OAuth metadata**. Set it — see below |
+| `KOLIBRI_PUBLIC_URL` | empty (also in both compose files) | Absolute base URL. Invite links, email links, and **every address in the OAuth metadata**. Set it — see below |
 | `KOLIBRI_ALLOW_SIGNUP` | `true` | Set to `false` once the team has accounts; invites still work |
 | `KOLIBRI_MAX_UPLOAD_MB` | `25` | Per-file upload ceiling |
 | `KOLIBRI_SESSION_DAYS` | `60` | Browser session lifetime |
@@ -131,6 +131,10 @@ it is wrong:
 Without it, the scheme is inferred: `x-forwarded-proto` from the proxy if it sends one, then the
 socket, and failing both a bare hostname is assumed to be TLS while a host with a port is assumed to
 be somebody's laptop. That inference is right in the common cases and it is still an inference.
+
+A value is believed over any inference, so an `http://` one behind a proxy that forwards `https`
+gets all three wrong. The server logs a warning on the first request where the two disagree, and
+another if a proxy forwards `https` while the variable is empty.
 
 One command says whether it is right on your instance:
 
@@ -462,11 +466,10 @@ failure mid-run is fixed by running it again.
 | No `ANTHROPIC_API_KEY` and friends | The task-review button does not appear, so nothing typed into a public instance can leave it for a model |
 | `KOLIBRI_MAX_UPLOAD_MB=5` | A public upload box is a public upload box |
 | `KOLIBRI_SESSION_DAYS=1` | Everyone is the same person; a sixty-day cookie on a shared account is a sixty-day shared cookie |
+| `KOLIBRI_DEMO=true` | The seed does not make the shared account the instance's administrator. Otherwise anybody could set the relay, a backup address that receives every night's database, a model key or the Telegram bot in Settings → Server — which wins over the environment — or restore a snapshot over the demo |
 
-**One flag that does nothing yet.** There is a `KOLIBRI_DEMO` in `packages/server/src/kernel/platform/env.ts`,
-described in `scripts/compose-env.mjs` as "read-only mode for the public demo instance". Nothing
-reads it — it is declared and unused. The demo's protection is the reset and the switches above,
-not a read-only mode, and this file will say otherwise on the day that changes.
+`KOLIBRI_DEMO` does that one thing and nothing else: it is not a read-only mode. The demo's
+protection is the reset and the switches above.
 
 ## TLS
 
@@ -488,8 +491,11 @@ location / {
 }
 ```
 
-Set `KOLIBRI_PUBLIC_URL=https://…` so invite links point at the right host, and remove the port
-mapping from the app service so only the proxy is exposed.
+Set `KOLIBRI_PUBLIC_URL=https://…` so invite links point at the right host. `docker-compose.yml`
+publishes the app on `127.0.0.1:4000` only, so a proxy on the same host reaches it and nothing else
+does; keep it that way. Compose cannot tie the binding to the `tls` profile, so it is loopback for
+every profile, and `KOLIBRI_BIND=0.0.0.0` is the one way to publish the app directly — together with
+`KOLIBRI_TRUST_PROXY=false`. The lite stack has no proxy and publishes on every address.
 
 ## Backups
 
@@ -683,8 +689,9 @@ Two guarantees make it safe enough to be a button:
 
 Afterwards **everybody is signed out**, including whoever pressed the button — `sessions` is one of
 the tables that was replaced. That is the mechanism rather than a side effect: a client that meets a
-401 clears its local copy and downloads again, which is precisely what a device holding a sync
-cursor newer than the restored data has to be made to do. Sign in with the password from the
+401 downloads its copy again from the beginning once somebody signs in, which is precisely what a
+device holding a sync cursor newer than the restored data has to be made to do. Changes it had not
+sent yet are kept, and pushed once the same person signs in again. Sign in with the password from the
 restored instance; passwords are self-contained, while sessions and API tokens only survive if this
 instance has the same `KOLIBRI_SECRET` as the one the snapshot came from.
 
@@ -895,6 +902,7 @@ a public share link would then have published, under their name.
 - [ ] `KOLIBRI_ALLOW_SIGNUP=false` after your team has signed up
 - [ ] `KOLIBRI_ALLOW_PRIVATE_WEBHOOKS` left unset unless webhooks genuinely need to reach your own network
 - [ ] `KOLIBRI_TRUST_PROXY=false` if nothing terminates TLS in front of the container
+- [ ] `KOLIBRI_BIND` left at `127.0.0.1` when a proxy is in front, so the app cannot be reached around it
 - [ ] `KOLIBRI_SECRET` set explicitly and stored in your secret manager
 - [ ] TLS terminated in front, `KOLIBRI_PUBLIC_URL` set to the https URL
 - [ ] Volume backed up on a schedule, restore tested once

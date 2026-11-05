@@ -18,10 +18,11 @@
  * reason and with the same failure classification.
  */
 import { createHmac } from 'node:crypto';
-import type { WebhookEvent } from '@kolibri/shared';
+import type { AttachmentSubject, WebhookEvent } from '@kolibri/shared';
 import { all, get, run, type Row } from '../../kernel/platform/db/index.ts';
 import { env } from '../../kernel/platform/env.ts';
 import { uid } from '../../kernel/platform/ids.ts';
+import { canSeeBudget, canSeeProject, canSeeSubject, canSeeTask } from '../../kernel/write-path/repo.ts';
 import { BlockedAddress, send } from './outbound.ts';
 
 // The list itself is in `@kolibri/shared`: the screen that offers the
@@ -68,6 +69,8 @@ export function dispatch(workspaceId: string, event: WebhookEvent, payload: Reco
   for (const hook of hooks) {
     // A hook scoped to a project only hears about that project.
     if (hook.project_id && hook.project_id !== projectId) continue;
+    // A hook hears what the administrator who made it may read; one from before `created_by` is left as it was.
+    if (hook.created_by && !mayHear(String(hook.created_by), event, payload)) continue;
     const now = Date.now();
     const id = uid();
     run(
@@ -79,7 +82,22 @@ export function dispatch(workspaceId: string, event: WebhookEvent, payload: Reco
   }
   // Each one goes now and goes on its own: two receivers are two conversations,
   // and one of them being slow is not a reason the other waits five seconds.
-  for (const id of queued) void sendOne(id);
+  for (const id of queued) sendInBackground(id);
+}
+
+/** The row an event's `id` names, by the event's prefix. `budget.spent` names an actual, so it is not here. */
+const SUBJECT: Record<string, AttachmentSubject> = {
+  task: 'task', page: 'page', comment: 'comment', project: 'project', cycle: 'cycle', module: 'module',
+  budget: 'budget',
+};
+
+/** Whether this person may read what an event is about. */
+function mayHear(userId: string, event: WebhookEvent, payload: Record<string, unknown>): boolean {
+  const kind = event === 'budget.spent' ? undefined : SUBJECT[event.split('.')[0]];
+  return (!kind || canSeeSubject(userId, kind, String(payload.id)))
+    && (!payload.project_id || canSeeProject(userId, String(payload.project_id)))
+    && (!payload.task_id || canSeeTask(userId, String(payload.task_id)))
+    && (!payload.budget_id || canSeeBudget(userId, String(payload.budget_id)));
 }
 
 /**
@@ -158,6 +176,11 @@ async function sendOne(id: string, now = Date.now()): Promise<boolean> {
   const row = claim(id, now);
   return row ? attempt(row, now) : false;
 }
+
+// Not awaited by anyone, so a rejection (a locked database) is logged here rather than ending the process.
+const sendInBackground = (id: string, now?: number): void => {
+  sendOne(id, now).catch((error) => console.error('[webhooks] delivery', id, 'failed:', error));
+};
 
 /**
  * One worker pass: everything that is due, at the same time.
@@ -261,7 +284,7 @@ function giveUpOrRetry(
   // Prompt where it matters and durable where it counts: the timer covers the
   // next few minutes, and the scheduler's sweep covers a restart in the middle
   // of them. `unref` so a pending retry never holds the process open.
-  if (!giveUp) setTimeout(() => { void sendOne(String(row.id)); }, backoff(attempts)).unref();
+  if (!giveUp) setTimeout(() => sendInBackground(String(row.id)), backoff(attempts)).unref();
   return false;
 }
 
@@ -356,7 +379,7 @@ export function replayDelivery(id: string): Row | undefined {
     `UPDATE webhook_deliveries SET sent_at = NULL, failed_at = NULL, send_after = ?, attempts = 0 WHERE id = ?`,
     now - 1, id,
   );
-  void sendOne(id, now);
+  sendInBackground(id, now);
   return get<Row>(`SELECT * FROM webhook_deliveries WHERE id = ?`, id);
 }
 

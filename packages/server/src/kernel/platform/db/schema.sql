@@ -1822,6 +1822,14 @@ CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5 (
   body,
   tokenize = 'unicode61 remove_diacritics 2'
 );
+-- Which index row holds which subject: `kind` and `ref_id` are UNINDEXED, so a
+-- delete by them scanned every workspace's entries on every write.
+CREATE TABLE IF NOT EXISTS search_refs (
+  kind   TEXT NOT NULL,
+  ref_id TEXT NOT NULL,
+  doc    INTEGER NOT NULL,
+  PRIMARY KEY (kind, ref_id)
+);
 
 -- Content-addressed blob store. Uploading the same image twice costs one row.
 -- One blob, one row per workspace that holds it.

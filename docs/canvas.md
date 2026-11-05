@@ -228,7 +228,10 @@ the server gone, draws.
 So a board is self-contained by necessity: no CDN scripts and no web fonts. System fonts and inline
 SVG work, and so do **pictures uploaded to this server**: the board's source names them by their
 `/files/<hash>/<name>` path, and the app — which has the session, and the service worker's copy —
-fetches each one and hands the frame its bytes as a `data:` URL (`board-files.ts`). The source keeps
+fetches each one and hands the frame its bytes as a `data:` URL (`board-files.ts`) — only pictures
+hung on the board's own page, as in a share, because a frame can navigate away with what it was
+handed. A picture hung on another page draws broken, and so does one in a board copied from a
+template, whose pictures stay on the template. The source keeps
 the path, so it stays small enough to merge as text, the trash still sees the hash, and a board read
 over MCP names the file. Text typed beside a picture comes back out of the frame with the `data:` URL
 in it, and is turned back into the path before it is saved. In the editor, **Image** uploads and

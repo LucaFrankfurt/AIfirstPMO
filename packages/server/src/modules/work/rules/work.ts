@@ -8,13 +8,13 @@
 
 import {
   COMMENT_RESOLUTIONS, ENTITIES, ENTITY_NAMES, LINK_COLUMNS, type EntityName, attachmentSubject, escapeHtml, findAnchor,
-  isAttachmentSubject, isDoneGroup, passageOf, type ProjectVocabulary, relocate, soleLink,
+  isAttachmentSubject, isDoneGroup, passageOf, PRIORITIES, type ProjectVocabulary, relocate, soleLink, TASK_TITLE_MAX,
 } from '@kolibri/shared';
 import { all, get, type Row, run } from '../../../kernel/platform/db/index.ts';
 import { badRequest, forbidden } from '../../../kernel/platform/http.ts';
 import {
-  canSeePage, canSeeSubject, canSeeTask, type EntityRule, isWorkspaceAdmin, parseIds, settleAuthored, wouldLoop,
-  writeEntity, type WriteOpts,
+  canSeePage, canSeeProject, canSeeSubject, canSeeTask, type EntityRule, isWorkspaceAdmin, parseIds, settleAuthored,
+  wouldLoop, writeEntity, type WriteOpts,
 } from '../../../kernel/write-path/repo.ts';
 
 const asId = (value: unknown): string | null => (typeof value === 'string' && value ? value : null);
@@ -54,6 +54,51 @@ function guardTransition(stateId: string, opts: WriteOpts): void {
 
   throw forbidden(`Only ${allowed.join(' or ')} may move work into “${state.name}”`);
 }
+
+/** A task is filed only into a project its writer can see, on create and on a move, whichever door it came through. */
+function guardProjectTarget(values: Record<string, unknown>, existing: Row | undefined, opts: WriteOpts): void {
+  if (values.project_id === undefined || values.project_id === existing?.project_id) return;
+  const project = get<Row>(`SELECT workspace_id FROM projects WHERE id = ?`, String(values.project_id));
+  if (!project) throw badRequest('task.project_id must reference an existing project');
+  // Another workspace's project is `guardReferences`' refusal to make.
+  if (project.workspace_id === opts.workspaceId && !canSeeProject(opts.actorId, String(values.project_id))) {
+    throw forbidden('That project is private');
+  }
+}
+
+/** `YYYY-MM-DD`, and a day the calendar has: every date comparison in the app is a string comparison. */
+function isDay(value: unknown): boolean {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const time = Date.parse(`${value}T00:00:00Z`);
+  return !Number.isNaN(time) && new Date(time).toISOString().startsWith(value);
+}
+
+const TASK_IDS = ['state_id', 'parent_id', 'cycle_id', 'module_id'] as const;
+
+/** The columns boards, sums and sorts read, refused rather than stored when nothing can read them. */
+function guardTaskFields(values: Record<string, unknown>): void {
+  const refuse = (field: string, what: string): never => { throw badRequest(`task.${field} must be ${what}`); };
+  const given = (field: string): boolean => values[field] !== undefined && values[field] !== null;
+  if (values.title !== undefined && (typeof values.title !== 'string' || values.title.length > TASK_TITLE_MAX)) {
+    refuse('title', `text of at most ${TASK_TITLE_MAX} characters`);
+  }
+  if (values.priority !== undefined && !(PRIORITIES as readonly unknown[]).includes(values.priority)) {
+    refuse('priority', `one of ${PRIORITIES.join(', ')}`);
+  }
+  if (given('estimate') && !(typeof values.estimate === 'number' && Number.isFinite(values.estimate))) {
+    refuse('estimate', 'a number or null');
+  }
+  for (const field of ['start_date', 'due_date']) if (given(field) && !isDay(values[field])) refuse(field, 'a YYYY-MM-DD date or null');
+  // A boolean has been stored as 1 or 0 by the time a rule sees it.
+  if (values.archived !== undefined && values.archived !== 0 && values.archived !== 1) refuse('archived', 'true or false');
+  // So has an object, as its JSON text: no id starts with a brace or a bracket.
+  for (const field of TASK_IDS) {
+    if (given(field) && (typeof values[field] !== 'string' || !values[field] || /^[[{]/.test(String(values[field])))) {
+      refuse(field, 'an id or null');
+    }
+  }
+}
+
 function applyTaskInvariants(values: Record<string, unknown>, existing: Row | undefined, forced: Record<string, unknown>): void {
   const stateId = (values.state_id ?? existing?.state_id) as string | undefined;
   if (values.state_id !== undefined && stateId) {
@@ -176,6 +221,29 @@ function cascadeProject(project: Row, restoring: boolean, opts: WriteOpts): void
     ? all<Row>(`SELECT id FROM projects WHERE parent_id = ? AND deleted_at >= ?`, project.id, Number(project.deleted_at ?? 0))
     : all<Row>(`SELECT id FROM projects WHERE parent_id = ? AND deleted_at IS NULL`, project.id);
   for (const child of children) write('project', String(child.id));
+}
+
+const TASK_PARTS: [EntityName, string][] = [['comment', 'task_id'], ['attachment', 'task_id'], ['fieldValue', 'task_id']];
+
+/** `cascadeProject` for a task: otherwise purging it leaves its parts live and unpurgeable. */
+function cascadeTask(task: Row, restoring: boolean, opts: WriteOpts): void {
+  const write = (entity: EntityName, id: unknown) =>
+    writeEntity(entity, String(id), {}, { ...opts, system: true, silent: true, ...(restoring ? {} : { op: 'delete' as const }) });
+  const since = Number(task.deleted_at ?? 0);
+  const pick = (table: string, where: string, ...params: unknown[]): Row[] => restoring
+    ? all<Row>(`SELECT id FROM ${table} r WHERE (${where}) AND r.deleted_at >= ?`, ...params, since)
+    : all<Row>(`SELECT id FROM ${table} r WHERE (${where}) AND r.deleted_at IS NULL`, ...params);
+
+  for (const [entity, column] of TASK_PARTS) {
+    for (const row of pick(ENTITIES[entity].table, `r.${column} = ?`, task.id)) write(entity, row.id);
+  }
+  // A relation only comes back once both of its ends are live again.
+  const ends = restoring
+    ? ` AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id IN (r.task_id, r.related_task_id) AND t.deleted_at IS NOT NULL)`
+    : '';
+  for (const row of pick('task_relations', `(r.task_id = ? OR r.related_task_id = ?)${ends}`, task.id, task.id)) write('relation', row.id);
+  // Each sub-task's own effect carries on below it.
+  for (const row of pick('tasks', 'r.parent_id = ?', task.id)) write('task', row.id);
 }
 
 /**
@@ -536,7 +604,11 @@ export const workRules = {
       if (!project) throw badRequest('task.project_id must reference an existing project');
       if (project.workspace_id !== opts.workspaceId) throw badRequest('project belongs to another workspace');
       if (values.number === undefined || values.identifier === undefined) {
-        const number = Number(project.next_number ?? 1);
+        let number = Number(project.next_number ?? 1);
+        // A key can be reused after a rename or a delete, and the old tasks keep their identifiers.
+        while (get<Row>(
+          `SELECT 1 AS found FROM tasks WHERE workspace_id = ? AND identifier = ?`, project.workspace_id, `${project.key}-${number}`,
+        )) number++;
         run(`UPDATE projects SET next_number = ? WHERE id = ?`, number + 1, project.id);
         setForced('number', number);
         setForced('identifier', `${project.key}-${number}`);
@@ -559,6 +631,10 @@ export const workRules = {
     }
   },
   guards(entity, id, values, existing, opts) {
+    if (entity === 'task') {
+      guardTaskFields(values);
+      guardProjectTarget(values, existing, opts);
+    }
     if (entity === 'task' && values.state_id !== undefined) guardTransition(String(values.state_id), opts);
     if (entity === 'comment') guardCommentWrite(values, existing, opts);
     if (entity === 'attachment') guardAttachmentWrite(values, existing, opts);
@@ -690,6 +766,10 @@ export const workRules = {
     // state, for the same reason the project cascade below reads `before`.
     if (entity === 'task' && before && !row.deleted_at && row.project_id !== before.project_id) {
       followParent(row, opts);
+    }
+    if (entity === 'task' && before) {
+      if (row.deleted_at && !before.deleted_at) cascadeTask(row, false, opts);
+      else if (!row.deleted_at && before.deleted_at) cascadeTask(before, true, opts);
     }
     // The transition, not the state: an edit to an already-deleted project
     // must not cascade a second time, and `before` is the only thing that

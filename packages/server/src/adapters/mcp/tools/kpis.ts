@@ -5,6 +5,7 @@ import { coversProject, dueOn, formatMeasure, type KpiTarget, MEASURE_CADENCES, 
 import { all, type Row } from '../../../kernel/platform/db/index.ts';
 import { serialize, writeEntity } from '../../../kernel/write-path/repo.ts';
 import { uid } from '../../../kernel/platform/ids.ts';
+import { todayFor } from '../../../kernel/i18n/i18n.ts';
 import { asKpi, findKpi, findProject, isoDay, kpiContext, kpiReport, McpError, requireFeature, requireWrite, resolveScope, scopeOf, str, type ToolDef, visibleKpis, workspaceOf, writeOpts } from '../kit.ts';
 
 export const kpiTools: ToolDef[] = [
@@ -31,7 +32,7 @@ export const kpiTools: ToolDef[] = [
     run: (args, ctx) => {
       const workspaceId = workspaceOf(args, ctx);
       requireFeature(workspaceId, 'kpi');
-      const asOf = isoDay(args.as_of, 'as_of') ?? undefined;
+      const asOf = isoDay(args.as_of, 'as_of') ?? todayFor(ctx.auth.userId);
 
       let rows = visibleKpis(workspaceId, ctx).filter((row) => !Number(row.archived));
       if (args.project) {
@@ -78,7 +79,7 @@ export const kpiTools: ToolDef[] = [
       const workspaceId = workspaceOf(args, ctx);
       requireFeature(workspaceId, 'kpi');
       const row = findKpi(String(args.kpi), workspaceId, ctx);
-      const asOf = isoDay(args.as_of, 'as_of') ?? undefined;
+      const asOf = isoDay(args.as_of, 'as_of') ?? todayFor(ctx.auth.userId);
       const report = kpiReport(row, workspaceId, asOf);
       const limit = Math.max(1, Math.min(500, Math.round(Number(args.limit) || 20)));
 
@@ -203,13 +204,13 @@ export const kpiTools: ToolDef[] = [
       const { row } = writeEntity('kpiReading', uid(), {
         workspace_id: workspaceId,
         kpi_id: kpiRow.id,
-        measured_on: isoDay(args.measured_on, 'measured_on') ?? new Date().toISOString().slice(0, 10),
+        measured_on: isoDay(args.measured_on, 'measured_on') ?? todayFor(ctx.auth.userId),
         value,
         source: str(args.source) ?? null,
         note: str(args.note) ?? null,
       }, writeOpts(workspaceId, ctx));
 
-      const after = kpiReport(kpiRow, workspaceId);
+      const after = kpiReport(kpiRow, workspaceId, todayFor(ctx.auth.userId));
       return {
         id: row.id,
         kpi: kpiRow.name,

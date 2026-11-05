@@ -153,7 +153,9 @@ async function open(theme) {
 /** The seeded ids, read from the app's own store rather than guessed. */
 async function ids(page) {
   return page.evaluate(async () => {
-    const request = indexedDB.open('kolibri');
+    // The workspace mirror, not the device database (WEB-02).
+    const mirror = (await indexedDB.databases()).map((d) => d.name).find((n) => n?.startsWith('kolibri:'));
+    const request = indexedDB.open(mirror ?? 'kolibri');
     const db = await new Promise((ok, no) => {
       request.onsuccess = () => ok(request.result);
       request.onerror = () => no(request.error);

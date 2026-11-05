@@ -21,6 +21,7 @@ import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
+import { Clock } from '@kolibri/shared';
 
 const { server } = await import('../src/index.ts');
 const { resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
@@ -178,6 +179,33 @@ describe('a private one', () => {
     // it is in" and fall through to the whole workspace.
     const row = await api('ada', `/api/secrets/${mine}`, { method: 'PATCH', body: { access: 'project' } });
     assert.equal(row.access, 'private');
+  });
+});
+
+describe('a colleague pushing from a device', () => {
+  // PATCH refused these, and the same change through a sync push was accepted.
+  const clock = new Clock('vault-test');
+  const push = (entityId: string, patch: Record<string, unknown>) => api('lin', '/api/sync/push', {
+    body: {
+      workspaceId, clientId: 'lin-device',
+      mutations: [{ id: crypto.randomUUID(), entity: 'secret', entityId, op: 'upsert', patch, hlc: clock.now() }],
+    },
+  });
+
+  it('cannot open a private secret by changing who it is for', async () => {
+    const pushed = await push(mine, { access: 'workspace' });
+    assert.equal(pushed.rejected.length, 1, 'a push made somebody else’s private secret readable');
+    assert.equal(get<any>(`SELECT access FROM secrets WHERE id = ?`, mine).access, 'private');
+    await assert.rejects(() => api('lin', `/api/secrets/${mine}/reveal`, { body: {} }));
+  });
+
+  it('cannot move a shared secret it did not write, or claim to have written it', async () => {
+    const lin = get<any>(`SELECT id FROM users WHERE email = 'lin@vault.test'`).id;
+    assert.equal((await push(shared, { created_by: lin })).rejected.length, 1);
+    assert.equal((await push(shared, { access: 'private' })).rejected.length, 1);
+    assert.equal(get<any>(`SELECT access, created_by FROM secrets WHERE id = ?`, shared).access, 'workspace');
+    // Its label is still a colleague's to edit.
+    assert.equal((await push(shared, { description: 'the live one' })).rejected.length, 0);
   });
 });
 

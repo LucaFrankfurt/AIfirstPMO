@@ -8,6 +8,7 @@
  */
 import { makeAnchor, orderKey, orderKeys } from '@kolibri/shared';
 import { all, get, run, type Row } from '../../kernel/platform/db/index.ts';
+import { env } from '../../kernel/platform/env.ts';
 import { hashPassword } from '../../kernel/identity/auth.ts';
 import { addMember, createProject, createWorkspace, serverClock } from '../../kernel/write-path/bootstrap.ts';
 import { uid } from '../../kernel/platform/ids.ts';
@@ -71,7 +72,8 @@ export function seedDemoData(): boolean {
 
   const ids = PEOPLE.map(([email, name]) => user(email, name));
   const [ada, grace, alan, margaret] = ids;
-  run(`UPDATE users SET is_admin = 1 WHERE id = ?`, ada);
+  // On the public demo the shared account must not reach mail, backups, models or a restore.
+  if (!env.demo) run(`UPDATE users SET is_admin = 1 WHERE id = ?`, ada);
 
   const workspace = createWorkspace('Kolibri', ada, 'kolibri');
   const ws = workspace.id;

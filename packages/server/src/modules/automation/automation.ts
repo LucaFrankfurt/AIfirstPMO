@@ -22,12 +22,13 @@
  *      the ones to skip, is written to `automation_runs` with a reason.
  */
 import {
-  type EntityName, type FanOut, type Recipient, type RelationKind, type StateGroup,
+  addDays, type EntityName, type FanOut, type Recipient, type RelationKind, type StateGroup,
 } from '@kolibri/shared';
 import { all, get, run, type Row } from '../../kernel/platform/db/index.ts';
 import { env } from '../../kernel/platform/env.ts';
 import { serverClock } from '../../kernel/write-path/bootstrap.ts';
 import { uid } from '../../kernel/platform/ids.ts';
+import { todayFor } from '../../kernel/i18n/i18n.ts';
 import { canSeeProject, onWrite, writeEntity, type WriteOpts } from '../../kernel/write-path/repo.ts';
 
 /** Why a run produced nothing. Empty string means it produced a task. */
@@ -120,9 +121,6 @@ export function templateVars(task: Row, project: Row | undefined, actor: Row | u
 export const fillTemplate = (text: string, vars: Record<string, string>): string =>
   String(text ?? '').replace(/\{(\w+)\}/g, (match, name: string) => (name in vars ? vars[name] : match));
 
-const isoInDays = (days: number): string =>
-  new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
-
 export interface InstantiateOptions {
   workspaceId: string;
   actorId: string;
@@ -158,7 +156,7 @@ export function instantiateTemplate(template: Row, options: InstantiateOptions):
     labels: parseJson<string[]>(template.labels, []),
     assignees: options.assignees ?? parseJson<string[]>(template.assignees, []),
     estimate: template.estimate ?? null,
-    due_date: dueDays == null ? null : isoInDays(dueDays),
+    due_date: dueDays == null ? null : addDays(todayFor(options.actorId), dueDays),
     parent_id: options.parentId ?? null,
   }, opts());
 
@@ -331,7 +329,7 @@ function runOneRule(rule: Row, row: Row, actorId: string, event: TriggerEvent): 
     // that moves it back, and two rules editing one row is a merge problem
     // rather than a feature flag.
     if (rule.action_kind === 'set_fields') {
-      const patch = actionPatch(parseJson<Record<string, unknown>>(rule.action_patch, {}), row);
+      const patch = actionPatch(parseJson<Record<string, unknown>>(rule.action_patch, {}), row, opts.actorId);
       if (!Object.keys(patch).length) {
         record(rule, row, opts.actorId, null, 'no-fields');
         return;
@@ -409,7 +407,7 @@ const SETTABLE = new Set(['priority', 'assignees', 'labels', 'due_date', 'estima
  * depends on when the rule ran, which is a calculation rather than a value.
  * Both are resolved here, against the row as it stands.
  */
-function actionPatch(stored: Record<string, unknown>, row: Row): Record<string, unknown> {
+function actionPatch(stored: Record<string, unknown>, row: Row, actorId: string): Record<string, unknown> {
   const out = settableFields(stored);
 
   const add = Array.isArray(stored.add_labels) ? stored.add_labels.map(String).filter(Boolean) : [];
@@ -421,8 +419,7 @@ function actionPatch(stored: Record<string, unknown>, row: Row): Record<string, 
   }
 
   if (typeof stored.due_in_days === 'number' && Number.isFinite(stored.due_in_days)) {
-    const when = new Date(Date.now() + stored.due_in_days * 86_400_000);
-    out.due_date = when.toISOString().slice(0, 10);
+    out.due_date = addDays(todayFor(actorId), stored.due_in_days);
   }
 
   return out;

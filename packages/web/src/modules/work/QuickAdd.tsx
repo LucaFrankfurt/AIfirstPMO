@@ -12,6 +12,7 @@ import { Button } from '../../kernel/design-system/ui/button';
 import { Input } from '../../kernel/design-system/ui/field';
 import { Avatar, Icon, MenuButton, PriorityBars, Sheet, StateDot, useToast, type MenuItem } from '../../kernel/design-system/ui';
 import { Chip } from '../../kernel/design-system/ui/chip';
+import { today } from '../../kernel/design-system/format';
 
 const LAST_PROJECT_KEY = 'kolibri.last-project';
 
@@ -71,7 +72,7 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
    */
   const parsed = useMemo(() => {
     const vocabulary = {
-      today: new Date().toISOString().slice(0, 10),
+      today: today(),
       meId: me,
       people: members.map((member) => ({ id: member.id, name: member.name })),
       projects: projects.map((row) => ({ id: row.id, key: row.key, name: row.name })),

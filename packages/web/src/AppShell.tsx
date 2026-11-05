@@ -192,7 +192,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      const typing = ['INPUT', 'TEXTAREA'].includes((event.target as HTMLElement)?.tagName);
+      // The HTML page editor is a contentEditable, and a select takes letters too.
+      const typing = event.target instanceof Element
+        && event.target.closest('input, textarea, select, [contenteditable], [role="textbox"]') !== null;
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
         setPalette(true);

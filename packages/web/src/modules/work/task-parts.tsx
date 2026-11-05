@@ -581,7 +581,19 @@ export function TaskCard({
           </span>
         ) : null}
       </div>
-      <div className="title">{task.title}</div>
+      {/* The keyboard's way in; a click reaches the card. Not a <button>: Firefox starts no drag from one. */}
+      <div
+        className="title"
+        role="button"
+        tabIndex={0}
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          event.preventDefault();
+          onOpen(task);
+        }}
+      >
+        {task.title}
+      </div>
       <div className="footer">
         <LabelChips ids={task.labels ?? []} projectId={task.project_id} />
         {showCycle && (

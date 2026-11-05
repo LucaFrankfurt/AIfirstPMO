@@ -9,6 +9,7 @@
 
 import { type EntityName, MEASURE_CADENCES, MEASURE_DIRECTIONS, MEASURE_UNITS } from '@kolibri/shared';
 import { all, get, type Row } from '../../../kernel/platform/db/index.ts';
+import { todayFor } from '../../../kernel/i18n/i18n.ts';
 import { type EntityRule, settleProjectScope, writeEntity, type WriteOpts } from '../../../kernel/write-path/repo.ts';
 
 /** The three tables a KPI is made of. */
@@ -27,6 +28,7 @@ function applyKpiInvariants(
   entity: EntityName,
   values: Record<string, unknown>,
   forced: Record<string, unknown>,
+  actorId?: string,
 ): void {
   const settle = (field: string, value: unknown) => { values[field] = value; forced[field] = value; };
   const oneOf = (field: string, allowed: readonly string[], fallback: string) => {
@@ -52,7 +54,7 @@ function applyKpiInvariants(
   const day = (field: string) => {
     if (values[field] === undefined) return;
     const given = String(values[field] ?? '');
-    if (given && !/^\d{4}-\d{2}-\d{2}$/.test(given)) settle(field, new Date().toISOString().slice(0, 10));
+    if (given && !/^\d{4}-\d{2}-\d{2}$/.test(given)) settle(field, todayFor(actorId));
   };
 
   if (entity === 'kpi') {
@@ -80,7 +82,7 @@ function applyKpiInvariants(
     // placed on the line, and the state that says "we do not know when" is a
     // reading nobody entered.
     if (values.measured_on !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(String(values.measured_on ?? ''))) {
-      settle('measured_on', new Date().toISOString().slice(0, 10));
+      settle('measured_on', todayFor(actorId));
     }
   }
 }
@@ -141,11 +143,11 @@ export const kpiRules = {
       if (!values.name) setForced('name', 'Untitled KPI');
     }
     if (entity === 'kpiReading' && !values.measured_on) {
-      setForced('measured_on', new Date().toISOString().slice(0, 10));
+      setForced('measured_on', todayFor(opts.actorId));
     }
   },
-  invariants(entity, id, values, existing, forced) {
-    applyKpiInvariants(entity, values, forced);
+  invariants(entity, id, values, existing, forced, opts) {
+    applyKpiInvariants(entity, values, forced, opts.actorId);
     if (entity === 'kpiTarget' || entity === 'kpiReading') followKpiWorkspace(values, existing);
   },
   effects(entity, row, before, changed, opts) {

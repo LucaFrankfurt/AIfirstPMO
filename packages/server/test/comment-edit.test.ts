@@ -23,6 +23,7 @@ import type { AddressInfo } from 'node:net';
 const { server } = await import('../src/index.ts');
 const { get } = await import('../src/kernel/platform/db/index.ts');
 const { resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
+const { Clock } = await import('@kolibri/shared');
 
 let base = '';
 
@@ -172,7 +173,7 @@ describe('a comment its author rewrites', () => {
           entity: 'comment',
           entityId: made.id,
           op: 'upsert',
-          hlc: `${Date.now()}:0:test-client`,
+          hlc: new Clock('test-client').now(),
           patch: { anchor: { quote: 'something else', before: '', after: '' } },
         }],
       },

@@ -2,11 +2,12 @@
  * Cycles, milestones, templates and logged time.
  */
 import { coversProject, orderKey, parseDuration, PROJECT_STATUS } from '@kolibri/shared';
-import { all, get, type Row } from '../../../kernel/platform/db/index.ts';
+import { all, get, limitOf, type Row } from '../../../kernel/platform/db/index.ts';
 import { env } from '../../../kernel/platform/env.ts';
 import { instantiateTemplate } from '../../../modules/automation/automation.ts';
 import { canSeeProject, deleteEntity, visibleProjectIds, writeEntity } from '../../../kernel/write-path/repo.ts';
 import { uid } from '../../../kernel/platform/ids.ts';
+import { todayFor } from '../../../kernel/i18n/i18n.ts';
 import { CYCLE_STATUS, cycleView, findCycle, findMember, findModule, findProject, findTask, holes, isoDay, McpError, moduleView, requireFeature, requireWrite, resolveScope, str, type ToolDef, workspaceOf, writeOpts } from '../kit.ts';
 
 export const planningTools: ToolDef[] = [
@@ -470,7 +471,7 @@ export const planningTools: ToolDef[] = [
       const minutes = parseDuration(String(args.amount));
       // An unparseable duration must not become a silent zero-minute entry.
       if (minutes === null || minutes <= 0) throw new McpError(`Cannot read "${args.amount}" as a duration`);
-      const spentOn = args.spent_on ? String(args.spent_on) : new Date().toISOString().slice(0, 10);
+      const spentOn = args.spent_on ? String(args.spent_on) : todayFor(ctx.auth.userId);
       if (!/^\d{4}-\d{2}-\d{2}$/.test(spentOn)) throw new McpError('spent_on must be YYYY-MM-DD');
 
       const { row } = writeEntity('timeEntry', uid(), {
@@ -532,7 +533,7 @@ export const planningTools: ToolDef[] = [
           WHERE ${where.join(' AND ')}
           ORDER BY t.spent_on DESC, t.created_at DESC
           LIMIT ?`,
-        ...params, Math.min(Number(args.limit ?? 100) || 100, 500),
+        ...params, limitOf(args.limit, 100, 500),
       );
       return {
         entries: rows.map((row) => ({ ...row, running: !!row.started_at })),

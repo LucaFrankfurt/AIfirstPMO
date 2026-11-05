@@ -26,7 +26,7 @@ import {
 
 import { Header } from '../../../kernel/design-system/chrome';
 import { api } from '../../../kernel/sync/api';
-import { remove, update } from '../../../kernel/sync/mutations';
+import { remove } from '../../../kernel/sync/mutations';
 import { pull } from '../../../kernel/sync/sync';
 import { byId, list, useQuery } from '../../../kernel/sync/store';
 import { relativeTime } from '../../../kernel/design-system/format';
@@ -37,6 +37,7 @@ import { Input, Select, Textarea } from '../../../kernel/design-system/ui/field'
 import { Empty, Icon, MenuButton, Sheet, useConfirm, useToast } from '../../../kernel/design-system/ui';
 import { EnvironmentsSheet } from '../environments';
 import { useMinute } from '../../../kernel/design-system/minute';
+import { useSaveChanges } from '../../../kernel/design-system/row-form';
 
 /** One word per kind, and one glyph, so a list of twenty is scannable. */
 const KIND_KEY: Record<SecretKind, TranslationKey> = {
@@ -143,6 +144,7 @@ function SecretSheet({ secret, onClose }: { secret: Secret | null; onClose: () =
   const t = useT();
   const toast = useToast();
   const { workspaceId } = useSession();
+  const saveChanges = useSaveChanges('secret', secret);
   const projects = useQuery(() => list('project', (project) => !project.archived), []);
   /* Only the ones this device has: an environment a member may not open is not
      mirrored to them at all, so the picker cannot offer a floor they would be
@@ -183,7 +185,7 @@ function SecretSheet({ secret, onClose }: { secret: Secret | null; onClose: () =
       if (secret) {
         // Editing the label is an ordinary optimistic write: it syncs and
         // merges like anything else, and works with no network.
-        update('secret', secret.id, patch);
+        saveChanges(patch);
         if (value) await api.secretValue(secret.id, value);
       } else {
         // Creating is not, and cannot be: the value has to be sealed with a key

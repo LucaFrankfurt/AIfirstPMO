@@ -14,10 +14,10 @@
  */
 import { COLLECTIONS, isPin, type EntityName } from '@kolibri/shared';
 import { all, get, run, tx, type Row } from '../../kernel/platform/db/index.ts';
-import { badRequest, notFound } from '../../kernel/platform/http.ts';
+import { badRequest, forbidden, notFound } from '../../kernel/platform/http.ts';
 import { uid } from '../../kernel/platform/ids.ts';
 import { createProject, serverClock } from '../../kernel/write-path/bootstrap.ts';
-import { writeEntity } from '../../kernel/write-path/repo.ts';
+import { canSeeProject, writeEntity } from '../../kernel/write-path/repo.ts';
 import { activeKind as activeStorageKind } from '../../kernel/files/storage.ts';
 
 export const FORMAT = 'kolibri.project/1';
@@ -427,6 +427,7 @@ export function importProject(workspaceId: string, actorId: string, doc: Project
       ? get<Row>(`SELECT * FROM projects WHERE id = ? AND workspace_id = ? AND deleted_at IS NULL`, options.intoProjectId, workspaceId)
       : null;
     if (options.intoProjectId && !target) throw notFound('Project not found');
+    if (target && !canSeeProject(actorId, String(target.id))) throw forbidden('That project is private');
     const merging = !!target;
 
     const project = target ?? createProject(workspaceId, actorId, {
@@ -602,7 +603,8 @@ export function importProject(workspaceId: string, actorId: string, doc: Project
         page_id: page,
         parent_id: to(row.parent_id),
         anchor: repin(row.anchor, to),
-        author_id: who(row.author_id) ?? actorId,
+        // Said by whoever imported it: a file cannot make somebody here say anything.
+        author_id: actorId,
         // Who reacted is a set of ids from another instance; the emoji survive,
         // the attribution does not.
         reactions: {},
@@ -648,10 +650,8 @@ export function importProject(workspaceId: string, actorId: string, doc: Project
       write('message', row, {
         channel_id: channel,
         reply_to: to(row.reply_to),
-        // An author this instance does not know becomes the importer, the same
-        // rule comments already follow — and who reacted does not survive,
-        // because those ids mean nothing here.
-        author_id: who(row.author_id) ?? actorId,
+        // The importer, as for comments; who reacted does not survive either.
+        author_id: actorId,
         reactions: {},
       });
     }
@@ -717,8 +717,8 @@ export function importProject(workspaceId: string, actorId: string, doc: Project
 }
 
 /**
- * Give this workspace a row for every blob the document refers to, and report
- * the ones nowhere on this instance.
+ * Give this workspace a row for every blob the document refers to that it
+ * already has or that arrived with the import, and report the rest.
  *
  * Storage is content-addressed, so "importing" a file that is already here is
  * a row, not a copy: the same picture in two workspaces is one blob and two
@@ -737,12 +737,10 @@ export function adoptFiles(
   for (const hash of wanted) {
     if (get(`SELECT hash FROM files WHERE hash = ? AND workspace_id = ?`, hash, workspaceId)) continue;
     const said = described.get(hash);
-    // Three cases, in the order they are cheapest to answer: this instance
-    // already holds the bytes for somebody else, an archive has just unpacked
-    // them, or nobody has them and the link is dead.
-    const elsewhere = get<Row>(`SELECT * FROM files WHERE hash = ? LIMIT 1`, hash);
+    // Only bytes this request delivered: naming another workspace's hash must not hand its blob over.
     const arrived = restored?.has(hash) ?? false;
-    if (!elsewhere && !arrived) { missing.push(hash); continue; }
+    if (!arrived) { missing.push(hash); continue; }
+    const elsewhere = get<Row>(`SELECT * FROM files WHERE hash = ? LIMIT 1`, hash);
     run(
       `INSERT INTO files (hash, workspace_id, name, mime, size, width, height, storage, created_by, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,

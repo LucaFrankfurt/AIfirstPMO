@@ -291,6 +291,61 @@ describe('the files an export refers to', () => {
     assert.equal(mine.length, 0, 'no paperclip pointing at a 404');
   });
 
+  it('cannot borrow another workspace’s file by naming its hash', async () => {
+    // A loose upload — an avatar, a picture in chat — has no attachment row to refuse it.
+    const upload = await fetch(`${base}/api/workspaces/${workspaceId}/files`, {
+      method: 'POST',
+      headers: { 'content-type': 'image/webp', 'x-filename': 'avatar.webp', cookie },
+      body: Buffer.from('RIFF....WEBPsomebody else’s avatar'),
+    });
+    const hash = ((await upload.json()) as any).hash;
+
+    resetRateLimits();
+    const stranger = await call('/api/auth/register', { email: 'mallory@example.com', name: 'Mallory', password: 'correct horse battery' });
+    const as = (stranger.headers.get('set-cookie') ?? '').split(';')[0];
+    const theirs = ((await stranger.json()) as any).workspaces[0].id;
+    resetRateLimits();
+    assert.equal((await call(`/files/${hash}/avatar.webp`, undefined, 'GET', as)).status, 403);
+
+    const doc = await ok(`/api/workspaces/${workspaceId}/projects/${alpha}/export`);
+    doc.files = [];
+    doc.attachments = [];
+    doc.tasks[0].description = `![](/files/${hash}/avatar.webp)`;
+    const report = await ok(`/api/workspaces/${theirs}/import/json`, { document: doc, name: 'Borrowed' }, undefined, as);
+    assert.deepEqual(report.missingFiles, [hash.slice(0, 12)]);
+    assert.equal(
+      (await call(`/files/${hash}/avatar.webp`, undefined, 'GET', as)).status, 403,
+      'an import adopted bytes it never delivered',
+    );
+  });
+
+  it('refuses an archive that unpacks to more than it declares, or more than an import may hold', async () => {
+    // Rewrites what the central directory claims an entry unpacks to.
+    const claim = (archive: Buffer, name: string, size: number): Buffer => {
+      const out = Buffer.from(archive);
+      for (let at = out.length - 46; at >= 0; at--) {
+        if (out.readUInt32LE(at) !== 0x02014b50) continue;
+        if (out.toString('utf8', at + 46, at + 46 + out.readUInt16LE(at + 28)) !== name) continue;
+        out.writeUInt32LE(size, at + 24);
+        return out;
+      }
+      throw new Error(`${name} is not in the directory`);
+    };
+    const doc = await ok(`/api/workspaces/${workspaceId}/projects/${alpha}/export`);
+    const blob = `files/${'b'.repeat(64)}.png`;
+    // Eight megabytes of zeros deflate to a few kilobytes.
+    const bomb = await zip([
+      { name: 'kolibri.json', body: Buffer.from(JSON.stringify(doc)) },
+      { name: blob, body: Buffer.alloc(8 * 1024 * 1024) },
+    ]);
+    assert.ok(bomb.length < 64 * 1024);
+    const send = (archive: Buffer) => fetch(`${base}/api/import/archive?workspace=${workspaceId}&name=Bomb`, {
+      method: 'POST', headers: { 'content-type': 'application/zip', cookie }, body: archive,
+    });
+    assert.equal((await send(claim(bomb, blob, 1024))).status, 400, 'an entry inflated past its declared size');
+    assert.equal((await send(claim(bomb, blob, 0xffffffff))).status, 413, 'an archive declaring 4 GB was unpacked');
+  });
+
   it('refuses bytes filed under somebody else’s hash', async () => {
     const doc = await ok(`/api/workspaces/${workspaceId}/projects/${alpha}/export`);
     const lie = 'a'.repeat(64);

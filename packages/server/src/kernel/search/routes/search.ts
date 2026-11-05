@@ -1,4 +1,5 @@
 import { requireAuth, requireWorkspace } from '../../identity/auth.ts';
+import { limitOf } from '../../platform/db/index.ts';
 import { searchWorkspace } from '../search.ts';
 import type { Ctx, Router } from '../../platform/http.ts';
 
@@ -8,7 +9,7 @@ export function registerSearchRoutes(router: Router): void {
     requireWorkspace(ctx, ctx.params.ws);
     const query = ctx.query.get('q') ?? '';
     const kinds = ctx.query.get('kind')?.split(',').filter(Boolean);
-    const limit = Math.min(Number(ctx.query.get('limit') ?? 30) || 30, 100);
+    const limit = limitOf(ctx.query.get('limit'), 30, 100);
     return { query, results: searchWorkspace(ctx.params.ws, auth.userId, query, limit, kinds) };
   });
 }

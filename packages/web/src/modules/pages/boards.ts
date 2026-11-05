@@ -61,12 +61,12 @@ export async function boardsFile(page: Page, boards: Artboard[], untitled: strin
   const live = boards.filter((board) => !board.deleted_at);
   if (page.format === 'board') {
     const board = live.find((one) => one.kind === 'html');
-    return board ? withFit(await inlineFiles(board.content ?? '')) : '';
+    return board ? withFit(await inlineFiles(board.content ?? '', page.id)) : '';
   }
   const ordered = [...live].sort((a, b) => a.y - b.y || a.x - b.x);
   const parts = await Promise.all(ordered.map(async (board) => {
     if (board.kind === 'note') return `<aside class="note">${escapeHtml(board.content ?? '')}</aside>`;
-    const source = withFit(await inlineFiles(board.content ?? ''));
+    const source = withFit(await inlineFiles(board.content ?? '', page.id));
     // `srcdoc` and the sandbox: each board keeps its own document and scripts,
     // and none of them can reach the others or the file around them.
     return `<figure><figcaption>${escapeHtml(board.title || untitled)}</figcaption>`

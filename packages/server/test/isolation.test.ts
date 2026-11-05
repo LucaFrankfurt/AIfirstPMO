@@ -177,6 +177,34 @@ describe('a stranger holding an id', () => {
     assert.match(String(body.message ?? ''), /another workspace/);
   });
 
+  /** A create that names an existing id is an edit, and a stranger's edit by any door is refused. */
+  it('cannot rename, upsert or delete it by naming its id in a create or a sync push', async () => {
+    const created = await call(`/api/workspaces/${mallory.workspace}/tasks`, {
+      cookie: mallory.cookie, body: { id: taskId, title: 'Owned via create' },
+    });
+    assert.equal(created.status, 404, `create-with-id answered ${created.status}`);
+    assert.ok(!JSON.stringify(created.body).includes('Next quarter salaries'), 'the refusal carried the row');
+
+    const { Clock } = await import('@kolibri/shared');
+    const clock = new Clock('mallory-device');
+    const { body: pushed } = await call('/api/sync/push', {
+      cookie: mallory.cookie,
+      body: {
+        workspaceId: mallory.workspace, clientId: 'mallory-device',
+        mutations: [
+          { id: crypto.randomUUID(), entity: 'task', entityId: taskId, op: 'upsert', patch: { title: 'Owned via sync' }, hlc: clock.now() },
+          { id: crypto.randomUUID(), entity: 'task', entityId: taskId, op: 'delete', patch: {}, hlc: clock.now() },
+        ],
+      },
+    });
+    assert.deepEqual(pushed.accepted, [], 'a push from another workspace reached the task');
+    assert.equal(pushed.rejected.length, 2);
+
+    const after = await call(`/api/tasks/${taskId}`, { cookie: ada.cookie });
+    assert.equal(after.body.title, 'Next quarter salaries', 'the title survived');
+    assert.equal(after.body.deleted_at, null, 'the task survived');
+  });
+
   /** And the owner is still fine — a guard that refuses everybody is not a fix. */
   it('while the owner reads it perfectly well', async () => {
     const { body } = await mcp(ada, 'get_task', { task: taskId });
@@ -243,6 +271,39 @@ describe('a colleague who is not the author', () => {
       cookie: colleague.cookie, body: { restore: versions[0].id },
     });
     assert.equal(status, 403, 'a write path is a read path with consequences');
+  });
+
+  /** A share token opens the page with its maker's eyes, so a colleague's device must never hold it. */
+  it('is not sent a link to the private page, nor the token of any link it did not make', async () => {
+    const make = async (pageId: string) => (await call(`/api/workspaces/${ada.workspace}/shares`, {
+      cookie: ada.cookie, body: { kind: 'page', page_id: pageId },
+    })).body;
+    const { body: handbook } = await call(`/api/workspaces/${ada.workspace}/pages`, {
+      cookie: ada.cookie, body: { title: 'Handbook', content: 'everybody may read this' },
+    });
+    const hidden = await make(secret);
+    const open = await make(handbook.id);
+    assert.ok(hidden.token && open.token, 'the maker is handed the token');
+
+    const { body: pulled } = await call(`/api/sync/pull?workspace=${ada.workspace}&since=0`, { cookie: colleague.cookie });
+    const shares: any[] = pulled.changes.share ?? [];
+    assert.ok(!shares.some((share) => share.id === hidden.id), 'a link to a private page reached a colleague');
+    assert.equal(shares.find((share) => share.id === open.id)?.token, null, 'a readable page’s link arrives without its token');
+
+    const { body: listed } = await call(`/api/workspaces/${ada.workspace}/shares`, { cookie: colleague.cookie });
+    const { status: byId } = await call(`/api/shares/${hidden.id}`, { cookie: colleague.cookie });
+    assert.equal(byId, 403);
+    const { body: one } = await call(`/api/shares/${open.id}`, { cookie: colleague.cookie });
+    const { body: patched } = await call(`/api/shares/${open.id}`, {
+      cookie: colleague.cookie, method: 'PATCH', body: { expires_at: Date.now() + 86_400_000 },
+    });
+    for (const [door, body] of [['pull', pulled], ['list', listed], ['get', one], ['patch', patched]] as const) {
+      const text = JSON.stringify(body);
+      assert.ok(!text.includes(hidden.token) && !text.includes(open.token), `${door} handed a colleague a share token`);
+    }
+
+    const { body: own } = await call(`/api/sync/pull?workspace=${ada.workspace}&since=0`, { cookie: ada.cookie });
+    assert.equal(own.changes.share.find((share: any) => share.id === hidden.id)?.token, hidden.token, 'the maker still syncs it');
   });
 });
 
@@ -406,6 +467,49 @@ describe('a colleague outside a private project', () => {
     }
   });
 
+  it('cannot change the private task by naming its id in a create or a sync push', async () => {
+    const created = await call(`/api/workspaces/${ada.workspace}/tasks`, {
+      cookie: outsider.cookie, body: { id: privateTask, title: 'Renamed by an outsider' },
+    });
+    assert.equal(created.status, 403, `create-with-id answered ${created.status}, where PATCH refuses`);
+
+    const { Clock } = await import('@kolibri/shared');
+    const clock = new Clock('outsider-device');
+    const { body: pushed } = await call('/api/sync/push', {
+      cookie: outsider.cookie,
+      body: {
+        workspaceId: ada.workspace, clientId: 'outsider-device',
+        mutations: [
+          { id: crypto.randomUUID(), entity: 'task', entityId: privateTask, op: 'upsert', patch: { title: 'Renamed via sync' }, hlc: clock.now() },
+          { id: crypto.randomUUID(), entity: 'task', entityId: privateTask, op: 'delete', patch: {}, hlc: clock.now() },
+        ],
+      },
+    });
+    assert.deepEqual(pushed.accepted, [], 'a push reached a task its device may not pull');
+
+    const { body: task } = await call(`/api/tasks/${privateTask}`, { cookie: ada.cookie });
+    assert.equal(task.title, 'Next quarter salaries');
+    assert.equal(task.deleted_at, null);
+  });
+
+  it('lets somebody on the project upsert by id, as the feedback package does', async () => {
+    const { status, body } = await call(`/api/workspaces/${ada.workspace}/tasks`, {
+      cookie: insider.cookie, body: { id: privateTask, project_id: privateProject, title: 'Next quarter salaries' },
+    });
+    assert.equal(status, 200, 'a guard that refuses everybody is not a fix');
+    assert.equal(body.id, privateTask);
+
+    const { Clock } = await import('@kolibri/shared');
+    const { body: pushed } = await call('/api/sync/push', {
+      cookie: insider.cookie,
+      body: {
+        workspaceId: ada.workspace, clientId: 'insider-device',
+        mutations: [{ id: crypto.randomUUID(), entity: 'task', entityId: privateTask, op: 'upsert', patch: { priority: 'high' }, hlc: new Clock('insider-device').now() }],
+      },
+    });
+    assert.equal(pushed.accepted.length, 1, `the sync door refused a project member: ${JSON.stringify(pushed.rejected)}`);
+  });
+
   it('still works for somebody who is on the project', async () => {
     const { status: readable } = await call(`/api/attachments/${attachment}`, { cookie: insider.cookie });
     assert.equal(readable, 200, 'a project member lost access — the fix refuses too much');
@@ -456,5 +560,119 @@ describe('a colleague outside a private project', () => {
 
     const bytes = await fetch(`${base}/files/${hash}/borrowed.webp`, { headers: { cookie: outsider.cookie } });
     assert.equal(bytes.status, 403, 'a hand-written attachment row bought access to somebody else’s file');
+  });
+
+  it('cannot import into the private project, or post in a colleague’s name', async () => {
+    const { body: task } = await call(`/api/tasks/${privateTask}`, { cookie: ada.cookie });
+    const doc = {
+      format: 'kolibri.project/1', project: { name: 'Imported', key: 'IMP' },
+      people: [{ id: 'p-ada', email: 'ada@example.com', name: 'Ada' }],
+      tasks: [{ id: 't1', identifier: task.identifier, title: 'Overwritten by an import' }],
+      comments: [{ id: 'c1', task_id: 't1', author_id: 'p-ada', body: 'Ada never said this' }],
+    };
+    const merged = await call(`/api/workspaces/${ada.workspace}/import/json`, {
+      cookie: outsider.cookie, body: { document: doc, project_id: privateProject },
+    });
+    assert.equal(merged.status, 403, 'an import merged into a project its importer cannot open');
+    assert.equal((await call(`/api/tasks/${privateTask}`, { cookie: ada.cookie })).body.title, 'Next quarter salaries');
+
+    const fresh = await call(`/api/workspaces/${ada.workspace}/import/json`, { cookie: outsider.cookie, body: { document: doc } });
+    assert.equal(fresh.status, 200, 'a guard that refuses every import is not a fix');
+    const me = (await call('/api/session', { cookie: outsider.cookie })).body.user.id;
+    const { body: comments } = await call(`/api/workspaces/${ada.workspace}/comments`, { cookie: ada.cookie });
+    const forged = comments.find((row: any) => row.body === 'Ada never said this');
+    assert.equal(forged?.author_id, me, 'an imported comment was filed under a colleague matched by email');
+  });
+
+  it('cannot file a task into the private project, by create, PATCH, bulk or sync', async () => {
+    const { body: own } = await call(`/api/workspaces/${ada.workspace}/tasks`, {
+      cookie: outsider.cookie, body: { project_id: projectId, title: 'Mine to move' },
+    });
+    const into = { project_id: privateProject };
+    const created = await call(`/api/workspaces/${ada.workspace}/tasks`, { cookie: outsider.cookie, body: { ...into, title: 'Planted' } });
+    assert.equal(created.status, 403, 'a task was created in a project its writer cannot see');
+    assert.equal((await call(`/api/tasks/${own.id}`, { cookie: outsider.cookie, method: 'PATCH', body: into })).status, 403);
+    const bulk = await call(`/api/workspaces/${ada.workspace}/tasks/bulk`, {
+      cookie: outsider.cookie, body: { ids: [own.id, publicTask], patch: into },
+    });
+    assert.equal(bulk.status, 403, 'bulk moved tasks into a private project');
+
+    const { Clock } = await import('@kolibri/shared');
+    const { body: pushed } = await call('/api/sync/push', {
+      cookie: outsider.cookie,
+      body: {
+        workspaceId: ada.workspace, clientId: 'outsider-device',
+        mutations: [{ id: crypto.randomUUID(), entity: 'task', entityId: own.id, op: 'upsert', patch: into, hlc: new Clock('outsider-device').now() }],
+      },
+    });
+    assert.deepEqual(pushed.accepted, [], 'a push moved a task into a private project');
+
+    for (const id of [own.id, publicTask]) {
+      assert.equal((await call(`/api/tasks/${id}`, { cookie: ada.cookie })).body.project_id, projectId, 'a task left its project');
+    }
+    const { body: moved } = await call(`/api/workspaces/${ada.workspace}/tasks/bulk`, {
+      cookie: insider.cookie, body: { ids: [own.id], patch: into },
+    });
+    assert.equal(moved.tasks?.[0]?.project_id, privateProject, 'somebody on the project lost the move');
+  });
+});
+
+describe('the address book', () => {
+  it('finds the people a caller works with, and nobody else on the instance', async () => {
+    const { body: mine } = await call('/api/people?q=outsider', { cookie: ada.cookie });
+    assert.deepEqual(mine.map((row: any) => row.email), ['outsider@example.com'], 'a colleague went missing');
+
+    const { body: theirs } = await call('/api/people?q=example.com', { cookie: mallory.cookie });
+    assert.deepEqual(theirs, [], 'a stranger read the names and addresses of another workspace');
+  });
+});
+
+describe('an administrator and the owner role', () => {
+  let admin: Person;
+  let adminId = '';
+  let adaId = '';
+
+  before(async () => {
+    const { body: invite } = await call(`/api/workspaces/${ada.workspace}/invites`, {
+      cookie: ada.cookie, body: { role: 'admin' },
+    });
+    admin = await register('admin@example.com');
+    await call(`/api/invites/${invite.code}/accept`, { cookie: admin.cookie, body: {} });
+    adminId = (await call('/api/session', { cookie: admin.cookie })).body.user.id;
+    adaId = (await call('/api/session', { cookie: ada.cookie })).body.user.id;
+  });
+
+  it('cannot make anybody an owner, change one or remove one', async () => {
+    const members = `/api/workspaces/${ada.workspace}/members`;
+    const invited = await call(`/api/workspaces/${ada.workspace}/invites`, { cookie: admin.cookie, body: { role: 'owner' } });
+    assert.equal(invited.status, 403, 'an admin invited an owner');
+    const promoted = await call(`${members}/${adminId}`, { cookie: admin.cookie, method: 'PATCH', body: { role: 'owner' } });
+    assert.equal(promoted.status, 403, 'an admin made themselves owner');
+    const demoted = await call(`${members}/${adaId}`, { cookie: admin.cookie, method: 'PATCH', body: { role: 'member' } });
+    assert.equal(demoted.status, 403, 'an admin demoted the owner');
+    const removed = await call(`${members}/${adaId}`, { cookie: admin.cookie, method: 'DELETE' });
+    assert.equal(removed.status, 403, 'an admin removed the owner');
+
+    const { body: after } = await call(members, { cookie: ada.cookie });
+    assert.equal(after.find((row: any) => row.user_id === adaId)?.role, 'owner');
+    assert.equal(after.find((row: any) => row.user_id === adminId)?.role, 'admin');
+  });
+
+  it('refuses a role that does not exist', async () => {
+    const invited = await call(`/api/workspaces/${ada.workspace}/invites`, { cookie: ada.cookie, body: { role: 'superuser' } });
+    assert.equal(invited.status, 400);
+    const patched = await call(`/api/workspaces/${ada.workspace}/members/${adminId}`, {
+      cookie: ada.cookie, method: 'PATCH', body: { role: 'root' },
+    });
+    assert.equal(patched.status, 400);
+  });
+
+  it('still lets the owner hand the role on', async () => {
+    const invited = await call(`/api/workspaces/${ada.workspace}/invites`, { cookie: ada.cookie, body: { role: 'owner' } });
+    assert.equal(invited.status, 200, 'a guard that refuses everybody is not a fix');
+    const promoted = await call(`/api/workspaces/${ada.workspace}/members/${adminId}`, {
+      cookie: ada.cookie, method: 'PATCH', body: { role: 'owner' },
+    });
+    assert.equal(promoted.status, 200);
   });
 });

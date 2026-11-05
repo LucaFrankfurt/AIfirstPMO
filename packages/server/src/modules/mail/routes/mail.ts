@@ -16,7 +16,7 @@
  */
 import { parseMailQuery, type MailFilter } from '@kolibri/shared';
 import { get, type Row } from '../../../kernel/platform/db/index.ts';
-import { requireAuth, requireWorkspace } from '../../../kernel/identity/auth.ts';
+import { requireAuth, requireWorkspace, requireWrite } from '../../../kernel/identity/auth.ts';
 import { badRequest, forbidden, notFound, readJson, type Ctx, type Router } from '../../../kernel/platform/http.ts';
 import { env } from '../../../kernel/platform/env.ts';
 import { contentDisposition } from '../../../kernel/files/mime.ts';
@@ -347,7 +347,7 @@ function scope(ctx: Ctx): { auth: ReturnType<typeof requireAuth>; workspaceId: s
  * point it somewhere they can read.
  */
 function admin(ctx: Ctx): { auth: ReturnType<typeof requireAuth>; mailbox: Row } {
-  const auth = requireAuth(ctx);
+  const auth = requireWrite(ctx);
   const role = requireWorkspace(ctx, ctx.params.ws, 'admin');
   if (role !== 'owner' && role !== 'admin') throw forbidden('Only a workspace owner or admin may change a mailbox');
   const mailbox = findMailbox(ctx.params.id, auth.userId, ctx.params.ws);

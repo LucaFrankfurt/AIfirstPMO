@@ -380,3 +380,45 @@ describe('every column you act from', () => {
     assert.deepEqual(folded, [], `action cell(s) marked \`narrow\`, so the buttons vanish below 700px: ${folded.join(', ')}`);
   });
 });
+
+// A label leaves every task it is on, a shared cycle or module every project: one click must not do that.
+describe('deleting a label, a cycle or a module', () => {
+  const calls = files.flatMap(({ path, text }) => text.split('\n').flatMap((line, i) =>
+    /\bremove\('(label|cycle|module)'/.test(line) ? [{ where: `${path.slice(SRC.length + 1)}:${i + 1}`, line }] : []));
+
+  it('is found at all — a scanner that matches nothing passes everything', () => {
+    assert.ok(calls.length >= 3, `only found ${calls.length} deletes, which means the scan is broken`);
+  });
+
+  it('asks first', () => {
+    const blind = calls.filter((call) => !/await confirm\(/.test(call.line)).map((call) => call.where);
+    assert.deepEqual(blind, [], `deleted without a confirmation: ${blind.join(', ')}`);
+  });
+});
+
+// A clickable row/card must also open from the keyboard (UX-02).
+describe('every row or card that opens on a click', () => {
+  const opens = files.flatMap(({ path, text }) =>
+    [...text.matchAll(/<(tr|article|li)\b/g)].flatMap((match) => {
+      const tag = text.slice(match.index!, endOfTag(text, match.index!));
+      if (!/\bonClick=/.test(tag)) return [];
+      const close = text.indexOf(`</${match[1]}>`, match.index!);
+      return [{
+        where: `${path.slice(SRC.length + 1)}:${text.slice(0, match.index).split('\n').length}`,
+        tag,
+        body: close < 0 ? '' : text.slice(match.index! + tag.length, close),
+      }];
+    }));
+
+  it('is found at all — a scanner that matches nothing passes everything', () => {
+    assert.ok(opens.length >= 5, `only found ${opens.length} clickable rows and cards, which means the scan is broken`);
+  });
+
+  it('has a way in from the keyboard', () => {
+    const itself = (tag: string) => /\brole="button"/.test(tag) && /\btabIndex=/.test(tag) && /\bonKeyDown=/.test(tag);
+    const inside = (body: string) => /<(button|a|Link)\b/.test(body)
+      || [...body.matchAll(/<\w+\b/g)].some((m) => itself(body.slice(m.index!, endOfTag(body, m.index!))));
+    const mouseOnly = opens.filter((row) => !itself(row.tag) && !inside(row.body)).map((row) => row.where);
+    assert.deepEqual(mouseOnly, [], `opens on a click and never from the keyboard: ${mouseOnly.join(', ')}`);
+  });
+});

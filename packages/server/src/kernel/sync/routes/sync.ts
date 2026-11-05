@@ -12,10 +12,11 @@ import {
   type PushRequest,
   type PushResponse,
 } from '@kolibri/shared';
-import { all, currentSeq, get, run, tx, type Row } from '../../platform/db/index.ts';
+import { all, constraintFailure, currentSeq, get, run, tx, type Row } from '../../platform/db/index.ts';
 import { hasRole, requireAuth, requireWorkspace } from '../../identity/auth.ts';
-import { badRequest, forbidden, readJson, type Ctx, type Router } from '../../platform/http.ts';
-import { serialize, visiblePageSql, visibleProjectsSql, visibleTaskSql, writeEntity } from '../../write-path/repo.ts';
+import { badRequest, forbidden, HttpError, notFound, readJson, type Ctx, type Router } from '../../platform/http.ts';
+import { canSeeProject, serializeFor, visiblePageSql, visibleProjectsSql, visibleTaskSql, writeEntity } from '../../write-path/repo.ts';
+import { serverClock } from '../../write-path/bootstrap.ts';
 import { subscribe } from '../../platform/bus.ts';
 import { snapshot, subscribePresence, touch, visiblePeople } from '../../../modules/chat/presence.ts';
 import { openEnvironmentSql } from '../../../modules/secrets/rules/environments.ts';
@@ -24,6 +25,9 @@ import { openEnvironmentSql } from '../../../modules/secrets/rules/environments.
 const SYNCED: EntityName[] = ENTITY_NAMES.filter((name) => name !== 'activity');
 
 const PAGE_SIZE = 2000;
+
+/** How far ahead of the server a device's stamp may run before it is restamped on arrival. */
+const STAMP_LEEWAY = 60_000;
 
 /** Projects the caller is allowed to see, as a subquery to keep pulls in SQL. */
 /**
@@ -299,10 +303,13 @@ function filterFor(entity: EntityName, table: string = ENTITIES[entity].table): 
      */
     case 'move':
       return `AND (${table}.project_id IS NULL OR ${table}.project_id IN (${VISIBLE_PROJECTS}))`;
+    // A link to a page reaches only those who may read the page; its token is `serializeFor`'s business.
+    case 'share':
+      return `AND (${table}.project_id IS NULL OR ${table}.project_id IN (${VISIBLE_PROJECTS}))
+              AND (${table}.page_id IS NULL OR ${visiblePageSql(`${table}.page_id`, '?1', '?2')})`;
     case 'label':
     case 'view':
     case 'webhook':
-    case 'share':
     case 'timeEntry':
       // Time is not private: a lead has to be able to add up the project. It is
       // scoped to the project like everything else, and an entry with no
@@ -470,7 +477,7 @@ function fetchChanges(scope: Scope, since: number, upto: number): { changes: Cha
 
   const changes: ChangeSet = {};
   for (const [entity, rows] of raw) {
-    const included = rows.filter((row) => Number(row.seq) <= cursor).map((row) => serialize(entity, row)!);
+    const included = rows.filter((row) => Number(row.seq) <= cursor).map((row) => serializeFor(entity, row, scope.userId)!);
     if (included.length) (changes as Record<string, unknown[]>)[entity] = included;
   }
   // The server is the only side that knows it truncated: it asked for one row
@@ -510,7 +517,7 @@ export function registerSyncRoutes(router: Router): void {
     if (body.mutations.length > 500) throw badRequest('Too many mutations in one push (max 500)');
 
     const accepted: string[] = [];
-    const rejected: { id: string; reason: string }[] = [];
+    const rejected: PushResponse['rejected'] = [];
     const patched: ChangeSet = {};
 
     for (const mutation of body.mutations) {
@@ -525,7 +532,8 @@ export function registerSyncRoutes(router: Router): void {
           list.push(result);
         }
       } catch (err) {
-        rejected.push({ id: mutation.id, reason: err instanceof Error ? err.message : 'failed' });
+        const status = err instanceof HttpError ? err.status : constraintFailure(err) ? 400 : 500;
+        rejected.push({ id: mutation.id, reason: err instanceof Error ? err.message : 'failed', status });
       }
     }
 
@@ -631,10 +639,25 @@ export function applyMutation(mutation: Mutation, workspaceId: string, actorId: 
       if (!row || row.user_id !== actorId) throw forbidden('Not your notification');
     }
 
-    const { row, forced } = writeEntity(mutation.entity as EntityName, mutation.entityId, mutation.patch ?? {}, {
+    // A device may change only a row it may pull, and what PATCH's project guard allows.
+    const entity = mutation.entity as EntityName;
+    const table = def.table;
+    const existing = get<Row>(`SELECT * FROM ${table} WHERE id = ?`, mutation.entityId);
+    if (existing && (
+      !get(`SELECT 1 FROM ${table} WHERE ${table}.id = ?3 ${workspaceClause(entity, table)} ${filterFor(entity)}`,
+        workspaceId, actorId, mutation.entityId)
+      || (existing.project_id && !canSeeProject(actorId, String(existing.project_id)))
+    )) {
+      throw notFound(`${mutation.entity} not found`);
+    }
+
+    const hlc = serverClock.admit(mutation.hlc, STAMP_LEEWAY);
+    if (!hlc) throw badRequest('Malformed hlc');
+
+    const { row, forced } = writeEntity(entity, mutation.entityId, mutation.patch ?? {}, {
       workspaceId,
       actorId,
-      hlc: mutation.hlc,
+      hlc,
       op: mutation.op === 'delete' ? 'delete' : 'upsert',
       origin: clientId,
     });

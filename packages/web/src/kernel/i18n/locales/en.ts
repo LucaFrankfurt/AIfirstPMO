@@ -100,6 +100,13 @@ export const en = {
   'sync.clockBehind': 'This device’s clock is {amount} behind the server’s. Times are counted on the server’s.',
   'sync.sessionExpired': 'Session expired — please sign in again',
   'sync.failed': 'Sync failed',
+  'sync.refused': 'The server refuses changes from this device: {reason}. They stay queued here.',
+  'sync.tooLarge': 'A change was too large for the server and was not saved',
+  'sync.rejected_one': '{count} change not saved',
+  'sync.rejected_other': '{count} changes not saved',
+  'sync.dismissRejected': 'Dismiss',
+  'sync.unsentOnSignOut_one': '{count} change has not reached the server yet and exists only on this device. Signing out deletes it. Sign out anyway?',
+  'sync.unsentOnSignOut_other': '{count} changes have not reached the server yet and exist only on this device. Signing out deletes them. Sign out anyway?',
 
   /* ---------------------------------------------------------- priorities */
   'priority.urgent': 'Urgent',
@@ -1648,6 +1655,7 @@ export const en = {
   'share.make': 'Create a link',
   'share.making': 'Creating…',
   'share.minting': 'Preparing the link…',
+  'share.notYours': 'Made by somebody else — only they can copy it.',
   'share.link': 'Link',
   'share.revoke': 'Turn this link off',
   'share.revokeConfirm': 'Turn this link off? Anybody holding it stops being able to read.',
@@ -1921,6 +1929,7 @@ export const en = {
   'project.labels': 'Labels',
   'project.newLabel': 'New label',
   'project.labelRemoveHint': 'Click to remove',
+  'project.deleteLabelConfirm': 'Delete the label “{name}”? It disappears from every task that carries it.',
   'project.archive': 'Archive project',
   'project.unarchive': 'Unarchive project',
   'project.delete': 'Delete project',
@@ -1955,6 +1964,8 @@ export const en = {
   'cycle.scopeStrandConfirm_other': 'Save anyway? {count} tasks stay in this cycle without their project in it.',
   'cycle.sharedHint': 'Every project in this workspace runs this cycle. Deleting it takes it out of all of them.',
   'cycle.sharedSomeHint': 'The projects named on this cycle run it together. Deleting it takes it out of all of them.',
+  'cycle.deleteConfirm': 'Delete the cycle “{name}”?',
+  'cycle.deleteSharedConfirm': 'Delete the shared cycle “{name}”? It disappears from every project that runs it.',
   'cycle.showTasks': 'Show tasks',
   'cycle.open': 'Open cycle',
   'cycle.edit': 'Edit cycle',
@@ -1998,6 +2009,8 @@ export const en = {
   'module.scopeStrandConfirm_other': 'Save anyway? {count} tasks stay in this module without their project in it.',
   'module.sharedHint': 'Every project in this workspace works on this module. Deleting it takes it out of all of them.',
   'module.sharedSomeHint': 'The projects named on this module work on it together. Deleting it takes it out of all of them.',
+  'module.deleteConfirm': 'Delete the module “{name}”?',
+  'module.deleteSharedConfirm': 'Delete the shared module “{name}”? It disappears from every project that works on it.',
   'module.danger': 'Danger',
 
   /* --------------------------------------------------------------- pages */
@@ -3422,6 +3435,7 @@ export const en = {
   'misc.screenUnavailableHint': 'It is fetched separately, and the network or a new version got in the way. Reloading usually settles it.',
   'misc.screenFailedTitle': 'This screen ran into an error',
   'misc.screenFailedHint': 'That is a fault in Kolibri, not in the network. The rest of the app still works — open another screen, or reload to try this one again.',
+  'misc.appFailedHint': 'That is a fault in Kolibri, not in the network. Reloading starts the app again.',
   'misc.reload': 'Reload',
 } as const;
 

@@ -69,6 +69,9 @@ services:
       # is the setting that stops a public URL becoming a public sign-up form.
       KOLIBRI_ALLOW_SIGNUP: "false"
 
+      # The shared seeded account is then not the instance administrator (mail, backups, AI keys, restore).
+      KOLIBRI_DEMO: "true"
+
       # Small, because a public upload box on an instance anybody can reach is
       # a public upload box. The reset takes the files with it either way.
       KOLIBRI_MAX_UPLOAD_MB: "${KOLIBRI_MAX_UPLOAD_MB:-5}"

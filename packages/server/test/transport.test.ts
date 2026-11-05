@@ -26,6 +26,7 @@ import type { AddressInfo } from 'node:net';
 
 const { server } = await import('../src/index.ts');
 const { resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
+const { env } = await import('../src/kernel/platform/env.ts');
 
 let port = 0;
 
@@ -115,5 +116,28 @@ describe('a proxy that says http outright', () => {
     const meta = await raw('/.well-known/oauth-authorization-server', { host: 'app.example.com', 'x-forwarded-proto': 'http' });
     assert.equal(JSON.parse(meta.body).issuer, 'http://app.example.com');
     assert.equal(meta.headers['strict-transport-security'], undefined, 'nor sent where there is no TLS');
+  });
+});
+
+describe('a public URL that says http behind a proxy that says https', () => {
+  it('is reported in the log once, and an https one not at all', async () => {
+    const configured = env.publicUrl;
+    const warn = console.warn;
+    const warned: string[] = [];
+    console.warn = (...args: unknown[]) => { warned.push(args.join(' ')); };
+    try {
+      env.publicUrl = 'https://app.example.com';
+      await raw('/api/health', { host: 'app.example.com', 'x-forwarded-proto': 'https' });
+      assert.deepEqual(warned, []);
+
+      env.publicUrl = 'http://localhost:4000';
+      await raw('/api/health', { host: 'app.example.com', 'x-forwarded-proto': 'https' });
+      await raw('/api/health', { host: 'app.example.com', 'x-forwarded-proto': 'https' });
+    } finally {
+      console.warn = warn;
+      env.publicUrl = configured;
+    }
+    assert.equal(warned.length, 1, 'once per process, not once per request');
+    assert.match(warned[0], /KOLIBRI_PUBLIC_URL is http:\/\/localhost:4000/);
   });
 });

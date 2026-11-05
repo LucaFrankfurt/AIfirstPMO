@@ -4674,7 +4674,7 @@
               "string",
               "null"
             ],
-            "description": "Server-side only: the secret in the URL.",
+            "description": "Server-side only: the secret in the URL. Sent to the link's maker and to nobody else.",
             "readOnly": true
           },
           "updated_at": {

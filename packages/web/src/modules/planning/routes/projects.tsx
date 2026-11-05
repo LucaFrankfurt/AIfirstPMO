@@ -1,7 +1,7 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
-  DEFAULT_WORKING_DAYS, coversProject, dueTone, excerpt, isDoneGroup, orderKey,
+  addDays, DEFAULT_WORKING_DAYS, coversProject, dueTone, excerpt, isDoneGroup, orderKey,
   STATE_GROUPS, type ProjectScope,
 } from '@kolibri/shared';
 import { Header, Trail, type Crumb } from '../../../kernel/design-system/chrome';
@@ -43,6 +43,7 @@ import { shortDate, today } from '../../../kernel/design-system/format';
 import { useTabStrip } from '../../../kernel/design-system/tab-strip';
 import { byOrder, create, createPage, remove, update } from '../../../kernel/sync/mutations';
 import { useOpenTask } from '../../../kernel/design-system/navigation';
+import { useSaveChanges } from '../../../kernel/design-system/row-form';
 import { byId, list, useQuery, useRow } from '../../../kernel/sync/store';
 import { pull } from '../../../kernel/sync/sync';
 import { useCanWrite, useFeature, useMe, useMembers, useSession } from '../../../kernel/identity/session';
@@ -327,7 +328,7 @@ function ContainerChildren({ projectId }: { projectId: string }) {
     );
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const day = today();
 
   return (
     <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
@@ -337,7 +338,7 @@ function ContainerChildren({ projectId }: { projectId: string }) {
           const mine = tasks.filter((task) => task.project_id === child.id);
           const done = mine.filter((task) => byId('state', task.state_id)?.group_key === 'completed').length;
           const late = mine.filter((task) =>
-            dueTone(task.due_date, byId('state', task.state_id)?.group_key, today) === 'overdue').length;
+            dueTone(task.due_date, byId('state', task.state_id)?.group_key, day) === 'overdue').length;
           return (
             <button
               key={child.id}
@@ -555,6 +556,7 @@ function Cycles({ projectId }: { projectId: string }) {
     [projectId],
   );
   const [editing, setEditing] = useState<string | 'new' | null>(null);
+  const { confirm, dialog } = useConfirm();
   const day = today();
 
   return (
@@ -596,7 +598,9 @@ function Cycles({ projectId }: { projectId: string }) {
                   items={[
                     { id: 'edit', label: t('action.edit'), onSelect: () => setEditing(cycle.id) },
                     { id: 'open', label: t('cycle.showTasks'), onSelect: () => navigate(`/cycles/${cycle.id}`) },
-                    { id: 'delete', label: t('action.delete'), danger: true, onSelect: () => remove('cycle', cycle.id) },
+                    { id: 'delete', label: t('action.delete'), danger: true, onSelect: async () => {
+                      if (await confirm(t(cycle.project_id ? 'cycle.deleteConfirm' : 'cycle.deleteSharedConfirm', { name: cycle.name }))) remove('cycle', cycle.id);
+                    } },
                   ]}
                 >
                   <Icon name="dots" size={14} />
@@ -616,6 +620,7 @@ function Cycles({ projectId }: { projectId: string }) {
           onClose={() => setEditing(null)}
         />
       )}
+      {dialog}
     </div>
   );
 }
@@ -647,12 +652,13 @@ function Cycles({ projectId }: { projectId: string }) {
 function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycleId?: string; onClose: () => void }) {
   const t = useT();
   const cycle = useRow('cycle', cycleId);
+  const saveChanges = useSaveChanges('cycle', cycle);
   const { confirm, dialog } = useConfirm();
   const [form, setForm] = useState({
     name: cycle?.name ?? '',
     description: cycle?.description ?? '',
     start_date: cycle?.start_date ?? today(),
-    end_date: cycle?.end_date ?? new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10),
+    end_date: cycle?.end_date ?? addDays(today(), 14),
   });
   const choice = useScopeChoice(cycleId ? cycle : undefined, projectId);
   const projects = useScopeTargets();
@@ -669,7 +675,7 @@ function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycle
          reader has to resolve under time pressure. */
       if (stranded.length
         && !(await confirm(t('cycle.scopeStrandConfirm', { count: stranded.length }), t('action.save')))) return;
-      update('cycle', cycleId, { ...form, ...choice.settled });
+      saveChanges({ ...form, ...choice.settled });
     } else {
       // `projectScope` is what the server would apply anyway; applying it here
       // too means the row this device writes into its own store is already the
@@ -749,6 +755,7 @@ function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycle
 function ModuleEditor({ projectId, moduleId, onClose }: { projectId: string; moduleId?: string; onClose: () => void }) {
   const t = useT();
   const module_ = useRow('module', moduleId);
+  const saveChanges = useSaveChanges('module', module_);
   const { confirm, dialog } = useConfirm();
   const [name, setName] = useState(module_?.name ?? '');
   const [target, setTarget] = useState(module_?.target_date ?? '');
@@ -762,7 +769,7 @@ function ModuleEditor({ projectId, moduleId, onClose }: { projectId: string; mod
     if (moduleId) {
       if (stranded.length
         && !(await confirm(t('module.scopeStrandConfirm', { count: stranded.length }), t('action.save')))) return;
-      update('module', moduleId, { ...fields, ...choice.settled });
+      saveChanges({ ...fields, ...choice.settled });
     } else {
       create('module', { ...fields, ...choice.settled, status: 'planned', sort_order: orderKey(null, null) });
     }
@@ -955,6 +962,7 @@ function Modules({ projectId }: { projectId: string }) {
      the whole thing into an editor is what gives the warning somewhere to sit,
      and gives the name and the target date one place instead of two. */
   const [editing, setEditing] = useState<string | 'new' | null>(null);
+  const { confirm, dialog } = useConfirm();
 
   return (
     <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
@@ -1000,7 +1008,9 @@ function Modules({ projectId }: { projectId: string }) {
                       id: member.id, section: t('project.lead'), label: member.name,
                       onSelect: () => update('module', module.id, { lead_id: member.id }),
                     })),
-                    { id: 'delete', section: t('module.danger'), label: t('module.delete'), danger: true, onSelect: () => remove('module', module.id) },
+                    { id: 'delete', section: t('module.danger'), label: t('module.delete'), danger: true, onSelect: async () => {
+                      if (await confirm(t(module.project_id ? 'module.deleteConfirm' : 'module.deleteSharedConfirm', { name: module.name }))) remove('module', module.id);
+                    } },
                   ]}
                 >
                   <Icon name="dots" size={14} />
@@ -1029,6 +1039,7 @@ function Modules({ projectId }: { projectId: string }) {
           onClose={() => setEditing(null)}
         />
       )}
+      {dialog}
     </div>
   );
 }
@@ -1524,9 +1535,12 @@ function ProjectSettings({ projectId }: { projectId: string }) {
       <SectionHeading>{t('project.labels')}</SectionHeading>
       <div className="flex items-center flex-wrap gap-1.5 mb-2">
         {labels.map((label) => (
-          <span className={chipVariants({ interactive: true })} key={label.id} onClick={() => remove('label', label.id)} title={t('project.labelRemoveHint')}>
+          <button
+            type="button" className={chipVariants({ interactive: true })} key={label.id} title={t('project.labelRemoveHint')}
+            onClick={async () => { if (await confirm(t('project.deleteLabelConfirm', { name: label.name }))) remove('label', label.id); }}
+          >
             <span className={chipDot} style={{ background: label.color }} /> {label.name} ✕
-          </span>
+          </button>
         ))}
       </div>
       <form

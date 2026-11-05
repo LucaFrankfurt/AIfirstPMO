@@ -106,6 +106,13 @@ export const fr: Catalogue = {
   'sync.clockBehind': 'L’horloge de cet appareil retarde de {amount} sur celle du serveur. Les dates sont comptées sur celle du serveur.',
   'sync.sessionExpired': 'Session expirée — veuillez vous reconnecter',
   'sync.failed': 'Échec de la synchronisation',
+  'sync.refused': 'Le serveur refuse les modifications de cet appareil : {reason}. Elles restent en attente ici.',
+  'sync.tooLarge': 'Une modification était trop volumineuse pour le serveur et n’a pas été enregistrée',
+  'sync.rejected_one': '{count} modification non enregistrée',
+  'sync.rejected_other': '{count} modifications non enregistrées',
+  'sync.dismissRejected': 'Ignorer',
+  'sync.unsentOnSignOut_one': '{count} modification n’a pas encore atteint le serveur et n’existe que sur cet appareil. Se déconnecter la supprime. Se déconnecter quand même ?',
+  'sync.unsentOnSignOut_other': '{count} modifications n’ont pas encore atteint le serveur et n’existent que sur cet appareil. Se déconnecter les supprime. Se déconnecter quand même ?',
 
   /* ---------------------------------------------------------- priorities */
   'priority.urgent': 'Urgent',
@@ -1644,6 +1651,7 @@ export const fr: Catalogue = {
   'share.make': 'Créer un lien',
   'share.making': 'Création…',
   'share.minting': 'Préparation du lien…',
+  'share.notYours': 'Créé par quelqu’un d’autre — seule cette personne peut le copier.',
   'share.link': 'Lien',
   'share.revoke': 'Désactiver ce lien',
   'share.revokeConfirm': 'Désactiver ce lien ? Quiconque le détient ne pourra plus lire.',
@@ -1917,6 +1925,7 @@ export const fr: Catalogue = {
   'project.labels': 'Étiquettes',
   'project.newLabel': 'Nouvelle étiquette',
   'project.labelRemoveHint': 'Cliquer pour retirer',
+  'project.deleteLabelConfirm': 'Supprimer l’étiquette « {name} » ? Elle disparaît de toutes les tâches qui la portent.',
   'project.archive': 'Archiver le projet',
   'project.unarchive': 'Désarchiver le projet',
   'project.delete': 'Supprimer le projet',
@@ -1950,6 +1959,8 @@ export const fr: Catalogue = {
   'cycle.scopeStrandConfirm_other': 'Enregistrer quand même ? {count} tâches restent dans ce cycle sans que leur projet y soit.',
   'cycle.sharedHint': 'Tous les projets de cet espace utilisent ce cycle. Le supprimer le retire de chacun d’eux.',
   'cycle.sharedSomeHint': 'Les projets indiqués sur ce cycle le mènent ensemble. Le supprimer le retire de chacun d’eux.',
+  'cycle.deleteConfirm': 'Supprimer le cycle « {name} » ?',
+  'cycle.deleteSharedConfirm': 'Supprimer le cycle partagé « {name} » ? Il disparaît de tous les projets qui le mènent.',
   'cycle.showTasks': 'Afficher les tâches',
   'cycle.open': 'Ouvrir le cycle',
   'cycle.edit': 'Modifier le cycle',
@@ -1993,6 +2004,8 @@ export const fr: Catalogue = {
   'module.scopeStrandConfirm_other': 'Enregistrer quand même ? {count} tâches restent dans ce module sans que leur projet y soit.',
   'module.sharedHint': 'Tous les projets de cet espace travaillent sur ce module. Le supprimer le retire de chacun d’eux.',
   'module.sharedSomeHint': 'Les projets indiqués sur ce module y travaillent ensemble. Le supprimer le retire de chacun d’eux.',
+  'module.deleteConfirm': 'Supprimer le module « {name} » ?',
+  'module.deleteSharedConfirm': 'Supprimer le module partagé « {name} » ? Il disparaît de tous les projets qui y travaillent.',
   'module.danger': 'Zone sensible',
 
   /* --------------------------------------------------------------- pages */
@@ -3410,5 +3423,6 @@ export const fr: Catalogue = {
   'misc.screenUnavailableHint': 'Il est chargé séparément, et le réseau ou une nouvelle version s’est interposé. Recharger règle généralement la question.',
   'misc.screenFailedTitle': 'Cet écran a rencontré une erreur',
   'misc.screenFailedHint': 'C’est une erreur dans Kolibri, pas dans le réseau. Le reste fonctionne — ouvrir un autre écran, ou recharger pour réessayer celui-ci.',
+  'misc.appFailedHint': 'C’est une erreur dans Kolibri, pas dans le réseau. Recharger relance l’application.',
   'misc.reload': 'Recharger',
 };

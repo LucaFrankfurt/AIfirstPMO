@@ -56,9 +56,11 @@ export type Locate = (x: number, y: number) => Promise<{ el: string; fx: number;
 const ANSWER_MS = 600;
 
 export function ArtboardFrame({
-  source, mode, title, selected = null, keepScroll = false, onMessage, onRendered, onSize, adapt = false, pins, onPins, locator, className, style,
+  source, pageId, mode, title, selected = null, keepScroll = false, onMessage, onRendered, onSize, adapt = false, pins, onPins, locator, className, style,
 }: {
   source: string;
+  /** The page the board is on: the only page whose files it is handed. */
+  pageId: string;
   mode: FrameMode;
   title: string;
   /** In `edit`, the element drawn as selected. Changing it does not redraw the board. */
@@ -96,8 +98,8 @@ export function ArtboardFrame({
   const scroll = useRef<{ x: number; y: number } | null>(null);
   // The latest of everything, read by the listener without re-subscribing on
   // every keystroke.
-  const latest = useRef({ source, mode, selected, keepScroll, onMessage, onRendered, onSize, adapt, pins, onPins, drag: t('canvas.drag'), layers, front });
-  latest.current = { source, mode, selected, keepScroll, onMessage, onRendered, onSize, adapt, pins, onPins, drag: t('canvas.drag'), layers, front };
+  const latest = useRef({ source, pageId, mode, selected, keepScroll, onMessage, onRendered, onSize, adapt, pins, onPins, drag: t('canvas.drag'), layers, front });
+  latest.current = { source, pageId, mode, selected, keepScroll, onMessage, onRendered, onSize, adapt, pins, onPins, drag: t('canvas.drag'), layers, front };
   /** Questions asked of the frame, by the id the answer will carry. */
   const asked = useRef(new Map<string, (answer: { el: string; fx: number; fy: number } | null) => void>());
   /** What the fitting changed, once the board has said — for drawing it again with that in place from the start. */
@@ -124,7 +126,7 @@ export function ArtboardFrame({
       ...(now.adapt && fitted.current ? { fitted: fitted.current } : {}),
     }));
     // Pictures from this server go in as their bytes — see `board-files.ts`.
-    if (hasFiles(now.source)) void inlineFiles(now.source).then(write);
+    if (hasFiles(now.source)) void inlineFiles(now.source, now.pageId).then(write);
     else write(now.source);
   };
 

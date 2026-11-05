@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, rmSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
-import { Clock, orderKey, type PullResponse, type PushResponse } from '@kolibri/shared';
+import { Clock, orderKey, TASK_TITLE_MAX, type PullResponse, type PushResponse } from '@kolibri/shared';
 
 // Imported dynamically: static imports are hoisted above the env setup above,
 // and the server reads its data directory at module load.
@@ -226,6 +226,23 @@ describe('kolibri api', () => {
     const task = await api(`/api/tasks/${taskId}`);
     assert.equal(task.title, 'Renamed by B', 'the newer stamp wins for title');
     assert.equal(task.priority, 'urgent', 'the untouched field still takes the older write');
+  });
+
+  it('lets no pushed stamp lock a field against later edits', async () => {
+    const tomorrow = new Clock('fast-device', () => Date.now() + 86_400_000).now();
+    const push = (patch: Record<string, unknown>, hlc: unknown) => api('/api/sync/push', {
+      body: { workspaceId, clientId: 'fast-device', mutations: [{ id: crypto.randomUUID(), entity: 'task', entityId: taskId, op: 'upsert', patch, hlc }] },
+    });
+
+    const future = await push({ title: 'From the fast device' }, tomorrow);
+    assert.equal(future.accepted.length, 1, 'a stamp from the future is restamped, not refused');
+    await api(`/api/tasks/${taskId}`, { method: 'PATCH', body: { title: 'Fixed via REST' } });
+    assert.equal((await api(`/api/tasks/${taskId}`)).title, 'Fixed via REST', 'the later REST edit lost to a stamp from tomorrow');
+
+    for (const garbage of ['~', 12345, '9999999999999:0:x', null]) {
+      const refused = await push({ priority: 'low' }, garbage);
+      assert.deepEqual(refused.accepted, [], `${JSON.stringify(garbage)} was accepted as a stamp`);
+    }
   });
 
   it('stores uploads content-addressed and serves them back', async () => {
@@ -941,6 +958,38 @@ describe('kolibri api', () => {
     assert.equal(cleared.lead_id, null, 'null is the one honest way to clear');
   });
 
+  it('refuses a cycle, a person or a flag update_task cannot read, instead of clearing what is there', async () => {
+    // Made first, so a workspace-wide lookup by name finds the other project's.
+    await callTool('create_project', { name: 'Twin board', key: 'TWN' });
+    await callTool('create_cycle', { project: 'TWN', name: 'Twin sprint', start_date: '2026-10-01', end_date: '2026-10-14' });
+    const own = (await callTool('create_cycle', {
+      project: 'WEB', name: 'Twin sprint', start_date: '2026-10-01', end_date: '2026-10-14',
+    })).result.structuredContent;
+    const task = (await callTool('create_task', {
+      project: 'WEB', title: 'Planned and staffed', assignees: ['ada@example.com'],
+    })).result.structuredContent;
+    assert.equal(task.assignees.length, 1);
+
+    const planned = (await callTool('update_task', { task: task.identifier, cycle: 'Twin sprint' })).result.structuredContent;
+    assert.equal(planned.cycle_id, own.id, 'a sprint of the same name in another project was picked');
+
+    const refusals: Array<[Record<string, unknown>, RegExp]> = [
+      [{ cycle: 'Twin sprnit' }, /No cycle/],
+      [{ assignees: 'ada@example.com' }, /assignees/],
+      [{ assignees: ['Nobody At All'] }, /Nobody in this workspace/],
+      [{ labels: 'bug' }, /labels/],
+      [{ archived: 'false' }, /archived/],
+    ];
+    for (const [args, refusal] of refusals) {
+      const answer = await callTool('update_task', { task: task.identifier, ...args });
+      assert.match(answer.error?.message ?? 'accepted', refusal, `${JSON.stringify(args)} was not refused`);
+    }
+    const kept = (await callTool('get_task', { task: task.identifier })).result.structuredContent;
+    assert.equal(kept.cycle_id, own.id, 'a misspelt cycle cleared the real one');
+    assert.equal(kept.assignees.length, 1, 'a malformed list cleared the assignees');
+    assert.equal(all<any>(`SELECT archived FROM tasks WHERE id = ?`, task.id)[0].archived, 0, '"false" archived the task');
+  });
+
   it('files a batch in the order it was given, at the top of the board', async () => {
     await callTool('create_tasks_batch', {
       project: 'WEB',
@@ -991,6 +1040,38 @@ describe('kolibri api', () => {
     // Null still clears — the validation must not take that away.
     const cleared = (await callTool('update_task', { task: task.identifier, due_date: null })).result.structuredContent;
     assert.equal(cleared.due_date, null);
+  });
+
+  it('refuses task fields nothing can read, through REST, bulk and sync alike', async () => {
+    const task = await api(`/api/workspaces/${workspaceId}/tasks`, { body: { project_id: projectId, title: 'Typed', priority: 'low' } });
+    const status = async (path: string, body: unknown, method = 'POST') => (await fetch(`${base}${path}`, {
+      method, headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify(body),
+    })).status;
+    const garbage: Record<string, unknown>[] = [
+      { priority: 'banana' }, { estimate: 'lots' }, { due_date: 'next tuesday-ish' }, { start_date: '2026-02-31' },
+      { archived: 'maybe' }, { state_id: { a: 1 } }, { parent_id: 42 }, { cycle_id: '' }, { title: 'x'.repeat(TASK_TITLE_MAX + 1) },
+    ];
+    for (const patch of garbage) {
+      const label = JSON.stringify(patch).slice(0, 40);
+      assert.equal(await status(`/api/tasks/${task.id}`, patch, 'PATCH'), 400, `PATCH stored ${label}`);
+      assert.equal(await status(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'New', ...patch }), 400, `create stored ${label}`);
+      assert.equal(await status(`/api/workspaces/${workspaceId}/tasks/bulk`, { ids: [task.id], patch }), 400, `bulk stored ${label}`);
+      const pushed = await api<PushResponse>('/api/sync/push', {
+        body: { workspaceId, clientId: 'typed', mutations: [{ id: crypto.randomUUID(), entity: 'task', entityId: task.id, op: 'upsert', patch, hlc: clock.now() }] },
+      });
+      assert.deepEqual(pushed.accepted, [], `sync stored ${label}`);
+    }
+    const kept = await api(`/api/tasks/${task.id}`);
+    assert.deepEqual([kept.title, kept.priority, kept.estimate, kept.due_date, kept.archived], ['Typed', 'low', null, null, 0]);
+
+    // What a client really sends still lands, and create_task stays lenient.
+    const fine = await api(`/api/tasks/${task.id}`, {
+      method: 'PATCH', body: { priority: 'urgent', estimate: 2.5, due_date: '2026-09-01', start_date: null, archived: true, cycle_id: null },
+    });
+    assert.deepEqual([fine.priority, fine.estimate, fine.due_date, fine.archived], ['urgent', 2.5, '2026-09-01', 1]);
+    const lenient = (await callTool('create_task', { project: 'WEB', title: 'y'.repeat(600), priority: 'critical' })).result.structuredContent;
+    assert.equal(lenient.priority, 'none');
+    assert.equal(lenient.title.length, TASK_TITLE_MAX);
   });
 
   it('lets a cleared date through the range check', async () => {

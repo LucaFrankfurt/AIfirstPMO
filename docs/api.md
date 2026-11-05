@@ -6,8 +6,9 @@ like `{ "error": "forbidden", "message": "Project is private" }` with a matching
 Every JSON response also carries `x-kolibri-now`: this server's own clock, in milliseconds. Every
 timestamp in every payload was stamped by that clock, so a client that renders them as "3 minutes
 ago" should measure against it rather than against its own — see
-[`sync.md`](sync.md#one-clock-and-it-is-the-servers). It is exposed to cross-origin callers, so a
-browser client can read it too.
+[`sync.md`](sync.md#one-clock-and-it-is-the-servers). It is exposed to the packaged app's origins
+(`capacitor://localhost`, `https://localhost`), so that client can read it too. No other origin is
+granted CORS: a browser page elsewhere cannot read an answer, with or without the session cookie.
 
 ## The document
 
@@ -45,8 +46,13 @@ curl -H "Authorization: Bearer kol_…" $URL/api/session
 ```
 
 Create tokens in **Settings → API & MCP** or via `POST /api/tokens`
-(`{ name, workspaceId?, scopes?: "read" | "read,write", expiresInDays? }`). The plaintext value is
-returned exactly once — only its hash is stored. A `read` token is rejected on every write.
+(`{ name, workspaceId?, scopes?: "read" | "read,write", expiresInDays?, confined? }`). The plaintext
+value is returned exactly once — only its hash is stored. A `read` token is rejected on every write.
+`workspaceId` alone only pins the default workspace; the token still reaches every workspace the
+account is in. `confined: true` (which needs a `workspaceId`) makes that workspace the only one it
+reaches: the others answer as though the account were not a member, and a confined token cannot
+create tokens, use the calendar feed or act as an instance admin. Tokens issued to a connector
+through OAuth are always confined to the workspace chosen on the consent screen.
 
 ## Entities
 
@@ -401,7 +407,9 @@ blob would take the file out from under the other one. Sweeping blobs nothing po
 a separate job.
 
 Downloads (`GET /files/:hash/:name`) require a session or token and membership in the owning
-workspace, **and** that you may see something the bytes are attached to. Only a safe list of types is
+workspace, **and** that you may see something the bytes are attached to. With `?page=<id>` the file
+must also be attached to that page, which you may see: that is how the app asks for a board's
+pictures, so a board cannot name another file of yours and send it on. Only a safe list of types is
 served inline; everything else downloads with `Content-Disposition: attachment` and
 `X-Content-Type-Options: nosniff`.
 

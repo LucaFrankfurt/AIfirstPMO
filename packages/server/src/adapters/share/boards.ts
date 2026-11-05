@@ -24,6 +24,7 @@
 import { escapeHtml, intoHead, withFit } from '@kolibri/shared';
 import { all, get, type Row } from '../../kernel/platform/db/index.ts';
 import * as storage from '../../kernel/files/storage.ts';
+import { canSeePage } from '../../kernel/write-path/repo.ts';
 
 const escape = (text: unknown): string => escapeHtml(String(text ?? ''));
 
@@ -65,13 +66,14 @@ export function sharedBoards(token: string, page: Row): string {
 
 /** A board on the shared page, or on a page the share brings with it; otherwise undefined. */
 export function sharedBoard(share: Row, boardId: string): Row | undefined {
-  return get<Row>(
+  const board = get<Row>(
     `SELECT a.* FROM artboards a JOIN pages p ON p.id = a.page_id
       WHERE a.id = ? AND a.deleted_at IS NULL AND a.kind = 'html'
         AND p.deleted_at IS NULL AND p.workspace_id = ?
         AND (p.id = ? OR (p.parent_id = ? AND p.archived = 0))`,
     boardId, share.workspace_id, share.page_id, share.page_id,
   );
+  return board && canSeePage(String(share.created_by ?? ''), String(board.page_id)) ? board : undefined;
 }
 
 /** The board's pictures as bytes — those hung on its own page, and no others. */

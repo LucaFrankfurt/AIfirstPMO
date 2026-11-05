@@ -74,6 +74,8 @@ export interface KolibriConfig {
   messages?: FeedbackMessages;
   /** Display labels for the app's kinds in the title. */
   kindLabels?: FormatOptions['kindLabels'];
+  /** Keep the reported URL's query string and fragment in the ticket. Default: false. */
+  fullUrl?: FormatOptions['fullUrl'];
 }
 
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -162,7 +164,7 @@ export class KolibriFeedbackTarget implements FeedbackTarget {
    * belongs to whoever configures the board.
    */
   private async createTask(report: FeedbackReport): Promise<void> {
-    const format: FormatOptions = { messages: this.messages, kindLabels: this.config.kindLabels };
+    const format: FormatOptions = { messages: this.messages, kindLabels: this.config.kindLabels, fullUrl: this.config.fullUrl };
     const res = await this.request(`/api/workspaces/${this.config.workspaceId}/tasks`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

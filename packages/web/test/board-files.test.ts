@@ -13,6 +13,7 @@ import { describe, it } from 'node:test';
 
 const HASH = 'a'.repeat(64);
 const PATH = `/files/${HASH}/chart.png`;
+const PAGE = 'page-1';
 const fetched: string[] = [];
 
 // The two browser things the module touches, as small as they can be.
@@ -52,25 +53,35 @@ describe('finding the files a board names', () => {
 describe('inlining', () => {
   it('swaps every mention of a path for its bytes, and fetches it once', async () => {
     fetched.length = 0;
-    const out = await inlineFiles(BOARD);
+    const out = await inlineFiles(BOARD, PAGE);
     assert.doesNotMatch(out, /(["'(=])\/files\//, 'a path of ours was left for the frame to fail on');
     assert.match(out, /<img src="data:image\/png;base64,iVBORw==" alt="Q3">/);
     assert.match(out, /url\(data:image\/png;base64,iVBORw==\)/);
     assert.match(out, new RegExp(`href="https://example.com/files/${HASH}/chart.png"`), 'another site\'s URL was rewritten');
     assert.equal(fetched.length, 1);
-    await inlineFiles(BOARD);
+    await inlineFiles(BOARD, PAGE);
     assert.equal(fetched.length, 1, 'the second render fetched the picture again');
+  });
+
+  it('asks only for the board\'s own page\'s files, whatever the board appends (SEC-11)', async () => {
+    fetched.length = 0;
+    const other = `/files/${'c'.repeat(64)}/x.png`;
+    await inlineFiles(`<img src="${other}?page=elsewhere"><img src="${other}#?page=elsewhere">`, PAGE);
+    assert.deepEqual(fetched, [`${other}?page=${PAGE}`, `${other}?page=${PAGE}`]);
+    fetched.length = 0;
+    await inlineFiles(BOARD, 'page-2');
+    assert.deepEqual(fetched, [`${PATH}?page=page-2`], 'a copy fetched on another page was reused');
   });
 
   it('leaves a picture it cannot fetch as its path', async () => {
     const missing = `/files/${'b'.repeat(64)}/missing.png`;
-    assert.equal(await inlineFiles(`<img src="${missing}">`), `<img src="${missing}">`);
+    assert.equal(await inlineFiles(`<img src="${missing}">`, PAGE), `<img src="${missing}">`);
   });
 });
 
 describe('what comes back out of the frame', () => {
   it('names the file again, never its bytes', async () => {
-    const inlined = await inlineFiles(`<p>Look <img src="${PATH}"> here</p>`);
+    const inlined = await inlineFiles(`<p>Look <img src="${PATH}"> here</p>`, PAGE);
     const typed = inlined.replace('Look', 'Look at');
     assert.equal(restoreFiles(typed), `<p>Look at <img src="${PATH}"> here</p>`);
   });

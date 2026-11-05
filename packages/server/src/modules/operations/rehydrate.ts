@@ -69,7 +69,8 @@ export interface RehydrateReport {
  * only way to be sure it matches them.
  */
 const isCopyable = (name: string): boolean =>
-  !name.startsWith('sqlite_') && !name.startsWith('search_index');
+  // `search_refs` maps the index's rowids, so it is rebuilt with it.
+  !name.startsWith('sqlite_') && !name.startsWith('search_index') && name !== 'search_refs';
 
 const tablesIn = (schema: string): string[] =>
   all<Row>(`SELECT name FROM ${schema}.sqlite_master WHERE type = 'table' ORDER BY name`)

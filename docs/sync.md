@@ -157,6 +157,12 @@ The response carries `patched`: fields the server decided (task identifiers such
 default states, `completed_at`). The client shows an optimistic `WEB-?` placeholder until that
 comes back.
 
+The outbox coalesces: a queued write to a row is dropped when a newer one rewrites every field it
+carries, so a page saved two hundred times offline is one CRDT state to push, not two hundred. A
+partial overlap is left alone, and so is the first queued write to a row the server has not sent
+yet, which may be its create. A push carries at most 200 mutations and 4 MiB, half the server's
+body limit.
+
 ## Failure handling
 
 | Situation | Behaviour |
@@ -164,8 +170,12 @@ comes back.
 | Offline | Status pill switches to *Offline · N queued*; writes keep working |
 | Back online | `online` event triggers flush → pull → reconnect SSE |
 | Server error / 5xx | Exponential backoff 1s → 30s, outbox untouched |
-| Session expired (401) | Local data is kept, a sign-in prompt appears, the outbox flushes after sign-in |
-| Mutation rejected (e.g. permission) | Reported in `rejected[]`, dropped from the outbox, logged and surfaced in the status pill |
+| Session expired (401) | Mirror and outbox are kept, a sign-in prompt appears, the outbox flushes after the same person signs in again. Every mirror on the device downloads again from cursor 0 on its next start, because restoring a snapshot signs everybody out and an older cursor would skip rows |
+| Signing out on purpose | Deletes this person's mirrors and outboxes on the device, after one last flush; if anything is still queued, a confirmation says how many changes would be lost |
+| Workspace switch, or a second tab | Each person and workspace has its own IndexedDB (`kolibri:<user>:<workspace>`), so nothing is cleared. A pull or push still on the network for the previous workspace is dropped when it answers |
+| Mutation rejected (e.g. permission) | Reported in `rejected[]` with the status the error would have had. A refusal leaves the outbox and its row is re-read, but the change is kept on the device with its reason, and the status pill counts it until it is copied or dismissed. A 5xx (a locked database, say) is not a refusal: it stays queued and is retried with backoff |
+| Push refused as a whole (403) | Not a member any more, or a read-only token: the outbox is kept and not resent until the next start; the status pill says why |
+| Push too large (413) | The batch is halved until it fits, which also finds a proxy's lower limit. One mutation too large on its own is dropped like a rejection and reported, instead of blocking the queue behind it |
 | Tab in background | Polls every 60s; pulls immediately when it becomes visible again |
 
 ## Deletion, and the end of it
@@ -246,6 +256,9 @@ tidies.
 - a delta pull returns only what changed,
 - private projects never appear in another member's pull.
 
+`packages/web/test/outbox.test.ts` covers what stays on the device: the outbox across a 401, a
+workspace switch and a pull answering late, coalescing, and pushes refused as too large or forbidden.
+
 `scripts/smoke.mjs` drives a real browser: it creates a task, switches the context offline and
 verifies the app still renders from IndexedDB.
 
@@ -278,7 +291,8 @@ changes and remembers the character that was to its left when it was typed. The 
 then a deterministic function of the character *set*: walk the origin tree, and among characters
 sharing an origin the causally newer one comes first — a Lamport clock, with the agent id breaking
 ties. A deterministic function of a set converges no matter how the rows arrived, and that is the
-whole proof.
+whole proof. An agent is one loaded tab, not one browser: two tabs share the client id a push
+carries, and as one agent they minted the same identities for different letters.
 
 `pages.content` stays, as what the CRDT reads as. Everything else that touches a page — search,
 export, the share document, the markdown renderer, the REST API, MCP — carries on reading plain

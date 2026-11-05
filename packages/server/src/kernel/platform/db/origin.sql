@@ -1579,3 +1579,10 @@ CREATE TABLE artboard_versions (
   author_id   TEXT,
   created_at  INTEGER NOT NULL
 );
+
+CREATE TABLE search_refs (
+  kind   TEXT NOT NULL,
+  ref_id TEXT NOT NULL,
+  doc    INTEGER NOT NULL,
+  PRIMARY KEY (kind, ref_id)
+);

@@ -15,7 +15,8 @@ what Claude on the web needs. See [Signing in](#signing-in-for-clients-that-cann
 ## Setup
 
 1. **Settings → API & MCP → Create token.** Pin it to a workspace so tools do not need a
-   `workspace_id` argument. Use scope `read` for an assistant that should only look.
+   `workspace_id` argument — a pin is only the default, so tick *confined* as well if the token must
+   not reach the account's other workspaces. Use scope `read` for an assistant that should only look.
 2. Point your client at the instance. Which of the two transports you want depends only on what the
    client speaks — the tools are the same either way, because they are the same implementation.
 
@@ -91,7 +92,8 @@ look, one thing to press.
 The consent screen is server-rendered rather than part of the app, because it has to work inside a
 popup the client opened, with no router in the way. It names the client, names the account, says
 whether write access was asked for, and lets somebody pick which workspace — the granted token is
-pinned to it and cannot reach another.
+**confined** to it, and its refreshes are too: every other workspace answers as though the account
+were not in it, even one the account is a member of.
 
 One detail that cost an afternoon and is worth remembering: the instance sends
 `form-action 'self'` on every response, and a browser applies that to where a form's **redirect**
@@ -267,7 +269,7 @@ always called it. `billing` still works and is documented as the older spelling.
 | `list_workspaces` | workspaces this token can reach, with the caller's role |
 | `list_projects` | projects with open/done task counts |
 | `list_tasks` | filter by `project`, `state` (name or group), `assignee` (`"me"` works), `priority`, `label`, `cycle` (`"current"` works), `module`, `due_before`, `query` |
-| `get_task` | one task with description, sub-tasks, relations, comments, attachments and recent activity |
+| `get_task` | one task with description, sub-tasks, relations in both directions (only to tasks the caller can see), comments, attachments and recent activity |
 | `search` | full text across tasks, pages, projects, comments, cycles, modules — and connected mailboxes, which answer for themselves. Words match as prefixes, `"quoted words"` as a phrase, `-word` excludes, and `WEB-12` puts that task first |
 | `list_cycles` | sprints with `total`/`done` counts |
 | `list_modules` | milestones with `total`/`done` counts, ordered by target date. Given a project: its own plus the shared ones it works on |
@@ -530,7 +532,7 @@ is inclusive to the end of the day it names.
 | Tool | Notes |
 |---|---|
 | `create_task` | project + title required — unless `quick_add` carries both; **labels that do not exist yet are created**, which is why `list_labels` is worth calling first |
-| `update_task` | any field, including `state`, `assignees`, `cycle`, `module`, `due_date`, `archived` — and `project`, which **files the task under another project**: its state and labels are re-resolved there by meaning rather than by name, a cycle or module the destination is outside of is cleared, its sub-tasks follow it, and its identifier does not change. Anything else in the same call is read against the project it is moving *to*, so `{project: "API", state: "Doing"}` means the destination's column. A container is refused out loud, because it holds projects rather than tasks |
+| `update_task` | any field, including `state`, `assignees`, `cycle`, `module`, `due_date`, `archived` — and `project`, which **files the task under another project**: its state and labels are re-resolved there by meaning rather than by name, a cycle or module the destination is outside of is cleared, its sub-tasks follow it, and its identifier does not change. Anything else in the same call is read against the project it is moving *to*, so `{project: "API", state: "Doing"}` means the destination's column. A container is refused out loud, because it holds projects rather than tasks. A `cycle` is looked up among the cycles that cover the task's project, and a cycle or assignee it cannot find, or `assignees`, `labels` or `archived` of the wrong type, is refused rather than cleared |
 | `create_tasks_batch` | up to 100 tasks in one call, as **one transaction** — a rejected entry takes the whole batch with it, so a retry cannot double what already went in |
 | `create_task_relation` | `blocks`, `blocked_by`, `relates_to`, `duplicates`, `duplicated_by` — written once, in the direction given |
 | `upload_attachment` | base64 bytes onto a task, a page or anything else with a Files section |
@@ -999,8 +1001,8 @@ This lets a client attach a handbook page as context without a tool call.
 **Across every workspace the token can reach**, and each entry says which one it came from when
 there is more than one. Unlike a tool, this call takes no arguments — so whatever it leaves out is
 unreachable from the client's "add from Kolibri" menu, and listing one workspace meant somebody in
-two saw half of what they had. A token pinned to a workspace still sees only that one; that pin is
-a boundary somebody set on purpose.
+two saw half of what they had. A token pinned to a workspace lists only that one's pages, because
+the pin is where its owner pointed it; the boundary, for resources as for tools, is `confined`.
 
 Note that this is a different list from the tools. Modules, cycles and everything else are **tools**
 and appear wherever your client shows those; resources are pages, and prompts are the three named
@@ -1013,7 +1015,10 @@ The token owner's permissions apply, always:
 
 - private projects they are not a member of are invisible to every tool,
 - guests cannot write,
-- a token pinned to a workspace cannot reach another one, even if the account is a member.
+- a token **confined** to a workspace cannot reach another one, even if the account is a member —
+  that includes every token a connector gets through OAuth,
+- a token that is only **pinned** uses the pin as the default for a call that names no
+  `workspace_id`; a call that names another workspace the account is in reaches it.
 
 Revoke a token in **Settings → API & MCP**; it stops working immediately. A connector authorised on
 the web is listed there under its own name and is revoked the same way — the OAuth flow issues an

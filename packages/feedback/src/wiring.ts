@@ -23,6 +23,8 @@ export interface ResolveOptions {
   messages?: FeedbackMessages;
   /** Display labels for the app's own kinds, used in ticket titles. */
   kindLabels?: Readonly<Record<string, string>>;
+  /** Keep the reported URL's query string and fragment in the ticket. Default: false. */
+  fullUrl?: boolean;
   /** Per-request timeout for HTTP targets. */
   timeoutMs?: number;
   /** For tests. */
@@ -68,7 +70,7 @@ export function resolveFeedbackTarget(env: Env = processEnv(), options: ResolveO
     if (!read.ok) return unconfigured(read.reason);
     return {
       target: new KolibriFeedbackTarget(
-        { ...read.config, messages, kindLabels: options.kindLabels, timeoutMs: options.timeoutMs },
+        { ...read.config, messages, kindLabels: options.kindLabels, fullUrl: options.fullUrl, timeoutMs: options.timeoutMs },
         options.fetch,
       ),
       // A configured Kolibri target is only as good as its preflight — the token's

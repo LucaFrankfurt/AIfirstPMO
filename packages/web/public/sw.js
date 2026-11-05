@@ -2,7 +2,8 @@
  *
  * The app shell is precached so a cold start works offline; data never touches
  * the HTTP cache because it lives in IndexedDB and syncs through /api/sync.
- * Uploaded files are content-addressed, so they are safe to cache forever.
+ * Uploaded files are kept for offline use only: online the server is asked, since
+ * who may read a file changes and a session ends.
  */
 const VERSION = 'kolibri-v3';
 const SHELL = `${VERSION}-shell`;
@@ -107,10 +108,18 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname.startsWith('/files/')) {
     event.respondWith(
       caches.open(FILES).then(async (cache) => {
-        const hit = await cache.match(request);
-        if (hit) return hit;
-        const response = await fetch(request);
+        let response;
+        try {
+          response = await fetch(request);
+        } catch (error) {
+          const hit = await cache.match(request);
+          if (hit) return hit;
+          throw error;
+        }
         if (response.ok) cache.put(request, response.clone());
+        // Signed out or expired: no copy answers for a session that is gone.
+        else if (response.status === 401) await caches.delete(FILES);
+        else if (response.status === 403 || response.status === 404) await cache.delete(request);
         return response;
       }),
     );

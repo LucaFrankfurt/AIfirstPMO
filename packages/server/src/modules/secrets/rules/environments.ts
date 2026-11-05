@@ -54,7 +54,7 @@ export function environmentName(raw: unknown): string {
 }
 
 /** The caller's rank in this workspace, or nothing if they are not in it. */
-const roleOf = (opts: WriteOpts): WorkspaceRole | undefined =>
+export const roleOf = (opts: WriteOpts): WorkspaceRole | undefined =>
   get<Row>(
     `SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ? AND deleted_at IS NULL`,
     opts.workspaceId, opts.actorId,
@@ -168,6 +168,9 @@ export const environmentRules = {
        */
       if (!role || !hasRole(role, 'admin')) {
         throw forbidden('Environments are set up by an administrator of the workspace');
+      }
+      if (existing?.min_role === 'owner' && role !== 'owner') {
+        throw forbidden('Only an owner may change an environment only owners may open');
       }
       const name = after(values, existing, 'name');
       if (name && (values.name !== undefined || !existing)) {
