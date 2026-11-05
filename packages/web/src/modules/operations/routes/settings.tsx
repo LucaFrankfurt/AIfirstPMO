@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Header, THEME_KEY, useTheme } from '../../../kernel/design-system/chrome';
-import { Avatar, Empty, Icon, Sheet, useConfirm, useToast } from '../../../kernel/design-system/ui';
+import { Avatar, Empty, Icon, Sheet, failure, useAction, useConfirm, useToast } from '../../../kernel/design-system/ui';
 import { GuideHint } from '../../guide/hint';
 import { api } from '../../../kernel/sync/api';
 import { relativeTime } from '../../../kernel/design-system/format';
@@ -109,6 +109,7 @@ function Profile() {
   const [bio, setBio] = useState(user?.bio ?? '');
   const [passwords, setPasswords] = useState({ current: '', next: '' });
   const [uploading, setUploading] = useState(false);
+  const action = useAction();
 
   return (
     <>
@@ -145,11 +146,11 @@ function Profile() {
           />
         </label>
         {user?.avatar_url && (
-          <Button variant="ghost" size="sm"
-            onClick={async () => {
+          <Button variant="ghost" size="sm" disabled={action.busy}
+            onClick={() => void action.run(async () => {
               await api.patch('/api/me', { avatar_url: null });
               await refresh();
-            }}
+            })}
           >
             {t('profile.removePicture')}
           </Button>
@@ -164,12 +165,12 @@ function Profile() {
         <label htmlFor="me-bio">{t('profile.bio')}</label>
         <Textarea id="me-bio" style={{ minHeight: 70 }} value={bio ?? ''} onChange={(event) => setBio(event.target.value)} />
       </div>
-      <Button variant="primary"
-        onClick={async () => {
+      <Button variant="primary" disabled={action.busy}
+        onClick={() => void action.run(async () => {
           await api.patch('/api/me', { name, bio });
           await refresh();
           toast(t('profile.saved'));
-        }}
+        })}
       >
         {t('profile.save')}
       </Button>
@@ -286,26 +287,31 @@ function Suppressions() {
   const t = useT();
   const toast = useToast();
   const [rows, setRows] = useState<{ email: string; reason: string; detail: string | null }[]>([]);
+  const [failed, setFailed] = useState('');
+  const action = useAction();
 
-  const load = () => api.get<any[]>('/api/mail/suppressions').then(setRows).catch(() => setRows([]));
+  const load = () => api.get<any[]>('/api/mail/suppressions')
+    .then((list) => { setRows(list); setFailed(''); })
+    .catch((error) => setFailed(failure(error, t)));
   useEffect(() => { void load(); }, []);
 
-  if (!rows.length) return null;
+  if (!rows.length && !failed) return null;
 
   return (
     <>
       <SectionHeading>{t('mail.suppressed')}</SectionHeading>
       <p className="text-[12px] text-muted mb-2">{t('mail.suppressedHint')}</p>
+      {failed && <p className="text-[12.5px] text-danger">{t('common.loadFailed', { reason: failed })}</p>}
       {rows.map((row) => (
         <div className="flex items-center gap-2" key={row.email} style={{ gap: 8, padding: '5px 0' }}>
           <span className="flex-1 min-w-0 truncate text-[13.5px]">{row.email}</span>
           <span className="text-muted text-[12.5px]" title={row.detail ?? ''}>{row.reason}</span>
-          <Button size="sm"
-            onClick={async () => {
+          <Button size="sm" disabled={action.busy}
+            onClick={() => void action.run(async () => {
               await api.delete(`/api/mail/suppressions/${encodeURIComponent(row.email)}`);
               toast(t('notify.saved'));
               void load();
-            }}
+            })}
           >
             {t('mail.allowAgain')}
           </Button>
@@ -323,7 +329,11 @@ function Notifications() {
   const { user } = useSession();
   const [digest, setDigest] = useState<string>(user?.digest ?? 'off');
 
-  const load = () => api.get<MailStatus>('/api/mail/status').then(setStatus).catch(() => setStatus(null));
+  const [failed, setFailed] = useState('');
+
+  const load = () => api.get<MailStatus>('/api/mail/status')
+    .then((next) => { setStatus(next); setFailed(''); })
+    .catch((error) => setFailed(failure(error, t)));
   useEffect(() => {
     load();
   }, []);
@@ -439,6 +449,8 @@ function Notifications() {
             <Icon name="send" size={14} /> {t('notify.sendTest')}
           </Button>
         </>
+      ) : failed ? (
+        <p className="text-[12.5px] text-danger">{t('common.loadFailed', { reason: failed })}</p>
       ) : (
         <Empty
           emoji="✉️"
@@ -468,6 +480,7 @@ function WorkspaceSettings() {
     api.config().then((config) => setAiProvider(config.ai?.provider ?? null)).catch(() => setAiProvider(null));
   }, []);
   const canEdit = role === 'owner' || role === 'admin';
+  const action = useAction();
 
   return (
     <>
@@ -476,12 +489,12 @@ function WorkspaceSettings() {
         <Input id="ws-name" value={name} disabled={!canEdit} onChange={(event) => setName(event.target.value)} />
         {!canEdit && <span className="text-[12px] text-muted">{t('workspace.adminOnly')}</span>}
       </div>
-      <Button variant="primary" disabled={!canEdit}
-        onClick={async () => {
+      <Button variant="primary" disabled={!canEdit || action.busy}
+        onClick={() => void action.run(async () => {
           await api.patch(`/api/workspaces/${workspaceId}`, { name });
           await refresh();
           toast(t('workspace.updated'));
-        }}
+        })}
       >
         {t('action.save')}
       </Button>
@@ -709,14 +722,14 @@ function WorkspaceSettings() {
       <div className="flex items-center gap-2">
         <Input placeholder={t('common.name')} value={creating} onChange={(event) => setCreating(event.target.value)} />
         <Button
-          disabled={!creating.trim()}
-          onClick={async () => {
+          disabled={!creating.trim() || action.busy}
+          onClick={() => void action.run(async () => {
             const result = await api.post<any>('/api/workspaces', { name: creating });
             setCreating('');
             await refresh();
             setWorkspace(result.workspace.id);
             toast(t('workspace.created'));
-          }}
+          })}
         >
           {t('action.create')}
         </Button>
@@ -737,11 +750,15 @@ function Members() {
   const { confirm, dialog } = useConfirm();
   const [members, setMembers] = useState<any[]>([]);
   const [invites, setInvites] = useState<any[]>([]);
+  const [failed, setFailed] = useState('');
+  const action = useAction();
   const canManage = role === 'owner' || role === 'admin';
 
+  // A failed load says so; an empty list would read as "nobody is in this workspace" (UX-08).
   const load = () => {
-    api.members(workspaceId).then(setMembers).catch(() => setMembers([]));
-    if (canManage) api.invites(workspaceId).then(setInvites).catch(() => setInvites([]));
+    setFailed('');
+    api.members(workspaceId).then(setMembers).catch((error) => setFailed(failure(error, t)));
+    if (canManage) api.invites(workspaceId).then(setInvites).catch((error) => setFailed(failure(error, t)));
   };
   useEffect(() => {
     load();
@@ -749,6 +766,7 @@ function Members() {
 
   return (
     <>
+      {failed && <p className="text-[12.5px] text-danger">{t('common.loadFailed', { reason: failed })}</p>}
       {members.map((member) => (
         <div className="flex items-center gap-2" key={member.user_id} style={{ padding: '8px 0', borderTop: '1px solid var(--line)' }}>
           <Avatar user={{ id: member.user_id, name: member.name, avatar_url: member.avatar_url }} size={30} />
@@ -758,10 +776,13 @@ function Members() {
           </div>
           {member.last_seen_at && <span className="text-muted text-[11.5px]">{relativeTime(member.last_seen_at)}</span>}
           {canManage ? (
-            <Select style={{ width: 110 }} value={member.role}
-              onChange={async (event) => {
-                await api.patch(`/api/workspaces/${workspaceId}/members/${member.user_id}`, { role: event.target.value });
-                load();
+            <Select style={{ width: 110 }} value={member.role} disabled={action.busy}
+              onChange={(event) => {
+                const next = event.target.value;
+                void action.run(async () => {
+                  await api.patch(`/api/workspaces/${workspaceId}/members/${member.user_id}`, { role: next });
+                  load();
+                });
               }}
             >
               {ROLES.map((option) => <option key={option} value={option}>{t(roleKey(option))}</option>)}
@@ -777,10 +798,13 @@ function Members() {
               // are identical to a screen reader otherwise.
               aria-label={`${t('action.remove')} — ${member.name}`}
               title={`${t('action.remove')} — ${member.name}`}
+              disabled={action.busy}
               onClick={async () => {
                 if (!(await confirm(t('members.remove', { name: member.name }), t('action.remove')))) return;
-                await api.delete(`/api/workspaces/${workspaceId}/members/${member.user_id}`);
-                load();
+                await action.run(async () => {
+                  await api.delete(`/api/workspaces/${workspaceId}/members/${member.user_id}`);
+                  load();
+                });
               }}
             >
               <Icon name="trash" size={14} />
@@ -793,12 +817,13 @@ function Members() {
         <>
           <SectionHeading>{t('members.invites')}</SectionHeading>
           <Button
-            onClick={async () => {
+            disabled={action.busy}
+            onClick={() => void action.run(async () => {
               const invite = await api.createInvite(workspaceId, 'member');
+              load();
               await navigator.clipboard?.writeText(`${location.origin}/invite/${invite.code}`);
               toast(t('members.inviteCopied'));
-              load();
-            }}
+            })}
           >
             <Icon name="link" size={14} /> {t('members.createInvite')}
           </Button>
@@ -920,7 +945,12 @@ function ApiSettings() {
     return scope.kind === 'named' ? scope.name : t('api.tokenOtherWorkspace');
   };
 
-  const load = () => api.tokens().then(setTokens).catch(() => setTokens([]));
+  const [failed, setFailed] = useState('');
+  const action = useAction();
+
+  const load = () => api.tokens()
+    .then((list) => { setTokens(list); setFailed(''); })
+    .catch((error) => setFailed(failure(error, t)));
   useEffect(() => {
     load();
   }, []);
@@ -945,12 +975,12 @@ function ApiSettings() {
       <SectionHeading>{t('api.tokens')}</SectionHeading>
       <div className="flex items-center gap-2 mb-3">
         <Input placeholder={t('api.tokenName')} value={name} onChange={(event) => setName(event.target.value)} />
-        <Button variant="primary"
-          onClick={async () => {
+        <Button variant="primary" disabled={action.busy}
+          onClick={() => void action.run(async () => {
             const token = await api.createToken({ name, workspaceId, confined });
             setCreated(token.token);
             load();
-          }}
+          })}
         >
           <Icon name="plus" size={14} /> {t('action.create')}
         </Button>
@@ -983,18 +1013,20 @@ function ApiSettings() {
           <span className="text-muted text-[11.5px]">
             {token.last_used_at ? t('api.usedAgo', { time: relativeTime(token.last_used_at) }) : t('api.neverUsed')}
           </span>
-          <Button variant="ghost" size="iconSm"
-            onClick={async () => {
+          <Button variant="ghost" size="iconSm" disabled={action.busy}
+            onClick={() => void action.run(async () => {
               await api.revokeToken(token.id);
               load();
               toast(t('api.revoked'));
-            }}
+            })}
           >
             <Icon name="trash" size={14} />
           </Button>
         </div>
       ))}
-      {!tokens.length && <span className="text-muted text-[12.5px]">{t('api.noTokens')}</span>}
+      {failed
+        ? <p className="text-[12.5px] text-danger">{t('common.loadFailed', { reason: failed })}</p>
+        : !tokens.length && <span className="text-muted text-[12.5px]">{t('api.noTokens')}</span>}
 
       <SectionHeading>{t('api.connect')}</SectionHeading>
       <pre className="md text-[12.5px]" style={{ background: 'var(--bg-sunken)', border: '1px solid var(--line)', padding: 12, borderRadius: 10, overflowX: 'auto' }}>

@@ -356,7 +356,7 @@ footer {
 <!-- generated: tally -->
     <div><span class="v num">372</span><span class="k">source files</span></div>
     <div><span class="v num">48</span><span class="k">modules</span></div>
-    <div><span class="v num">119 535</span><span class="k">lines</span></div>
+    <div><span class="v num">119 729</span><span class="k">lines</span></div>
 <!-- end -->
     <div><span class="v num">61</span><span class="k">entities</span></div>
     <div><span class="v num">145</span><span class="k">endpoints</span></div>
@@ -441,8 +441,8 @@ footer {
 
     <div class="legend" role="list">
 <!-- generated: legend -->
-      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 32 916 lines, 28%</span>
-      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 58 868 lines, 49%</span>
+      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 33 003 lines, 28%</span>
+      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 58 975 lines, 49%</span>
       <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 25 187 lines, 21%</span>
       <span role="listitem"><i style="background: var(--shell)"></i> Shell — 2 564 lines, 2%</span>
 <!-- end -->
@@ -1028,8 +1028,8 @@ footer {
       <code>architecture.md</code> accepts is still accepted.
     </li>
     <li>
-      <strong><code>i18n</code> stays the largest kernel module.</strong> 10 915 lines is three
-      catalogues of 3 278 keys. Step 2 stops shipping the two nobody asked for; it does not make the
+      <strong><code>i18n</code> stays the largest kernel module.</strong> 10 933 lines is three
+      catalogues of 3 284 keys. Step 2 stops shipping the two nobody asked for; it does not make the
       catalogues smaller, and it should not — a compile error on a missing key is worth more than the
       file size.
     </li>
@@ -1415,26 +1415,26 @@ footer {
 <script>
 /* generated: inventory */
 const MODULES = [
-{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":10915,"biggest":"kernel/i18n/locales/en.ts","biggestLines":3447},
+{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":10933,"biggest":"kernel/i18n/locales/en.ts","biggestLines":3453},
 {"ring":"kernel","name":"registry","flag":"","files":8,"lines":4096,"biggest":"kernel/registry/types.ts","biggestLines":2626},
-{"ring":"kernel","name":"design-system","flag":"","files":29,"lines":2781,"biggest":"kernel/design-system/ui.tsx","biggestLines":774},
+{"ring":"kernel","name":"design-system","flag":"","files":29,"lines":2825,"biggest":"kernel/design-system/ui.tsx","biggestLines":818},
 {"ring":"kernel","name":"write-path","flag":"","files":3,"lines":2757,"biggest":"kernel/write-path/repo.ts","biggestLines":1363},
 {"ring":"kernel","name":"sync","flag":"","files":8,"lines":2511,"biggest":"kernel/sync/routes/sync.ts","biggestLines":675},
 {"ring":"kernel","name":"platform","flag":"","files":11,"lines":2430,"biggest":"kernel/platform/env.ts","biggestLines":650},
 {"ring":"kernel","name":"search","flag":"","files":9,"lines":2375,"biggest":"kernel/search/query.ts","biggestLines":489},
-{"ring":"kernel","name":"identity","flag":"","files":10,"lines":2329,"biggest":"kernel/identity/routes/auth.ts","biggestLines":565},
+{"ring":"kernel","name":"identity","flag":"","files":10,"lines":2354,"biggest":"kernel/identity/routes/auth.ts","biggestLines":565},
 {"ring":"kernel","name":"files","flag":"","files":9,"lines":1227,"biggest":"kernel/files/zip.ts","biggestLines":327},
 {"ring":"kernel","name":"feedback","flag":"","files":8,"lines":1171,"biggest":"feedback/src/kernel/feedback/input.ts","biggestLines":251},
 {"ring":"kernel","name":"mail","flag":"","files":3,"lines":324,"biggest":"kernel/mail/mailbox.ts","biggestLines":154},
 {"ring":"capability","name":"pages","flag":"","files":41,"lines":14760,"biggest":"modules/pages/routes/pages.tsx","biggestLines":1039},
-{"ring":"capability","name":"work","flag":"","files":24,"lines":6770,"biggest":"modules/work/views.tsx","biggestLines":1071},
-{"ring":"capability","name":"products","flag":"products","files":4,"lines":5335,"biggest":"modules/products/routes/products.tsx","biggestLines":2878},
+{"ring":"capability","name":"work","flag":"","files":24,"lines":6822,"biggest":"modules/work/views.tsx","biggestLines":1118},
+{"ring":"capability","name":"products","flag":"products","files":4,"lines":5337,"biggest":"modules/products/routes/products.tsx","biggestLines":2880},
 {"ring":"capability","name":"planning","flag":"","files":12,"lines":4758,"biggest":"modules/planning/routes/projects.tsx","biggestLines":1666},
-{"ring":"capability","name":"operations","flag":"","files":11,"lines":3956,"biggest":"modules/operations/routes/settings.tsx","biggestLines":1115},
-{"ring":"capability","name":"budgets","flag":"budget","files":4,"lines":3254,"biggest":"modules/budgets/routes/budgets.tsx","biggestLines":1694},
-{"ring":"capability","name":"mail","flag":"mail","files":15,"lines":3204,"biggest":"modules/mail/settings.tsx","biggestLines":556},
+{"ring":"capability","name":"operations","flag":"","files":11,"lines":3988,"biggest":"modules/operations/routes/settings.tsx","biggestLines":1147},
+{"ring":"capability","name":"budgets","flag":"budget","files":4,"lines":3260,"biggest":"modules/budgets/routes/budgets.tsx","biggestLines":1700},
+{"ring":"capability","name":"mail","flag":"mail","files":15,"lines":3213,"biggest":"modules/mail/settings.tsx","biggestLines":556},
 {"ring":"capability","name":"chat","flag":"","files":6,"lines":2395,"biggest":"modules/chat/routes/chat.tsx","biggestLines":1399},
-{"ring":"capability","name":"kpis","flag":"kpi","files":4,"lines":1865,"biggest":"modules/kpis/routes/kpis.tsx","biggestLines":965},
+{"ring":"capability","name":"kpis","flag":"kpi","files":4,"lines":1871,"biggest":"modules/kpis/routes/kpis.tsx","biggestLines":971},
 {"ring":"capability","name":"infrastructure","flag":"infrastructure","files":4,"lines":1641,"biggest":"modules/infrastructure/landscape.tsx","biggestLines":582},
 {"ring":"capability","name":"guide","flag":"","files":6,"lines":1625,"biggest":"modules/guide/diagrams.tsx","biggestLines":628},
 {"ring":"capability","name":"meetings","flag":"meetings","files":4,"lines":1602,"biggest":"modules/meetings/meeting-parts.tsx","biggestLines":776},

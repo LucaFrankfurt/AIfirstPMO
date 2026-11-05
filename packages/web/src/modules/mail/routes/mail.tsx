@@ -24,7 +24,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Header } from '../../../kernel/design-system/chrome';
-import { Empty, Icon, Sheet } from '../../../kernel/design-system/ui';
+import { Empty, Icon, Sheet, failure, useAction, useToast } from '../../../kernel/design-system/ui';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { Input } from '../../../kernel/design-system/ui/field';
 import { SectionHeading } from '../../../kernel/design-system/ui/section';
@@ -88,6 +88,8 @@ export function MailScreen() {
   const [open, setOpen] = useState<Detail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const toast = useToast();
+  const action = useAction();
 
   const search = async (text: string) => {
     setLoading(true);
@@ -121,9 +123,8 @@ export function MailScreen() {
     if (!wanted) return;
     api.get<Detail>(`/api/workspaces/${workspaceId}/mail/${wanted}`)
       .then(setOpen)
-      // Gone, or in a mailbox this account may not read. Either way the screen
-      // is still useful, so the link fails quietly rather than emptying it.
-      .catch(() => setOpen(null));
+      // Gone, or in a mailbox this account may not read: said in a toast, and the screen stays as it is.
+      .catch((caught) => toast(failure(caught, t)));
   }, [workspaceId, params]);
 
   return (
@@ -164,10 +165,11 @@ export function MailScreen() {
         <p className="text-[12px] text-muted mt-1">{t('mail.searchHint')}</p>
         {error && <p className="text-[12px] text-danger">{error}</p>}
 
-        {tab === 'search' && (
+        {/* A failed search is the error above, not "0 results" under it. */}
+        {tab === 'search' && !error && (
           <Results
             hits={hits} total={total} searched={searched} loading={loading}
-            onOpen={async (id) => setOpen(await api.get<Detail>(`/api/workspaces/${workspaceId}/mail/${id}`))}
+            onOpen={(id) => void action.run(async () => setOpen(await api.get<Detail>(`/api/workspaces/${workspaceId}/mail/${id}`)))}
           />
         )}
         {tab === 'documents' && <Documents query={query} />}
@@ -228,18 +230,21 @@ function Documents({ query }: { query: string }) {
   const { workspaceId } = useSession();
   const [rows, setRows] = useState<Ranked[]>([]);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState('');
 
   useEffect(() => {
     setLoading(true);
+    setFailed('');
     api.get<{ candidates: Ranked[] }>(
       `/api/workspaces/${workspaceId}/mail-documents?limit=50&q=${encodeURIComponent(query)}`,
     )
       .then((answer) => setRows(answer.candidates))
-      .catch(() => setRows([]))
+      .catch((caught) => setFailed(failure(caught, t)))
       .finally(() => setLoading(false));
   }, [workspaceId, query]);
 
   if (loading) return <div className="skeleton mt-3" style={{ height: 10 }} />;
+  if (failed) return <p className="text-[12px] text-danger mt-3">{t('common.loadFailed', { reason: failed })}</p>;
   if (!rows.length) return <Empty title={t('mail.results', { count: 0 })} />;
   return (
     <>
@@ -270,13 +275,17 @@ function Numbers({ query }: { query: string }) {
   const t = useT();
   const { workspaceId } = useSession();
   const [stats, setStats] = useState<Stats | null>(null);
+  const [failed, setFailed] = useState('');
 
   useEffect(() => {
+    setFailed('');
     api.get<Stats>(`/api/workspaces/${workspaceId}/mail-stats?q=${encodeURIComponent(query)}`)
       .then(setStats)
-      .catch(() => setStats(null));
+      .catch((caught) => setFailed(failure(caught, t)));
   }, [workspaceId, query]);
 
+  // A failure used to leave the skeleton up for good.
+  if (failed) return <p className="text-[12px] text-danger mt-3">{t('common.loadFailed', { reason: failed })}</p>;
   if (!stats) return <div className="skeleton mt-3" style={{ height: 10 }} />;
   const peak = Math.max(1, ...stats.per_month.map((one) => one.total));
   return (

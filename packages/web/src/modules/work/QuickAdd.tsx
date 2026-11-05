@@ -162,6 +162,7 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
     <Sheet
       title={t('quickAdd.title')}
       onClose={onClose}
+      dirty={!!title.trim() || !!description.trim()}
       footer={
         <>
           <Button onClick={() => submit(true)} disabled={!parsed.title.trim() || !effective.projectId} title={t('quickAdd.saveAndNewHint')}>
@@ -183,7 +184,11 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) submit(false);
+              // Plain Enter creates too; not while an IME is still composing the word.
+              if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+                event.preventDefault();
+                submit(false);
+              }
             }}
             className="text-base mb-2.5"
           />

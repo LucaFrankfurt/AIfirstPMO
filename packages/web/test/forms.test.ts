@@ -422,3 +422,95 @@ describe('every row or card that opens on a click', () => {
     assert.deepEqual(mouseOnly, [], `opens on a click and never from the keyboard: ${mouseOnly.join(', ')}`);
   });
 });
+
+/** One function's source, from its `function` line to the next top-level one. */
+function functionBody(file: string, name: string): string {
+  const text = readFileSync(join(SRC, file), 'utf8');
+  const from = text.search(new RegExp(`\\nfunction ${name}\\b|\\nexport function ${name}\\b`));
+  assert.ok(from >= 0, `${name} is no longer in ${file}`);
+  const next = text.slice(from + 1).search(/\n(export )?function /);
+  return text.slice(from, next < 0 ? undefined : from + 1 + next);
+}
+
+// Escape or a stray click on the backdrop must not throw away a half-written record (UX-13).
+describe('a create or edit sheet with typed input', () => {
+  const EDITORS: [string, string][] = [
+    ['modules/work/QuickAdd.tsx', 'QuickAdd'],
+    ['modules/kpis/routes/kpis.tsx', 'KpiForm'],
+    ['modules/kpis/routes/kpis.tsx', 'ReadingForm'],
+    ['modules/kpis/routes/kpis.tsx', 'TargetForm'],
+    ['modules/budgets/routes/budgets.tsx', 'BudgetForm'],
+    ['modules/budgets/routes/budgets.tsx', 'LineForm'],
+    ['modules/budgets/routes/budgets.tsx', 'ActualForm'],
+    ['modules/products/routes/products.tsx', 'ProductForm'],
+  ];
+
+  it('asks before closing', () => {
+    const blind = EDITORS.filter(([file, name]) => !/<Sheet\b[^]*?\bdirty=\{/.test(functionBody(file, name))).map(([, name]) => name);
+    assert.deepEqual(blind, [], `sheet(s) that drop typed input on Escape: ${blind.join(', ')}`);
+  });
+
+  it('creates a task on a plain Enter in the title', () => {
+    const quick = functionBody('modules/work/QuickAdd.tsx', 'QuickAdd');
+    const handler = quick.slice(quick.indexOf('onKeyDown='), quick.indexOf('className="text-base'));
+    assert.match(handler, /event\.key === 'Enter'/);
+    assert.doesNotMatch(handler, /metaKey|ctrlKey/, 'Enter only submits with a modifier held');
+  });
+});
+
+// `window.prompt` shows a password in clear text while it is typed (UX-15).
+describe('asking for anything typed', () => {
+  it('never goes through window.prompt', () => {
+    const native = files.filter(({ text }) => /\bprompt\(/.test(text)).map(({ path }) => path.slice(SRC.length + 1));
+    assert.deepEqual(native, [], `native prompt(s): ${native.join(', ')}`);
+  });
+
+  it('turns two-factor off with a masked password field', () => {
+    const twoFactor = functionBody('kernel/identity/security.tsx', 'TwoFactor');
+    assert.match(twoFactor, /type="password"/);
+  });
+});
+
+// Offline, settings read "no members" and "no tokens yet"; a double click made two tokens (UX-08).
+describe('the settings and mail screens', () => {
+  const SCREENS = ['modules/operations/routes/settings.tsx', 'kernel/identity/security.tsx', 'modules/mail/routes/mail.tsx'];
+  const settings = readFileSync(join(SRC, SCREENS[0]), 'utf8');
+
+  it('never show a failed load as an empty list', () => {
+    const swallowed = SCREENS.flatMap((file) => {
+      const text = readFileSync(join(SRC, file), 'utf8');
+      return [...text.matchAll(/\.catch\(\(\) => set\w+\(\[\]\)\)/g)]
+        .map((match) => `${file}:${text.slice(0, match.index).split('\n').length}`);
+    });
+    assert.deepEqual(swallowed, [], `failed load(s) shown as empty: ${swallowed.join(', ')}`);
+  });
+
+  it('create a token, an invite or a workspace once per click', () => {
+    for (const call of ['api.createToken(', 'api.createInvite(', "api.post<any>('/api/workspaces'"]) {
+      const at = settings.indexOf(call);
+      assert.ok(at > 0, `${call} is no longer in the settings — this rule checks nothing`);
+      const handler = settings.slice(settings.lastIndexOf('onClick=', at), at);
+      assert.match(handler, /action\.run\(/, `${call} is not behind useAction`);
+    }
+  });
+});
+
+// A list the filters emptied read as an empty project; a fifth task on a calendar day could not be opened (UX-12).
+describe('a task view with less on screen than there is', () => {
+  const VIEWS = 'modules/work/views.tsx';
+
+  it('says the filters hid the tasks rather than that there are none', () => {
+    for (const name of ['ListView', 'TableView']) {
+      const body = functionBody(VIEWS, name);
+      assert.doesNotMatch(body, /view\.emptyTitle/, `${name} says "nothing here yet" without asking the filters`);
+      assert.match(body, /<NoTasks\b/);
+    }
+    assert.match(functionBody(VIEWS, 'NoTasks'), /view\.hiddenByFilters/);
+  });
+
+  it('opens every task of a full calendar day', () => {
+    const calendar = functionBody(VIEWS, 'CalendarView');
+    assert.doesNotMatch(calendar, /<span\b[^>]*>\+\{items\.length/, 'the "+N" is text nobody can click');
+    assert.match(calendar, /items\.map\(\(task\) => \([^]*?onOpen\(task\)/, 'no list of the whole day');
+  });
+});

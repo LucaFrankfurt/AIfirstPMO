@@ -27,6 +27,7 @@ import { Input } from '../../kernel/design-system/ui/field';
 import { buttonVariants } from '../../kernel/design-system/ui/button';
 import { cn } from '../../kernel/design-system/cn';
 import { navCount } from '../../kernel/design-system/ui/nav';
+import { Popover, PopoverContent, PopoverTrigger } from '../../kernel/design-system/ui/popover';
 import { GanttView } from '../planning/gantt';
 
 const PRIORITY_RANK = Object.fromEntries(PRIORITIES.map((p, i) => [p, i]));
@@ -52,6 +53,9 @@ const WEEKDAY_KEYS: TranslationKey[] = [
   'view.weekdayMon', 'view.weekdayTue', 'view.weekdayWed',
   'view.weekdayThu', 'view.weekdayFri', 'view.weekdaySat', 'view.weekdaySun',
 ];
+
+/** How many live tasks the filters dropped from a list `useVisibleTasks` returned — read by the empty state. */
+const HIDDEN = new WeakMap<Task[], number>();
 
 /** Apply filters + sorting. Runs against the local cache, so it is instant. */
 export function useVisibleTasks(tasks: Task[], view: ViewConfig): Task[] {
@@ -119,8 +123,26 @@ export function useVisibleTasks(tasks: Task[], view: ViewConfig): Task[] {
       updated_at: (a, b) => b.updated_at - a.updated_at,
       title: (a, b) => a.title.localeCompare(b.title),
     };
-    return [...filtered].sort(sorters[view.orderBy] ?? byOrder);
+    const sorted = [...filtered].sort(sorters[view.orderBy] ?? byOrder);
+    HIDDEN.set(sorted, tasks.filter((task) => !task.archived).length - filtered.length);
+    return sorted;
   }, [tasks, view]);
+}
+
+/** Nothing to show: either there is nothing, or the filters hid it — never the one dressed as the other (UX-12). */
+function NoTasks({ tasks, view, onChange }: { tasks: Task[]; view: ViewConfig; onChange?: (next: ViewConfig) => void }) {
+  const t = useT();
+  const hidden = HIDDEN.get(tasks) ?? 0;
+  if (!hidden) return <Empty emoji="🗒️" title={t('view.emptyTitle')} hint={t('view.emptyHint')} guide="views" />;
+  return (
+    <Empty
+      emoji="🔍"
+      title={t('view.hiddenByFilters', { count: hidden })}
+      action={onChange && (
+        <Button size="sm" onClick={() => onChange({ ...view, filters: {}, showDone: true })}>{t('view.clearFilters')}</Button>
+      )}
+    />
+  );
 }
 
 /* --------------------------------------------------------------- controls */
@@ -428,9 +450,10 @@ export function ViewControls({
 /* ------------------------------------------------------------------- list */
 
 export function ListView({
-  tasks, view, onOpen, showProject, selection,
+  tasks, view, onOpen, showProject, selection, onChange,
 }: {
   tasks: Task[]; view: ViewConfig; onOpen: (task: Task) => void; showProject?: boolean; selection?: Selection;
+  onChange?: (next: ViewConfig) => void;
 }) {
   const t = useT();
   const states = useStates(undefined);
@@ -446,7 +469,7 @@ export function ListView({
   // Shift-click needs the order the eye sees, not the order the array is in.
   const order = useMemo(() => groups.flatMap((group) => group.tasks.map((task) => task.id)), [groups]);
 
-  if (!tasks.length) return <Empty emoji="🗒️" title={t('view.emptyTitle')} hint={t('view.emptyHint')} guide="views" />;
+  if (!tasks.length) return <NoTasks tasks={tasks} view={view} onChange={onChange} />;
 
   return (
     <div>
@@ -801,6 +824,7 @@ export function CalendarView({ tasks, onOpen }: { tasks: Task[]; onOpen: (task: 
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
+  const [openDay, setOpenDay] = useState<string | null>(null);
 
   const days = useMemo(() => {
     const first = new Date(month);
@@ -855,7 +879,30 @@ export function CalendarView({ tasks, onOpen }: { tasks: Task[]; onOpen: (task: 
                   {task.title}
                 </button>
               ))}
-              {items.length > 4 && <span className="text-muted text-[10px]">+{items.length - 4}</span>}
+              {/* The rest of a full day, in a list rather than out of reach (UX-12). */}
+              {items.length > 4 && (
+                <Popover open={openDay === key} onOpenChange={(open) => setOpenDay(open ? key : null)}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button" className="text-muted text-[10px] text-start hover:text-fg"
+                      aria-label={t('view.moreOnDay', { count: items.length - 4, date: shortDate(key) })}
+                    >
+                      +{items.length - 4}
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="flex max-h-72 w-60 flex-col gap-0.5 overflow-y-auto">
+                    {items.map((task) => (
+                      <button
+                        type="button" key={task.id} title={task.title}
+                        className="truncate rounded px-2 py-1 text-start text-[12.5px] hover:bg-hover"
+                        onClick={() => { setOpenDay(null); onOpen(task); }}
+                      >
+                        {task.title}
+                      </button>
+                    ))}
+                  </PopoverContent>
+                </Popover>
+              )}
             </div>
           );
         })}
@@ -931,7 +978,7 @@ export function TableView({
   const order = useMemo(() => groups.flatMap((group) => group.tasks.map((task) => task.id)), [groups]);
   const allSelected = !!selection && order.length > 0 && order.every((id) => selection.has(id));
 
-  if (!tasks.length) return <Empty emoji="🗒️" title={t('view.emptyTitle')} hint={t('view.emptyHint')} guide="views" />;
+  if (!tasks.length) return <NoTasks tasks={tasks} view={view} onChange={onChange} />;
 
   return (
     <div className="table-wrap">

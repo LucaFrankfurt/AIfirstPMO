@@ -36,7 +36,7 @@ import {
 } from '../product';
 import { Stat } from '../../planning/insights';
 import { MoneyInput, asMoney } from '../../../kernel/design-system/ui/money';
-import { Empty, Icon, MenuButton, Sheet, useConfirm, useToast } from '../../../kernel/design-system/ui';
+import { Empty, Icon, MenuButton, Sheet, useConfirm, useDirty, useToast } from '../../../kernel/design-system/ui';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { Chip } from '../../../kernel/design-system/ui/chip';
 import { Input, Select, Textarea } from '../../../kernel/design-system/ui/field';
@@ -2603,6 +2603,7 @@ function ProductForm({ product, onClose }: { product?: Product; onClose: () => v
     capabilities: product?.capabilities ?? [],
   });
   const [newCapability, setNewCapability] = useState('');
+  const dirty = useDirty({ form, newCapability });
   /* Same question, same answer, same function as the tool and the vocabulary
      screen — see `capabilityKey` in `@kolibri/shared`. */
   const duplicateCapability = useMemo(() => {
@@ -2614,6 +2615,7 @@ function ProductForm({ product, onClose }: { product?: Product; onClose: () => v
     <Sheet
       title={product ? t('product.edit') : t('product.new')}
       onClose={onClose}
+      dirty={dirty}
       wide
       footer={(
         <Button

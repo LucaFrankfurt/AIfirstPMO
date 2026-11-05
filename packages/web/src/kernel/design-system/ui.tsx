@@ -9,14 +9,14 @@
  */
 import {
   createContext, Fragment, useCallback, useContext, useEffect, useId,
-  useMemo, useState, type MouseEvent as ReactMouseEvent, type ReactNode,
+  useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
 import type { VariantProps } from 'class-variance-authority';
 import type { Priority, StateGroup } from '@kolibri/shared';
 import { isDoneGroup, matchesTerms, parseTerms } from '@kolibri/shared';
 import { colorFor, initials, PRIORITY_COLOR } from './format';
-import { priorityKey, useT } from '../i18n/i18n';
+import { priorityKey, useT, type Translate } from '../i18n/i18n';
 import type { GuideTarget } from '../../modules/guide/guide';
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
@@ -242,11 +242,17 @@ export function PriorityBars({ priority }: { priority: Priority }) {
  * scroll position instead of jumping to the top on close.
  */
 export function Sheet({
-  title, children, onClose, footer, wide,
-}: { title?: ReactNode; children: ReactNode; onClose: () => void; footer?: ReactNode; wide?: boolean }) {
+  title, children, onClose, footer, wide, dirty,
+}: { title?: ReactNode; children: ReactNode; onClose: () => void; footer?: ReactNode; wide?: boolean; dirty?: boolean }) {
   const t = useT();
+  const discard = useConfirm();
+  // Escape, the backdrop and the X ask first when something typed would be lost (UX-13).
+  const dismiss = () => {
+    if (!dirty) return onClose();
+    void discard.confirm(t('sheet.discardChanges'), t('sheet.discard')).then((ok) => { if (ok) onClose(); });
+  };
   return (
-    <Dialog open onOpenChange={(next) => { if (!next) onClose(); }}>
+    <Dialog open onOpenChange={(next) => { if (!next) dismiss(); }}>
       {/* `sheet` is kept as a hook, not a style — the CSS that used to draw it
           is gone, and this is what tests and the odd screen-specific rule use
           to find the surface. */}
@@ -256,9 +262,16 @@ export function Sheet({
           : <VisuallyHiddenTitle>{t('action.close')}</VisuallyHiddenTitle>}
         <DialogBody>{children}</DialogBody>
         {footer && <DialogFooter>{footer}</DialogFooter>}
+        {discard.dialog}
       </DialogContent>
     </Dialog>
   );
+}
+
+/** Whether a form's state has moved from what it opened with — for `Sheet`'s `dirty`. */
+export function useDirty(value: unknown): boolean {
+  const [start] = useState(() => JSON.stringify(value));
+  return JSON.stringify(value) !== start;
 }
 
 /** A dialog must have a title even when the design shows none. */
@@ -677,6 +690,37 @@ export function ToastHost({ children }: { children: ReactNode }) {
       )}
     </ToastContext.Provider>
   );
+}
+
+/** What a failed request says: the server's words, or a generic line. */
+export const failure = (error: unknown, t: Translate): string =>
+  (error instanceof Error && error.message) || t('common.somethingWentWrong');
+
+/**
+ * A button's request, one at a time, and a toast when it fails (UX-08).
+ * The ref refuses a second click that lands before `busy` has re-rendered.
+ */
+export function useAction() {
+  const t = useT();
+  const toast = useToast();
+  const running = useRef(false);
+  const [busy, setBusy] = useState(false);
+  const run = useCallback(async (work: () => Promise<unknown>): Promise<boolean> => {
+    if (running.current) return false;
+    running.current = true;
+    setBusy(true);
+    try {
+      await work();
+      return true;
+    } catch (error) {
+      toast(failure(error, t));
+      return false;
+    } finally {
+      running.current = false;
+      setBusy(false);
+    }
+  }, [t, toast]);
+  return { busy, run };
 }
 
 /* ------------------------------------------------------------------- misc */
