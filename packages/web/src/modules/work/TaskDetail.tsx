@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { Task } from '@kolibri/shared';
 import { api } from '../../kernel/sync/api';
 import { useTabStrip } from '../../kernel/design-system/tab-strip';
+import { TabButton, TabList } from '../../kernel/design-system/ui/tabs';
 import { relativeTime, shortDate } from '../../kernel/design-system/format';
 import { useT } from '../../kernel/i18n/i18n';
 import { list, useQuery, useRow } from '../../kernel/sync/store';
@@ -289,12 +290,12 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
 
         {/* discussion */}
         <section>
-          <div ref={strip} className="tabs mb-2.5">
-            <button className={tab === 'comments' ? 'active' : ''} onClick={() => setTab('comments')}>
+          <TabList ref={strip} className="tabs mb-2.5">
+            <TabButton active={tab === 'comments'} onClick={() => setTab('comments')}>
               {t('task.comments')} {comments.length ? `(${comments.length})` : ''}
-            </button>
-            <button className={tab === 'activity' ? 'active' : ''} onClick={() => setTab('activity')}>{t('task.activity')}</button>
-          </div>
+            </TabButton>
+            <TabButton active={tab === 'activity'} onClick={() => setTab('activity')}>{t('task.activity')}</TabButton>
+          </TabList>
 
           {tab === 'comments' ? (
             <Comments target={{ task_id: task.id }} />

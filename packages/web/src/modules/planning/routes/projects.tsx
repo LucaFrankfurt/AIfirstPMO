@@ -41,6 +41,7 @@ import { GuideHint } from '../../guide/hint';
 import { api } from '../../../kernel/sync/api';
 import { shortDate, today } from '../../../kernel/design-system/format';
 import { useTabStrip } from '../../../kernel/design-system/tab-strip';
+import { TabButton, TabList } from '../../../kernel/design-system/ui/tabs';
 import { byOrder, create, createPage, remove, update } from '../../../kernel/sync/mutations';
 import { useOpenTask } from '../../../kernel/design-system/navigation';
 import { useSaveChanges } from '../../../kernel/design-system/row-form';
@@ -467,7 +468,7 @@ export function ProjectPage() {
         <Trail parts={crumbs} />
       </div>
 
-      <div ref={strip} className="tabs" style={{ padding: '0 12px' }}>
+      <TabList ref={strip} className="tabs" style={{ padding: '0 12px' }}>
         {/* Reports is always here, even for a project that will never use it.
             Hiding it until an intake link exists would make the one screen that
             explains how to get one the screen nobody can find. */}
@@ -478,9 +479,9 @@ export function ProjectPage() {
           .filter((name) => name !== 'budget' || budgets)
           .filter((name) => name !== 'kpis' || kpis)
           .map((name) => (
-          <button
+          <TabButton
             key={name}
-            className={tab === name ? 'active' : ''}
+            active={tab === name}
             onClick={() => {
               setTab(name);
               // The URL follows the tab, so a reload and a back button both
@@ -493,9 +494,9 @@ export function ProjectPage() {
                 other project. */}
             {t(isContainer && name === 'tasks' ? 'nav.projects' : TAB_KEY[name])}
             {name === 'intake' && waitingReports > 0 && <span className="tab-count">{waitingReports}</span>}
-          </button>
+          </TabButton>
         ))}
-      </div>
+      </TabList>
 
       {/*
         The description, where the screen has room for it.

@@ -27,6 +27,7 @@ import { Chip, chipVariants } from '../../../kernel/design-system/ui/chip';
 import { TelegramConnection } from '../../../adapters/telegram/telegram';
 import { InstanceSettings } from '../instance';
 import { useTabStrip } from '../../../kernel/design-system/tab-strip';
+import { TabButton, TabList } from '../../../kernel/design-system/ui/tabs';
 import { useMinute } from '../../../kernel/design-system/minute';
 
 type Tab = 'profile' | 'notifications' | 'workspace' | 'members' | 'rates' | 'mailboxes' | 'automation' | 'api' | 'data' | 'instance';
@@ -75,13 +76,13 @@ export function Settings() {
   return (
     <>
       <Header title={t('settings.title')} />
-      <div ref={strip} className="tabs tabs-inset">
+      <TabList ref={strip} className="tabs tabs-inset">
         {tabs.map((name) => (
-          <button key={name} className={tab === name ? 'active' : ''} onClick={() => choose(name)}>
+          <TabButton key={name} active={tab === name} onClick={() => choose(name)}>
             {t(TAB_KEY[name])}
-          </button>
+          </TabButton>
         ))}
-      </div>
+      </TabList>
       <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5" style={{ maxWidth: 680 }}>
         {tab === 'profile' && <Profile />}
         {tab === 'notifications' && <Notifications />}

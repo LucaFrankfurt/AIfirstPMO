@@ -42,6 +42,7 @@ import { useT, type TranslationKey } from '../../../kernel/i18n/i18n';
 import { create, remove, update } from '../../../kernel/sync/mutations';
 import { list, useQuery, useRow } from '../../../kernel/sync/store';
 import { useTabStrip } from '../../../kernel/design-system/tab-strip';
+import { TabButton, TabList } from '../../../kernel/design-system/ui/tabs';
 import { useSaveChanges } from '../../../kernel/design-system/row-form';
 import { useCanWrite, useFeature } from '../../../kernel/identity/session';
 
@@ -342,20 +343,20 @@ export function BudgetDetail() {
         <Trail parts={[{ to: '/budgets', label: t('budget.title'), icon: <Icon name="wallet" size={13} /> }]} />
       </div>
 
-      <div ref={strip} className="tabs" style={{ padding: '0 12px' }}>
+      <TabList ref={strip} className="tabs" style={{ padding: '0 12px' }}>
         {TABS.map((name) => (
-          <button
+          <TabButton
             key={name}
-            className={tab === name ? 'active' : ''}
+            active={tab === name}
             onClick={() => {
               setTab(name);
               setSearch(name === 'dashboard' ? {} : { tab: name }, { replace: true });
             }}
           >
             {t(TAB_KEY[name])}
-          </button>
+          </TabButton>
         ))}
-      </div>
+      </TabList>
 
       {scenario && tab === 'dashboard' && (
         <div className="scenario-bar">

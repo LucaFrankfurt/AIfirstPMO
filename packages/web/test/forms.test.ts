@@ -204,7 +204,7 @@ describe('every icon-only control', () => {
  */
 describe('every tab strip', () => {
   const strips = files.flatMap(({ path, text }) =>
-    [...text.matchAll(/<div\b[^>]*className=(?:"tabs[^"]*"|\{[^}]*'tabs[^']*'[^}]*\})[^>]*>/g)].map((match) => ({
+    [...text.matchAll(/<(?:div|TabList)\b[^>]*className=(?:"tabs[^"]*"|\{[^}]*'tabs[^']*'[^}]*\})[^>]*>/g)].map((match) => ({
       file: path.slice(SRC.length + 1),
       line: text.slice(0, match.index).split('\n').length,
       tag: match[0],
@@ -218,6 +218,12 @@ describe('every tab strip', () => {
   it('keeps the active tab in view', () => {
     const adrift = strips.filter((s) => !/\bref=\{/.test(s.tag) || !s.imports).map((s) => `${s.file}:${s.line}`);
     assert.deepEqual(adrift, [], `tab strip(s) with no useTabStrip: ${adrift.join(', ')}`);
+  });
+
+  // UX-14: a strip of plain buttons never tells a screen reader which tab is selected.
+  it('is a TabList, so it has tab semantics', () => {
+    const plain = strips.filter((s) => !s.tag.startsWith('<TabList')).map((s) => `${s.file}:${s.line}`);
+    assert.deepEqual(plain, [], `tab strip(s) without role="tablist": ${plain.join(', ')}`);
   });
 });
 

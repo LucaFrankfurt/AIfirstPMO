@@ -25,6 +25,7 @@ import { Button } from '../../../kernel/design-system/ui/button';
 import { buttonVariants } from '../../../kernel/design-system/ui/button';
 import { SHOW_CHECKLIST, START_TOUR } from '../tour';
 import { useTabStrip } from '../../../kernel/design-system/tab-strip';
+import { TabButton, TabList } from '../../../kernel/design-system/ui/tabs';
 
 type Section = GuideSection;
 
@@ -351,13 +352,13 @@ export function Help() {
   return (
     <>
       <Header title={t('guide.title')} />
-      <div ref={strip} className="tabs" style={{ padding: '0 12px' }}>
+      <TabList ref={strip} className="tabs" style={{ padding: '0 12px' }}>
         {(Object.keys(SECTION_KEY) as Section[]).map((name) => (
-          <button key={name} className={section === name ? 'active' : ''} onClick={() => choose(name)}>
+          <TabButton key={name} active={section === name} onClick={() => choose(name)}>
             {t(SECTION_KEY[name])}
-          </button>
+          </TabButton>
         ))}
-      </div>
+      </TabList>
       <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5 guide">
         {section === 'overview' && <Overview />}
         {section === 'hierarchy' && <Hierarchy />}

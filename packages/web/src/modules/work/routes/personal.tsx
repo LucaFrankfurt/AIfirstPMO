@@ -24,6 +24,7 @@ import { Button } from '../../../kernel/design-system/ui/button';
 import { navCount, navItem } from '../../../kernel/design-system/ui/nav';
 import { SetupChecklist } from '../../guide/tour';
 import { useTabStrip } from '../../../kernel/design-system/tab-strip';
+import { TabButton, TabList } from '../../../kernel/design-system/ui/tabs';
 import { useMinute } from '../../../kernel/design-system/minute';
 
 /* --------------------------------------------------------------- my work */
@@ -229,10 +230,10 @@ export function Inbox() {
       <Header title={t('inbox.title')}>
         {/* The strip's line lives in an inset shadow now, not a border — this
             one sits inside the header, which draws its own. */}
-        <div ref={strip} className="tabs" style={{ boxShadow: 'none' }}>
-          <button className={filter === 'unread' ? 'active' : ''} onClick={() => setFilter('unread')}>{t('inbox.unread')}</button>
-          <button className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>{t('inbox.all')}</button>
-        </div>
+        <TabList ref={strip} className="tabs" style={{ boxShadow: 'none' }}>
+          <TabButton active={filter === 'unread'} onClick={() => setFilter('unread')}>{t('inbox.unread')}</TabButton>
+          <TabButton active={filter === 'all'} onClick={() => setFilter('all')}>{t('inbox.all')}</TabButton>
+        </TabList>
         <Button size="sm" onClick={() => markAllRead(me)} disabled={!notifications.some((n) => !n.read_at)}>
           <Icon name="check" size={14} /> <span className="hide-sm">{t('inbox.markAllRead')}</span>
         </Button>
