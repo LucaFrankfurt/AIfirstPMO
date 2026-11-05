@@ -536,6 +536,22 @@ describe('a colleague outside a private project', () => {
     assert.equal(answer.result.structuredContent.name, 'salaries.webp');
   });
 
+  it('is revalidated rather than cached, and a 304 only after the permission check (FILES-CACHE)', async () => {
+    const first = await fetch(`${base}/files/${hash}/salaries.webp`, { headers: { cookie: insider.cookie } });
+    assert.equal(first.status, 200);
+    await first.arrayBuffer();
+    assert.equal(first.headers.get('cache-control'), 'private, no-cache', 'a year-long immutable copy outlives a sign-out');
+    const etag = first.headers.get('etag');
+    assert.equal(etag, `"${hash}"`);
+
+    const again = await fetch(`${base}/files/${hash}/salaries.webp`, { headers: { cookie: insider.cookie, 'if-none-match': etag! } });
+    assert.equal(again.status, 304, 'the insider revalidates for free');
+    const outsiderAsks = await fetch(`${base}/files/${hash}/salaries.webp`, { headers: { cookie: outsider.cookie, 'if-none-match': etag! } });
+    assert.equal(outsiderAsks.status, 403, 'knowing the tag is not access');
+    const signedOut = await fetch(`${base}/files/${hash}/salaries.webp`, { headers: { 'if-none-match': etag! } });
+    assert.equal(signedOut.status, 401, 'nor is having had the file once');
+  });
+
   it('leaves a file nobody has attached alone', async () => {
     // An avatar, a workspace logo, an image pasted into a chat message: stored
     // with no attachment row, and there is no narrower rule for them than the

@@ -124,6 +124,15 @@ export function registerFileRoutes(router: Router): void {
       return undefined;
     }
 
+    // Revalidated every time, so a revoked or signed-out reader is asked again; the hash makes that a cheap 304.
+    const cache = { 'cache-control': 'private, no-cache', etag: `"${file.hash}"` };
+    const known = String(ctx.req.headers['if-none-match'] ?? '').split(',').map((tag) => tag.trim().replace(/^W\//, ''));
+    if (known.includes(cache.etag) || known.includes('*')) {
+      ctx.res.writeHead(304, cache);
+      ctx.res.end();
+      return undefined;
+    }
+
     const result = await storage.read(key, backend);
     if (!result) throw notFound('File contents are missing from storage');
 
@@ -131,8 +140,7 @@ export function registerFileRoutes(router: Router): void {
       'content-type': type,
       ...(result.size ? { 'content-length': String(result.size) } : {}),
       'content-disposition': contentDisposition(inline ? 'inline' : 'attachment', filename),
-      // Content-addressed: the bytes behind a hash never change.
-      'cache-control': 'private, max-age=31536000, immutable',
+      ...cache,
       'x-content-type-options': 'nosniff',
     });
     result.stream.pipe(ctx.res);
