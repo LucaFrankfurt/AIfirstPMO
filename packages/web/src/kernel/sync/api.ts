@@ -182,9 +182,9 @@ export const api = {
   calendarOff: () => request<{ url: null }>('/api/me/calendar', { method: 'DELETE' }),
   sessions: () => request<any[]>('/api/sessions'),
   revokeSession: (id: string) => request<{ ok: boolean }>(`/api/sessions/${id}`, { method: 'DELETE' }),
-  audit: (workspaceId: string, before?: number) =>
-    request<{ entries: any[]; oldest: number | null }>(
-      `/api/workspaces/${workspaceId}/audit${before ? `?before=${before}` : ''}`,
+  audit: (workspaceId: string, before?: { at: number; id: string }) =>
+    request<{ entries: any[]; oldest: number | null; oldest_id: string | null }>(
+      `/api/workspaces/${workspaceId}/audit${before ? `?before=${before.at}&before_id=${encodeURIComponent(before.id)}` : ''}`,
     ),
   startTwoFactor: () => request<{ secret: string; uri: string }>('/api/me/2fa', json({})),
   confirmTwoFactor: (code: string) => request<{ recovery_codes: string[] }>('/api/me/2fa/confirm', json({ code })),

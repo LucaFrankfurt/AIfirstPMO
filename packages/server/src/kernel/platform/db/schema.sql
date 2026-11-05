@@ -1710,6 +1710,7 @@ CREATE TABLE IF NOT EXISTS activities (
 );
 CREATE INDEX IF NOT EXISTS activities_seq ON activities (workspace_id, seq);
 CREATE INDEX IF NOT EXISTS activities_task ON activities (task_id, created_at);
+CREATE INDEX IF NOT EXISTS activities_audit ON activities (workspace_id, created_at);
 
 -- Conversations. A named channel, or the direct one between two people.
 --
