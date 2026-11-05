@@ -73,6 +73,7 @@ export const de: Catalogue = {
   'nav.foldSidebar': 'Navigation einklappen',
   'nav.unfoldSidebar': 'Navigation ausklappen',
   'nav.tabbar': 'Bereiche',
+  'nav.skipToContent': 'Zum Inhalt springen',
   'nav.newProject': 'Neues Projekt',
   'nav.moveToTop': 'Hierher ziehen, um es aus allen Projekten herauszunehmen',
   'nav.expand': 'Zeigen, was in {name} steckt',

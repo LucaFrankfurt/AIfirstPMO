@@ -8,8 +8,8 @@
  * capability. What every route actually wanted from it — `Header`, the theme —
  * stayed behind in `kernel/design-system/chrome.tsx`.
  */
-import { useEffect, useMemo, useState } from 'react';
-import { NavLink, useNavigate, type NavLinkProps } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { NavLink, useLocation, useNavigate, type NavLinkProps } from 'react-router-dom';
 import { byId as byIdStore, list, useQuery } from './kernel/sync/store';
 import { update } from './kernel/sync/mutations';
 import { useCanWrite, useFeatures, useMe, useSession } from './kernel/identity/session';
@@ -17,6 +17,7 @@ import { useT } from './kernel/i18n/i18n';
 import { enabled, PLANNING_DESTINATIONS, WORKSPACE_DESTINATIONS } from './kernel/design-system/nav';
 import { Avatar, Icon, MenuButton, type MenuItem } from './kernel/design-system/ui';
 import { useActiveProject } from './kernel/design-system/active-project';
+import { backgroundOf } from './kernel/design-system/navigation';
 import { isDrag, idFrom, PROJECT_DRAG, startDrag, TASK_DRAG } from './kernel/design-system/drag';
 import { useRecordVisits } from './kernel/search/recents';
 import { Button } from './kernel/design-system/ui/button';
@@ -34,7 +35,14 @@ const FOLDED_KEY = 'kolibri.sidebar-folded';
 
 /* ------------------------------------------------------------------ shell */
 
-const Item = ({ to, icon, children, count }: { to: string; icon: string; children: React.ReactNode; count?: number } & Partial<NavLinkProps>) => (
+/** The screen's own heading, or the content area when it has none yet. */
+function focusScreen(main: HTMLElement): void {
+  const heading = main.querySelector('h1');
+  if (heading) heading.tabIndex = -1;
+  (heading ?? main).focus({ preventScroll: true });
+}
+
+const Item =({ to, icon, children, count }: { to: string; icon: string; children: React.ReactNode; count?: number } & Partial<NavLinkProps>) => (
   <NavLink to={to} className={navItem()} end={to === '/'}>
     <Icon name={icon} size={16} />
     <span className="flex-1 min-w-0 truncate">{children}</span>
@@ -216,6 +224,44 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, [navigate]);
 
+  // A task sheet opens over the screen behind it, so that screen is still the one shown.
+  const location = useLocation();
+  const screen = (backgroundOf(location) ?? location).pathname;
+  const lastScreen = useRef(screen);
+  // The tab is named after the screen's h1, and a new screen (not the first) takes focus there.
+  useEffect(() => {
+    const main = document.getElementById('content');
+    if (!main) return undefined;
+    const name = t('app.name');
+    // 'wait': the content area holds focus until a lazy screen draws its h1.
+    let focus: 'move' | 'wait' | null = lastScreen.current === screen ? null : 'move';
+    lastScreen.current = screen;
+    const sync = () => {
+      const heading = main.querySelector('h1');
+      const text = heading?.textContent?.trim();
+      const title = text && text !== name ? `${text} · ${name}` : name;
+      if (document.title !== title) document.title = title;
+
+      if (focus === 'wait' && document.activeElement !== main) focus = null;
+      if (!focus) return;
+      const at = document.activeElement;
+      // A screen that focuses its own field (search, a new project's name) keeps it.
+      if (at && at !== main && (main.contains(at) || at.closest('[role="dialog"]'))) {
+        focus = null;
+        return;
+      }
+      focusScreen(main);
+      focus = heading ? null : 'wait';
+    };
+    sync();
+    const watch = new MutationObserver(sync);
+    watch.observe(main, { childList: true, subtree: true, characterData: true });
+    return () => {
+      watch.disconnect();
+      document.title = name;
+    };
+  }, [screen, t]);
+
   const workspaceItems: MenuItem[] = [
     ...(session?.workspaces ?? []).map((workspace) => ({
       id: workspace.id,
@@ -240,6 +286,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className={`shell${folded ? ' nav-folded' : ''}`}>
+      <a
+        className="skip-link" href="#content"
+        onClick={(event) => {
+          // Focus, not the hash: a hash change would add a history entry.
+          event.preventDefault();
+          const main = document.getElementById('content');
+          if (main) focusScreen(main);
+        }}
+      >
+        {t('nav.skipToContent')}
+      </a>
       {/* Labelled, because a second `<aside>` appears on the chat screen and a
           rotor listing "complementary" twice tells nobody which is which. */}
       <aside className="sidebar" aria-label={t('nav.sidebar')}>
@@ -400,7 +457,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {/* A real landmark rather than a styled `div`. "Skip to content" and
             every screen reader's jump-to-main both need something to aim at,
             and `.main` was only ever a class name. */}
-        <main className="content" id="content">{children}</main>
+        <main className="content" id="content" tabIndex={-1}>{children}</main>
         {/*
           * The bar's own words, not the sidebar's.
           *

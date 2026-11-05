@@ -72,6 +72,7 @@ export const en = {
   'nav.foldSidebar': 'Collapse the sidebar',
   'nav.unfoldSidebar': 'Expand the sidebar',
   'nav.tabbar': 'Sections',
+  'nav.skipToContent': 'Skip to content',
   'nav.newProject': 'New project',
   'nav.moveToTop': 'Drop here to move it out of every project',
   'nav.expand': 'Show what is inside {name}',

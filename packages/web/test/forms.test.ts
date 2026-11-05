@@ -422,3 +422,19 @@ describe('every row or card that opens on a click', () => {
     assert.deepEqual(mouseOnly, [], `opens on a click and never from the keyboard: ${mouseOnly.join(', ')}`);
   });
 });
+
+// UX-11: the first Tab stop skips the sidebar, and every browser tab is named after its screen.
+describe('the shell', () => {
+  const shell = readFileSync(join(SRC, 'AppShell.tsx'), 'utf8');
+
+  it('opens with a skip link to the content', () => {
+    const link = shell.indexOf('<a', shell.indexOf('className={`shell'));
+    assert.ok(link > 0 && link < shell.indexOf('<aside'), 'no link before the sidebar');
+    assert.match(shell.slice(link, shell.indexOf('</a>', link)), /href="#content"/);
+    assert.match(shell, /<main\b[^>]*id="content"[^>]*tabIndex=\{-1\}/);
+  });
+
+  it('names the document after the screen heading', () => {
+    assert.match(shell, /querySelector\('h1'\)[\s\S]*document\.title = title/);
+  });
+});

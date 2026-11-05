@@ -80,6 +80,7 @@ export const fr: Catalogue = {
   'nav.foldSidebar': 'Replier la barre latérale',
   'nav.unfoldSidebar': 'Déplier la barre latérale',
   'nav.tabbar': 'Sections',
+  'nav.skipToContent': 'Aller au contenu',
   'nav.newProject': 'Nouveau projet',
   'nav.moveToTop': 'Déposer ici pour le sortir de tous les projets',
   'nav.expand': 'Montrer ce que contient {name}',
