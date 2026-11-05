@@ -14,7 +14,7 @@
  * every tool that returns one uses. Everything is exported, because the point
  * of the file is to be imported from.
  */
-import { annualCost, catalogue, type CatalogueEntry, DEFAULT_ASSUMPTIONS, healthOfProduct, type Product, type ProductContributor, type ProductCost, type ProductPart, type ProductPrice, type Promotion, type Budget, type BudgetActual, type BudgetLine, type BudgetRollUp, type BudgetScenario, type Component, fieldValueId, formatMeasure, formatMoney, type Kpi, type KpiReading, type KpiTarget, type LandscapeCost, livenessOn, normaliseAllocations, oneOffCost, orderKey, parseMoney, parseQuickAdd, PRIORITIES, progressOf, projectScope, type Rate, type RelationKind, rollUp, STATE_GROUPS, type StateGroup, type TimeEntry, trendOf, type Vendor, type Vocabulary, writeFieldValue } from '@kolibri/shared';
+import { annualCost, catalogue, type CatalogueEntry, DEFAULT_ASSUMPTIONS, healthOfProduct, type Product, type ProductContributor, type ProductCost, type ProductPart, type ProductPrice, type Promotion, type Budget, type BudgetActual, type BudgetLine, type BudgetRollUp, type BudgetScenario, type Component, fieldValueId, formatMeasure, formatMoney, type Kpi, type KpiReading, type KpiTarget, type LandscapeCost, livenessOn, normaliseAllocations, oneOffCost, orderKey, parseMoney, parseQuickAdd, PRIORITIES, progressOf, projectScope, type Rate, type RelationKind, rollUp, STATE_GROUPS, type StateGroup, TASK_TITLE_MAX, type TimeEntry, trendOf, type Vendor, type Vocabulary, writeFieldValue } from '@kolibri/shared';
 import { all, get, type Row } from '../../kernel/platform/db/index.ts';
 import { env } from '../../kernel/platform/env.ts';
 import { type Auth } from '../../kernel/identity/auth.ts';
@@ -325,7 +325,7 @@ export function fileTask(
   const { row } = writeEntity('task', uid(), {
     workspace_id: workspaceId,
     project_id: project.id,
-    title: title.slice(0, 500),
+    title: title.slice(0, TASK_TITLE_MAX),
     description: str(args.description) ?? null,
     state_id: state?.id,
     priority: quick?.priority ?? (PRIORITIES.includes(args.priority) ? args.priority : 'none'),

@@ -562,4 +562,35 @@ describe('a colleague outside a private project', () => {
     assert.equal(bytes.status, 403, 'a hand-written attachment row bought access to somebody else’s file');
   });
 
+  it('cannot file a task into the private project, by create, PATCH, bulk or sync', async () => {
+    const { body: own } = await call(`/api/workspaces/${ada.workspace}/tasks`, {
+      cookie: outsider.cookie, body: { project_id: projectId, title: 'Mine to move' },
+    });
+    const into = { project_id: privateProject };
+    const created = await call(`/api/workspaces/${ada.workspace}/tasks`, { cookie: outsider.cookie, body: { ...into, title: 'Planted' } });
+    assert.equal(created.status, 403, 'a task was created in a project its writer cannot see');
+    assert.equal((await call(`/api/tasks/${own.id}`, { cookie: outsider.cookie, method: 'PATCH', body: into })).status, 403);
+    const bulk = await call(`/api/workspaces/${ada.workspace}/tasks/bulk`, {
+      cookie: outsider.cookie, body: { ids: [own.id, publicTask], patch: into },
+    });
+    assert.equal(bulk.status, 403, 'bulk moved tasks into a private project');
+
+    const { Clock } = await import('@kolibri/shared');
+    const { body: pushed } = await call('/api/sync/push', {
+      cookie: outsider.cookie,
+      body: {
+        workspaceId: ada.workspace, clientId: 'outsider-device',
+        mutations: [{ id: crypto.randomUUID(), entity: 'task', entityId: own.id, op: 'upsert', patch: into, hlc: new Clock('outsider-device').now() }],
+      },
+    });
+    assert.deepEqual(pushed.accepted, [], 'a push moved a task into a private project');
+
+    for (const id of [own.id, publicTask]) {
+      assert.equal((await call(`/api/tasks/${id}`, { cookie: ada.cookie })).body.project_id, projectId, 'a task left its project');
+    }
+    const { body: moved } = await call(`/api/workspaces/${ada.workspace}/tasks/bulk`, {
+      cookie: insider.cookie, body: { ids: [own.id], patch: into },
+    });
+    assert.equal(moved.tasks?.[0]?.project_id, privateProject, 'somebody on the project lost the move');
+  });
 });

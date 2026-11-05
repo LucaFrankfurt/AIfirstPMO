@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, rmSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
-import { Clock, orderKey, type PullResponse, type PushResponse } from '@kolibri/shared';
+import { Clock, orderKey, TASK_TITLE_MAX, type PullResponse, type PushResponse } from '@kolibri/shared';
 
 // Imported dynamically: static imports are hoisted above the env setup above,
 // and the server reads its data directory at module load.
@@ -1040,6 +1040,38 @@ describe('kolibri api', () => {
     // Null still clears — the validation must not take that away.
     const cleared = (await callTool('update_task', { task: task.identifier, due_date: null })).result.structuredContent;
     assert.equal(cleared.due_date, null);
+  });
+
+  it('refuses task fields nothing can read, through REST, bulk and sync alike', async () => {
+    const task = await api(`/api/workspaces/${workspaceId}/tasks`, { body: { project_id: projectId, title: 'Typed', priority: 'low' } });
+    const status = async (path: string, body: unknown, method = 'POST') => (await fetch(`${base}${path}`, {
+      method, headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify(body),
+    })).status;
+    const garbage: Record<string, unknown>[] = [
+      { priority: 'banana' }, { estimate: 'lots' }, { due_date: 'next tuesday-ish' }, { start_date: '2026-02-31' },
+      { archived: 'maybe' }, { state_id: { a: 1 } }, { parent_id: 42 }, { cycle_id: '' }, { title: 'x'.repeat(TASK_TITLE_MAX + 1) },
+    ];
+    for (const patch of garbage) {
+      const label = JSON.stringify(patch).slice(0, 40);
+      assert.equal(await status(`/api/tasks/${task.id}`, patch, 'PATCH'), 400, `PATCH stored ${label}`);
+      assert.equal(await status(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'New', ...patch }), 400, `create stored ${label}`);
+      assert.equal(await status(`/api/workspaces/${workspaceId}/tasks/bulk`, { ids: [task.id], patch }), 400, `bulk stored ${label}`);
+      const pushed = await api<PushResponse>('/api/sync/push', {
+        body: { workspaceId, clientId: 'typed', mutations: [{ id: crypto.randomUUID(), entity: 'task', entityId: task.id, op: 'upsert', patch, hlc: clock.now() }] },
+      });
+      assert.deepEqual(pushed.accepted, [], `sync stored ${label}`);
+    }
+    const kept = await api(`/api/tasks/${task.id}`);
+    assert.deepEqual([kept.title, kept.priority, kept.estimate, kept.due_date, kept.archived], ['Typed', 'low', null, null, 0]);
+
+    // What a client really sends still lands, and create_task stays lenient.
+    const fine = await api(`/api/tasks/${task.id}`, {
+      method: 'PATCH', body: { priority: 'urgent', estimate: 2.5, due_date: '2026-09-01', start_date: null, archived: true, cycle_id: null },
+    });
+    assert.deepEqual([fine.priority, fine.estimate, fine.due_date, fine.archived], ['urgent', 2.5, '2026-09-01', 1]);
+    const lenient = (await callTool('create_task', { project: 'WEB', title: 'y'.repeat(600), priority: 'critical' })).result.structuredContent;
+    assert.equal(lenient.priority, 'none');
+    assert.equal(lenient.title.length, TASK_TITLE_MAX);
   });
 
   it('lets a cleared date through the range check', async () => {

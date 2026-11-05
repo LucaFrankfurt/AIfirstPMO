@@ -14,6 +14,9 @@ export type ISODate = string;
 export const PRIORITIES = ['urgent', 'high', 'medium', 'low', 'none'] as const;
 export type Priority = (typeof PRIORITIES)[number];
 
+/** The longest task title the write path stores; MCP's `create_task` cuts to it instead of refusing. */
+export const TASK_TITLE_MAX = 500;
+
 export const STATE_GROUPS = ['backlog', 'unstarted', 'started', 'completed', 'cancelled'] as const;
 
 /**
