@@ -42,7 +42,9 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
   const [description, setDescription] = useState(task?.description ?? '');
   const [tab, setTab] = useState<'comments' | 'activity'>('comments');
   const strip = useTabStrip(tab);
-  const [activity, setActivity] = useState<any[]>([]);
+  // Kept with the task it belongs to, so switching tasks never shows the last one's trail.
+  const [trail, setTrail] = useState<{ of: string; rows: any[] }>({ of: '', rows: [] });
+  const activity = trail.of === taskId ? trail.rows : [];
   const [newSubtask, setNewSubtask] = useState('');
 
   const comments = useQuery(
@@ -60,7 +62,11 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
 
   useEffect(() => {
     if (tab !== 'activity') return;
-    api.activity(taskId).then(setActivity).catch(() => setActivity([]));
+    let live = true;
+    api.activity(taskId)
+      .then((rows) => { if (live) setTrail({ of: taskId, rows }); })
+      .catch(() => { if (live) setTrail({ of: taskId, rows: [] }); });
+    return () => { live = false; };
   }, [tab, taskId]);
 
   if (!task) {

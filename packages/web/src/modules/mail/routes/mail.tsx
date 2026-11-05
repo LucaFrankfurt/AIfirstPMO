@@ -21,7 +21,7 @@
  * a person asking the same question should get the same answer, and the only
  * way to keep that true is for both to call the same endpoints.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Header } from '../../../kernel/design-system/chrome';
 import { Empty, Icon, Sheet, failure, useAction, useToast } from '../../../kernel/design-system/ui';
@@ -74,6 +74,9 @@ interface Stats {
 
 type Tab = 'search' | 'documents' | 'stats';
 
+/** The documents and numbers tabs follow the box as it is typed in; one request per pause, not per key. */
+const SEARCH_PAUSE = 300;
+
 export function MailScreen() {
   const t = useT();
   const { workspaceId } = useSession();
@@ -91,25 +94,35 @@ export function MailScreen() {
   const [error, setError] = useState('');
   const toast = useToast();
   const action = useAction();
+  const pending = useRef<AbortController | null>(null);
 
   const search = async (text: string) => {
+    // Only the latest search may write the results; an earlier answer arriving late is dropped.
+    pending.current?.abort();
+    const controller = new AbortController();
+    pending.current = controller;
     setLoading(true);
     setError('');
     try {
       const answer = await api.get<{ messages: Hit[]; total: number; searched: string[] }>(
         `/api/workspaces/${workspaceId}/mail?limit=50&q=${encodeURIComponent(text)}`,
+        { signal: controller.signal },
       );
+      if (controller.signal.aborted) return;
       setHits(answer.messages);
       setTotal(answer.total);
       setSearched(answer.searched);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught));
+      if (!controller.signal.aborted) setError(caught instanceof Error ? caught.message : String(caught));
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   };
 
-  useEffect(() => { void search(query); }, [workspaceId]);
+  useEffect(() => {
+    void search(query);
+    return () => pending.current?.abort();
+  }, [workspaceId]);
 
   /**
    * `?open=<id>` opens one message straight away.
@@ -122,10 +135,12 @@ export function MailScreen() {
   useEffect(() => {
     const wanted = params.get('open');
     if (!wanted) return;
+    let live = true;
     api.get<Detail>(`/api/workspaces/${workspaceId}/mail/${wanted}`)
-      .then(setOpen)
+      .then((detail) => { if (live) setOpen(detail); })
       // Gone, or in a mailbox this account may not read: said in a toast, and the screen stays as it is.
-      .catch((caught) => toast(failure(caught, t)));
+      .catch((caught) => { if (live) toast(failure(caught, t)); });
+    return () => { live = false; };
   }, [workspaceId, params]);
 
   return (
@@ -234,14 +249,23 @@ function Documents({ query }: { query: string }) {
   const [failed, setFailed] = useState('');
 
   useEffect(() => {
-    setLoading(true);
-    setFailed('');
-    api.get<{ candidates: Ranked[] }>(
-      `/api/workspaces/${workspaceId}/mail-documents?limit=50&q=${encodeURIComponent(query)}`,
-    )
-      .then((answer) => setRows(answer.candidates))
-      .catch((caught) => setFailed(failure(caught, t)))
-      .finally(() => setLoading(false));
+    const controller = new AbortController();
+    const { signal } = controller;
+    const handle = setTimeout(() => {
+      setLoading(true);
+      setFailed('');
+      api.get<{ candidates: Ranked[] }>(
+        `/api/workspaces/${workspaceId}/mail-documents?limit=50&q=${encodeURIComponent(query)}`,
+        { signal },
+      )
+        .then((answer) => { if (!signal.aborted) setRows(answer.candidates); })
+        .catch((caught) => { if (!signal.aborted) setFailed(failure(caught, t)); })
+        .finally(() => { if (!signal.aborted) setLoading(false); });
+    }, SEARCH_PAUSE);
+    return () => {
+      clearTimeout(handle);
+      controller.abort();
+    };
   }, [workspaceId, query]);
 
   if (loading) return <div className="skeleton mt-3" style={{ height: 10 }} />;
@@ -279,10 +303,18 @@ function Numbers({ query }: { query: string }) {
   const [failed, setFailed] = useState('');
 
   useEffect(() => {
-    setFailed('');
-    api.get<Stats>(`/api/workspaces/${workspaceId}/mail-stats?q=${encodeURIComponent(query)}`)
-      .then(setStats)
-      .catch((caught) => setFailed(failure(caught, t)));
+    const controller = new AbortController();
+    const { signal } = controller;
+    const handle = setTimeout(() => {
+      setFailed('');
+      api.get<Stats>(`/api/workspaces/${workspaceId}/mail-stats?q=${encodeURIComponent(query)}`, { signal })
+        .then((answer) => { if (!signal.aborted) setStats(answer); })
+        .catch((caught) => { if (!signal.aborted) setFailed(failure(caught, t)); });
+    }, SEARCH_PAUSE);
+    return () => {
+      clearTimeout(handle);
+      controller.abort();
+    };
   }, [workspaceId, query]);
 
   // A failure used to leave the skeleton up for good.
