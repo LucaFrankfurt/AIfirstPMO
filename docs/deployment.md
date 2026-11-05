@@ -10,7 +10,7 @@ That is the deployment. Everything below is detail.
 
 | Service | Published on | Purpose |
 |---|---|---|
-| `kolibri` | `:4000` | the app |
+| `kolibri` | `127.0.0.1:4000` — `KOLIBRI_BIND` to widen | the app |
 | `minio` | `127.0.0.1:9000`, console `127.0.0.1:9001` | uploads; the bucket is created by the app on boot |
 | `caddy` | `:80`, `:443` — profile `tls` | automatic HTTPS for `KOLIBRI_DOMAIN` |
 | `mailpit` | `127.0.0.1:8025` — dev overlay only | a capture inbox for trying email out |
@@ -83,7 +83,7 @@ file, and the screen the right place for the relay somebody needs on a Sunday.
 |---|---|---|
 | `PORT` | `4000` | Listen port inside the container |
 | `KOLIBRI_SECRET` | generated | Signs sessions and API tokens. Generated once and stored in the data volume if unset. **Changing it signs everyone out.** |
-| `KOLIBRI_PUBLIC_URL` | empty | Absolute base URL. Invite links, email links, and **every address in the OAuth metadata**. Set it — see below |
+| `KOLIBRI_PUBLIC_URL` | empty (also in both compose files) | Absolute base URL. Invite links, email links, and **every address in the OAuth metadata**. Set it — see below |
 | `KOLIBRI_ALLOW_SIGNUP` | `true` | Set to `false` once the team has accounts; invites still work |
 | `KOLIBRI_MAX_UPLOAD_MB` | `25` | Per-file upload ceiling |
 | `KOLIBRI_SESSION_DAYS` | `60` | Browser session lifetime |
@@ -131,6 +131,10 @@ it is wrong:
 Without it, the scheme is inferred: `x-forwarded-proto` from the proxy if it sends one, then the
 socket, and failing both a bare hostname is assumed to be TLS while a host with a port is assumed to
 be somebody's laptop. That inference is right in the common cases and it is still an inference.
+
+A value is believed over any inference, so an `http://` one behind a proxy that forwards `https`
+gets all three wrong. The server logs a warning on the first request where the two disagree, and
+another if a proxy forwards `https` while the variable is empty.
 
 One command says whether it is right on your instance:
 
@@ -487,8 +491,11 @@ location / {
 }
 ```
 
-Set `KOLIBRI_PUBLIC_URL=https://…` so invite links point at the right host, and remove the port
-mapping from the app service so only the proxy is exposed.
+Set `KOLIBRI_PUBLIC_URL=https://…` so invite links point at the right host. `docker-compose.yml`
+publishes the app on `127.0.0.1:4000` only, so a proxy on the same host reaches it and nothing else
+does; keep it that way. Compose cannot tie the binding to the `tls` profile, so it is loopback for
+every profile, and `KOLIBRI_BIND=0.0.0.0` is the one way to publish the app directly — together with
+`KOLIBRI_TRUST_PROXY=false`. The lite stack has no proxy and publishes on every address.
 
 ## Backups
 
@@ -895,6 +902,7 @@ a public share link would then have published, under their name.
 - [ ] `KOLIBRI_ALLOW_SIGNUP=false` after your team has signed up
 - [ ] `KOLIBRI_ALLOW_PRIVATE_WEBHOOKS` left unset unless webhooks genuinely need to reach your own network
 - [ ] `KOLIBRI_TRUST_PROXY=false` if nothing terminates TLS in front of the container
+- [ ] `KOLIBRI_BIND` left at `127.0.0.1` when a proxy is in front, so the app cannot be reached around it
 - [ ] `KOLIBRI_SECRET` set explicitly and stored in your secret manager
 - [ ] TLS terminated in front, `KOLIBRI_PUBLIC_URL` set to the https URL
 - [ ] Volume backed up on a schedule, restore tested once

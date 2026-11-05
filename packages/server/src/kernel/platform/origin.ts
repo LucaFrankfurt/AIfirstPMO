@@ -35,12 +35,25 @@ function direct(host: string): boolean {
  * carrying a port that is not 443 is a laptop or a container.
  */
 export function publicOrigin(ctx: Ctx): string {
-  if (env.publicUrl) return env.publicUrl;
   const host = (ctx.req.headers['x-forwarded-host'] as string) || ctx.req.headers.host || 'localhost';
   const forwarded = (ctx.req.headers['x-forwarded-proto'] as string)?.split(',')[0]?.trim();
+  if (forwarded === 'https') warnOnPlainUrl();
+  if (env.publicUrl) return env.publicUrl;
   const proto = forwarded
     || ((ctx.req.socket as { encrypted?: boolean }).encrypted ? 'https' : direct(host) ? 'http' : 'https');
   return `${proto}://${host}`;
+}
+
+let warnedPlainUrl = false;
+
+/** Says once, on the first request a proxy forwards as https, that the configured URL disagrees. */
+function warnOnPlainUrl(): void {
+  if (warnedPlainUrl || env.publicUrl.startsWith('https://')) return;
+  warnedPlainUrl = true;
+  // The forwarded host is the client's to choose, so it is not echoed as advice.
+  console.warn(env.publicUrl
+    ? `[origin] KOLIBRI_PUBLIC_URL is ${env.publicUrl}, but a proxy forwards requests as https: the session cookie loses Secure, HSTS is off and OAuth names an http issuer. Set it to the https:// address people open.`
+    : '[origin] KOLIBRI_PUBLIC_URL is not set behind an https proxy: links in email, webhooks and MCP answers cannot name this host. Set it to the https:// address people open.');
 }
 
 /** Whether this request is on a connection worth marking a cookie `Secure` for. */

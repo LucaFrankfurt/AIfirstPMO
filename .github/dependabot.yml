@@ -1,0 +1,16 @@
+version: 2
+updates:
+  # The root covers every workspace; sites/* keep their own lockfiles on purpose.
+  - package-ecosystem: npm
+    directories:
+      - "/"
+      - "/sites/demo"
+      - "/sites/docs"
+      - "/sites/video"
+    schedule:
+      interval: weekly
+  # Keeps the SHA pins in .github/workflows moving, with their version comments.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
