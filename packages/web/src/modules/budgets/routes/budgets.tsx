@@ -31,7 +31,7 @@ import {
 } from '../budget';
 import { Stat } from '../../planning/insights';
 import { MoneyInput, asMoney } from '../../../kernel/design-system/ui/money';
-import { Empty, Icon, Sheet, useConfirm, useToast } from '../../../kernel/design-system/ui';
+import { Empty, Icon, Sheet, useConfirm, useDirty, useToast } from '../../../kernel/design-system/ui';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { Chip } from '../../../kernel/design-system/ui/chip';
 import { Input, Select, Textarea } from '../../../kernel/design-system/ui/field';
@@ -42,6 +42,7 @@ import { useT, type TranslationKey } from '../../../kernel/i18n/i18n';
 import { create, remove, update } from '../../../kernel/sync/mutations';
 import { list, useQuery, useRow } from '../../../kernel/sync/store';
 import { useTabStrip } from '../../../kernel/design-system/tab-strip';
+import { TabButton, TabList } from '../../../kernel/design-system/ui/tabs';
 import { useSaveChanges } from '../../../kernel/design-system/row-form';
 import { useCanWrite, useFeature } from '../../../kernel/identity/session';
 
@@ -342,20 +343,20 @@ export function BudgetDetail() {
         <Trail parts={[{ to: '/budgets', label: t('budget.title'), icon: <Icon name="wallet" size={13} /> }]} />
       </div>
 
-      <div ref={strip} className="tabs" style={{ padding: '0 12px' }}>
+      <TabList ref={strip} className="tabs" style={{ padding: '0 12px' }}>
         {TABS.map((name) => (
-          <button
+          <TabButton
             key={name}
-            className={tab === name ? 'active' : ''}
+            active={tab === name}
             onClick={() => {
               setTab(name);
               setSearch(name === 'dashboard' ? {} : { tab: name }, { replace: true });
             }}
           >
             {t(TAB_KEY[name])}
-          </button>
+          </TabButton>
         ))}
-      </div>
+      </TabList>
 
       {scenario && tab === 'dashboard' && (
         <div className="scenario-bar">
@@ -700,6 +701,7 @@ function LineForm({ budget, line, last, onClose }: {
     note: line?.note ?? '',
   }));
   const [allocations, setAllocations] = useState<Allocation[]>(line?.allocations ?? []);
+  const dirty = useDirty({ form, allocations });
 
   const save = () => {
     const patch = {
@@ -725,6 +727,7 @@ function LineForm({ budget, line, last, onClose }: {
     <Sheet
       title={line ? t('budget.line') : t('budget.addLine')}
       onClose={onClose}
+      dirty={dirty}
       footer={<Button variant="primary" onClick={save} disabled={!form.name.trim()}>{t('action.save')}</Button>}
     >
       <div className="field">
@@ -818,8 +821,8 @@ function LineForm({ budget, line, last, onClose }: {
         <Input id="bl-vendor" value={form.vendor} onChange={(event) => setForm({ ...form, vendor: event.target.value })} />
       </div>
 
-      <div className="field">
-        <label>{t('budget.charges')}</label>
+      <div className="field" role="group" aria-labelledby="bl-charges">
+        <label id="bl-charges">{t('budget.charges')}</label>
         <AllocationEditor value={allocations} projects={projects} onChange={setAllocations} />
       </div>
 
@@ -1104,6 +1107,7 @@ function ActualForm({ budget, entry, lines, onClose }: {
     note: entry?.note ?? '',
   }));
   const [allocations, setAllocations] = useState<Allocation[]>(entry?.allocations ?? []);
+  const dirty = useDirty({ form, allocations });
 
   /**
    * Picking a plan line fills in the things the line already knows.
@@ -1148,6 +1152,7 @@ function ActualForm({ budget, entry, lines, onClose }: {
     <Sheet
       title={t('budget.addActual')}
       onClose={onClose}
+      dirty={dirty}
       footer={<Button variant="primary" onClick={save} disabled={!form.description.trim()}>{t('action.save')}</Button>}
     >
       <div className="field">
@@ -1222,8 +1227,8 @@ function ActualForm({ budget, entry, lines, onClose }: {
         </div>
       </div>
 
-      <div className="field">
-        <label>{t('budget.charges')}</label>
+      <div className="field" role="group" aria-labelledby="ba-charges">
+        <label id="ba-charges">{t('budget.charges')}</label>
         <AllocationEditor value={allocations} projects={projects} onChange={setAllocations} />
       </div>
     </Sheet>
@@ -1607,8 +1612,8 @@ function BudgetFields({ budget, onChange, disabled }: {
         </div>
       </div>
 
-      <div className="field">
-        <label>{t('budget.scope')}</label>
+      <div className="field" role="group" aria-labelledby="b-scope">
+        <label id="b-scope">{t('budget.scope')}</label>
         <span className="text-[12px] text-muted">{t('budget.scopeHint')}</span>
         <div className="scope-picker">
           <label className="check-row">
@@ -1656,12 +1661,14 @@ function BudgetForm({ onClose, onSaved }: { onClose: () => void; onSaved: (id: s
     project_id: null,
     projects: [],
   }));
+  const dirty = useDirty(draft);
 
   return (
     <Sheet
       title={t('budget.new')}
       wide
       onClose={onClose}
+      dirty={dirty}
       footer={(
         <Button
           variant="primary"

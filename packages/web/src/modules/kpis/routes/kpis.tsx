@@ -27,7 +27,7 @@ import {
   cadenceKey, directionKey, healthKey, measure, unitKey,
 } from '../kpi';
 import { Stat } from '../../planning/insights';
-import { Empty, Icon, Sheet, useConfirm, useToast } from '../../../kernel/design-system/ui';
+import { Empty, Icon, Sheet, useConfirm, useDirty, useToast } from '../../../kernel/design-system/ui';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { Input, Select, Textarea } from '../../../kernel/design-system/ui/field';
 import { SectionHeading } from '../../../kernel/design-system/ui/section';
@@ -37,6 +37,7 @@ import { useT, type TranslationKey } from '../../../kernel/i18n/i18n';
 import { create, remove, update } from '../../../kernel/sync/mutations';
 import { list, useQuery, useRow } from '../../../kernel/sync/store';
 import { useTabStrip } from '../../../kernel/design-system/tab-strip';
+import { TabButton, TabList } from '../../../kernel/design-system/ui/tabs';
 import { useSaveChanges } from '../../../kernel/design-system/row-form';
 import { useCanWrite, useFeature } from '../../../kernel/identity/session';
 
@@ -207,13 +208,13 @@ export function KpiDetail() {
       <div className="px-3 pt-3 sm:px-6">
         <Trail parts={[{ to: '/kpis', label: t('kpi.title'), icon: <Icon name="target" size={13} /> }]} />
       </div>
-      <div ref={strip} className="tabs" style={{ padding: '0 12px' }}>
+      <TabList ref={strip} className="tabs" style={{ padding: '0 12px' }}>
         {TABS.map((name) => (
-          <button key={name} className={tab === name ? 'active' : ''} onClick={() => go(name)}>
+          <TabButton key={name} active={tab === name} onClick={() => go(name)}>
             {t(TAB_KEY[name])}
-          </button>
+          </TabButton>
         ))}
-      </div>
+      </TabList>
       <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
         {tab === 'overview' && <Overview kpi={kpi} readings={readings} targets={targets} modules={modules} />}
         {tab === 'readings' && <Readings kpi={kpi} readings={readings} />}
@@ -387,11 +388,13 @@ function ReadingForm({ kpi, entry, onClose }: { kpi: Kpi; entry: KpiReading | nu
     source: entry?.source ?? '',
     note: entry?.note ?? '',
   }));
+  const dirty = useDirty(form);
 
   return (
     <Sheet
       title={entry ? t('kpi.editReading') : t('kpi.addReading')}
       onClose={onClose}
+      dirty={dirty}
       footer={(
         <Button
           variant="primary"
@@ -578,11 +581,13 @@ function TargetForm({ kpi, entry, modules, onClose }: {
     note: entry?.note ?? '',
   }));
   const module = modules.find((row) => row.id === form.module_id);
+  const dirty = useDirty(form);
 
   return (
     <Sheet
       title={entry ? t('kpi.editTarget') : t('kpi.addTarget')}
       onClose={onClose}
+      dirty={dirty}
       footer={(
         <Button
           variant="primary"
@@ -823,11 +828,13 @@ function KpiForm({ onClose, onSaved }: { onClose: () => void; onSaved: (id: stri
     project_id: null,
     projects: [],
   });
+  const dirty = useDirty(draft);
 
   return (
     <Sheet
       title={t('kpi.new')}
       onClose={onClose}
+      dirty={dirty}
       footer={(
         <Button
           variant="primary"

@@ -29,7 +29,7 @@ import { after, before, describe, it } from 'node:test';
 const { installEffects } = await import('../src/wiring.ts');
 const { writeEntity } = await import('../src/kernel/write-path/repo.ts');
 const { createWorkspace } = await import('../src/kernel/write-path/bootstrap.ts');
-const { get, run } = await import('../src/kernel/platform/db/index.ts');
+const { get, run, statementCount } = await import('../src/kernel/platform/db/index.ts');
 const { uid } = await import('../src/kernel/platform/ids.ts');
 
 let mine = '';
@@ -89,5 +89,22 @@ describe('a child row lives where its parent lives', () => {
 
     const line = get<{ workspace_id: string }>(`SELECT workspace_id FROM budget_lines WHERE id = ?`, orphanId);
     assert.equal(line?.workspace_id, theirs);
+  });
+});
+
+describe('the statements a write prepares', () => {
+  it('are one per set of columns, whatever order a patch names them in', () => {
+    const budgetId = uid();
+    writeEntity('budget', budgetId, { workspace_id: mine, name: 'Shapes', currency: 'EUR' }, system(mine));
+    writeEntity('budget', budgetId, { name: 'a', currency: 'USD', description: 'x' }, system(mine));
+    const held = statementCount();
+    writeEntity('budget', budgetId, { description: 'y', name: 'b', currency: 'EUR' }, system(mine));
+    writeEntity('budget', budgetId, { currency: 'USD', description: 'z', name: 'c' }, system(mine));
+    assert.equal(statementCount(), held, 'the same three columns in another order prepared another statement');
+  });
+
+  it('are never held past the bound, however many shapes arrive', () => {
+    for (let index = 0; index < 1200; index++) get(`SELECT ${index} AS shape`);
+    assert.ok(statementCount() <= 1000, `${statementCount()} statements held`);
   });
 });

@@ -12,35 +12,47 @@ export interface BusEvent {
   /** Client id that caused the change, so the origin can ignore its own echo. */
   origin?: string;
   kind?: string;
+  /** For a row in no workspace: the people it reaches, on whichever workspace their stream is open. */
+  users?: readonly string[];
 }
 
 type Listener = (event: BusEvent) => void;
 
 const listeners = new Map<string, Set<Listener>>();
+const personal = (userId: string): string => `user:${userId}`;
 
-export function subscribe(workspaceId: string, listener: Listener): () => void {
-  let set = listeners.get(workspaceId);
+function listen(key: string, listener: Listener): () => void {
+  let set = listeners.get(key);
   if (!set) {
     set = new Set();
-    listeners.set(workspaceId, set);
+    listeners.set(key, set);
   }
   set.add(listener);
   return () => {
     set.delete(listener);
-    if (!set.size) listeners.delete(workspaceId);
+    if (!set.size) listeners.delete(key);
   };
 }
 
-let pending: BusEvent | null = null;
+export const subscribe = (workspaceId: string, listener: Listener): (() => void) => listen(workspaceId, listener);
+
+/** What is published to this person by name, wherever their stream is open. */
+export const subscribeUser = (userId: string, listener: Listener): (() => void) => listen(personal(userId), listener);
+
+const pending = new Map<string, BusEvent>();
 let scheduled = false;
 
-/** Coalesces bursts (a sync push writes many rows) into one notification. */
+/** Coalesces bursts (a sync push writes many rows) into one notification per audience. */
 export function publish(event: BusEvent): void {
-  if (pending && pending.workspaceId === event.workspaceId) {
-    pending.seq = Math.max(pending.seq, event.seq);
-  } else {
-    flush();
-    pending = { ...event };
+  for (const key of event.users ? event.users.map(personal) : [event.workspaceId]) {
+    const seen = pending.get(key);
+    if (!seen) {
+      pending.set(key, { workspaceId: event.workspaceId, seq: event.seq, origin: event.origin, kind: event.kind });
+      continue;
+    }
+    seen.seq = Math.max(seen.seq, event.seq);
+    // Mixed origins: nobody's echo filter may swallow somebody else's change.
+    if (seen.origin !== event.origin) seen.origin = undefined;
   }
   if (!scheduled) {
     scheduled = true;
@@ -50,14 +62,15 @@ export function publish(event: BusEvent): void {
 
 function flush(): void {
   scheduled = false;
-  const event = pending;
-  pending = null;
-  if (!event) return;
-  for (const listener of listeners.get(event.workspaceId) ?? []) {
-    try {
-      listener(event);
-    } catch {
-      /* a dead SSE connection must not break the others */
+  const due = [...pending];
+  pending.clear();
+  for (const [key, event] of due) {
+    for (const listener of listeners.get(key) ?? []) {
+      try {
+        listener(event);
+      } catch {
+        /* a dead SSE connection must not break the others */
+      }
     }
   }
 }

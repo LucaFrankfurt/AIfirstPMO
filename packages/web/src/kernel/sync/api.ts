@@ -89,8 +89,8 @@ const safeParse = (text: string): any => {
 const json = (body: unknown): RequestInit => ({ method: 'POST', body: JSON.stringify(body) });
 
 export const api = {
-  get: <T>(path: string) => request<T>(path),
-  post: <T>(path: string, body?: unknown) => request<T>(path, json(body ?? {})),
+  get: <T>(path: string, init?: RequestInit) => request<T>(path, init),
+  post: <T>(path: string, body?: unknown, init?: RequestInit) => request<T>(path, { ...json(body ?? {}), ...init }),
   patch: <T>(path: string, body: unknown) => request<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 
@@ -182,9 +182,9 @@ export const api = {
   calendarOff: () => request<{ url: null }>('/api/me/calendar', { method: 'DELETE' }),
   sessions: () => request<any[]>('/api/sessions'),
   revokeSession: (id: string) => request<{ ok: boolean }>(`/api/sessions/${id}`, { method: 'DELETE' }),
-  audit: (workspaceId: string, before?: number) =>
-    request<{ entries: any[]; oldest: number | null }>(
-      `/api/workspaces/${workspaceId}/audit${before ? `?before=${before}` : ''}`,
+  audit: (workspaceId: string, before?: { at: number; id: string }) =>
+    request<{ entries: any[]; oldest: number | null; oldest_id: string | null }>(
+      `/api/workspaces/${workspaceId}/audit${before ? `?before=${before.at}&before_id=${encodeURIComponent(before.id)}` : ''}`,
     ),
   startTwoFactor: () => request<{ secret: string; uri: string }>('/api/me/2fa', json({})),
   confirmTwoFactor: (code: string) => request<{ recovery_codes: string[] }>('/api/me/2fa/confirm', json({ code })),

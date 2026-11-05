@@ -25,6 +25,21 @@ interface SessionValue {
 const Context = createContext<SessionValue | null>(null);
 const WORKSPACE_KEY = 'kolibri.workspace';
 
+let zoneSentFor = '';
+
+/** The server counts a person's "today" in their stored zone, and only the browser knows it. */
+function shareTimeZone(user: User): void {
+  let zone = '';
+  try {
+    zone = Intl.DateTimeFormat().resolvedOptions().timeZone ?? '';
+  } catch {
+    return;
+  }
+  if (!zone || zone === user.timezone || zoneSentFor === user.id) return;
+  zoneSentFor = user.id;
+  void api.patch('/api/me', { timezone: zone }).catch(() => undefined);
+}
+
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [ready, setReady] = useState(false);
@@ -34,7 +49,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const adopt = useCallback(async (next: SessionInfo, cached = false) => {
     setSession(next);
     setOfflineSession(cached);
-    if (!cached) await idb.setMeta('session', next, idb.DEVICE);
+    if (!cached) {
+      await idb.setMeta('session', next, idb.DEVICE);
+      shareTimeZone(next.user);
+    }
     const preferred = next.workspaces.find((w) => w.id === localStorage.getItem(WORKSPACE_KEY)) ?? next.workspaces[0];
     if (preferred) {
       setWorkspaceId(preferred.id);

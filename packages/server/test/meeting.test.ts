@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   agendaTally, byAgendaOrder, carriedItemId, carryOver, followUp, isOverdue, meetingsInOrder,
-  minutesMarkdown, nextAgendaKey, nextMeeting, orderKey, originOf,
+  compareOrder, minutesMarkdown, nextAgendaKey, nextMeeting, orderKey, originOf, setOrderTail,
   type AgendaItem, type Meeting, type MinutesWords,
 } from '@kolibri/shared';
 
@@ -48,6 +48,29 @@ describe('the order of an agenda', () => {
     const second = orderKey(first, null);
     const next = nextAgendaKey([item('b', { sort_order: second }), item('a', { sort_order: first })]);
     assert.ok(next > second);
+  });
+
+  it('gives two devices adding a point offline two different keys, with room between them', () => {
+    const last = orderKey(null, null);
+    try {
+      setOrderTail('a1');
+      const mine = nextAgendaKey([item('a', { sort_order: last })]);
+      setOrderTail('b2');
+      const theirs = nextAgendaKey([item('a', { sort_order: last })]);
+      assert.notEqual(mine, theirs);
+      const [low, high] = [mine, theirs].sort(compareOrder);
+      const between = orderKey(low, high);
+      assert.ok(compareOrder(low, between) < 0 && compareOrder(between, high) < 0, 'a point dropped between them lands between them');
+    } finally {
+      setOrderTail('');
+    }
+  });
+
+  it('keeps a point dropped between two keys that already collided next to them', () => {
+    const tied = orderKey(orderKey(null, null), null);
+    const after = orderKey(tied, null);
+    const dropped = orderKey(tied, tied);
+    assert.ok(compareOrder(tied, dropped) < 0 && compareOrder(dropped, after) < 0, `${dropped} jumped past ${after}`);
   });
 
   it('counts each state, and only the live points', () => {

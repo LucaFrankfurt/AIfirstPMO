@@ -192,6 +192,29 @@ describe('every icon-only control', () => {
     }
     assert.deepEqual(mute, [], `button(s) named only by a tooltip: ${mute.join(', ')}`);
   });
+
+  // UX-07: `Button` falls back to its `title`, so with neither words, title nor aria-label it has no name.
+  it('has a name when it is a <Button>', () => {
+    // Anything left once comments and tags are gone is text or an expression that renders some.
+    const words = (body: string): boolean =>
+      /\S/.test(body.replace(/\{\/\*[\s\S]*?\*\/\}/g, '').replace(/<[^<>]*>/g, ''));
+    const mute: string[] = [];
+    let seen = 0;
+    for (const { path, text } of files) {
+      for (const match of text.matchAll(/<Button\b/g)) {
+        seen++;
+        const end = endOfTag(text, match.index!);
+        const tag = text.slice(match.index!, end);
+        if (/\b(?:title|aria-label(?:ledby)?)=/.test(tag) || /\{\.\.\./.test(tag)) continue;
+        const close = tag.endsWith('/>') ? -1 : text.indexOf('</Button>', end);
+        const body = close < 0 ? '' : text.slice(end, close);
+        if (words(body)) continue;
+        mute.push(`${path.slice(SRC.length + 1)}:${text.slice(0, match.index).split('\n').length}`);
+      }
+    }
+    assert.ok(seen >= 100, `only found ${seen} <Button>s, which means the scan is broken`);
+    assert.deepEqual(mute, [], `<Button>(s) with no text, title or aria-label: ${mute.join(', ')}`);
+  });
 });
 
 /**
@@ -204,7 +227,7 @@ describe('every icon-only control', () => {
  */
 describe('every tab strip', () => {
   const strips = files.flatMap(({ path, text }) =>
-    [...text.matchAll(/<div\b[^>]*className=(?:"tabs[^"]*"|\{[^}]*'tabs[^']*'[^}]*\})[^>]*>/g)].map((match) => ({
+    [...text.matchAll(/<(?:div|TabList)\b[^>]*className=(?:"tabs[^"]*"|\{[^}]*'tabs[^']*'[^}]*\})[^>]*>/g)].map((match) => ({
       file: path.slice(SRC.length + 1),
       line: text.slice(0, match.index).split('\n').length,
       tag: match[0],
@@ -218,6 +241,12 @@ describe('every tab strip', () => {
   it('keeps the active tab in view', () => {
     const adrift = strips.filter((s) => !/\bref=\{/.test(s.tag) || !s.imports).map((s) => `${s.file}:${s.line}`);
     assert.deepEqual(adrift, [], `tab strip(s) with no useTabStrip: ${adrift.join(', ')}`);
+  });
+
+  // UX-14: a strip of plain buttons never tells a screen reader which tab is selected.
+  it('is a TabList, so it has tab semantics', () => {
+    const plain = strips.filter((s) => !s.tag.startsWith('<TabList')).map((s) => `${s.file}:${s.line}`);
+    assert.deepEqual(plain, [], `tab strip(s) without role="tablist": ${plain.join(', ')}`);
   });
 });
 
@@ -420,5 +449,113 @@ describe('every row or card that opens on a click', () => {
       || [...body.matchAll(/<\w+\b/g)].some((m) => itself(body.slice(m.index!, endOfTag(body, m.index!))));
     const mouseOnly = opens.filter((row) => !itself(row.tag) && !inside(row.body)).map((row) => row.where);
     assert.deepEqual(mouseOnly, [], `opens on a click and never from the keyboard: ${mouseOnly.join(', ')}`);
+  });
+});
+
+/** One function's source, from its `function` line to the next top-level one. */
+function functionBody(file: string, name: string): string {
+  const text = readFileSync(join(SRC, file), 'utf8');
+  const from = text.search(new RegExp(`\\nfunction ${name}\\b|\\nexport function ${name}\\b`));
+  assert.ok(from >= 0, `${name} is no longer in ${file}`);
+  const next = text.slice(from + 1).search(/\n(export )?function /);
+  return text.slice(from, next < 0 ? undefined : from + 1 + next);
+}
+
+// Escape or a stray click on the backdrop must not throw away a half-written record (UX-13).
+describe('a create or edit sheet with typed input', () => {
+  const EDITORS: [string, string][] = [
+    ['modules/work/QuickAdd.tsx', 'QuickAdd'],
+    ['modules/kpis/routes/kpis.tsx', 'KpiForm'],
+    ['modules/kpis/routes/kpis.tsx', 'ReadingForm'],
+    ['modules/kpis/routes/kpis.tsx', 'TargetForm'],
+    ['modules/budgets/routes/budgets.tsx', 'BudgetForm'],
+    ['modules/budgets/routes/budgets.tsx', 'LineForm'],
+    ['modules/budgets/routes/budgets.tsx', 'ActualForm'],
+    ['modules/products/routes/products.tsx', 'ProductForm'],
+  ];
+
+  it('asks before closing', () => {
+    const blind = EDITORS.filter(([file, name]) => !/<Sheet\b[^]*?\bdirty=\{/.test(functionBody(file, name))).map(([, name]) => name);
+    assert.deepEqual(blind, [], `sheet(s) that drop typed input on Escape: ${blind.join(', ')}`);
+  });
+
+  it('creates a task on a plain Enter in the title', () => {
+    const quick = functionBody('modules/work/QuickAdd.tsx', 'QuickAdd');
+    const handler = quick.slice(quick.indexOf('onKeyDown='), quick.indexOf('className="text-base'));
+    assert.match(handler, /event\.key === 'Enter'/);
+    assert.doesNotMatch(handler, /metaKey|ctrlKey/, 'Enter only submits with a modifier held');
+  });
+});
+
+// `window.prompt` shows a password in clear text while it is typed (UX-15).
+describe('asking for anything typed', () => {
+  it('never goes through window.prompt', () => {
+    const native = files.filter(({ text }) => /\bprompt\(/.test(text)).map(({ path }) => path.slice(SRC.length + 1));
+    assert.deepEqual(native, [], `native prompt(s): ${native.join(', ')}`);
+  });
+
+  it('turns two-factor off with a masked password field', () => {
+    const twoFactor = functionBody('kernel/identity/security.tsx', 'TwoFactor');
+    assert.match(twoFactor, /type="password"/);
+  });
+});
+
+// Offline, settings read "no members" and "no tokens yet"; a double click made two tokens (UX-08).
+describe('the settings and mail screens', () => {
+  const SCREENS = ['modules/operations/routes/settings.tsx', 'kernel/identity/security.tsx', 'modules/mail/routes/mail.tsx'];
+  const settings = readFileSync(join(SRC, SCREENS[0]), 'utf8');
+
+  it('never show a failed load as an empty list', () => {
+    const swallowed = SCREENS.flatMap((file) => {
+      const text = readFileSync(join(SRC, file), 'utf8');
+      return [...text.matchAll(/\.catch\(\(\) => set\w+\(\[\]\)\)/g)]
+        .map((match) => `${file}:${text.slice(0, match.index).split('\n').length}`);
+    });
+    assert.deepEqual(swallowed, [], `failed load(s) shown as empty: ${swallowed.join(', ')}`);
+  });
+
+  it('create a token, an invite or a workspace once per click', () => {
+    for (const call of ['api.createToken(', 'api.createInvite(', "api.post<any>('/api/workspaces'"]) {
+      const at = settings.indexOf(call);
+      assert.ok(at > 0, `${call} is no longer in the settings — this rule checks nothing`);
+      const handler = settings.slice(settings.lastIndexOf('onClick=', at), at);
+      assert.match(handler, /action\.run\(/, `${call} is not behind useAction`);
+    }
+  });
+});
+
+// A list the filters emptied read as an empty project; a fifth task on a calendar day could not be opened (UX-12).
+describe('a task view with less on screen than there is', () => {
+  const VIEWS = 'modules/work/views.tsx';
+
+  it('says the filters hid the tasks rather than that there are none', () => {
+    for (const name of ['ListView', 'TableView']) {
+      const body = functionBody(VIEWS, name);
+      assert.doesNotMatch(body, /view\.emptyTitle/, `${name} says "nothing here yet" without asking the filters`);
+      assert.match(body, /<NoTasks\b/);
+    }
+    assert.match(functionBody(VIEWS, 'NoTasks'), /view\.hiddenByFilters/);
+  });
+
+  it('opens every task of a full calendar day', () => {
+    const calendar = functionBody(VIEWS, 'CalendarView');
+    assert.doesNotMatch(calendar, /<span\b[^>]*>\+\{items\.length/, 'the "+N" is text nobody can click');
+    assert.match(calendar, /items\.map\(\(task\) => \([^]*?onOpen\(task\)/, 'no list of the whole day');
+  });
+});
+
+// UX-11: the first Tab stop skips the sidebar, and every browser tab is named after its screen.
+describe('the shell', () => {
+  const shell = readFileSync(join(SRC, 'AppShell.tsx'), 'utf8');
+
+  it('opens with a skip link to the content', () => {
+    const link = shell.indexOf('<a', shell.indexOf('className={`shell'));
+    assert.ok(link > 0 && link < shell.indexOf('<aside'), 'no link before the sidebar');
+    assert.match(shell.slice(link, shell.indexOf('</a>', link)), /href="#content"/);
+    assert.match(shell, /<main\b[^>]*id="content"[^>]*tabIndex=\{-1\}/);
+  });
+
+  it('names the document after the screen heading', () => {
+    assert.match(shell, /querySelector\('h1'\)[\s\S]*document\.title = title/);
   });
 });

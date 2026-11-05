@@ -29,6 +29,7 @@ const { canSeeChannel } = await import('../src/kernel/write-path/repo.ts');
 const { searchWorkspace } = await import('../src/kernel/search/search.ts');
 const { all, get, run } = await import('../src/kernel/platform/db/index.ts');
 const { resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
+const { publish, subscribe } = await import('../src/kernel/platform/bus.ts');
 
 let base = '';
 let workspaceId = '';
@@ -87,6 +88,38 @@ async function pull(who: Person): Promise<Record<string, any[]>> {
 
 const idsOf = (changes: Record<string, any[]>, entity: string): string[] =>
   (changes[entity] ?? []).map((row: any) => row.id);
+
+/** Opens somebody's stream, runs `act` once it is listening, and says whether a change frame followed. */
+async function hearsChange(who: Person, workspace: string, act: () => Promise<unknown>, ms = 2000): Promise<boolean> {
+  const control = new AbortController();
+  const timer = setTimeout(() => control.abort(), ms);
+  try {
+    const response = await fetch(`${base}/api/sync/stream?workspace=${workspace}&client=test-${who.id}`, {
+      headers: { cookie: who.cookie, accept: 'text/event-stream' },
+      signal: control.signal,
+    });
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let acted = false;
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) return false;
+      buffer += decoder.decode(value, { stream: true });
+      if (!acted && buffer.includes('event: hello')) {
+        acted = true;
+        buffer = '';
+        await act();
+      }
+      if (acted && buffer.includes('event: change')) return true;
+    }
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+    control.abort();
+  }
+}
 
 before(async () => {
   await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
@@ -514,6 +547,23 @@ describe('being told about a message', () => {
     await post(people.ada, 'messages', { channel_id: channel, body: 'hey @lin' });
     assert.equal(inbox(people.lin).length, before, 'muting has to beat a mention or it is not muting');
   });
+
+  it('nudges a device about a reply that landed in the same moment as its own message', async () => {
+    const heard: number[] = [];
+    // What the stream does for one device: its own echo is dropped.
+    const stop = subscribe('bus-window', (event) => { if (event.origin !== 'mine') heard.push(event.seq); });
+    try {
+      publish({ workspaceId: 'bus-window', seq: 10, origin: 'mine' });
+      publish({ workspaceId: 'bus-window', seq: 11, origin: 'theirs' });
+      await new Promise((done) => setTimeout(done, 100));
+      publish({ workspaceId: 'bus-window', seq: 12, origin: 'mine' });
+      publish({ workspaceId: 'bus-window', seq: 13, origin: 'mine' });
+      await new Promise((done) => setTimeout(done, 100));
+    } finally {
+      stop();
+    }
+    assert.deepEqual(heard, [11], 'the other device\'s write is heard, and a window of only its own is not');
+  });
 });
 
 /* ------------------------------------------------------------- membership */
@@ -775,6 +825,12 @@ describe('a direct conversation between two workspaces', () => {
     );
     const told = (changes.notification ?? []).filter((row: any) => row.channel_id === conversation);
     assert.equal(told.length, 1, 'and the notification about it, which also has no workspace to be in');
+  });
+
+  it('nudges the other side\'s stream, open in a workspace that has nothing to do with it', async () => {
+    const heard = await hearsChange(outsider, outsiderWorkspace, () =>
+      post(people.ada, 'messages', { channel_id: conversation, body: 'Are you there?' }));
+    assert.ok(heard, 'without the nudge the reply waits for the next poll');
   });
 
   it('brings the other person\'s name with it', async () => {

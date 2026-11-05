@@ -16,6 +16,7 @@ import { CostReport, Timesheet } from '../rates';
 import { Empty } from '../../../kernel/design-system/ui';
 import { useT, type TranslationKey } from '../../../kernel/i18n/i18n';
 import { useTabStrip } from '../../../kernel/design-system/tab-strip';
+import { TabButton, TabList } from '../../../kernel/design-system/ui/tabs';
 import { useFeature, useSeesMoney } from '../../../kernel/identity/session';
 
 const TABS = ['week', 'cost'] as const;
@@ -51,20 +52,20 @@ export function TimesheetPage() {
     <>
       <Header title={t('timesheet.title')} />
       {tabs.length > 1 && (
-        <div ref={strip} className="tabs" style={{ padding: '0 12px' }}>
+        <TabList ref={strip} className="tabs" style={{ padding: '0 12px' }}>
           {tabs.map((name) => (
-            <button
+            <TabButton
               key={name}
-              className={tab === name ? 'active' : ''}
+              active={tab === name}
               onClick={() => {
                 setTab(name);
                 setParams(name === 'week' ? {} : { tab: name }, { replace: true });
               }}
             >
               {t(TAB_KEY[name])}
-            </button>
+            </TabButton>
           ))}
-        </div>
+        </TabList>
       )}
       {tab === 'cost' && seesMoney ? <CostReport /> : <Timesheet />}
     </>

@@ -96,8 +96,14 @@ let cursor = 0;
 let outbox: Mutation[] = [];
 let stream: EventSource | null = null;
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
 let pulling: { generation: number; done: Promise<void> } | null = null;
+let flushing: { generation: number; done: Promise<void>; again?: Promise<void> } | null = null;
 let retryDelay = 1000;
+
+/** Long enough for a first page of a large workspace on a slow line; a half-open connection becomes a retry. */
+const ANSWER_WITHIN = 120_000;
+const bounded = (): RequestInit => ({ signal: AbortSignal.timeout?.(ANSWER_WITHIN) });
 
 /** Bumped by every start, suspend and sign-out; an answer from an older one is dropped. */
 let generation = 0;
@@ -179,6 +185,8 @@ export function stop(): void {
   stream = null;
   if (flushTimer) clearTimeout(flushTimer);
   flushTimer = null;
+  if (retryTimer) clearTimeout(retryTimer);
+  retryTimer = null;
 }
 
 /** A 401: mirror and queue stay for the next sign-in; every mirror re-downloads, as a restore signs everybody out. */
@@ -230,7 +238,7 @@ export function pull(): Promise<void> {
       setStatus({ state: 'syncing' });
       let more = true;
       while (more) {
-        const response = await api.get<PullResponse>(`/api/sync/pull?workspace=${ws}&since=${cursor}`);
+        const response = await api.get<PullResponse>(`/api/sync/pull?workspace=${ws}&since=${cursor}`, bounded());
         if (mine.generation !== generation) return;
         if (response.reset && cursor === 0) {
           reset();
@@ -327,7 +335,19 @@ function nextBatch(): { batch: Mutation[]; bytes: number } {
   return { batch, bytes };
 }
 
-export async function flush(): Promise<void> {
+/** One push at a time: a call during a flight gets one follow-up after it, not a second push beside it. */
+export function flush(): Promise<void> {
+  const flight = flushing;
+  if (flight?.generation === generation) return (flight.again ??= flight.done.catch(() => undefined).then(() => flush()));
+  const mine: NonNullable<typeof flushing> = { generation, done: Promise.resolve() };
+  flushing = mine;
+  mine.done = push().finally(() => {
+    if (flushing === mine) flushing = null;
+  });
+  return mine.done;
+}
+
+async function push(): Promise<void> {
   if (!workspaceId || !outbox.length || refused === generation) return;
   if (!navigator.onLine) {
     setStatus({ state: 'offline' });
@@ -337,7 +357,7 @@ export async function flush(): Promise<void> {
   const db = idb.currentMirror();
   const { batch, bytes } = nextBatch();
   try {
-    const response = await api.post<PushResponse>('/api/sync/push', { workspaceId, clientId, mutations: batch });
+    const response = await api.post<PushResponse>('/api/sync/push', { workspaceId, clientId, mutations: batch }, bounded());
     const failing = response.rejected.filter((r) => (r.status ?? 0) >= 500);
     const declined = response.rejected.filter((r) => !failing.includes(r));
     // Kept before it leaves the outbox, so a reload in between loses nothing.
@@ -450,7 +470,7 @@ export function dismissRejected(): Promise<void> {
 async function reread(entity: EntityName, id: string): Promise<void> {
   const mine = generation;
   const db = idb.currentMirror();
-  const row = await api.get<Record<string, unknown>>(`/api/${COLLECTIONS[entity]}/${id}`);
+  const row = await api.get<Record<string, unknown>>(`/api/${COLLECTIONS[entity]}/${id}`, bounded());
   if (mine !== generation) return;
   applyChanges({ [entity]: [row] } as ChangeSet);
   await persist({ [entity]: [row] } as ChangeSet, db);
@@ -537,7 +557,10 @@ function handleError(err: unknown): void {
     setStatus({ state: 'error', message: err instanceof Error ? err.message : translate(currentLocale(), 'sync.failed') });
   }
   retryDelay = Math.min(retryDelay * 2, 30_000);
-  setTimeout(() => {
+  // One retry pending at a time, however many requests failed meanwhile.
+  if (retryTimer) return;
+  retryTimer = setTimeout(() => {
+    retryTimer = null;
     if (navigator.onLine) void flush().then(() => pull());
   }, retryDelay);
 }

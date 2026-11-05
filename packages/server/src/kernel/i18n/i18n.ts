@@ -382,9 +382,9 @@ export function localeOf(userId: string | null | undefined): Locale {
 }
 
 /** Today in the user's own time zone, or the server's when they have not set one. */
-export function todayFor(userId: string | null | undefined): string {
+export function todayFor(userId: string | null | undefined, at: number = Date.now()): string {
   const zone = userId ? get<Row>(`SELECT timezone FROM users WHERE id = ?`, userId)?.timezone : null;
-  return todayIn(typeof zone === 'string' ? zone : null);
+  return todayIn(typeof zone === 'string' ? zone : null, at);
 }
 
 /** Bound translator for one recipient, so call sites stay readable. */

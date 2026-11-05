@@ -186,13 +186,70 @@ const PROMPTS = [
  * `_meta` travels on requests and is not the caller's argument — and they pass
  * through untouched.
  */
-function refuseUnknownArguments(tool: ToolDef, args: Record<string, unknown>): void {
-  const known = new Set(Object.keys((tool.schema as { properties?: Record<string, unknown> }).properties ?? {}));
-  const strangers = Object.keys(args).filter((key) => !key.startsWith('_') && !known.has(key));
-  if (!strangers.length) return;
-  throw new McpError(
-    `${tool.name} has no argument ${strangers.map((key) => `\`${key}\``).join(', ')}. It takes: ${[...known].sort().join(', ')}`,
-  );
+function checkArguments(tool: ToolDef, args: Record<string, unknown>): void {
+  const problems = problemsWith(tool.schema as Schema, args, tool.name, '');
+  if (problems.length) throw new McpError(problems.join('\n'));
+}
+
+interface Schema {
+  type?: string | string[];
+  properties?: Record<string, Schema>;
+  required?: string[];
+  items?: Schema;
+  additionalProperties?: unknown;
+}
+
+const TYPE_NAMES: Record<string, string> = {
+  string: 'a string', number: 'a number', integer: 'an integer', boolean: 'a boolean',
+  array: 'an array', object: 'an object', null: 'null',
+};
+
+function isType(value: unknown, type: string): boolean {
+  switch (type) {
+    case 'string': return typeof value === 'string';
+    case 'number': return typeof value === 'number';
+    case 'integer': return Number.isInteger(value);
+    case 'boolean': return typeof value === 'boolean';
+    case 'array': return Array.isArray(value);
+    case 'object': return !!value && typeof value === 'object' && !Array.isArray(value);
+    case 'null': return value === null;
+    default: return true;
+  }
+}
+
+// Unknown keys, missing required keys and basic types, at every depth — a batch entry is checked like a call.
+function problemsWith(schema: Schema, value: unknown, tool: string, at: string): string[] {
+  const types = schema.type === undefined ? [] : [schema.type].flat();
+  if (types.length && !types.some((type) => isType(value, type))) {
+    const actual = value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value;
+    return [`\`${at}\` must be ${types.map((type) => TYPE_NAMES[type] ?? type).join(' or ')}, not ${TYPE_NAMES[actual] ?? actual}`];
+  }
+  if (Array.isArray(value) && schema.items) {
+    const items = schema.items;
+    return value.flatMap((item, index) => problemsWith(items, item, tool, `${at}[${index}]`));
+  }
+  if (!isType(value, 'object') || !schema.properties) return [];
+  const object = value as Record<string, unknown>;
+  const properties = schema.properties;
+  const known = Object.keys(properties);
+  const who = at ? `${tool} ${at}` : tool;
+  const problems: string[] = [];
+  const strangers = schema.additionalProperties
+    ? []
+    : Object.keys(object).filter((key) => !key.startsWith('_') && !known.includes(key));
+  if (strangers.length) {
+    problems.push(`${who} has no argument ${strangers.map((key) => `\`${key}\``).join(', ')}. It takes: ${[...known].sort().join(', ')}`);
+  }
+  const required = schema.required ?? [];
+  for (const key of required) {
+    if (object[key] === undefined || object[key] === null) problems.push(`\`${at ? `${at}.${key}` : key}\` is required and was not given`);
+  }
+  for (const key of known) {
+    // A null on an optional argument is left to the tool, which reads it as "clear" or "not given".
+    if (object[key] === undefined || object[key] === null) continue;
+    problems.push(...problemsWith(properties[key], object[key], tool, at ? `${at}.${key}` : key));
+  }
+  return problems;
 }
 
 /* ------------------------------------------------------------- JSON-RPC */
@@ -333,8 +390,16 @@ export async function handleRpc(request: RpcRequest, ctx: McpCtx): Promise<Recor
       case 'tools/call': {
         const tool = TOOLS.find((t) => t.name === params.name);
         if (!tool) throw new McpError(`Unknown tool ${params.name}`);
-        refuseUnknownArguments(tool, (params.arguments ?? {}) as Record<string, unknown>);
-        const result = await tool.run((params.arguments ?? {}) as Record<string, any>, ctx);
+        const args = params.arguments ?? {};
+        if (typeof args !== 'object' || Array.isArray(args)) throw new McpError('`arguments` must be an object');
+        let result: unknown;
+        // A refused call is the tool's answer, not a protocol fault: `isError` is what a model reads to correct itself.
+        try {
+          checkArguments(tool, args);
+          result = await tool.run(args, ctx);
+        } catch (err) {
+          return ok({ content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }], isError: true });
+        }
         /*
          * A tool that has content of its own says so by what it returns.
          *

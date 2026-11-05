@@ -518,7 +518,7 @@ export function Backups() {
                     <Icon name="refresh" size={13} /> {t('restore.action')}
                   </Button>
                   <Button
-                    size="sm" variant="danger"
+                    size="sm" variant="danger" title={t('action.delete')}
                     onClick={async () => {
                       if (!(await confirm(t('backup.deleteConfirm', { name: snapshot.name })))) return;
                       await act(snapshot.name, () => api.delete(`/api/admin/backups/${snapshot.name}`), t('backup.deleted'));

@@ -86,7 +86,8 @@ const oddities = () => {
     const name = () => `${el.tagName.toLowerCase()}${[...el.classList].map((c) => '.' + c).join('')}`;
     const y = el.scrollHeight - el.clientHeight;
     const x = el.scrollWidth - el.clientWidth;
-    if (scrolls(cs.overflowY) && y > 0 && y <= 3) out.push(`${name()} scrolls ${y}px vertically`);
+    // #content is the page's vertical scroller; content a few px taller than the window is legitimate there.
+    if (scrolls(cs.overflowY) && y > 0 && y <= 3 && el.id !== 'content') out.push(`${name()} scrolls ${y}px vertically`);
     if (scrolls(cs.overflowX) && x > 0 && !MEANT_TO.some((c) => el.classList.contains(c))) {
       out.push(`${name()} scrolls ${x}px sideways`);
     }
@@ -107,6 +108,8 @@ const inspect = () => {
   const out = [];
   const doc = document.documentElement;
   if (doc.scrollWidth > doc.clientWidth + 1) out.push(`page scrolls sideways by ${doc.scrollWidth - doc.clientWidth}px`);
+  // Only #content scrolls; a scrolling document means a second scrollbar.
+  if (doc.scrollHeight > doc.clientHeight + 1) out.push(`page scrolls vertically by ${doc.scrollHeight - doc.clientHeight}px (second scrollbar)`);
 
   const header = document.querySelector('.header');
   if (header) {

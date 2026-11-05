@@ -354,7 +354,8 @@ function document() {
           ...LIST_QUERY,
         ],
         responses: {
-          200: { description: `The ${segment} this caller may see.`, ...json({ type: 'object', properties: { [segment]: { type: 'array', items: ref(model) } } }) },
+          // A bare array, which is what the route returns; it was declared as `{ [segment]: [...] }`.
+          200: { description: `The ${segment} this caller may see.`, ...json({ type: 'array', items: ref(model) }) },
           ...fails(401, 403),
         },
       },

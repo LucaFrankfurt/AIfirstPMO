@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, rmSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
-import { Clock, orderKey, TASK_TITLE_MAX, type PullResponse, type PushResponse } from '@kolibri/shared';
+import { Clock, compareOrder, orderKey, TASK_TITLE_MAX, type PullResponse, type PushResponse } from '@kolibri/shared';
 
 // Imported dynamically: static imports are hoisted above the env setup above,
 // and the server reads its data directory at module load.
@@ -561,6 +561,63 @@ describe('kolibri api', () => {
     assert.equal(after, before + 3, 'the rejected batch left nothing behind');
   });
 
+  it('refuses an argument a batch entry does not have, as create_task does', async () => {
+    const refused = await callTool('create_tasks_batch', {
+      project: 'WEB',
+      tasks: [{ title: 'Batch fine' }, { title: 'Batch owned and due', assignee: 'ada@example.com', due: '2026-12-01' }],
+    });
+    assert.equal(refused.result?.isError, true, JSON.stringify(refused));
+    assert.match(refused.result.content[0].text, /tasks\[1\] has no argument `assignee`, `due`/);
+    assert.equal(all<any>(`SELECT id FROM tasks WHERE title LIKE 'Batch fine%' OR title LIKE 'Batch owned%'`).length, 0);
+  });
+
+  it('answers a refused call as a tool result, and keeps JSON-RPC errors for protocol faults', async () => {
+    const missing = await callTool('get_task', { task: 'WEB-99999' });
+    assert.equal(missing.error, undefined, 'a task that is not there is not a protocol fault');
+    assert.equal(missing.result.isError, true);
+    assert.match(missing.result.content[0].text, /WEB-99999 not found/);
+
+    // Checked against the schema before the tool runs, not discovered by it.
+    const bare = await callTool('get_task', {});
+    assert.equal(bare.result.isError, true);
+    assert.match(bare.result.content[0].text, /`task` is required and was not given/);
+    const wrong = await callTool('search', { query: 'anything', kinds: 12345 });
+    assert.equal(wrong.result.isError, true);
+    assert.match(wrong.result.content[0].text, /`kinds` must be an array, not a number/);
+
+    const unknown = await callTool('no_such_tool', {});
+    assert.equal(unknown.error?.code, -32602);
+    assert.equal(unknown.result, undefined);
+  });
+
+  it('reads a cycle among the ones that cover the project, and refuses one that matches none', async () => {
+    const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+    await callTool('create_project', { name: 'Cycle theirs', key: 'CYA' });
+    await callTool('create_project', { name: 'Cycle ours', key: 'CYB' });
+    // Theirs first and starting later, so a workspace-wide lookup finds it before ours.
+    await callTool('create_cycle', { project: 'CYA', name: 'Same name', start_date: day(0), end_date: day(7) });
+    const ours = (await callTool('create_cycle', {
+      project: 'CYB', name: 'Same name', start_date: day(-3), end_date: day(7),
+    })).result.structuredContent;
+
+    const filed = (await callTool('create_task', { project: 'CYB', title: 'In our sprint', cycle: 'Same name' })).result.structuredContent;
+    assert.equal(filed.cycle_id, ours.id, 'a cycle of the same name in another project was picked');
+
+    const current = (await callTool('list_tasks', { project: 'CYB', cycle: 'current' })).result.structuredContent.result;
+    assert.deepEqual(current.map((task: any) => task.identifier), [filed.identifier]);
+    const anywhere = (await callTool('list_tasks', { cycle: 'current' })).result.structuredContent.result;
+    assert.ok(anywhere.some((task: any) => task.id === filed.id), 'without a project, every running cycle counts');
+
+    const batch = (await callTool('create_tasks_batch', {
+      project: 'CYB', tasks: [{ title: 'Batched into our sprint', cycle: 'current' }],
+    })).result.structuredContent;
+    assert.equal(batch.tasks[0].cycle_id, ours.id);
+
+    const typo = await callTool('create_task', { project: 'CYB', title: 'Typo sprint', cycle: 'Smae name' });
+    assert.match(typo.result.content[0].text, /No cycle matching "Smae name" covers CYB/);
+    assert.equal(all<any>(`SELECT id FROM tasks WHERE title = 'Typo sprint'`).length, 0, 'refused, not filed without it');
+  });
+
   it('links two tasks once, and refuses a circle of blockers', async () => {
     const a = (await callTool('create_task', { project: 'WEB', title: 'Foundations' })).result.structuredContent;
     const b = (await callTool('create_task', { project: 'WEB', title: 'Walls' })).result.structuredContent;
@@ -982,7 +1039,7 @@ describe('kolibri api', () => {
     ];
     for (const [args, refusal] of refusals) {
       const answer = await callTool('update_task', { task: task.identifier, ...args });
-      assert.match(answer.error?.message ?? 'accepted', refusal, `${JSON.stringify(args)} was not refused`);
+      assert.match(answer.result?.isError ? answer.result.content[0].text : 'accepted', refusal, `${JSON.stringify(args)} was not refused`);
     }
     const kept = (await callTool('get_task', { task: task.identifier })).result.structuredContent;
     assert.equal(kept.cycle_id, own.id, 'a misspelt cycle cleared the real one');
@@ -1291,7 +1348,7 @@ describe('kolibri api', () => {
         params: { name: 'list_tasks', arguments: { project: 'WEB', label: 'Epic' } },
       },
     });
-    assert.ok(invented.error, 'an unknown label is an error, not an empty answer');
+    assert.ok(invented.result?.isError, 'an unknown label is an error, not an empty answer');
   });
 
   it('refuses writes from a read-only token', async () => {
@@ -1368,8 +1425,8 @@ describe('kolibri api', () => {
         params: { name: 'log_time', arguments: { task: 'WEB-1', amount: '1h' } },
       },
     });
-    assert.ok(refused.error, 'switched off means refused');
-    assert.match(refused.error.message, /switched off/i, 'and the message says where to switch it on');
+    assert.ok(refused.result?.isError, 'switched off means refused');
+    assert.match(refused.result.content[0].text, /switched off/i, 'and the message says where to switch it on');
   });
 
   it('logs time over MCP the way a person does over the form', async () => {
@@ -1391,8 +1448,8 @@ describe('kolibri api', () => {
         params: { name: 'log_time', arguments: { task: 'WEB-1', amount: 'a while' } },
       },
     });
-    assert.ok(nonsense.error, 'an unreadable amount is refused, not rounded to nothing');
-    assert.match(nonsense.error.message, /duration/i, 'and the message says what was wrong');
+    assert.ok(nonsense.result?.isError, 'an unreadable amount is refused, not rounded to nothing');
+    assert.match(nonsense.result.content[0].text, /duration/i, 'and the message says what was wrong');
 
     const listed = await api('/mcp', {
       token: apiToken,
@@ -1452,6 +1509,26 @@ describe('kolibri api', () => {
     );
 
     cookie = adaCookie;
+  });
+
+  it('tells whoever watches a page about a new comment on it (DAT-09)', async () => {
+    const page = await api(`/api/workspaces/${workspaceId}/pages`, {
+      body: { title: 'Watched quietly', content: 'Nobody has said anything here yet.' },
+    });
+    // Read from the database rather than signed in as Lin: the login limiter
+    // already counts every sign-in this file makes.
+    const [lin] = all<any>(`SELECT id FROM users WHERE email = 'lin@example.com'`);
+    const [ada] = all<any>(`SELECT id FROM users WHERE email = 'ada@example.com'`);
+    await api(`/api/pages/${page.id}`, { method: 'PATCH', body: { watchers: [lin.id, ada.id] } });
+
+    await api(`/api/workspaces/${workspaceId}/comments`, {
+      body: { page_id: page.id, body: 'A first remark.' },
+    });
+
+    const told = (userId: string) =>
+      all<any>(`SELECT id FROM notifications WHERE user_id = ? AND page_id = ? AND kind = 'comment'`, userId, page.id).length;
+    assert.equal(told(lin.id), 1, 'a watcher who neither wrote the page nor commented hears about the comment');
+    assert.equal(told(ada.id), 0, 'and the author of the comment is not told about their own words');
   });
 
   it('notices a mention written into a page, and only says so once', async () => {
@@ -1541,6 +1618,16 @@ describe('kolibri api', () => {
 
     const pull = await api<PullResponse>(`/api/sync/pull?workspace=${workspaceId}&since=0`);
     assert.ok(!pull.changes.project?.some((p: any) => p.id === secret.id), 'sync must not leak private projects');
+  });
+
+  it('files a task given no place after the last one in its column', async () => {
+    const filed = await api(`/api/workspaces/${workspaceId}/tasks`, { body: { project_id: projectId, title: 'Goes last' } });
+    const column = (await api<any[]>(`/api/workspaces/${workspaceId}/tasks?project_id=${projectId}&limit=1000`))
+      .filter((task) => task.state_id === filed.state_id && task.id !== filed.id);
+    assert.ok(column.length > 1);
+    for (const task of column) {
+      assert.ok(compareOrder(task.sort_order, filed.sort_order) < 0, `${filed.sort_order} is not after ${task.sort_order}`);
+    }
   });
 
 /* ------------------------------------------------------------- ai review */

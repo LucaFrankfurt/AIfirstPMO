@@ -22,7 +22,7 @@
  *      the ones to skip, is written to `automation_runs` with a reason.
  */
 import {
-  addDays, type EntityName, type FanOut, type Recipient, type RelationKind, type StateGroup,
+  addDays, todayIn, type EntityName, type FanOut, type Recipient, type RelationKind, type StateGroup,
 } from '@kolibri/shared';
 import { all, get, run, type Row } from '../../kernel/platform/db/index.ts';
 import { env } from '../../kernel/platform/env.ts';
@@ -443,7 +443,9 @@ function settableFields(patch: Record<string, unknown>): Record<string, unknown>
  * arrives — that is the whole difficulty with a time trigger, and the reason
  * this is the only one.
  */
-export function runAutomationsForDue(today: string): number {
+export function runAutomationsForDue(now: number = Date.now()): number {
+  // The server's day says when a rule sweeps; each task's own day says which tasks it covers.
+  const today = todayIn(null, now);
   const rules = all<Row>(
     `SELECT * FROM automations
       WHERE enabled = 1 AND deleted_at IS NULL AND trigger_kind = 'due_in'
@@ -452,17 +454,18 @@ export function runAutomationsForDue(today: string): number {
   );
   if (!rules.length) return 0;
 
+  const utc = new Date(now).toISOString().slice(0, 10);
   let fired = 0;
   for (const rule of rules) {
     const days = Math.max(0, Number(rule.trigger_days ?? 1));
-    const target = new Date(new Date(`${today}T00:00:00Z`).getTime() + days * 86_400_000).toISOString().slice(0, 10);
+    // Every zone's day is within one of UTC's, so this window holds each task's target.
     const tasks = all<Row>(
       `SELECT t.* FROM tasks t
         WHERE t.workspace_id = ? AND t.deleted_at IS NULL AND t.archived = 0
-          AND t.due_date = ? AND t.completed_at IS NULL
+          AND t.due_date BETWEEN ? AND ? AND t.completed_at IS NULL
           AND (? IS NULL OR t.project_id = ?)`,
-      rule.workspace_id, target, rule.project_id, rule.project_id,
-    );
+      rule.workspace_id, addDays(utc, days - 1), addDays(utc, days + 1), rule.project_id, rule.project_id,
+    ).filter((task) => task.due_date === addDays(dayOfTask(task, now), days));
     for (const task of tasks) {
       fireOne(rule, task, String(task.created_by ?? ''), { kind: 'due_in' });
       fired++;
@@ -473,6 +476,10 @@ export function runAutomationsForDue(today: string): number {
   }
   return fired;
 }
+
+/** A task's calendar is its first assignee's, else its creator's, else the server's. */
+export const dayOfTask = (task: Row, at: number): string =>
+  todayFor(parseJson<string[]>(task.assignees, [])[0] ?? (task.created_by as string | null), at);
 
 /** Enabled rules of one kind that cover a project. */
 const watchingRules = (workspaceId: string, projectId: unknown, kind: string): Row[] =>

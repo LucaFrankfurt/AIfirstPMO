@@ -52,6 +52,7 @@ let rpc = 0;
 async function call(token: string, method: string, params: Record<string, unknown>): Promise<any> {
   const response = await api('rpc', '/mcp', { token, body: { jsonrpc: '2.0', id: ++rpc, method, params } });
   if (response.error) throw new Error(`refused: ${response.error.message}`);
+  if (response.result?.isError) throw new Error(`refused: ${response.result.content?.[0]?.text ?? 'failed'}`);
   return response.result;
 }
 

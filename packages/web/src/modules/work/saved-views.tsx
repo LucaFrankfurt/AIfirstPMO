@@ -314,8 +314,8 @@ function ViewNameSheet({
       {/* A dozen shapes, not a picker: the icon is here to make one row in a
           menu findable at a glance, and more choices make that harder. */}
       <div className="field">
-        <label>{t('view.icon')}</label>
-        <div className="flex items-center gap-2 flex-wrap icon-choices" role="radiogroup" aria-label={t('view.icon')}>
+        <label id="sv-icon">{t('view.icon')}</label>
+        <div className="flex items-center gap-2 flex-wrap icon-choices" role="radiogroup" aria-labelledby="sv-icon">
           {VIEW_ICONS.map((choice) => (
             <button
               key={choice}

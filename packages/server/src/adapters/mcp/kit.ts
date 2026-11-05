@@ -340,7 +340,8 @@ export function fileTask(
     recurrence: quick?.recurrence ?? null,
     estimate: typeof args.estimate === 'number' ? args.estimate : null,
     parent_id: parent?.id ?? null,
-    cycle_id: str(args.cycle) ? resolveCycle(workspaceId, String(args.cycle))?.id ?? null : null,
+    // Among the cycles covering this project; one that matches none is refused rather than dropped.
+    cycle_id: str(args.cycle) ? cycleFor(workspaceId, String(args.cycle), String(project.id), String(project.key)) : null,
     // Refused rather than dropped if it does not exist: a task filed into a
     // milestone that turns out to be a typo, reported as a success, is how a
     // release plan ends up missing the thing somebody thought they had added.
@@ -1493,6 +1494,12 @@ export function resolveCycle(workspaceId: string, ref: string, projectId?: strin
     `SELECT * FROM cycles WHERE workspace_id = ? AND (id = ? OR lower(name) = lower(?)) AND deleted_at IS NULL${covers}`,
     workspaceId, ref, ref, ...scope,
   );
+}
+
+function cycleFor(workspaceId: string, ref: string, projectId: string, projectKey: string): string {
+  const cycle = resolveCycle(workspaceId, ref, projectId);
+  if (!cycle) throw new McpError(`No cycle matching "${ref}" covers ${projectKey}`);
+  return String(cycle.id);
 }
 
 export function resolveLabels(workspaceId: string, projectId: string, refs: unknown, ctx: McpCtx): string[] {

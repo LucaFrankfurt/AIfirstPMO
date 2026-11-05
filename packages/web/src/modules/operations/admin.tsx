@@ -26,13 +26,13 @@ export function AuditLog() {
   const { workspaceId } = useSession();
   const members = useMemberMap();
   const [entries, setEntries] = useState<any[]>([]);
-  const [oldest, setOldest] = useState<number | null>(null);
+  const [oldest, setOldest] = useState<{ at: number; id: string } | null>(null);
   const [done, setDone] = useState(false);
 
-  const load = async (before?: number) => {
+  const load = async (before?: { at: number; id: string }) => {
     const page = await api.audit(workspaceId, before);
     setEntries((current) => (before ? [...current, ...page.entries] : page.entries));
-    setOldest(page.oldest);
+    setOldest(page.oldest != null && page.oldest_id ? { at: page.oldest, id: page.oldest_id } : null);
     if (page.entries.length === 0) setDone(true);
   };
   useEffect(() => { void load(); }, [workspaceId]);

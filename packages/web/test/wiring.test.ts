@@ -37,6 +37,12 @@ describe('the sync stream is wired up', () => {
     );
   });
 
+  it('gives this tab its own order-key tail before the app can mint a key', () => {
+    const body = code('main.tsx');
+    assert.match(body, /^setOrderTail\(agentId\(\)/m, 'main.tsx never sets the tail, so two offline devices mint the same keys');
+    assert.ok(body.indexOf('setOrderTail(') < body.indexOf('createRoot('));
+  });
+
   it('everything the wiring calls is a real installer somewhere', () => {
     const wiring = code('wiring.ts');
     const called = [...wiring.matchAll(/^\s*(install\w+)\(\);$/gm)].map((m) => m[1]);

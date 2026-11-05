@@ -207,6 +207,8 @@ db.exec(`CREATE INDEX IF NOT EXISTS attachments_subject ON attachments (subject_
 // The same reason again: an agenda point lists the tasks that came out of it,
 // and the column it asks by is one the loop above may just have added.
 db.exec(`CREATE INDEX IF NOT EXISTS tasks_agenda_item ON tasks (agenda_item_id)`);
+// And again: the hourly sweep asks every finished repeating task for its next occurrence by this column.
+db.exec(`CREATE INDEX IF NOT EXISTS tasks_recurred_from ON tasks (recurred_from)`);
 // An index written before `search_refs` existed: map its rows once.
 db.exec(`
   INSERT OR IGNORE INTO search_refs (kind, ref_id, doc)
@@ -419,16 +421,24 @@ export function constraintFailure(err: unknown): string | null {
   return error.message ?? 'The database refused this row';
 }
 
+// Bounded, least recently used out first: a write's SQL varies with the set of columns its patch names.
+const STATEMENT_CACHE = 1000;
 const stmtCache = new Map<string, StatementSync>();
 
 function prepare(sql: string): StatementSync {
   let stmt = stmtCache.get(sql);
-  if (!stmt) {
+  if (stmt) {
+    stmtCache.delete(sql);
+  } else {
     stmt = db.prepare(sql);
-    stmtCache.set(sql, stmt);
+    if (stmtCache.size >= STATEMENT_CACHE) stmtCache.delete(stmtCache.keys().next().value!);
   }
+  stmtCache.set(sql, stmt);
   return stmt;
 }
+
+/** How many prepared statements are held. */
+export const statementCount = (): number => stmtCache.size;
 
 /** SQLite only speaks null/number/string/bigint/buffer — normalise the rest. */
 type SqlValue = null | number | bigint | string | Uint8Array;

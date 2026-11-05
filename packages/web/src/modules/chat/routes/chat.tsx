@@ -915,6 +915,7 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
             setTyping(next.trim() ? channel.id : null);
           }}
           placeholder={t('chat.placeholder', { where: title })}
+          label={t('chat.placeholder', { where: title })}
           onSubmit={send}
           submitOnEnter={SEND_ON_ENTER}
           fieldRef={composer}

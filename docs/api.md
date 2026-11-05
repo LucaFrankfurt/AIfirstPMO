@@ -75,7 +75,8 @@ DELETE /api/:collection/:id                 soft delete
 ```
 
 Query parameters on list: any field name (`?project_id=…&priority=urgent`, `?cycle_id=null`),
-plus `limit` (≤1000), `offset`, `order_by`, `order=asc|desc`, `include_deleted=1`.
+plus `limit` (≤1000), `offset`, `order_by`, `order=asc|desc`, `include_deleted=1`. A list answers
+with a bare JSON array of rows, not an object wrapping one.
 
 ```bash
 # The open, urgent work in a project

@@ -30,6 +30,7 @@ import { useT, type TranslationKey } from '../../../kernel/i18n/i18n';
 import { remove } from '../../../kernel/sync/mutations';
 import { list, useQuery } from '../../../kernel/sync/store';
 import { useTabStrip } from '../../../kernel/design-system/tab-strip';
+import { TabButton, TabList } from '../../../kernel/design-system/ui/tabs';
 import { useCanWrite, useFeature } from '../../../kernel/identity/session';
 
 const TABS = ['register', 'landscape', 'moves', 'vendors'] as const;
@@ -68,20 +69,20 @@ export function Infrastructure() {
   return (
     <>
       <Header title={t('estate.title')} />
-      <div ref={strip} className="tabs" style={{ padding: '0 12px' }}>
+      <TabList ref={strip} className="tabs" style={{ padding: '0 12px' }}>
         {TABS.map((name) => (
-          <button
+          <TabButton
             key={name}
-            className={tab === name ? 'active' : ''}
+            active={tab === name}
             onClick={() => {
               setTab(name);
               setParams(name === 'register' ? {} : { tab: name }, { replace: true });
             }}
           >
             {t(TAB_KEY[name])}
-          </button>
+          </TabButton>
         ))}
-      </div>
+      </TabList>
       {tab === 'register' && <Register />}
       {tab === 'landscape' && <Landscape />}
       {tab === 'moves' && <Moves />}

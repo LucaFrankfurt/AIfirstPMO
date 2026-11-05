@@ -58,6 +58,7 @@ async function tool<T = any>(token: string, name: string, args: Record<string, u
     body: { jsonrpc: '2.0', id: ++rpcId, method: 'tools/call', params: { name, arguments: args } },
   });
   if (response.error) throw new Error(`${name}: ${response.error.message}`);
+  if (response.result?.isError) throw new Error(`${name}: ${response.result.content?.[0]?.text ?? 'failed'}`);
   return response.result.structuredContent as T;
 }
 
@@ -934,6 +935,7 @@ describe('the resources a client is offered', () => {
       body: { jsonrpc: '2.0', id: ++rpcId, method, params },
     });
     if (response.error) throw new Error(`${method}: ${response.error.message}`);
+    if (response.result?.isError) throw new Error(`${method}: ${response.result.content?.[0]?.text ?? 'failed'}`);
     return response.result;
   };
 
