@@ -263,3 +263,18 @@ describe('a session that ends while changes are queued (WEB-01)', () => {
     net.online = true;
   });
 });
+
+describe('two tabs of one browser editing one page (WEB-08)', () => {
+  it('write as two CRDT agents, so neither loses the other’s text', async () => {
+    const tab = (await import(`${'../src/kernel/sync/sync.ts'}?tab=two`)) as typeof sync;
+    assert.notEqual(tab.agentId(), sync.agentId(), 'one profile, one client id, but one agent per tab');
+
+    const base = crdt.fromText('Protokoll\nPunkt 1\n', 'server');
+    const one = crdt.edit(base, 'Protokoll\nPunkt 1: Budget freigegeben\n', sync.agentId());
+    const two = crdt.edit(base, 'Protokoll\nPunkt 1\nPunkt 2: Termin\n', tab.agentId());
+    const both = 'Protokoll\nPunkt 1: Budget freigegeben\nPunkt 2: Termin\n';
+    assert.equal(crdt.textOf(crdt.merge(one, two)), both, 'as the server merges it');
+    assert.equal(crdt.textOf(crdt.merge(two, one)), both, 'and as the second tab does');
+    tab.stop();
+  });
+});

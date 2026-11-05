@@ -79,14 +79,11 @@ if (!clientId) {
  */
 export const clock = new Clock(clientId, now);
 
-/**
- * This device's identity, as the text CRDT uses it.
- *
- * The same one the hybrid logical clock uses, which is right: a CRDT agent id
- * has to belong to exactly one writer, and "this browser profile" is the unit
- * this app already has for that.
- */
-export const agentId = (): string => clientId;
+// Per page load: tabs share `clientId`, and a CRDT agent must be one writer (sessionStorage is copied by "duplicate tab").
+const tabAgent = `${clientId}.${crypto.randomUUID().slice(0, 6)}`;
+
+/** This tab's identity, as the text CRDT uses it. */
+export const agentId = (): string => tabAgent;
 
 let workspaceId = '';
 let cursor = 0;

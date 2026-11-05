@@ -291,7 +291,8 @@ changes and remembers the character that was to its left when it was typed. The 
 then a deterministic function of the character *set*: walk the origin tree, and among characters
 sharing an origin the causally newer one comes first — a Lamport clock, with the agent id breaking
 ties. A deterministic function of a set converges no matter how the rows arrived, and that is the
-whole proof.
+whole proof. An agent is one loaded tab, not one browser: two tabs share the client id a push
+carries, and as one agent they minted the same identities for different letters.
 
 `pages.content` stays, as what the CRDT reads as. Everything else that touches a page — search,
 export, the share document, the markdown renderer, the REST API, MCP — carries on reading plain
