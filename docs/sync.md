@@ -169,7 +169,8 @@ body limit.
 |---|---|
 | Offline | Status pill switches to *Offline · N queued*; writes keep working |
 | Back online | `online` event triggers flush → pull → reconnect SSE |
-| Server error / 5xx | Exponential backoff 1s → 30s, outbox untouched |
+| Server error / 5xx | Exponential backoff 1s → 30s, outbox untouched; one retry is pending however many requests failed |
+| No answer (a half-open connection) | Every sync request has a timeout (`ANSWER_WITHIN` in `sync.ts`) and then fails into the same backoff; one push is on the wire at a time, and a flush asked for meanwhile follows it |
 | Session expired (401) | Mirror and outbox are kept, a sign-in prompt appears, the outbox flushes after the same person signs in again. Every mirror on the device downloads again from cursor 0 on its next start, because restoring a snapshot signs everybody out and an older cursor would skip rows |
 | Signing out on purpose | Deletes this person's mirrors and outboxes on the device, after one last flush; if anything is still queued, a confirmation says how many changes would be lost |
 | Workspace switch, or a second tab | Each person and workspace has its own IndexedDB (`kolibri:<user>:<workspace>`), so nothing is cleared. A pull or push still on the network for the previous workspace is dropped when it answers |

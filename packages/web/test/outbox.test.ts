@@ -16,6 +16,14 @@ const server = {
   reject: (_mutation: { entity: string }): { reason: string; status: number } | null => null,
   requests: [] as string[],
   pushes: [] as { workspaceId: string; ids: string[]; bytes: number; status: number }[],
+  /** A status every request is answered with, or 0 when the server is up. */
+  down: 0,
+  /** Pushes wait for this before answering. */
+  hold: null as Promise<void> | null,
+  inFlight: 0,
+  maxInFlight: 0,
+  /** Sync requests sent without a signal, so nothing could ever time them out. */
+  unbounded: 0,
 };
 
 const json = (status: number, body: unknown): Response =>
@@ -28,6 +36,8 @@ Object.defineProperty(globalThis, 'fetch', {
     if (!net.online) throw new TypeError('Failed to fetch');
     const url = new URL(String(input), 'http://device');
     server.requests.push(url.pathname + url.search);
+    if (url.pathname.startsWith('/api/sync/') && !init.signal) server.unbounded += 1;
+    if (server.down) return json(server.down, { error: 'unavailable', message: 'Service unavailable' });
     if (url.pathname === '/api/sync/pull') {
       const since = Number(url.searchParams.get('since'));
       const answer = await (server.pulls.get(url.searchParams.get('workspace')!)?.(since) ?? { cursor: since });
@@ -38,6 +48,10 @@ Object.defineProperty(globalThis, 'fetch', {
       const body = JSON.parse(text);
       const bytes = Buffer.byteLength(text);
       const status = server.refuse(bytes) || 200;
+      server.inFlight += 1;
+      server.maxInFlight = Math.max(server.maxInFlight, server.inFlight);
+      await server.hold;
+      server.inFlight -= 1;
       server.pushes.push({ workspaceId: body.workspaceId, ids: body.mutations.map((m: { id: string }) => m.id), bytes, status });
       if (status !== 200) return json(status, { error: 'refused', message: status === 413 ? 'Payload too large' : 'No access' });
       const answers = body.mutations.map((m: { id: string; entity: string }) => ({ id: m.id, no: server.reject(m) }));
@@ -329,5 +343,62 @@ describe('a change the server will not take (WEB-09)', () => {
     await settle(20);
     assert.equal(sync.getStatus().pending, 0, 'sent once the server could take it');
     assert.equal((await idb.readAll(idb.OUTBOX)).length, 0);
+  });
+});
+
+describe('a slow or failing server (WEB-10)', () => {
+  it('sends one push at a time, and an edit during a slow one follows it', async () => {
+    await sync.start('ws-I', 'ada');
+    let release!: () => void;
+    server.hold = new Promise<void>((resolve) => { release = resolve; });
+    server.pushes.length = 0;
+    server.maxInFlight = 0;
+    mutations.update('task', 'slow-1', { title: 'first' });
+    const first = sync.flush();
+    mutations.update('task', 'slow-2', { title: 'typed while the first was on the wire' });
+    await settle(300);
+    const again = sync.flush();
+    release();
+    server.hold = null;
+    await Promise.all([first, again]);
+    await until(() => sync.getStatus().pending === 0);
+    assert.equal(server.maxInFlight, 1, 'the edit timer started a second push beside the slow one');
+    const sent = server.pushes.flatMap((push) => push.ids);
+    assert.equal(sent.length, new Set(sent).size, `a change went twice (${server.pushes.length} pushes)`);
+    assert.equal(sync.getStatus().pending, 0);
+  });
+
+  it('keeps one retry timer however often the server answers 503, and bounds every request', async () => {
+    const pending = new Set<unknown>();
+    const wrapped = globalThis.setTimeout;
+    const unwrapped = globalThis.clearTimeout;
+    Object.defineProperty(globalThis, 'setTimeout', {
+      configurable: true, writable: true,
+      value: (fn: () => void, ms = 0, ...rest: unknown[]) => {
+        const timer = wrapped(() => { pending.delete(timer); fn(); }, ms, ...rest);
+        if (ms >= 1000) pending.add(timer);
+        return timer;
+      },
+    });
+    Object.defineProperty(globalThis, 'clearTimeout', {
+      configurable: true, writable: true,
+      value: (timer: any) => { pending.delete(timer); unwrapped(timer); },
+    });
+    try {
+      server.down = 503;
+      mutations.update('task', 'during-outage', { title: 'typed while the server was down' });
+      for (let i = 0; i < 4; i++) {
+        await sync.flush();
+        await sync.pull();
+      }
+      assert.equal(sync.getStatus().state, 'error');
+      assert.equal(pending.size, 1, `${pending.size} retry chains after eight failed requests`);
+      assert.equal(server.unbounded, 0, 'a sync request without a timeout can hold every later one');
+    } finally {
+      server.down = 0;
+      sync.stop();
+      Object.defineProperty(globalThis, 'setTimeout', { configurable: true, writable: true, value: wrapped });
+      Object.defineProperty(globalThis, 'clearTimeout', { configurable: true, writable: true, value: unwrapped });
+    }
   });
 });
