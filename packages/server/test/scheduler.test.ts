@@ -120,6 +120,41 @@ describe('repeating tasks', () => {
 
     assert.equal(rollRecurringTasks(), 0, 'and finishing the sweep twice makes one copy, not two');
   });
+
+  it('keeps a monthly series on its day instead of sliding to the 28th (DAT-10)', async () => {
+    assert.equal(nextDueDate('2026-02-28', 'monthly', 31), '2026-03-31');
+    assert.equal(nextDueDate('2026-11-30', 'monthly:3', 31), '2027-02-28');
+
+    const states = await api(`/api/workspaces/${workspaceId}/states?project_id=${projectId}`);
+    const done = states.find((state: any) => state.group_key === 'completed');
+    let current = (await api(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'Pay the rent', due_date: '2026-01-31', recurrence: 'monthly' })).id;
+    const dates: string[] = [];
+    for (let month = 0; month < 4; month++) {
+      await api(`/api/tasks/${current}`, { state_id: done.id }, 'PATCH');
+      assert.equal(rollRecurringTasks(), 1);
+      const next = get<any>(`SELECT id, due_date FROM tasks WHERE recurred_from = ?`, current);
+      dates.push(next.due_date);
+      current = next.id;
+    }
+    assert.deepEqual(dates, ['2026-02-28', '2026-03-31', '2026-04-30', '2026-05-31']);
+  });
+
+  it('ends a series when its next occurrence is deleted, also after the trash is emptied (DAT-10)', async () => {
+    const { emptyTrash } = await import('../src/modules/trash/trash.ts');
+    const states = await api(`/api/workspaces/${workspaceId}/states?project_id=${projectId}`);
+    const done = states.find((state: any) => state.group_key === 'completed');
+    const task = await api(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'Stand-up notes', due_date: '2026-05-04', recurrence: 'weekly' });
+    await api(`/api/tasks/${task.id}`, { state_id: done.id }, 'PATCH');
+    assert.equal(rollRecurringTasks(), 1);
+
+    const copy = get<any>(`SELECT id FROM tasks WHERE recurred_from = ?`, task.id);
+    await api(`/api/tasks/${copy.id}`, undefined, 'DELETE');
+    assert.equal(rollRecurringTasks(), 0, 'a deleted occurrence counts as made');
+
+    emptyTrash(workspaceId, 'manual', Date.now());
+    assert.equal(get(`SELECT id FROM tasks WHERE id = ?`, copy.id), undefined, 'the occurrence is gone for good');
+    assert.equal(rollRecurringTasks(), 0, 'and the series does not come back');
+  });
 });
 
 describe('a rule that fires because a date is coming', () => {
@@ -171,5 +206,38 @@ describe('a rule that changes the task instead of filing one', () => {
     const after = get<any>(`SELECT * FROM tasks WHERE id = ?`, task.id);
     assert.equal(after.priority, 'urgent', 'the allowed field was set');
     assert.equal(after.state_id, review.id, 'and the forbidden one was ignored');
+  });
+});
+
+describe('today on the calendar of the person it is for (TZ-REST)', () => {
+  // Noon UTC on the 10th is already the 11th on Kiritimati (UTC+14).
+  const now = Date.parse('2031-03-10T12:00:00Z');
+
+  it('reminds, repeats and runs date rules by the assignee’s day, not by UTC’s', async () => {
+    await api('/api/me', { timezone: 'Pacific/Kiritimati' }, 'PATCH');
+    const task = await api(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'Island deadline', due_date: '2031-03-13', assignees: [userId] });
+
+    remindAboutDueTasks(now);
+    assert.equal(
+      all(`SELECT id FROM notifications WHERE user_id = ? AND kind = 'due_soon' AND task_id = ?`, userId, task.id).length, 1,
+      'due in two days on Kiritimati, though three in UTC',
+    );
+
+    sweep(now);
+    assert.ok(
+      all(`SELECT id FROM automation_runs WHERE task_id = ?`, task.id).length >= 1,
+      'the two-days-out rule covers it on the same day',
+    );
+
+    const states = await api(`/api/workspaces/${workspaceId}/states?project_id=${projectId}`);
+    const done = states.find((state: any) => state.group_key === 'completed');
+    const daily = await api(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'Feed the fish', recurrence: 'daily', assignees: [userId] });
+    await api(`/api/tasks/${daily.id}`, { state_id: done.id }, 'PATCH');
+    run(`UPDATE tasks SET completed_at = ? WHERE id = ?`, now, daily.id);
+    assert.equal(rollRecurringTasks(), 1);
+    assert.equal(
+      get<any>(`SELECT due_date FROM tasks WHERE recurred_from = ?`, daily.id).due_date, '2031-03-12',
+      'finished on the 11th there, so the next one is due on the 12th',
+    );
   });
 });

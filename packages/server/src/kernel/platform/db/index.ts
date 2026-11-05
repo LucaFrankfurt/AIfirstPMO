@@ -207,6 +207,8 @@ db.exec(`CREATE INDEX IF NOT EXISTS attachments_subject ON attachments (subject_
 // The same reason again: an agenda point lists the tasks that came out of it,
 // and the column it asks by is one the loop above may just have added.
 db.exec(`CREATE INDEX IF NOT EXISTS tasks_agenda_item ON tasks (agenda_item_id)`);
+// And again: the hourly sweep asks every finished repeating task for its next occurrence by this column.
+db.exec(`CREATE INDEX IF NOT EXISTS tasks_recurred_from ON tasks (recurred_from)`);
 // An index written before `search_refs` existed: map its rows once.
 db.exec(`
   INSERT OR IGNORE INTO search_refs (kind, ref_id, doc)

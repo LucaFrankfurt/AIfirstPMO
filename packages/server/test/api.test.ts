@@ -1454,6 +1454,26 @@ describe('kolibri api', () => {
     cookie = adaCookie;
   });
 
+  it('tells whoever watches a page about a new comment on it (DAT-09)', async () => {
+    const page = await api(`/api/workspaces/${workspaceId}/pages`, {
+      body: { title: 'Watched quietly', content: 'Nobody has said anything here yet.' },
+    });
+    // Read from the database rather than signed in as Lin: the login limiter
+    // already counts every sign-in this file makes.
+    const [lin] = all<any>(`SELECT id FROM users WHERE email = 'lin@example.com'`);
+    const [ada] = all<any>(`SELECT id FROM users WHERE email = 'ada@example.com'`);
+    await api(`/api/pages/${page.id}`, { method: 'PATCH', body: { watchers: [lin.id, ada.id] } });
+
+    await api(`/api/workspaces/${workspaceId}/comments`, {
+      body: { page_id: page.id, body: 'A first remark.' },
+    });
+
+    const told = (userId: string) =>
+      all<any>(`SELECT id FROM notifications WHERE user_id = ? AND page_id = ? AND kind = 'comment'`, userId, page.id).length;
+    assert.equal(told(lin.id), 1, 'a watcher who neither wrote the page nor commented hears about the comment');
+    assert.equal(told(ada.id), 0, 'and the author of the comment is not told about their own words');
+  });
+
   it('notices a mention written into a page, and only says so once', async () => {
     const adaCookie = cookie;
     const page = await api(`/api/workspaces/${workspaceId}/pages`, {
