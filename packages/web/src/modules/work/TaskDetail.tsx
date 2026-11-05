@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { Task } from '@kolibri/shared';
 import { api } from '../../kernel/sync/api';
 import { useTabStrip } from '../../kernel/design-system/tab-strip';
+import { TabButton, TabList } from '../../kernel/design-system/ui/tabs';
 import { relativeTime, shortDate } from '../../kernel/design-system/format';
 import { useT } from '../../kernel/i18n/i18n';
 import { list, useQuery, useRow } from '../../kernel/sync/store';
@@ -97,6 +98,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
         <Input
           style={{ fontSize: 17, fontWeight: 600, border: 'none', padding: '2px 0', marginBottom: 10, background: 'none' }}
           value={title}
+          aria-label={t('task.titleLabel')}
           onChange={(event) => setTitle(event.target.value)}
           onBlur={saveTitle}
           onKeyDown={(event) => event.key === 'Enter' && event.currentTarget.blur()}
@@ -197,7 +199,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
           </div>
           {editingDescription ? (
             <>
-              <MarkdownEditor value={description} onChange={setDescription} attachTo={{ kind: 'task', id: task.id }} autoFocus />
+              <MarkdownEditor value={description} onChange={setDescription} attachTo={{ kind: 'task', id: task.id }} autoFocus label={t('task.description')} />
               <div className="flex items-center gap-2 mt-2">
                 <Button variant="primary" size="sm"
                   onClick={() => {
@@ -264,8 +266,8 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
               setNewSubtask('');
             }}
           >
-            <Input placeholder={t('task.addSubtask')} value={newSubtask} onChange={(e) => setNewSubtask(e.target.value)} />
-            <Button size="sm" type="submit"><Icon name="plus" size={14} /></Button>
+            <Input placeholder={t('task.addSubtask')} aria-label={t('task.addSubtask')} value={newSubtask} onChange={(e) => setNewSubtask(e.target.value)} />
+            <Button size="sm" type="submit" aria-label={t('task.addSubtask')}><Icon name="plus" size={14} /></Button>
           </form>
         </section>
 
@@ -289,12 +291,12 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
 
         {/* discussion */}
         <section>
-          <div ref={strip} className="tabs mb-2.5">
-            <button className={tab === 'comments' ? 'active' : ''} onClick={() => setTab('comments')}>
+          <TabList ref={strip} className="tabs mb-2.5">
+            <TabButton active={tab === 'comments'} onClick={() => setTab('comments')}>
               {t('task.comments')} {comments.length ? `(${comments.length})` : ''}
-            </button>
-            <button className={tab === 'activity' ? 'active' : ''} onClick={() => setTab('activity')}>{t('task.activity')}</button>
-          </div>
+            </TabButton>
+            <TabButton active={tab === 'activity'} onClick={() => setTab('activity')}>{t('task.activity')}</TabButton>
+          </TabList>
 
           {tab === 'comments' ? (
             <Comments target={{ task_id: task.id }} />

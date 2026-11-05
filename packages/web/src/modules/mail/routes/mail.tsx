@@ -33,6 +33,7 @@ import { api } from '../../../kernel/sync/api';
 import { useT } from '../../../kernel/i18n/i18n';
 import { useSession } from '../../../kernel/identity/session';
 import { useTabStrip } from '../../../kernel/design-system/tab-strip';
+import { TabButton, TabList } from '../../../kernel/design-system/ui/tabs';
 
 interface Hit {
   id: string;
@@ -130,13 +131,13 @@ export function MailScreen() {
   return (
     <>
       <Header title={t('mail.title')} />
-      <div ref={strip} className="tabs tabs-inset">
+      <TabList ref={strip} className="tabs tabs-inset">
         {(['search', 'documents', 'stats'] as Tab[]).map((name) => (
-          <button key={name} className={tab === name ? 'active' : ''} onClick={() => setTab(name)}>
+          <TabButton key={name} active={tab === name} onClick={() => setTab(name)}>
             {t(name === 'search' ? 'mail.title' : name === 'documents' ? 'mail.documents' : 'mail.stats')}
-          </button>
+          </TabButton>
         ))}
-      </div>
+      </TabList>
 
       <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
         <form

@@ -48,6 +48,7 @@ import { useT, type TranslationKey } from '../../../kernel/i18n/i18n';
 import { create, remove, update } from '../../../kernel/sync/mutations';
 import { list, useQuery, useRow } from '../../../kernel/sync/store';
 import { useTabStrip } from '../../../kernel/design-system/tab-strip';
+import { TabButton, TabList } from '../../../kernel/design-system/ui/tabs';
 import { useSaveChanges } from '../../../kernel/design-system/row-form';
 import { useCanWrite, useFeature } from '../../../kernel/identity/session';
 
@@ -297,13 +298,13 @@ export function ProductIndex() {
           </Button>
         )}
       </Header>
-      <div ref={strip} className="tabs" style={{ padding: '0 12px' }}>
+      <TabList ref={strip} className="tabs" style={{ padding: '0 12px' }}>
         {INDEX_TABS.map((name) => (
-          <button key={name} className={tab === name ? 'active' : ''} onClick={() => go(name)}>
+          <TabButton key={name} active={tab === name} onClick={() => go(name)}>
             {t(INDEX_TAB_KEY[name])}
-          </button>
+          </TabButton>
         ))}
-      </div>
+      </TabList>
       <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
         {tab === 'catalogue' && <Catalogue only="single" />}
         {tab === 'packages' && <Catalogue only="bundle" />}
@@ -954,8 +955,8 @@ function PromotionForm({ promotion, products, groups, onClose }: {
           <Input id="pm-to" type="date" value={form.ends_on} onChange={(event) => setForm({ ...form, ends_on: event.target.value })} />
         </div>
       </div>
-      <div className="field">
-        <label>{t('product.appliesTo')}</label>
+      <div className="field" role="group" aria-labelledby="pr-applies">
+        <label id="pr-applies">{t('product.appliesTo')}</label>
         <span className="text-[12px] text-muted">{t('product.appliesToHint')}</span>
         <div className="flex flex-wrap gap-2 pt-1">
           {groups.map((group) => (
@@ -1206,8 +1207,8 @@ function ScenarioForm({ scenario, products, productId, assumptions, onClose }: {
           })}
         />
       </div>
-      <div className="field">
-        <label>{t('product.campaignsApplied')}</label>
+      <div className="field" role="group" aria-labelledby="pf-campaigns">
+        <label id="pf-campaigns">{t('product.campaignsApplied')}</label>
         <div className="flex flex-wrap gap-2 pt-1">
           {promotions.map((promotion) => (
             <Chip
@@ -1280,13 +1281,13 @@ export function ProductDetail() {
       <div className="px-3 pt-3 sm:px-6">
         <Trail parts={[{ to: '/products', label: t('product.title'), icon: <Icon name="tag" size={13} /> }]} />
       </div>
-      <div ref={strip} className="tabs" style={{ padding: '0 12px' }}>
+      <TabList ref={strip} className="tabs" style={{ padding: '0 12px' }}>
         {TABS.map((name) => (
-          <button key={name} className={tab === name ? 'active' : ''} onClick={() => go(name)}>
+          <TabButton key={name} active={tab === name} onClick={() => go(name)}>
             {t(TAB_KEY[name])}
-          </button>
+          </TabButton>
         ))}
-      </div>
+      </TabList>
       <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
         {tab === 'overview' && <Overview product={product} entry={entry} />}
         {tab === 'prices' && <Prices product={product} />}
@@ -2483,8 +2484,8 @@ function SimulationTab({ product }: { product: Product }) {
             onChange={(event) => setForm({ ...form, cost_bps: Math.round(Number(event.target.value) * 100) })} />
         </div>
       </div>
-      <div className="field">
-        <label>{t('product.campaignsApplied')}</label>
+      <div className="field" role="group" aria-labelledby="ps-campaigns">
+        <label id="ps-campaigns">{t('product.campaignsApplied')}</label>
         <div className="flex flex-wrap gap-2 pt-1">
           {promotions.map((promotion) => (
             <Chip

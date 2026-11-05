@@ -27,6 +27,7 @@ import { Chip, chipVariants } from '../../../kernel/design-system/ui/chip';
 import { TelegramConnection } from '../../../adapters/telegram/telegram';
 import { InstanceSettings } from '../instance';
 import { useTabStrip } from '../../../kernel/design-system/tab-strip';
+import { TabButton, TabList } from '../../../kernel/design-system/ui/tabs';
 import { useMinute } from '../../../kernel/design-system/minute';
 
 type Tab = 'profile' | 'notifications' | 'workspace' | 'members' | 'rates' | 'mailboxes' | 'automation' | 'api' | 'data' | 'instance';
@@ -75,13 +76,13 @@ export function Settings() {
   return (
     <>
       <Header title={t('settings.title')} />
-      <div ref={strip} className="tabs tabs-inset">
+      <TabList ref={strip} className="tabs tabs-inset">
         {tabs.map((name) => (
-          <button key={name} className={tab === name ? 'active' : ''} onClick={() => choose(name)}>
+          <TabButton key={name} active={tab === name} onClick={() => choose(name)}>
             {t(TAB_KEY[name])}
-          </button>
+          </TabButton>
         ))}
-      </div>
+      </TabList>
       <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5" style={{ maxWidth: 680 }}>
         {tab === 'profile' && <Profile />}
         {tab === 'notifications' && <Notifications />}
@@ -831,7 +832,7 @@ function Members() {
             <div className="flex items-center gap-2" key={invite.id} style={{ padding: '6px 0', borderTop: '1px solid var(--line)' }}>
               <code className="mono flex-1 min-w-0 truncate">{location.origin}/invite/{invite.code}</code>
               <Chip>{t(roleKey(invite.role))}</Chip>
-              <Button variant="ghost" size="iconSm"
+              <Button variant="ghost" size="iconSm" title={t('action.copyLink')}
                 onClick={() => {
                   void navigator.clipboard?.writeText(`${location.origin}/invite/${invite.code}`);
                   toast(t('members.copied'));
@@ -1013,7 +1014,7 @@ function ApiSettings() {
           <span className="text-muted text-[11.5px]">
             {token.last_used_at ? t('api.usedAgo', { time: relativeTime(token.last_used_at) }) : t('api.neverUsed')}
           </span>
-          <Button variant="ghost" size="iconSm" disabled={action.busy}
+          <Button variant="ghost" size="iconSm" title={t('api.revoke')} disabled={action.busy}
             onClick={() => void action.run(async () => {
               await api.revokeToken(token.id);
               load();

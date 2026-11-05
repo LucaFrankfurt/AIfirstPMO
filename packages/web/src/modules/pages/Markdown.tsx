@@ -230,6 +230,10 @@ interface EditorProps {
    * end of the document every time a colleague saves is not collaboration.
    */
   fieldRef?: { current: HTMLTextAreaElement | null };
+  /** For a `<label htmlFor>` above the editor; it names the textarea. */
+  id?: string;
+  /** The textarea's name when no visible label points at it. */
+  label?: string;
 }
 
 /** One row in the `#` menu — a project or a task, offered the same way. */
@@ -298,7 +302,7 @@ const COMMANDS: Command[] = [
  * they are downscaled in the browser first so a phone photo does not push a
  * 12 MB original through a mobile connection.
  */
-export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, autoFocus, attachTo, onSubmit, submitOnEnter, compact, actions, fieldRef }: EditorProps) {
+export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, autoFocus, attachTo, onSubmit, submitOnEnter, compact, actions, fieldRef, id, label }: EditorProps) {
   const t = useT();
   const own = useRef<HTMLTextAreaElement>(null);
   const ref = fieldRef ?? own;
@@ -666,6 +670,8 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
         <>
         <Textarea
           ref={ref}
+          id={id}
+          aria-label={id ? undefined : (label ?? t('editor.label'))}
           // Both of these have to be said as utilities, for the same reason:
           // `Textarea` ships `min-h-20` and `resize-y`, and a utility beats
           // anything `@layer components` has to say — which is why the

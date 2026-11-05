@@ -328,8 +328,8 @@ function TemplateEditor({
       </div>
 
       <div className="field">
-        <label>{t('tpl.body')}</label>
-        <MarkdownEditor value={form.description} onChange={(value) => set('description', value)} minHeight={130} />
+        <label htmlFor="tpl-body">{t('tpl.body')}</label>
+        <MarkdownEditor id="tpl-body" value={form.description} onChange={(value) => set('description', value)} minHeight={130} />
       </div>
 
       <div className="field-row">

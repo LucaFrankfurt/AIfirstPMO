@@ -159,8 +159,8 @@ export function WelcomeTour() {
             </Select>
           </div>
 
-          <div className="field">
-            <label>{t('profile.appearance')}</label>
+          <div className="field" role="group" aria-labelledby="tour-appearance">
+            <label id="tour-appearance">{t('profile.appearance')}</label>
             <div className="flex items-center gap-1.5">
               {(['system', 'light', 'dark'] as const).map((option) => (
                 <button

@@ -343,6 +343,17 @@ p { margin: 0 0 0.75em; }
   padding-bottom: env(safe-area-inset-bottom);
 }
 
+/* Off screen until the keyboard reaches it: the first Tab stop on every screen. */
+.skip-link {
+  position: fixed; top: 8px; inset-inline-start: 8px; z-index: 100;
+  padding: 8px 14px; border-radius: var(--radius-sm);
+  background: var(--accent); color: var(--accent-fg); font-weight: 550;
+  transform: translateY(calc(-100% - 16px));
+}
+.skip-link:focus { transform: none; outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Focused by script (route change, skip link) to set the reading position; not a control. */
+.content:focus, .content h1:focus { outline: none; }
+
 .header {
   display: flex;
   align-items: center;

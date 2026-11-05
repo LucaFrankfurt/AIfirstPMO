@@ -192,6 +192,29 @@ describe('every icon-only control', () => {
     }
     assert.deepEqual(mute, [], `button(s) named only by a tooltip: ${mute.join(', ')}`);
   });
+
+  // UX-07: `Button` falls back to its `title`, so with neither words, title nor aria-label it has no name.
+  it('has a name when it is a <Button>', () => {
+    // Anything left once comments and tags are gone is text or an expression that renders some.
+    const words = (body: string): boolean =>
+      /\S/.test(body.replace(/\{\/\*[\s\S]*?\*\/\}/g, '').replace(/<[^<>]*>/g, ''));
+    const mute: string[] = [];
+    let seen = 0;
+    for (const { path, text } of files) {
+      for (const match of text.matchAll(/<Button\b/g)) {
+        seen++;
+        const end = endOfTag(text, match.index!);
+        const tag = text.slice(match.index!, end);
+        if (/\b(?:title|aria-label(?:ledby)?)=/.test(tag) || /\{\.\.\./.test(tag)) continue;
+        const close = tag.endsWith('/>') ? -1 : text.indexOf('</Button>', end);
+        const body = close < 0 ? '' : text.slice(end, close);
+        if (words(body)) continue;
+        mute.push(`${path.slice(SRC.length + 1)}:${text.slice(0, match.index).split('\n').length}`);
+      }
+    }
+    assert.ok(seen >= 100, `only found ${seen} <Button>s, which means the scan is broken`);
+    assert.deepEqual(mute, [], `<Button>(s) with no text, title or aria-label: ${mute.join(', ')}`);
+  });
 });
 
 /**
@@ -204,7 +227,7 @@ describe('every icon-only control', () => {
  */
 describe('every tab strip', () => {
   const strips = files.flatMap(({ path, text }) =>
-    [...text.matchAll(/<div\b[^>]*className=(?:"tabs[^"]*"|\{[^}]*'tabs[^']*'[^}]*\})[^>]*>/g)].map((match) => ({
+    [...text.matchAll(/<(?:div|TabList)\b[^>]*className=(?:"tabs[^"]*"|\{[^}]*'tabs[^']*'[^}]*\})[^>]*>/g)].map((match) => ({
       file: path.slice(SRC.length + 1),
       line: text.slice(0, match.index).split('\n').length,
       tag: match[0],
@@ -218,6 +241,12 @@ describe('every tab strip', () => {
   it('keeps the active tab in view', () => {
     const adrift = strips.filter((s) => !/\bref=\{/.test(s.tag) || !s.imports).map((s) => `${s.file}:${s.line}`);
     assert.deepEqual(adrift, [], `tab strip(s) with no useTabStrip: ${adrift.join(', ')}`);
+  });
+
+  // UX-14: a strip of plain buttons never tells a screen reader which tab is selected.
+  it('is a TabList, so it has tab semantics', () => {
+    const plain = strips.filter((s) => !s.tag.startsWith('<TabList')).map((s) => `${s.file}:${s.line}`);
+    assert.deepEqual(plain, [], `tab strip(s) without role="tablist": ${plain.join(', ')}`);
   });
 });
 
@@ -512,5 +541,21 @@ describe('a task view with less on screen than there is', () => {
     const calendar = functionBody(VIEWS, 'CalendarView');
     assert.doesNotMatch(calendar, /<span\b[^>]*>\+\{items\.length/, 'the "+N" is text nobody can click');
     assert.match(calendar, /items\.map\(\(task\) => \([^]*?onOpen\(task\)/, 'no list of the whole day');
+  });
+});
+
+// UX-11: the first Tab stop skips the sidebar, and every browser tab is named after its screen.
+describe('the shell', () => {
+  const shell = readFileSync(join(SRC, 'AppShell.tsx'), 'utf8');
+
+  it('opens with a skip link to the content', () => {
+    const link = shell.indexOf('<a', shell.indexOf('className={`shell'));
+    assert.ok(link > 0 && link < shell.indexOf('<aside'), 'no link before the sidebar');
+    assert.match(shell.slice(link, shell.indexOf('</a>', link)), /href="#content"/);
+    assert.match(shell, /<main\b[^>]*id="content"[^>]*tabIndex=\{-1\}/);
+  });
+
+  it('names the document after the screen heading', () => {
+    assert.match(shell, /querySelector\('h1'\)[\s\S]*document\.title = title/);
   });
 });

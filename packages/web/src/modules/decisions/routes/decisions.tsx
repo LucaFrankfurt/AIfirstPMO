@@ -149,16 +149,18 @@ export function DecisionDetail() {
           <>
             <SectionHeading>{t('decision.options')}</SectionHeading>
             <ul className="flex list-none flex-col gap-1.5 p-0">
-              {options.map((option) => (
+              {options.map((option, index) => (
                 <li key={option.id} className="flex items-center gap-2">
                   <Input
                     inputSize="sm"
                     className="flex-1"
                     value={option.label}
+                    aria-label={t('decision.optionPlaceholder', { n: index + 1 })}
                     onChange={(event) => update('decisionOption', option.id, { label: event.target.value })}
                   />
                   <Button
                     size="sm"
+                    title={t('decision.removeOption', { label: option.label })}
                     onClick={async () => {
                       if (await confirm(t('decision.removeOptionConfirm', { label: option.label }))) {
                         remove('decisionOption', option.id);
@@ -190,6 +192,7 @@ export function DecisionDetail() {
                 className="flex-1"
                 value={adding}
                 placeholder={t('decision.addOption')}
+                aria-label={t('decision.addOption')}
                 onChange={(event) => setAdding(event.target.value)}
               />
               <Button size="sm" type="submit" disabled={!adding.trim()}>{t('action.add')}</Button>
