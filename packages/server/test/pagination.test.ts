@@ -16,7 +16,7 @@ import type { AddressInfo } from 'node:net';
 import type { PullResponse } from '@kolibri/shared';
 
 const { server } = await import('../src/index.ts');
-const { run, nextSeq } = await import('../src/kernel/platform/db/index.ts');
+const { run, nextSeq, limitOf } = await import('../src/kernel/platform/db/index.ts');
 
 const PAGE_SIZE = 2000;
 let base = '';
@@ -109,5 +109,28 @@ describe('pulling more than fits in one page', () => {
     const nothingNew = await api<PullResponse>(`/api/sync/pull?workspace=${workspaceId}&since=${cursor}`);
     assert.equal(nothingNew.hasMore, false);
     assert.equal(nothingNew.changes.task, undefined, 'and nothing is sent twice');
+  });
+});
+
+describe('a list limit', () => {
+  it('is clamped to 1..cap, never passed to SQLite as LIMIT -1', async () => {
+    assert.deepEqual(['-1', '0', 'x', '2.9', '1e9'].map((raw) => limitOf(raw, 50, 200)), [1, 50, 50, 2, 200]);
+
+    // The rows filled above outnumber every cap below.
+    const rest = (limit: string) => api<unknown[]>(`/api/workspaces/${workspaceId}/tasks?limit=${limit}`);
+    assert.equal((await rest('-1')).length, 1);
+    assert.equal((await rest('5000')).length, 1000);
+
+    const { token } = await api('/api/tokens', { name: 'mcp', workspaceId });
+    const listTasks = async (limit: number) => {
+      const response = await fetch(`${base}/mcp`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'list_tasks', arguments: { project: 'BLK', limit } } }),
+      });
+      return ((await response.json()) as any).result.structuredContent.result as unknown[];
+    };
+    assert.equal((await listTasks(-1)).length, 1);
+    assert.equal((await listTasks(5000)).length, 200);
   });
 });

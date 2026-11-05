@@ -2,7 +2,7 @@
  * Workspaces and projects: the outer boundary, and the things inside it.
  */
 import { PROJECT_STATUS, type ProjectStatus } from '@kolibri/shared';
-import { all, get, type Row } from '../../../kernel/platform/db/index.ts';
+import { all, get, limitOf, type Row } from '../../../kernel/platform/db/index.ts';
 import { createProject } from '../../../kernel/write-path/bootstrap.ts';
 import { serialize, visibleProjectIds, writeEntity } from '../../../kernel/write-path/repo.ts';
 import { searchWorkspace } from '../../../kernel/search/search.ts';
@@ -211,7 +211,7 @@ export const workspaceTools: ToolDef[] = [
     },
     run: (args, ctx) => {
       const workspaceId = workspaceOf(args, ctx);
-      return searchWorkspace(workspaceId, ctx.auth.userId, String(args.query), Math.min(Number(args.limit ?? 20) || 20, 100), args.kinds);
+      return searchWorkspace(workspaceId, ctx.auth.userId, String(args.query), limitOf(args.limit, 20, 100), args.kinds);
     },
   },
 ];

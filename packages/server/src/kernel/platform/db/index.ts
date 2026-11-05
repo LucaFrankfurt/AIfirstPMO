@@ -450,6 +450,11 @@ export const get = <T = Row>(sql: string, ...params: unknown[]): T | undefined =
 
 export const run = (sql: string, ...params: unknown[]) => prepare(sql).run(...args(params));
 
+/** A caller's LIMIT as an integer in 1..cap: SQLite reads a negative LIMIT as none. */
+export function limitOf(raw: unknown, fallback: number, cap: number): number {
+  return Math.min(Math.max(Math.trunc(Number(raw) || fallback), 1), cap);
+}
+
 export const pluck = <T = unknown>(sql: string, ...params: unknown[]): T | undefined => {
   const row = get<Row>(sql, ...params);
   return row ? (Object.values(row)[0] as T) : undefined;

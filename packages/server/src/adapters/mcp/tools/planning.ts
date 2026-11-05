@@ -2,7 +2,7 @@
  * Cycles, milestones, templates and logged time.
  */
 import { coversProject, orderKey, parseDuration, PROJECT_STATUS } from '@kolibri/shared';
-import { all, get, type Row } from '../../../kernel/platform/db/index.ts';
+import { all, get, limitOf, type Row } from '../../../kernel/platform/db/index.ts';
 import { env } from '../../../kernel/platform/env.ts';
 import { instantiateTemplate } from '../../../modules/automation/automation.ts';
 import { canSeeProject, deleteEntity, visibleProjectIds, writeEntity } from '../../../kernel/write-path/repo.ts';
@@ -532,7 +532,7 @@ export const planningTools: ToolDef[] = [
           WHERE ${where.join(' AND ')}
           ORDER BY t.spent_on DESC, t.created_at DESC
           LIMIT ?`,
-        ...params, Math.min(Number(args.limit ?? 100) || 100, 500),
+        ...params, limitOf(args.limit, 100, 500),
       );
       return {
         entries: rows.map((row) => ({ ...row, running: !!row.started_at })),
