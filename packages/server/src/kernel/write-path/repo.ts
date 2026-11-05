@@ -287,8 +287,9 @@ function normalize(value: unknown): unknown {
   return value;
 }
 
+// Columns sorted: one statement per set of columns, not one per order a client sent them in.
 function insertRow(table: string, data: Record<string, unknown>): Row {
-  const cols = Object.keys(data);
+  const cols = Object.keys(data).sort();
   run(
     `INSERT INTO ${table} (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`,
     ...cols.map((c) => data[c]),
@@ -297,7 +298,7 @@ function insertRow(table: string, data: Record<string, unknown>): Row {
 }
 
 function updateRow(table: string, id: string, data: Record<string, unknown>): Row {
-  const cols = Object.keys(data);
+  const cols = Object.keys(data).sort();
   run(
     `UPDATE ${table} SET ${cols.map((c) => `${c} = ?`).join(', ')} WHERE id = ?`,
     ...cols.map((c) => data[c]), id,
