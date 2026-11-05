@@ -59,7 +59,8 @@ let looseLabel = '';
 
 const tool = (name: string, args: Record<string, unknown> = {}) =>
   api('mcp', '/mcp', { token, body: { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } } })
-    .then((response) => (response.error ? { error: response.error.message } : response.result.structuredContent));
+    .then((response) => (response.error ? { error: response.error.message }
+      : response.result.isError ? { error: response.result.content[0].text } : response.result.structuredContent));
 
 const live = (table: string, id: string) => !get<any>(`SELECT deleted_at FROM ${table} WHERE id = ?`, id)?.deleted_at;
 

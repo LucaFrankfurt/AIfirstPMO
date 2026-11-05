@@ -525,6 +525,7 @@ describe('over MCP', () => {
       params: { name, arguments: { workspace_id: workspaceId, ...args } },
     });
     if (answer.error) throw new Error(answer.error.message);
+    if (answer.result?.isError) throw new Error(answer.result.content?.[0]?.text ?? 'failed');
     return JSON.parse(answer.result.content[0].text);
   };
 

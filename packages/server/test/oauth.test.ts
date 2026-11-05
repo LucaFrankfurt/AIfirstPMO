@@ -518,14 +518,15 @@ describe('the code, and the token it becomes', () => {
       code: new URL(granted.location).searchParams.get('code') ?? '',
       client_id: clientId, redirect_uri: REDIRECT, code_verifier: verifier,
     })).body;
-    assert.ok((await listIn(first.access_token, workspaceId)).result, 'the chosen workspace has to work');
-    assert.match((await listIn(first.access_token, other)).error?.message ?? '', /Not a member of workspace/,
+    const chosen = (await listIn(first.access_token, workspaceId)).result;
+    assert.ok(chosen && !chosen.isError, 'the chosen workspace has to work');
+    assert.match((await listIn(first.access_token, other)).result?.content?.[0]?.text ?? '', /Not a member of workspace/,
       'the consent screen picked one workspace and the connector reached another');
 
     const second = (await form('/oauth/token', {
       grant_type: 'refresh_token', refresh_token: first.refresh_token, client_id: clientId,
     })).body;
-    assert.match((await listIn(second.access_token, other)).error?.message ?? '', /Not a member of workspace/,
+    assert.match((await listIn(second.access_token, other)).result?.content?.[0]?.text ?? '', /Not a member of workspace/,
       'a refresh widened the token');
   });
 });

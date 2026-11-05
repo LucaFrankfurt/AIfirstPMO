@@ -142,6 +142,7 @@ describe('over MCP', () => {
         jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args },
       });
       if (result.error) throw new Error(result.error.message);
+      if (result.result?.isError) throw new Error(result.result.content?.[0]?.text ?? 'failed');
       return JSON.parse(result.result.content[0].text);
     };
 

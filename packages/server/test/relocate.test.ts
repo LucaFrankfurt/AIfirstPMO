@@ -71,6 +71,7 @@ async function tool(name: string, args: Record<string, unknown>): Promise<any> {
   });
   const payload = await response.json() as any;
   if (payload.error) throw new Error(`refused: ${payload.error.message}`);
+  if (payload.result?.isError) throw new Error(`refused: ${payload.result.content?.[0]?.text ?? 'failed'}`);
   return payload.result.structuredContent;
 }
 

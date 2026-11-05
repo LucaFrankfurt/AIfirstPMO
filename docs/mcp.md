@@ -259,6 +259,17 @@ sites in this repository's own tests had been doing the same for as long as they
 green, because the amounts come out the same either way. Keys beginning with `_` are the protocol's
 own and pass through.
 
+The same check reads the rest of the input schema before the tool runs: a `required` argument that is
+missing, or a value of the wrong basic type (`kinds: 12345` where a list is declared), is refused by
+name. It applies at every depth, so an entry of `create_tasks_batch` carrying `assignee` or `due` is
+refused like a `create_task` call would be. A `null` on an optional argument is left to the tool,
+which reads it as "clear" or "not given".
+
+**A refused call is a tool result, not a JSON-RPC error.** Every refusal — a bad argument, a task that
+is not there, a feature switched off — answers `{ content: [{ type: "text", text }], isError: true }`,
+which is what a client hands back to the model so it can correct itself. JSON-RPC errors are kept for
+faults in the protocol itself: an unknown method or tool, or `arguments` that is not an object.
+
 `create_product` now takes `recurrence` for the billing period, which is what every other tool has
 always called it. `billing` still works and is documented as the older spelling.
 

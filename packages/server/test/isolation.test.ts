@@ -459,7 +459,7 @@ describe('a colleague outside a private project', () => {
           params: { name: 'get_attachment', arguments: { ...args, workspace_id: ada.workspace } },
         },
       });
-      assert.ok(answer.error, `get_attachment answered for ${JSON.stringify(args)} instead of refusing`);
+      assert.ok(answer.result?.isError, `get_attachment answered for ${JSON.stringify(args)} instead of refusing`);
       assert.ok(
         !JSON.stringify(answer).includes('UklGR'),
         'get_attachment handed over the bytes of a private project\'s screenshot',
@@ -532,7 +532,7 @@ describe('a colleague outside a private project', () => {
         params: { name: 'get_attachment', arguments: { attachment, workspace_id: ada.workspace } },
       },
     });
-    assert.ok(!answer.error, `a project member was refused their own file: ${JSON.stringify(answer.error)}`);
+    assert.ok(!answer.error && !answer.result?.isError, `a project member was refused their own file: ${JSON.stringify(answer.error ?? answer.result?.content)}`);
     assert.equal(answer.result.structuredContent.name, 'salaries.webp');
   });
 

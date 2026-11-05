@@ -59,6 +59,7 @@ async function tool(token: string, name: string, args: Record<string, unknown> =
     token, body: { jsonrpc: '2.0', id: ++rpcId, method: 'tools/call', params: { name, arguments: args } },
   });
   if (response.error) throw new Error(`${name}: ${response.error.message}`);
+  if (response.result?.isError) throw new Error(`${name}: ${response.result.content?.[0]?.text ?? 'failed'}`);
   return response.result.structuredContent;
 }
 
@@ -841,7 +842,7 @@ describe('the tools an assistant gets', () => {
     });
     await assert.rejects(
       () => tool(me.token, 'update_product_price', { product: 'BEFR', price: 'Aktion', valid_to: 20261231 as any }),
-      /must be a YYYY-MM-DD string, not a number/,
+      /`valid_to` must be a string or null, not a number/,
     );
     assert.equal(get<any>(`SELECT valid_to FROM product_prices WHERE id = ?`, price.id).valid_to, '2026-12-31');
 
@@ -1054,7 +1055,7 @@ describe('the tools an assistant gets', () => {
     // A campaign that quietly covers fewer products than asked for is a
     // campaign whose figures are wrong in the flattering direction.
     await assert.rejects(
-      () => tool(me.token, 'create_promotion', { name: 'Ghost', kind: 'percent', value: 10, products: ['no such thing'] }),
+      () => tool(me.token, 'create_promotion', { name: 'Ghost', kind: 'percent', value: '10', products: ['no such thing'] }),
       /No product/,
     );
   });

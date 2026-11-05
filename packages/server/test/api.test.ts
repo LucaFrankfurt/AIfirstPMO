@@ -561,6 +561,35 @@ describe('kolibri api', () => {
     assert.equal(after, before + 3, 'the rejected batch left nothing behind');
   });
 
+  it('refuses an argument a batch entry does not have, as create_task does', async () => {
+    const refused = await callTool('create_tasks_batch', {
+      project: 'WEB',
+      tasks: [{ title: 'Batch fine' }, { title: 'Batch owned and due', assignee: 'ada@example.com', due: '2026-12-01' }],
+    });
+    assert.equal(refused.result?.isError, true, JSON.stringify(refused));
+    assert.match(refused.result.content[0].text, /tasks\[1\] has no argument `assignee`, `due`/);
+    assert.equal(all<any>(`SELECT id FROM tasks WHERE title LIKE 'Batch fine%' OR title LIKE 'Batch owned%'`).length, 0);
+  });
+
+  it('answers a refused call as a tool result, and keeps JSON-RPC errors for protocol faults', async () => {
+    const missing = await callTool('get_task', { task: 'WEB-99999' });
+    assert.equal(missing.error, undefined, 'a task that is not there is not a protocol fault');
+    assert.equal(missing.result.isError, true);
+    assert.match(missing.result.content[0].text, /WEB-99999 not found/);
+
+    // Checked against the schema before the tool runs, not discovered by it.
+    const bare = await callTool('get_task', {});
+    assert.equal(bare.result.isError, true);
+    assert.match(bare.result.content[0].text, /`task` is required and was not given/);
+    const wrong = await callTool('search', { query: 'anything', kinds: 12345 });
+    assert.equal(wrong.result.isError, true);
+    assert.match(wrong.result.content[0].text, /`kinds` must be an array, not a number/);
+
+    const unknown = await callTool('no_such_tool', {});
+    assert.equal(unknown.error?.code, -32602);
+    assert.equal(unknown.result, undefined);
+  });
+
   it('links two tasks once, and refuses a circle of blockers', async () => {
     const a = (await callTool('create_task', { project: 'WEB', title: 'Foundations' })).result.structuredContent;
     const b = (await callTool('create_task', { project: 'WEB', title: 'Walls' })).result.structuredContent;
@@ -982,7 +1011,7 @@ describe('kolibri api', () => {
     ];
     for (const [args, refusal] of refusals) {
       const answer = await callTool('update_task', { task: task.identifier, ...args });
-      assert.match(answer.error?.message ?? 'accepted', refusal, `${JSON.stringify(args)} was not refused`);
+      assert.match(answer.result?.isError ? answer.result.content[0].text : 'accepted', refusal, `${JSON.stringify(args)} was not refused`);
     }
     const kept = (await callTool('get_task', { task: task.identifier })).result.structuredContent;
     assert.equal(kept.cycle_id, own.id, 'a misspelt cycle cleared the real one');
@@ -1291,7 +1320,7 @@ describe('kolibri api', () => {
         params: { name: 'list_tasks', arguments: { project: 'WEB', label: 'Epic' } },
       },
     });
-    assert.ok(invented.error, 'an unknown label is an error, not an empty answer');
+    assert.ok(invented.result?.isError, 'an unknown label is an error, not an empty answer');
   });
 
   it('refuses writes from a read-only token', async () => {
@@ -1368,8 +1397,8 @@ describe('kolibri api', () => {
         params: { name: 'log_time', arguments: { task: 'WEB-1', amount: '1h' } },
       },
     });
-    assert.ok(refused.error, 'switched off means refused');
-    assert.match(refused.error.message, /switched off/i, 'and the message says where to switch it on');
+    assert.ok(refused.result?.isError, 'switched off means refused');
+    assert.match(refused.result.content[0].text, /switched off/i, 'and the message says where to switch it on');
   });
 
   it('logs time over MCP the way a person does over the form', async () => {
@@ -1391,8 +1420,8 @@ describe('kolibri api', () => {
         params: { name: 'log_time', arguments: { task: 'WEB-1', amount: 'a while' } },
       },
     });
-    assert.ok(nonsense.error, 'an unreadable amount is refused, not rounded to nothing');
-    assert.match(nonsense.error.message, /duration/i, 'and the message says what was wrong');
+    assert.ok(nonsense.result?.isError, 'an unreadable amount is refused, not rounded to nothing');
+    assert.match(nonsense.result.content[0].text, /duration/i, 'and the message says what was wrong');
 
     const listed = await api('/mcp', {
       token: apiToken,
