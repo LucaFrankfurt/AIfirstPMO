@@ -42,6 +42,7 @@ export const de: Catalogue = {
   'common.nothingHere': 'Nichts vorhanden',
   'common.somethingWentWrong': 'Da ist etwas schiefgelaufen',
   'common.networkUnavailable': 'Netzwerk nicht erreichbar',
+  'common.loadFailed': 'Konnte nicht geladen werden: {reason}',
   'common.copied': 'Link kopiert',
   'common.count_one': '{count} Eintrag',
   'common.count_other': '{count} Einträge',

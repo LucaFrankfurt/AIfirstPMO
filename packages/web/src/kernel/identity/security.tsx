@@ -15,7 +15,7 @@ import { Button } from '../design-system/ui/button';
 import { Input } from '../design-system/ui/field';
 import { SectionHeading } from '../design-system/ui/section';
 import { Chip } from '../design-system/ui/chip';
-import { Icon, Sheet, useToast } from '../design-system/ui';
+import { Icon, Sheet, failure, useAction, useToast } from '../design-system/ui';
 import { useMinute } from '../design-system/minute';
 
 /* ------------------------------------------------------------ two factor */
@@ -159,8 +159,12 @@ export function Sessions() {
   const t = useT();
   const toast = useToast();
   const [rows, setRows] = useState<any[] | null>(null);
+  const [failed, setFailed] = useState('');
+  const action = useAction();
 
-  const load = () => api.sessions().then(setRows).catch(() => setRows([]));
+  const load = () => api.sessions()
+    .then((list) => { setRows(list); setFailed(''); })
+    .catch((error) => setFailed(failure(error, t)));
   useEffect(() => { load(); }, []);
 
   return (
@@ -176,21 +180,22 @@ export function Sessions() {
             </span>
             {row.current && <Chip>{t('security.thisDevice')}</Chip>}
             <span className="text-muted text-[12.5px]">{relativeTime(row.last_used_at ?? row.created_at)}</span>
-            <Button variant="ghost" size="sm"
-              onClick={async () => {
+            <Button variant="ghost" size="sm" disabled={action.busy}
+              onClick={() => void action.run(async () => {
                 await api.revokeSession(row.id);
                 toast(t('security.revoked'));
                 // Revoking this device signs you out here too, so the reload
                 // lands on the sign-in screen rather than a dead session.
                 if (row.current) location.reload();
                 else load();
-              }}
+              })}
             >
               {t('security.revoke')}
             </Button>
           </div>
         ))}
-        {rows && !rows.length && <div className="trash-row text-muted text-[12.5px]">{t('security.noDevices')}</div>}
+        {failed && <div className="trash-row text-danger text-[12.5px]">{t('common.loadFailed', { reason: failed })}</div>}
+        {!failed && rows && !rows.length && <div className="trash-row text-muted text-[12.5px]">{t('security.noDevices')}</div>}
       </div>
     </>
   );

@@ -49,6 +49,7 @@ export const fr: Catalogue = {
   'common.nothingHere': 'Rien ici',
   'common.somethingWentWrong': 'Quelque chose s’est mal passé',
   'common.networkUnavailable': 'Réseau indisponible',
+  'common.loadFailed': 'Chargement impossible : {reason}',
   'common.copied': 'Lien copié',
   'common.count_one': '{count} élément',
   'common.count_other': '{count} éléments',

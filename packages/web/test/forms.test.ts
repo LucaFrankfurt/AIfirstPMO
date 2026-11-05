@@ -470,3 +470,27 @@ describe('asking for anything typed', () => {
     assert.match(twoFactor, /type="password"/);
   });
 });
+
+// Offline, settings read "no members" and "no tokens yet"; a double click made two tokens (UX-08).
+describe('the settings and mail screens', () => {
+  const SCREENS = ['modules/operations/routes/settings.tsx', 'kernel/identity/security.tsx', 'modules/mail/routes/mail.tsx'];
+  const settings = readFileSync(join(SRC, SCREENS[0]), 'utf8');
+
+  it('never show a failed load as an empty list', () => {
+    const swallowed = SCREENS.flatMap((file) => {
+      const text = readFileSync(join(SRC, file), 'utf8');
+      return [...text.matchAll(/\.catch\(\(\) => set\w+\(\[\]\)\)/g)]
+        .map((match) => `${file}:${text.slice(0, match.index).split('\n').length}`);
+    });
+    assert.deepEqual(swallowed, [], `failed load(s) shown as empty: ${swallowed.join(', ')}`);
+  });
+
+  it('create a token, an invite or a workspace once per click', () => {
+    for (const call of ['api.createToken(', 'api.createInvite(', "api.post<any>('/api/workspaces'"]) {
+      const at = settings.indexOf(call);
+      assert.ok(at > 0, `${call} is no longer in the settings — this rule checks nothing`);
+      const handler = settings.slice(settings.lastIndexOf('onClick=', at), at);
+      assert.match(handler, /action\.run\(/, `${call} is not behind useAction`);
+    }
+  });
+});

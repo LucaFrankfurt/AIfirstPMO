@@ -41,6 +41,7 @@ export const en = {
   'common.nothingHere': 'Nothing here',
   'common.somethingWentWrong': 'Something went wrong',
   'common.networkUnavailable': 'Network unavailable',
+  'common.loadFailed': 'Could not load this: {reason}',
   'common.copied': 'Link copied',
   'common.count_one': '{count} item',
   'common.count_other': '{count} items',

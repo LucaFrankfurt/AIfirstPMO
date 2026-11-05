@@ -9,14 +9,14 @@
  */
 import {
   createContext, Fragment, useCallback, useContext, useEffect, useId,
-  useMemo, useState, type MouseEvent as ReactMouseEvent, type ReactNode,
+  useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
 import type { VariantProps } from 'class-variance-authority';
 import type { Priority, StateGroup } from '@kolibri/shared';
 import { isDoneGroup, matchesTerms, parseTerms } from '@kolibri/shared';
 import { colorFor, initials, PRIORITY_COLOR } from './format';
-import { priorityKey, useT } from '../i18n/i18n';
+import { priorityKey, useT, type Translate } from '../i18n/i18n';
 import type { GuideTarget } from '../../modules/guide/guide';
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
@@ -690,6 +690,37 @@ export function ToastHost({ children }: { children: ReactNode }) {
       )}
     </ToastContext.Provider>
   );
+}
+
+/** What a failed request says: the server's words, or a generic line. */
+export const failure = (error: unknown, t: Translate): string =>
+  (error instanceof Error && error.message) || t('common.somethingWentWrong');
+
+/**
+ * A button's request, one at a time, and a toast when it fails (UX-08).
+ * The ref refuses a second click that lands before `busy` has re-rendered.
+ */
+export function useAction() {
+  const t = useT();
+  const toast = useToast();
+  const running = useRef(false);
+  const [busy, setBusy] = useState(false);
+  const run = useCallback(async (work: () => Promise<unknown>): Promise<boolean> => {
+    if (running.current) return false;
+    running.current = true;
+    setBusy(true);
+    try {
+      await work();
+      return true;
+    } catch (error) {
+      toast(failure(error, t));
+      return false;
+    } finally {
+      running.current = false;
+      setBusy(false);
+    }
+  }, [t, toast]);
+  return { busy, run };
 }
 
 /* ------------------------------------------------------------------- misc */
