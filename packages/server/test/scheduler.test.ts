@@ -120,6 +120,41 @@ describe('repeating tasks', () => {
 
     assert.equal(rollRecurringTasks(), 0, 'and finishing the sweep twice makes one copy, not two');
   });
+
+  it('keeps a monthly series on its day instead of sliding to the 28th (DAT-10)', async () => {
+    assert.equal(nextDueDate('2026-02-28', 'monthly', 31), '2026-03-31');
+    assert.equal(nextDueDate('2026-11-30', 'monthly:3', 31), '2027-02-28');
+
+    const states = await api(`/api/workspaces/${workspaceId}/states?project_id=${projectId}`);
+    const done = states.find((state: any) => state.group_key === 'completed');
+    let current = (await api(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'Pay the rent', due_date: '2026-01-31', recurrence: 'monthly' })).id;
+    const dates: string[] = [];
+    for (let month = 0; month < 4; month++) {
+      await api(`/api/tasks/${current}`, { state_id: done.id }, 'PATCH');
+      assert.equal(rollRecurringTasks(), 1);
+      const next = get<any>(`SELECT id, due_date FROM tasks WHERE recurred_from = ?`, current);
+      dates.push(next.due_date);
+      current = next.id;
+    }
+    assert.deepEqual(dates, ['2026-02-28', '2026-03-31', '2026-04-30', '2026-05-31']);
+  });
+
+  it('ends a series when its next occurrence is deleted, also after the trash is emptied (DAT-10)', async () => {
+    const { emptyTrash } = await import('../src/modules/trash/trash.ts');
+    const states = await api(`/api/workspaces/${workspaceId}/states?project_id=${projectId}`);
+    const done = states.find((state: any) => state.group_key === 'completed');
+    const task = await api(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'Stand-up notes', due_date: '2026-05-04', recurrence: 'weekly' });
+    await api(`/api/tasks/${task.id}`, { state_id: done.id }, 'PATCH');
+    assert.equal(rollRecurringTasks(), 1);
+
+    const copy = get<any>(`SELECT id FROM tasks WHERE recurred_from = ?`, task.id);
+    await api(`/api/tasks/${copy.id}`, undefined, 'DELETE');
+    assert.equal(rollRecurringTasks(), 0, 'a deleted occurrence counts as made');
+
+    emptyTrash(workspaceId, 'manual', Date.now());
+    assert.equal(get(`SELECT id FROM tasks WHERE id = ?`, copy.id), undefined, 'the occurrence is gone for good');
+    assert.equal(rollRecurringTasks(), 0, 'and the series does not come back');
+  });
 });
 
 describe('a rule that fires because a date is coming', () => {

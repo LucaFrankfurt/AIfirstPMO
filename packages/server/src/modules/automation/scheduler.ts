@@ -83,22 +83,36 @@ export function remindAboutDueTasks(now = Date.now()): number {
 
 /* -------------------------------------------------------------- recurrence */
 
-/** `weekly:2` → two weeks. A bare unit means every one. */
-export function nextDueDate(from: string, recurrence: string): string | null {
+/** `weekly:2` → two weeks. A bare unit means every one. `day` is the day of month a monthly series is set for. */
+export function nextDueDate(from: string, recurrence: string, day?: number): string | null {
   const [unit, every] = String(recurrence).split(':');
   const step = Math.max(1, Number(every) || 1);
   if (unit === 'daily') return addDays(from, step);
   if (unit === 'weekly') return addDays(from, 7 * step);
   if (unit === 'monthly') {
-    const date = new Date(`${from}T00:00:00Z`);
-    const day = date.getUTCDate();
-    date.setUTCMonth(date.getUTCMonth() + step);
-    // The 31st of a 30-day month lands on the 1st without this; a monthly task
-    // set for the 31st should be the last day of the month, not the next one.
-    if (date.getUTCDate() !== day) date.setUTCDate(0);
-    return date.toISOString().slice(0, 10);
+    const [year, month, date] = from.split('-').map(Number);
+    // A monthly task set for the 31st is due on the last day of a shorter month, not the next one.
+    const last = new Date(Date.UTC(year, month + step, 0)).getUTCDate();
+    return new Date(Date.UTC(year, month - 1 + step, Math.min(day ?? date, last))).toISOString().slice(0, 10);
   }
   return null;
+}
+
+const isLastOfMonth = (iso: string): boolean => addDays(iso, 1).endsWith('-01');
+
+/** The day a monthly series is set for: a last-of-month date may be clamped, so the earlier ones decide. */
+function seriesDay(task: Row): number {
+  let day = 0;
+  let current: Row | undefined = task;
+  for (let hops = 0; current?.due_date && hops < 24; hops++) {
+    const due = String(current.due_date);
+    day = Math.max(day, Number(due.slice(8, 10)));
+    if (day === 31 || !isLastOfMonth(due)) break;
+    current = current.recurred_from
+      ? get<Row>(`SELECT due_date, recurred_from FROM tasks WHERE id = ?`, current.recurred_from)
+      : undefined;
+  }
+  return day;
 }
 
 /**
@@ -112,13 +126,14 @@ export function rollRecurringTasks(): number {
     `SELECT t.* FROM tasks t
       WHERE t.deleted_at IS NULL AND t.recurrence IS NOT NULL AND t.recurrence <> ''
         AND t.completed_at IS NOT NULL
-        AND NOT EXISTS (SELECT 1 FROM tasks n WHERE n.recurred_from = t.id AND n.deleted_at IS NULL)`,
+        AND NOT EXISTS (SELECT 1 FROM tasks n WHERE n.recurred_from = t.id)
+        AND NOT EXISTS (SELECT 1 FROM reminders r WHERE r.marker = 'recur:' || t.id)`,
   );
 
   let made = 0;
   for (const task of finished) {
     const base = String(task.due_date || todayISO(Number(task.completed_at)));
-    const next = nextDueDate(base, String(task.recurrence));
+    const next = nextDueDate(base, String(task.recurrence), task.due_date ? seriesDay(task) : undefined);
     if (!next) continue;
 
     const state = get<Row>(
@@ -141,6 +156,8 @@ export function rollRecurringTasks(): number {
       recurred_from: task.id,
       created_by: task.created_by,
     }, { workspaceId: String(task.workspace_id), actorId: String(task.created_by), hlc: serverClock.now(), system: true });
+    // Deleting the next occurrence ends the series, also once the trash has purged it.
+    run(`INSERT OR IGNORE INTO reminders (marker, user_id, created_at) VALUES (?, '', ?)`, `recur:${task.id}`, Date.now());
     made++;
   }
   return made;
