@@ -129,6 +129,20 @@ describe('every screen has a way to it', () => {
     }
   });
 
+  it('lists the modules above the project tree, so a long project list cannot push them off screen', () => {
+    // UI-01: Portfolio and the planning modules sat below the projects, one row lower per project.
+    const body = src('AppShell.tsx');
+    const at = (needle: string): number[] =>
+      [...body.matchAll(new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'))].map((match) => match.index!);
+    const tree = at('nested.map(');
+    assert.equal(tree.length, 2, 'expected the project tree in the rail and in the open sidebar');
+    for (const needle of ['enabled(PLANNING_DESTINATIONS, has)', '"/portfolio"']) {
+      const found = at(needle);
+      assert.equal(found.length, 2, `expected ${needle} in the rail and in the open sidebar`);
+      found.forEach((index, n) => assert.ok(index < tree[n], `${needle} is drawn below the project tree`));
+    }
+  });
+
   it('does not hard-code a destination that the list already carries', () => {
     /*
      * The regression this file exists for, stated directly: a `to="/budgets"`
