@@ -13,6 +13,48 @@ type Tables = { [K in EntityName]: Map<string, any> };
 
 export const tables: Tables = Object.fromEntries(ENTITY_NAMES.map((name) => [name, new Map()])) as Tables;
 
+/** Fields looked up once per rendered row; indexed so the lookup costs the matches, not the table. */
+const INDEXED: Partial<Record<EntityName, readonly string[]>> = { task: ['parent_id'], message: ['channel_id'] };
+
+type Index = { field: string; ids: Map<unknown, Set<string>> };
+
+const indexes: Partial<Record<EntityName, Index[]>> = Object.fromEntries(
+  Object.entries(INDEXED).map(([entity, fields]) => [entity, fields.map((field) => ({ field, ids: new Map() }))]),
+);
+
+function moveIndexed(index: Index, id: string, from: unknown, to: unknown): void {
+  if (from !== null && from !== undefined) {
+    const ids = index.ids.get(from);
+    ids?.delete(id);
+    if (ids && !ids.size) index.ids.delete(from);
+  }
+  if (to === null || to === undefined) return;
+  const ids = index.ids.get(to);
+  if (ids) ids.add(id);
+  else index.ids.set(to, new Set([id]));
+}
+
+/** Every write to a table goes through here or `drop`, so the indexes stay true. */
+function put(entity: EntityName, row: any): void {
+  const table = tables[entity];
+  const fields = indexes[entity];
+  if (fields) {
+    const before = table.get(row.id);
+    for (let i = 0; i < fields.length; i++) {
+      const { field } = fields[i];
+      if (!before || before[field] !== row[field]) moveIndexed(fields[i], row.id, before?.[field], row[field]);
+    }
+  }
+  table.set(row.id, row);
+}
+
+function drop(entity: EntityName, id: string): boolean {
+  const before = tables[entity].get(id);
+  const fields = indexes[entity];
+  if (before && fields) for (const index of fields) moveIndexed(index, id, before[index.field], null);
+  return tables[entity].delete(id);
+}
+
 /**
  * A counter per table, not one for the whole cache.
  *
@@ -137,6 +179,19 @@ export function list<K extends EntityName>(entity: K, predicate?: (row: EntityMa
   return out;
 }
 
+/** `list` narrowed to rows whose `field` is `value`; through an index where `INDEXED` names the field. */
+export function listBy<K extends EntityName>(entity: K, field: keyof EntityMap[K] & string, value: unknown): EntityMap[K][] {
+  const index = indexes[entity]?.find((one) => one.field === field);
+  if (!index) return list(entity, (row) => row[field] === value);
+  recording?.add(entity);
+  const out: EntityMap[K][] = [];
+  for (const id of index.ids.get(value) ?? []) {
+    const row = tables[entity].get(id);
+    if (row && !row.deleted_at && row[field] === value) out.push(row);
+  }
+  return out;
+}
+
 export function byId<K extends EntityName>(entity: K, id: string | null | undefined): EntityMap[K] | undefined {
   recording?.add(entity);
   if (!id) return undefined;
@@ -166,12 +221,14 @@ export const useRow = <K extends EntityName>(entity: K, id: string | null | unde
 /* ------------------------------------------------------------------ writes */
 
 /**
- * Whether this device is still holding a change to a row that the server has
- * not seen. `sync.ts` answers it from the outbox; the default is "no", which
- * is what a changeset applied outside the engine — a test, a hand-fed row —
- * means.
+ * The changes this device is still holding for a row that the server has not
+ * seen, oldest first. `sync.ts` answers it from the outbox; the default is
+ * none, which is what a changeset applied outside the engine — a test, a
+ * hand-fed row — means.
  */
-export type Unsent = (entity: EntityName, id: string) => boolean;
+export type Unsent = (entity: EntityName, id: string) => readonly { op: string; patch: Record<string, unknown> }[];
+
+const NOTHING_UNSENT: Unsent = () => [];
 
 /**
  * Apply a server changeset (pull result or push echo).
@@ -185,7 +242,7 @@ export type Unsent = (entity: EntityName, id: string) => boolean;
  * nothing to protect and the row that arrived is simply the truth, which is
  * also what makes re-reading a row (`resync`) able to repair anything at all.
  */
-export function applyChanges(changes: ChangeSet, unsent: Unsent = () => false): void {
+export function applyChanges(changes: ChangeSet, unsent: Unsent = NOTHING_UNSENT): void {
   let touched = false;
   for (const entity of ENTITY_NAMES) {
     const rows = (changes as Record<string, any[]>)[entity];
@@ -194,6 +251,7 @@ export function applyChanges(changes: ChangeSet, unsent: Unsent = () => false): 
     const merging = entityDef(entity)?.crdt;
     for (const row of rows) {
       const existing = table.get(row.id);
+      const queued = unsent(entity, row.id);
       // The merge is what stops a page somebody is typing into losing the
       // paragraph to the row coming back from a pull — which is exactly when
       // it would happen, and only while that paragraph is still queued.
@@ -203,10 +261,15 @@ export function applyChanges(changes: ChangeSet, unsent: Unsent = () => false): 
           // A changeset that does not carry the field at all — a push echo is
           // only the values the server decided — must not read as "cleared".
           if (incoming === undefined || incoming === null) row[field] = existing[field] ?? incoming;
-          else if (unsent(entity, row.id)) row[field] = crdt.merge(existing[field], incoming);
+          else if (queued.length) row[field] = crdt.merge(existing[field], incoming);
         }
       }
-      table.set(row.id, existing ? { ...existing, ...row } : row);
+      // Our unsent edits stay on top of the server's row (and its saved copy), or a title or card jumps back until the push lands.
+      for (const { op, patch } of queued) {
+        if (op === 'delete') row.deleted_at = existing?.deleted_at ?? row.deleted_at ?? now();
+        else for (const field in patch) if (!merging?.includes(field)) row[field] = patch[field];
+      }
+      put(entity, existing ? { ...existing, ...row } : row);
     }
     bump(entity);
     touched = true;
@@ -227,8 +290,7 @@ function applyPurges(changes: ChangeSet): boolean {
   if (!purges?.length) return false;
   let touched = false;
   for (const purge of purges) {
-    const table = (tables as Record<string, Map<string, any>>)[purge.entity];
-    if (table?.delete(purge.row_id)) {
+    if (Object.hasOwn(tables, purge.entity) && drop(purge.entity as EntityName, purge.row_id)) {
       bump(purge.entity as EntityName);
       touched = true;
     }
@@ -256,15 +318,14 @@ export function purgedRows(changes: ChangeSet): { store: string; keys: string[] 
  * breath.
  */
 export function forgetLocal(entity: EntityName, id: string): void {
-  if (tables[entity].delete(id)) bump(entity);
+  if (drop(entity, id)) bump(entity);
 }
 
 /** Merge one row locally (optimistic update). */
 export function patchLocal(entity: EntityName, id: string, patch: Record<string, unknown>): Record<string, any> {
-  const table = tables[entity];
-  const existing = table.get(id) ?? { id };
+  const existing = tables[entity].get(id) ?? { id };
   const next = { ...existing, ...patch, updated_at: now() };
-  table.set(id, next);
+  put(entity, next);
   bump(entity);
   emit();
   return next;
@@ -279,8 +340,7 @@ export function patchLocal(entity: EntityName, id: string, patch: Record<string,
  */
 export function hydrate(entity: EntityName, rows: any[]): void {
   if (!rows.length) return;
-  const table = tables[entity];
-  for (const row of rows) table.set(row.id, row);
+  for (const row of rows) put(entity, row);
   bump(entity);
 }
 
@@ -289,6 +349,7 @@ export function reset(): void {
     tables[entity].clear();
     bump(entity);
   }
+  for (const fields of Object.values(indexes)) for (const index of fields) index.ids.clear();
   emit();
 }
 

@@ -8,36 +8,25 @@ import {
   type EntityName, type Page, type PageFormat, type Priority, type ProjectVocabulary, type Task,
 } from '@kolibri/shared';
 import { now } from './clock';
-import * as idb from './idb';
 import { byId, list, patchLocal, tables } from './store';
 import { currentWorkspace, enqueue } from './sync';
 
-function persistLocal(entity: EntityName, id: string, patch: Record<string, unknown>): Record<string, any> {
-  const row = patchLocal(entity, id, patch);
-  void idb.put(entity, row);
-  return row;
-}
-
 export function update(entity: EntityName, id: string, patch: Record<string, unknown>): void {
-  persistLocal(entity, id, patch);
-  enqueue(entity, id, patch);
+  enqueue(entity, id, patch, 'upsert', patchLocal(entity, id, patch));
 }
 
 export function create(entity: EntityName, patch: Record<string, unknown>, id: string = crypto.randomUUID()): string {
   const full = { workspace_id: currentWorkspace(), created_at: now(), deleted_at: null, ...patch, id };
-  persistLocal(entity, id, full);
-  enqueue(entity, id, full);
+  enqueue(entity, id, full, 'upsert', patchLocal(entity, id, full));
   return id;
 }
 
 export function remove(entity: EntityName, id: string): void {
-  persistLocal(entity, id, { deleted_at: now() });
-  enqueue(entity, id, {}, 'delete');
+  enqueue(entity, id, {}, 'delete', patchLocal(entity, id, { deleted_at: now() }));
 }
 
 export function restore(entity: EntityName, id: string): void {
-  persistLocal(entity, id, { deleted_at: null });
-  enqueue(entity, id, { deleted_at: null });
+  enqueue(entity, id, { deleted_at: null }, 'upsert', patchLocal(entity, id, { deleted_at: null }));
 }
 
 /* -------------------------------------------------------------------- tasks */

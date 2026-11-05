@@ -402,3 +402,78 @@ describe('a slow or failing server (WEB-10)', () => {
     }
   });
 });
+
+describe('a pull while an edit is still queued (WEB-11)', () => {
+  it('keeps the unsent field on screen and on disk, takes the rest, and reads the row back once sent', async () => {
+    let row = { id: 'k1', workspace_id: 'ws-K', title: 'server title', priority: 'low', seq: 1 };
+    server.pulls.set('ws-K', (since) => (since < row.seq ? { changes: { task: [row] }, cursor: row.seq } : { cursor: since }));
+    await sync.start('ws-K', 'ada');
+    assert.equal(store.byId('task', 'k1')?.title, 'server title');
+
+    let release!: () => void;
+    server.hold = new Promise<void>((resolve) => { release = resolve; });
+    mutations.update('task', 'k1', { title: 'my new title' });
+    const sending = sync.flush();
+    // Somebody else changed the priority meanwhile; their row still carries the old title.
+    row = { ...row, priority: 'high', seq: 2 };
+    await sync.pull();
+    assert.equal(store.byId('task', 'k1')?.title, 'my new title', 'the title jumped back to the server’s');
+    assert.equal(store.byId('task', 'k1')?.priority, 'high', 'the rest of the row is the server’s');
+    const saved = (await idb.readAll('task')).find((one: { id: string }) => one.id === 'k1');
+    assert.equal(saved?.title, 'my new title', 'and a reload would have lost it');
+
+    server.requests.length = 0;
+    release();
+    server.hold = null;
+    await sending;
+    await until(() => sync.getStatus().pending === 0 && server.requests.includes('/api/tasks/k1'));
+    assert.ok(server.requests.includes('/api/tasks/k1'), 'a row shown under a queued change is read back once it is sent');
+    sync.stop();
+  });
+});
+
+// Chromium commits a transaction only after its success events ran; a reload right after Enter lost 14 of 40 quick-added tasks.
+describe('a page left right after a change (NEW-QUICKADD)', () => {
+  it('saves the change with its row in one committed transaction, and beacons the queue on the way out', async () => {
+    const writes: { stores: string[]; committed: boolean }[] = [];
+    const shim = globalThis.indexedDB as any;
+    const open = shim.open;
+    shim.open = (name: string, version?: number) => {
+      const request = open.call(shim, name, version);
+      const db = request.result;
+      const transaction = db.transaction.bind(db);
+      db.transaction = (names: string | string[], mode?: string) => {
+        const tx = transaction(names, mode);
+        const write = { stores: [names].flat(), committed: false };
+        if (mode === 'readwrite') writes.push(write);
+        tx.commit = () => { write.committed = true; };
+        return tx;
+      };
+      return request;
+    };
+    const beacons: { url: string; body: Blob }[] = [];
+    (navigator as any).sendBeacon = (url: string, body: Blob) => { beacons.push({ url, body }); return true; };
+    try {
+      await sync.start('ws-Q', 'ada');
+      writes.length = 0;
+      const id = mutations.create('task', { project_id: 'p', title: 'quick-added' });
+      window.dispatchEvent(new Event('pagehide'));
+      await settle(10);
+
+      const saved = writes.find((write) => write.stores.includes(idb.OUTBOX));
+      assert.deepEqual(saved?.stores.sort(), [idb.OUTBOX, 'task'], 'the change and its row in one transaction');
+      assert.ok(saved?.committed, 'committed at once, not after a round trip the page may not see');
+      // Other tabs of this file (`?tab=…` imports) share the fake window, so only this workspace's beacon counts.
+      const sent = await Promise.all(beacons.map(async ({ url, body }) => ({ url, ...JSON.parse(await body.text()) })));
+      const mine = sent.filter((beacon) => beacon.workspaceId === 'ws-Q');
+      assert.equal(mine.length, 1, 'the queue is sent as the page goes');
+      assert.equal(mine[0].url, '/api/sync/push');
+      assert.deepEqual(mine[0].mutations.map((m: { entityId: string }) => m.entityId), [id]);
+    } finally {
+      shim.open = open;
+      delete (navigator as any).sendBeacon;
+      await until(() => sync.getStatus().pending === 0);
+      sync.stop();
+    }
+  });
+});
