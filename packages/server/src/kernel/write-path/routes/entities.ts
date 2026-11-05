@@ -3,7 +3,7 @@ import {
   isCrossWorkspace, isGuestWritable, parseCsv,
   type EntityName, type ImportField, type Mapping, type WorkspaceRole,
 } from '@kolibri/shared';
-import { all, get, type Row } from '../../platform/db/index.ts';
+import { all, get, limitOf, type Row } from '../../platform/db/index.ts';
 import { hasRole, requireAuth, requireWorkspace } from '../../identity/auth.ts';
 import { serverClock, createProject } from '../bootstrap.ts';
 import { badRequest, flag, forbidden, notFound, readJson, type Ctx, type Router } from '../../platform/http.ts';
@@ -295,7 +295,7 @@ export function registerEntityRoutes(router: Router): void {
     const role = requireWorkspace(ctx, ctx.params.ws, 'admin');
     void role;
 
-    const limit = Math.min(Number(ctx.query.get('limit') ?? 100) || 100, 500);
+    const limit = limitOf(ctx.query.get('limit'), 100, 500);
     const before = Number(ctx.query.get('before') ?? 0) || Date.now() + 1;
     const actor = ctx.query.get('actor');
     const project = ctx.query.get('project');
@@ -731,7 +731,7 @@ export function registerEntityRoutes(router: Router): void {
       params.push(auth.userId);
     }
 
-    const limit = Math.min(Number(ctx.query.get('limit') ?? 200) || 200, 1000);
+    const limit = limitOf(ctx.query.get('limit'), 200, 1000);
     const offset = Math.max(Number(ctx.query.get('offset') ?? 0) || 0, 0);
     const sortable = new Set([...def.fields, 'created_at', 'updated_at', 'seq']);
     const orderField = ctx.query.get('order_by') ?? 'created_at';
@@ -858,7 +858,7 @@ export function registerEntityRoutes(router: Router): void {
     const rule = workspaceOf('automation', ctx.params.id);
     requireWorkspace(ctx, String(rule.workspace_id));
     guardProject(auth.userId, 'automation', rule);
-    return automationRuns(ctx.params.id, Number(ctx.query.get('limit') ?? 25));
+    return automationRuns(ctx.params.id, limitOf(ctx.query.get('limit'), 25, 500));
   });
 
   /**

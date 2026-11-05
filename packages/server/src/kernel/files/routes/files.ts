@@ -1,5 +1,5 @@
 import { type AttachmentSubject, isAttachmentSubject } from '@kolibri/shared';
-import { all, type Row } from '../../platform/db/index.ts';
+import { all, limitOf, type Row } from '../../platform/db/index.ts';
 import { env } from '../../platform/env.ts';
 import { requireAuth, requireWorkspace } from '../../identity/auth.ts';
 import { badRequest, decodeParam, forbidden, notFound, readBody, type Ctx, type Router } from '../../platform/http.ts';
@@ -149,7 +149,7 @@ export function registerFileRoutes(router: Router): void {
     return all<Row>(
       `SELECT hash, name, mime, size, width, height, storage, created_at, created_by FROM files
         WHERE workspace_id = ? ORDER BY created_at DESC LIMIT ?`,
-      ctx.params.ws, Math.min(Number(ctx.query.get('limit') ?? 100) || 100, 500),
+      ctx.params.ws, limitOf(ctx.query.get('limit'), 100, 500),
     )
       .filter((row) => canSeeFile(auth.userId, String(row.hash)))
       .map((row) => ({ ...row, url: `/files/${row.hash}/${encodeURIComponent(row.name)}` }));

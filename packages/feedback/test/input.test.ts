@@ -217,6 +217,30 @@ describe('readFeedbackForm', () => {
     assert.equal(error.status, 413);
   });
 
+  it('stops reading a body without Content-Length at the budget, with 413', async () => {
+    const chunk = new Uint8Array(64 * 1024);
+    let pulled = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += chunk.byteLength;
+        if (pulled > 4 * 1024 * 1024) controller.close();
+        else controller.enqueue(chunk);
+      },
+    });
+    const req = new Request('https://app.example/api/feedback', {
+      method: 'POST',
+      body: stream,
+      duplex: 'half',
+      headers: { 'content-type': 'multipart/form-data; boundary=x' },
+    } as RequestInit);
+    assert.equal(req.headers.get('content-length'), null);
+    const limits = { maxScreenshotBytes: 100 * 1024, maxBodyOverheadBytes: 0 };
+    const error = await readFeedbackForm(req, { limits }).catch((e) => e);
+    assert.ok(error instanceof FeedbackInputError);
+    assert.equal(error.status, 413);
+    assert.ok(pulled <= 4 * chunk.byteLength, `read ${pulled} bytes past a 100 KiB budget`);
+  });
+
   it('refuses an oversized screenshot part with 413', async () => {
     const form = new FormData();
     form.set('message', 'x');

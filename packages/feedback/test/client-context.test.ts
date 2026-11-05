@@ -29,7 +29,10 @@ function fakeWindow(over: Record<string, unknown> = {}): Window & typeof globalT
 describe('collectClientContext', () => {
   it('collects the fields that make a bug reproducible', () => {
     const ctx = collectClientContext(fakeWindow());
-    assert.equal(ctx.url, 'https://setaside.de/companies/abc?tab=visits');
+    // Without query or fragment — those carry reset tokens, OAuth codes and e-mail addresses.
+    assert.equal(ctx.url, 'https://setaside.de/companies/abc');
+    const reset = collectClientContext(fakeWindow({ location: { href: 'https://setaside.de/reset?token=s3cr3t#access_token=x' } }));
+    assert.equal(reset.url, 'https://setaside.de/reset');
     assert.equal(ctx.title, 'Firma ABC');
     assert.equal(ctx.viewport, '1440x900');
     assert.equal(ctx.screen, '2560x1440');

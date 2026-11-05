@@ -164,30 +164,61 @@ export function parseFeedbackInput<K extends string>(
   };
 }
 
+/** The whole body, or null as soon as it passes `budget` bytes. */
+async function readAtMost(request: Request, budget: number): Promise<Uint8Array<ArrayBuffer> | null> {
+  if (!request.body) return new Uint8Array(0);
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > budget) {
+      await reader.cancel().catch(() => {});
+      return null;
+    }
+    chunks.push(value);
+  }
+  const body = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return body;
+}
+
 /**
  * Read the multipart body the browser half sends (fields `kind`, `message`,
  * `clientContext` as JSON, optional file `screenshot`) into the wire shape.
  *
  * Validation of the CONTENT is parseFeedbackInput's job; this only refuses what must
  * not be buffered at all, and tolerates what is merely decorative:
- * - the declared Content-Length is checked before anything is read into memory
- *   (absent or lying headers are still caught by the per-part size check);
+ * - the declared Content-Length is checked before anything is read into memory,
+ *   and the body is read with a byte counter that stops at the same budget, so an
+ *   absent or lying header cannot make it buffer more;
  * - a malformed or oversized client context becomes `{}` — it must never be the
  *   reason a report is lost.
  */
 export async function readFeedbackForm(request: Request, options: InputOptions = {}): Promise<FeedbackInput> {
   const messages = options.messages ?? en;
   const limits = limitsOf(options);
+  const budget = limits.maxScreenshotBytes + limits.maxBodyOverheadBytes;
 
   const declared = Number(request.headers.get('content-length') ?? '0');
-  if (Number.isFinite(declared) && declared > limits.maxScreenshotBytes + limits.maxBodyOverheadBytes) {
+  if (Number.isFinite(declared) && declared > budget) {
     throw new FeedbackInputError(messages.input.bodyTooLarge, 413);
   }
 
   let form: FormData;
   try {
-    form = await request.formData();
-  } catch {
+    const body = await readAtMost(request, budget);
+    if (!body) throw new FeedbackInputError(messages.input.bodyTooLarge, 413);
+    const headers = { 'content-type': request.headers.get('content-type') ?? '' };
+    form = await new Response(body, { headers }).formData();
+  } catch (error) {
+    if (error instanceof FeedbackInputError) throw error;
     throw new FeedbackInputError(messages.input.invalidRequest, 400);
   }
 

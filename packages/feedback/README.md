@@ -107,9 +107,9 @@ data that must never appear in a ticket. Configure a different attribute with
 first with modern-screenshot, then with html2canvas if the first result is blank or
 unreadable. The longest edge is capped at 2560 px and the image is encoded as WebP (JPEG
 where the browser cannot encode WebP), stepping quality down to stay near 1 MB. The
-browser data collected is URL, title, viewport, screen, DPR, user agent, language,
-timezone, online status, connection type and the client clock. It never includes
-storage, cookies or console output.
+browser data collected is URL (origin and path only), title, viewport, screen, DPR, user
+agent, language, timezone, online status, connection type and the client clock. It never
+includes the URL's query string or fragment, storage, cookies or console output.
 
 ### 2. Server: accept a report
 
@@ -249,6 +249,12 @@ English.
   which one it is.
 - **Client context is untrusted.** It is limited to scalar values, 40 keys and 2,000
   characters per value, and is never parsed as anything else.
+- **The reported URL loses its query string and fragment.** That is where reset tokens,
+  OAuth codes and e-mail addresses travel, and a ticket title ends up in notifications,
+  webhooks and chat. `collectClientContext` drops them in the browser, and the formatter
+  drops them again from title and body, whatever a client sends. If your routes keep only
+  harmless state there, opt in with `fullUrl: true` (in `resolveFeedbackTarget`'s
+  options, `KolibriConfig` or `FormatOptions`) and send `location.href` yourself.
 
 ## Development
 

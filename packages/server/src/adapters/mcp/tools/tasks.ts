@@ -2,7 +2,7 @@
  * The backlog: reading it, filing into it, and moving things through it.
  */
 import { PRIORITIES, readFieldValue, RELATION_KINDS, type RelationKind } from '@kolibri/shared';
-import { all, get, type Row, tx } from '../../../kernel/platform/db/index.ts';
+import { all, get, limitOf, type Row, tx } from '../../../kernel/platform/db/index.ts';
 import { deleteEntity, visibleProjectIds, visibleProjectsSql, withEffectsHeld, writeEntity } from '../../../kernel/write-path/repo.ts';
 import { searchWorkspace } from '../../../kernel/search/search.ts';
 import { uid } from '../../../kernel/platform/ids.ts';
@@ -107,7 +107,7 @@ export const taskTools: ToolDef[] = [
       // In the query, not after it: a LIMIT spent on hidden rows returns a short or empty list.
       where.push(`t.project_id IN (${visibleProjectsSql()})`);
       params.push(workspaceId, ctx.auth.userId);
-      const limit = Math.min(Number(args.limit ?? 50) || 50, 200);
+      const limit = limitOf(args.limit, 50, 200);
       return all<Row>(
         `SELECT t.* FROM tasks t WHERE ${where.join(' AND ')} ORDER BY t.updated_at DESC LIMIT ?`,
         ...params, limit,
