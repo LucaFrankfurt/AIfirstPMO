@@ -3466,26 +3466,33 @@ await step('a database from an older build gets the stores it is missing', async
     // Then somewhere on the origin that is not the app: a page holding a
     // connection blocks `deleteDatabase` for ever, and the app opens one on load.
     await view.goto(`${base}/icon.svg`);
+    // Each person and workspace has its own mirror database (WEB-02); age every one.
     const rewound = await view.evaluate(async () => {
-      const read = await new Promise((res) => { const r = indexedDB.open('kolibri'); r.onsuccess = () => res(r.result); });
-      const version = read.version;
-      // Any three stores would simulate an older build equally well; these are
-      // the three the incident was actually about.
-      const all = [...read.objectStoreNames];
-      const older = all.filter((n) => !['channel', 'message', 'channelRead'].includes(n));
-      read.close();
-      await new Promise((res) => {
-        const gone = indexedDB.deleteDatabase('kolibri');
-        gone.onsuccess = gone.onerror = gone.onblocked = () => res();
-      });
-      await new Promise((res) => {
-        const open = indexedDB.open('kolibri', version);
-        open.onupgradeneeded = () => {
-          for (const name of older) open.result.createObjectStore(name, { keyPath: name === 'meta' ? 'key' : 'id' });
-        };
-        open.onsuccess = () => { open.result.close(); res(); };
-      });
-      return { version, stores: older.length, dropped: all.length - older.length };
+      const mirrors = (await indexedDB.databases()).map((d) => d.name).filter((n) => n?.startsWith('kolibri:'));
+      let version = 0, stores = 0, dropped = 0;
+      for (const mirror of mirrors) {
+        const read = await new Promise((res) => { const r = indexedDB.open(mirror); r.onsuccess = () => res(r.result); });
+        version = read.version;
+        // Any three stores would simulate an older build equally well; these are
+        // the three the incident was actually about.
+        const all = [...read.objectStoreNames];
+        const older = all.filter((n) => !['channel', 'message', 'channelRead'].includes(n));
+        read.close();
+        await new Promise((res) => {
+          const gone = indexedDB.deleteDatabase(mirror);
+          gone.onsuccess = gone.onerror = gone.onblocked = () => res();
+        });
+        await new Promise((res) => {
+          const open = indexedDB.open(mirror, version);
+          open.onupgradeneeded = () => {
+            for (const name of older) open.result.createObjectStore(name, { keyPath: name === 'meta' ? 'key' : 'id' });
+          };
+          open.onsuccess = () => { open.result.close(); res(); };
+        });
+        stores = older.length;
+        dropped = all.length - older.length;
+      }
+      return { version, stores, dropped, mirrors };
     });
 
     faults.length = 0;
@@ -3495,20 +3502,24 @@ await step('a database from an older build gets the stores it is missing', async
     await view.goto(`${base}/chat`, { waitUntil: 'networkidle' });
     await view.waitForTimeout(2500);
 
-    const now = await view.evaluate(async () => {
-      const db = await new Promise((res) => { const r = indexedDB.open('kolibri'); r.onsuccess = () => res(r.result); });
-      const missing = ['channel', 'message', 'channelRead'].filter((n) => !db.objectStoreNames.contains(n));
-      // The sync cursor is only written once a pull has saved its rows, so this
-      // is the difference between "opened" and "actually usable".
-      const cursor = await new Promise((res) => {
-        const get = db.transaction('meta', 'readonly').objectStore('meta').get('sync');
-        get.onsuccess = () => res(get.result?.value?.cursor ?? 0);
-        get.onerror = () => res(0);
-      });
-      const version = db.version;
-      db.close();
-      return { missing, cursor, version };
-    });
+    // Only the open workspace's mirror is pulled again; it is the one with a cursor.
+    const now = await view.evaluate(async (mirrors) => {
+      for (const mirror of mirrors) {
+        const db = await new Promise((res) => { const r = indexedDB.open(mirror); r.onsuccess = () => res(r.result); });
+        const missing = ['channel', 'message', 'channelRead'].filter((n) => !db.objectStoreNames.contains(n));
+        // The sync cursor is only written once a pull has saved its rows, so this
+        // is the difference between "opened" and "actually usable".
+        const cursor = await new Promise((res) => {
+          const get = db.transaction('meta', 'readonly').objectStore('meta').get('sync');
+          get.onsuccess = () => res(get.result?.value?.cursor ?? 0);
+          get.onerror = () => res(0);
+        });
+        const version = db.version;
+        db.close();
+        if (cursor) return { missing, cursor, version };
+      }
+      return { missing: [], cursor: 0, version: 0 };
+    }, rewound.mirrors);
 
     if (rewound.dropped !== 3) throw new Error(`nothing was aged — the database had ${rewound.stores} stores, so this proved nothing`);
     if (now.missing.length) throw new Error(`still missing: ${now.missing.join(', ')}`);
