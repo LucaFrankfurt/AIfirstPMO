@@ -379,3 +379,35 @@ describe('a forged cross-site post', () => {
     }
   });
 });
+
+describe('the mail suppression list (SEC-17)', () => {
+  it('is the instance admin’s to read and clear, and anybody else’s only for their own address', async () => {
+    const { isSuppressed, suppress } = await import('../src/adapters/mail/mail.ts');
+    const signIn = async (email: string, register: boolean) => {
+      resetRateLimits();
+      const response = await call(register ? '/api/auth/register' : '/api/auth/login',
+        { email, name: email.split('@')[0], password: 'correct horse battery' });
+      assert.equal(response.status, 200);
+      return (response.headers.get('set-cookie') ?? '').split(';')[0];
+    };
+    const remove = (email: string, cookie: string) =>
+      fetch(`${base}/api/mail/suppressions/${encodeURIComponent(email)}`, { method: 'DELETE', headers: { cookie } });
+
+    // Eve owns a workspace of her own, which is what every account on an open instance does.
+    const eve = await signIn('eve@example.com', true);
+    const ada = await signIn('ada@example.com', false);
+    suppress('stranger@example.com', 'bounce');
+    suppress('eve@example.com', 'bounce');
+
+    const listed = await call('/api/mail/suppressions', undefined, { cookie: eve });
+    assert.deepEqual(listed.body.map((row: any) => row.email), ['eve@example.com'], 'another account’s address was listed');
+    assert.equal((await remove('stranger@example.com', eve)).status, 403);
+    assert.equal(isSuppressed('stranger@example.com'), true);
+    assert.equal((await remove('eve@example.com', eve)).status, 200, 'her own address is hers to clear');
+
+    const all = await call('/api/mail/suppressions', undefined, { cookie: ada });
+    assert.ok(all.body.some((row: any) => row.email === 'stranger@example.com'), 'the instance admin sees the whole list');
+    assert.equal((await remove('stranger@example.com', ada)).status, 200);
+    assert.equal(isSuppressed('stranger@example.com'), false);
+  });
+});
