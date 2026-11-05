@@ -96,8 +96,15 @@ beside it, the database on the private network, the metadata service on `169.254
   refused, along with every way IPv6 has of spelling an IPv4 address — `::ffff:127.0.0.1`, NAT64,
   6to4.
 
+A **mailbox** is the third: its IMAP host is typed in by a workspace admin as well, and without a
+check a mail server that answers "refused", "timed out" or a stranger's greeting is a port scanner
+for the network behind the server. `adapters/imap` resolves the host through the same check and
+connects to the address that passed, and every refusal reads the same — a name that does not
+resolve and one that resolves somewhere private get one sentence — so the screen maps nothing.
+`mail-parsing.test.ts` asks loopback, `localhost`, `::1` and the metadata service.
+
 `KOLIBRI_ALLOW_PRIVATE_WEBHOOKS=1` turns the check off, for the instance that genuinely posts to
-`http://n8n:5678` on its own docker network. Off by default.
+`http://n8n:5678` on its own docker network or reads mail from a server on it. Off by default.
 
 **A model, when somebody asks for one.** A task review (`docs/ai.md`) sends the project name, column,
 labels, title and description of one task to whichever provider the operator configured; a board
