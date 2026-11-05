@@ -16,7 +16,7 @@ import {
   type Dependency, type Task,
 } from '@kolibri/shared';
 import { shortDate, today } from '../../kernel/design-system/format';
-import { useT } from '../../kernel/i18n/i18n';
+import { useI18n } from '../../kernel/i18n/i18n';
 import { now } from '../../kernel/sync/clock';
 import { byId, list, useQuery } from '../../kernel/sync/store';
 import { create, update } from '../../kernel/sync/mutations';
@@ -45,7 +45,7 @@ export function GanttView({ tasks, onOpen, projectId }: {
   onOpen: (task: Task) => void;
   projectId?: string;
 }) {
-  const t = useT();
+  const { t, locale } = useI18n();
   const canWrite = useCanWrite();
   const toast = useToast();
   const [zoom, setZoom] = useState(2);
@@ -145,14 +145,14 @@ export function GanttView({ tasks, onOpen, projectId }: {
         out.push({
           left,
           width: right - left,
-          label: new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' })
+          label: new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric', timeZone: 'UTC' })
             .format(new Date(dayOf(cursor))),
         });
       }
       cursor = end;
     }
     return out;
-  }, [range.from, range.to, dayWidth, totalDays]);
+  }, [range.from, range.to, dayWidth, totalDays, locale]);
 
   /* ------------------------------------------------------------- dragging */
 

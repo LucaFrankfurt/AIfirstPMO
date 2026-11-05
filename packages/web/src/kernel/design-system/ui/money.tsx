@@ -34,7 +34,10 @@ export function MoneyInput({ value, currency, onChange, ...rest }: {
   'aria-label'?: string;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
-  const shown = draft ?? (value ? (value / 100).toFixed(2) : '');
+  // Ungrouped, so `parseMoney` reads "1234,50" back as the same amount.
+  const shown = draft ?? (value
+    ? new Intl.NumberFormat(currentLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: false }).format(value / 100)
+    : '');
   return (
     <Input
       {...rest}

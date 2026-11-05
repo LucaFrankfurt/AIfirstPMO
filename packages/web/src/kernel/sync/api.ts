@@ -1,17 +1,40 @@
 import { CLOCK_HEADER, type ImportResult, type SessionInfo, type TaskReview } from '@kolibri/shared';
-import { currentLocale, translate } from '../i18n/i18n';
+import { currentLocale, translate, type Locale, type TranslationKey } from '../i18n/i18n';
 import { observeServerTime } from './clock';
 import { authHeaders, clientHeaders, serverUrl, useSessionToken } from './server';
 
 export class ApiError extends Error {
   status: number;
   code: string;
+  /** The server's own words, in English; `message` is what the reader is shown. */
+  detail: string;
 
-  constructor(status: number, message: string, code = 'error') {
+  constructor(status: number, message: string, code = 'error', detail = message) {
     super(message);
     this.status = status;
     this.code = code;
+    this.detail = detail;
   }
+}
+
+const BY_STATUS: Partial<Record<number, TranslationKey>> = {
+  401: 'error.unauthorized',
+  403: 'error.forbidden',
+  404: 'error.notFound',
+  413: 'error.tooLarge',
+  429: 'error.rateLimited',
+  500: 'common.somethingWentWrong',
+};
+
+/** What a failed request says in the reader's language; the server writes English, so an English reader gets its words. */
+export function errorText(locale: Locale, status: number, code: string, detail: string): string {
+  if (status === 0 || code === 'offline') return translate(locale, 'common.networkUnavailable');
+  if (locale === 'en' && detail) return detail;
+  if (code === 'ai_failed' && detail) return translate(locale, 'error.aiFailed', { detail });
+  const key = code === 'totp_required' ? 'error.totpRequired' : BY_STATUS[status];
+  if (key) return translate(locale, key);
+  if (status >= 500) return translate(locale, 'error.unavailable');
+  return detail ? translate(locale, 'error.refused', { detail }) : translate(locale, 'common.somethingWentWrong');
 }
 
 export const isOffline = (err: unknown): boolean => err instanceof TypeError || (err instanceof ApiError && err.status === 0);
@@ -57,7 +80,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       },
     });
   } catch (err) {
-    throw new ApiError(0, err instanceof Error ? err.message : translate(currentLocale(), 'common.networkUnavailable'), 'offline');
+    // fetch only ever throws a TypeError whose text is the browser's, in the browser's language.
+    throw new ApiError(0, errorText(currentLocale(), 0, 'offline', ''), 'offline', err instanceof Error ? err.message : '');
   }
 
   // Here rather than after the body, and before the status is looked at. The
@@ -72,7 +96,9 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const text = await response.text();
   const payload = text ? safeParse(text) : null;
   if (!response.ok) {
-    throw new ApiError(response.status, payload?.message ?? response.statusText, payload?.error ?? 'error');
+    const detail = String(payload?.message ?? response.statusText);
+    const code = String(payload?.error ?? 'error');
+    throw new ApiError(response.status, errorText(currentLocale(), response.status, code, detail), code, detail);
   }
   if (ISSUES_SESSION.has(path) && typeof payload?.token === 'string') useSessionToken(payload.token);
   return payload as T;

@@ -18,7 +18,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../../kernel/sync/api';
 import { relativeTime, shortDate } from '../../kernel/design-system/format';
-import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
+import { currentLocale, useT, type TranslationKey } from '../../kernel/i18n/i18n';
 import { useSession } from '../../kernel/identity/session';
 import { Empty, Icon, Sheet, useConfirm, useToast } from '../../kernel/design-system/ui';
 import { Button, buttonVariants } from '../../kernel/design-system/ui/button';
@@ -60,8 +60,9 @@ async function saveJson(path: string, filename: string): Promise<void> {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+const oneDecimal = (value: number): string => value.toLocaleString(currentLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const mb = (bytes: number): string =>
-  bytes >= 1_073_741_824 ? `${(bytes / 1_073_741_824).toFixed(1)} GB` : `${Math.max(0.1, bytes / 1_048_576).toFixed(1)} MB`;
+  bytes >= 1_073_741_824 ? `${oneDecimal(bytes / 1_073_741_824)} GB` : `${oneDecimal(Math.max(0.1, bytes / 1_048_576))} MB`;
 
 /* --------------------------------------------------------- the workspace */
 
