@@ -86,7 +86,8 @@ const oddities = () => {
     const name = () => `${el.tagName.toLowerCase()}${[...el.classList].map((c) => '.' + c).join('')}`;
     const y = el.scrollHeight - el.clientHeight;
     const x = el.scrollWidth - el.clientWidth;
-    if (scrolls(cs.overflowY) && y > 0 && y <= 3) out.push(`${name()} scrolls ${y}px vertically`);
+    // #content is the page's vertical scroller; content a few px taller than the window is legitimate there.
+    if (scrolls(cs.overflowY) && y > 0 && y <= 3 && el.id !== 'content') out.push(`${name()} scrolls ${y}px vertically`);
     if (scrolls(cs.overflowX) && x > 0 && !MEANT_TO.some((c) => el.classList.contains(c))) {
       out.push(`${name()} scrolls ${x}px sideways`);
     }
