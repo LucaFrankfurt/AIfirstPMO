@@ -16,7 +16,7 @@ import { openEnvironmentSql } from '../../../modules/secrets/rules/environments.
 import { exportProject, importProject, type ProjectDoc } from '../../../adapters/transfer/transfer.ts';
 import {
   canSeeBudget, canSeeChannel, canSeeKpi, canSeePage, canSeeProject, canSeeSubject, canSeeTask, deleteEntity,
-  inWriteScope, pageIsVisible, parseIds, serialize, visiblePageSql, visibleTaskSql, writeEntity,
+  inWriteScope, pageIsVisible, parseIds, serialize, serializeFor, visiblePageSql, visibleTaskSql, writeEntity,
 } from '../repo.ts';
 import { emptyTrash, purgeable } from '../../../modules/trash/trash.ts';
 import { env } from '../../platform/env.ts';
@@ -98,6 +98,8 @@ function visibleRow(userId: string, entity: EntityName, row: Row): boolean {
   // `guardPage`; a relation always has a task. Exactly the pull filter's
   // reading of the same two tables.
   if (TASK_BOUND.has(entity)) return row.task_id == null || canSeeTask(userId, String(row.task_id));
+  // A link to a page is the page's, as the pull filter reads it.
+  if (entity === 'share' && row.page_id != null && !canSeePage(userId, String(row.page_id))) return false;
   return canSeeProject(userId, projectOf(entity, row));
 }
 
@@ -766,7 +768,7 @@ export function registerEntityRoutes(router: Router): void {
         members: parseIds(row.members),
       }, auth.userId))
       .filter((row) => !KPI_CHILDREN.has(entity) || canSeeKpi(auth.userId, String(row.kpi_id)))
-      .map((row) => serialize(entity, row));
+      .map((row) => serializeFor(entity, row, auth.userId));
   });
 
   /** Create. Projects get their default states/labels for free. */
@@ -808,7 +810,7 @@ export function registerEntityRoutes(router: Router): void {
       actorId: auth.userId,
       hlc: serverClock.now(),
     });
-    return serialize(entity, row);
+    return serializeFor(entity, row, auth.userId);
   });
 
   router.get('/api/:collection/:id', (ctx: Ctx) => {
@@ -817,7 +819,7 @@ export function registerEntityRoutes(router: Router): void {
     const row = workspaceOf(entity, ctx.params.id);
     const role = requireWorkspace(ctx, row.workspace_id);
     guardRow(ctx, auth.userId, entity, row, role);
-    return serialize(entity, row);
+    return serializeFor(entity, row, auth.userId);
   });
 
   router.patch('/api/:collection/:id', async (ctx: Ctx) => {
@@ -834,7 +836,7 @@ export function registerEntityRoutes(router: Router): void {
       actorId: auth.userId,
       hlc: serverClock.now(),
     });
-    return serialize(entity, updated);
+    return serializeFor(entity, updated, auth.userId);
   });
 
   router.delete('/api/:collection/:id', (ctx: Ctx) => {

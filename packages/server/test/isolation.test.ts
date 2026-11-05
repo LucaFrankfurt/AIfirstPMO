@@ -272,6 +272,39 @@ describe('a colleague who is not the author', () => {
     });
     assert.equal(status, 403, 'a write path is a read path with consequences');
   });
+
+  /** A share token opens the page with its maker's eyes, so a colleague's device must never hold it. */
+  it('is not sent a link to the private page, nor the token of any link it did not make', async () => {
+    const make = async (pageId: string) => (await call(`/api/workspaces/${ada.workspace}/shares`, {
+      cookie: ada.cookie, body: { kind: 'page', page_id: pageId },
+    })).body;
+    const { body: handbook } = await call(`/api/workspaces/${ada.workspace}/pages`, {
+      cookie: ada.cookie, body: { title: 'Handbook', content: 'everybody may read this' },
+    });
+    const hidden = await make(secret);
+    const open = await make(handbook.id);
+    assert.ok(hidden.token && open.token, 'the maker is handed the token');
+
+    const { body: pulled } = await call(`/api/sync/pull?workspace=${ada.workspace}&since=0`, { cookie: colleague.cookie });
+    const shares: any[] = pulled.changes.share ?? [];
+    assert.ok(!shares.some((share) => share.id === hidden.id), 'a link to a private page reached a colleague');
+    assert.equal(shares.find((share) => share.id === open.id)?.token, null, 'a readable page’s link arrives without its token');
+
+    const { body: listed } = await call(`/api/workspaces/${ada.workspace}/shares`, { cookie: colleague.cookie });
+    const { status: byId } = await call(`/api/shares/${hidden.id}`, { cookie: colleague.cookie });
+    assert.equal(byId, 403);
+    const { body: one } = await call(`/api/shares/${open.id}`, { cookie: colleague.cookie });
+    const { body: patched } = await call(`/api/shares/${open.id}`, {
+      cookie: colleague.cookie, method: 'PATCH', body: { expires_at: Date.now() + 86_400_000 },
+    });
+    for (const [door, body] of [['pull', pulled], ['list', listed], ['get', one], ['patch', patched]] as const) {
+      const text = JSON.stringify(body);
+      assert.ok(!text.includes(hidden.token) && !text.includes(open.token), `${door} handed a colleague a share token`);
+    }
+
+    const { body: own } = await call(`/api/sync/pull?workspace=${ada.workspace}&since=0`, { cookie: ada.cookie });
+    assert.equal(own.changes.share.find((share: any) => share.id === hidden.id)?.token, hidden.token, 'the maker still syncs it');
+  });
 });
 
 /**
@@ -528,4 +561,5 @@ describe('a colleague outside a private project', () => {
     const bytes = await fetch(`${base}/files/${hash}/borrowed.webp`, { headers: { cookie: outsider.cookie } });
     assert.equal(bytes.status, 403, 'a hand-written attachment row bought access to somebody else’s file');
   });
+
 });

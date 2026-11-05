@@ -1648,6 +1648,7 @@ export const fr: Catalogue = {
   'share.make': 'Créer un lien',
   'share.making': 'Création…',
   'share.minting': 'Préparation du lien…',
+  'share.notYours': 'Créé par quelqu’un d’autre — seule cette personne peut le copier.',
   'share.link': 'Lien',
   'share.revoke': 'Désactiver ce lien',
   'share.revokeConfirm': 'Désactiver ce lien ? Quiconque le détient ne pourra plus lire.',

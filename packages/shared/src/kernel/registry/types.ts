@@ -939,8 +939,8 @@ export interface Share extends Base {
    */
   allow_comments: number;
   created_by: ID | null;
-  /** Server-side only: the secret in the URL. */
-  token?: string;
+  /** Server-side only: the secret in the URL. Sent to the link's maker and to nobody else. */
+  token?: string | null;
   views?: number;
   last_seen_at?: number | null;
 }

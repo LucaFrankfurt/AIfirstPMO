@@ -15,7 +15,7 @@ import {
 import { all, currentSeq, get, run, tx, type Row } from '../../platform/db/index.ts';
 import { hasRole, requireAuth, requireWorkspace } from '../../identity/auth.ts';
 import { badRequest, forbidden, notFound, readJson, type Ctx, type Router } from '../../platform/http.ts';
-import { canSeeProject, serialize, visiblePageSql, visibleProjectsSql, visibleTaskSql, writeEntity } from '../../write-path/repo.ts';
+import { canSeeProject, serializeFor, visiblePageSql, visibleProjectsSql, visibleTaskSql, writeEntity } from '../../write-path/repo.ts';
 import { serverClock } from '../../write-path/bootstrap.ts';
 import { subscribe } from '../../platform/bus.ts';
 import { snapshot, subscribePresence, touch, visiblePeople } from '../../../modules/chat/presence.ts';
@@ -303,10 +303,13 @@ function filterFor(entity: EntityName, table: string = ENTITIES[entity].table): 
      */
     case 'move':
       return `AND (${table}.project_id IS NULL OR ${table}.project_id IN (${VISIBLE_PROJECTS}))`;
+    // A link to a page reaches only those who may read the page; its token is `serializeFor`'s business.
+    case 'share':
+      return `AND (${table}.project_id IS NULL OR ${table}.project_id IN (${VISIBLE_PROJECTS}))
+              AND (${table}.page_id IS NULL OR ${visiblePageSql(`${table}.page_id`, '?1', '?2')})`;
     case 'label':
     case 'view':
     case 'webhook':
-    case 'share':
     case 'timeEntry':
       // Time is not private: a lead has to be able to add up the project. It is
       // scoped to the project like everything else, and an entry with no
@@ -474,7 +477,7 @@ function fetchChanges(scope: Scope, since: number, upto: number): { changes: Cha
 
   const changes: ChangeSet = {};
   for (const [entity, rows] of raw) {
-    const included = rows.filter((row) => Number(row.seq) <= cursor).map((row) => serialize(entity, row)!);
+    const included = rows.filter((row) => Number(row.seq) <= cursor).map((row) => serializeFor(entity, row, scope.userId)!);
     if (included.length) (changes as Record<string, unknown[]>)[entity] = included;
   }
   // The server is the only side that knows it truncated: it asked for one row

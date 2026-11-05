@@ -46,15 +46,17 @@ export function useSharesFor(target: ShareTarget): Share[] {
 export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: () => void }) {
   const t = useT();
   const toast = useToast();
-  const { role } = useSession();
+  const { role, user } = useSession();
   const { confirm, dialog } = useConfirm();
   const shares = useSharesFor(target);
   const [busy, setBusy] = useState(false);
+  // Only the maker is sent a link's token.
+  const mine = (share: Share): boolean => share.created_by === user?.id;
 
   // The token is minted by the server, so a freshly made link is blank until
   // the next pull brings it back. One pull, rather than a spinner that lies.
   useEffect(() => {
-    if (shares.some((share) => !share.token)) void pull();
+    if (shares.some((share) => !share.token && mine(share))) void pull();
   }, [shares]);
 
   async function makeLink(): Promise<void> {
@@ -68,6 +70,7 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
       expires_at: null,
       include_done: 1,
       allow_comments: 0,
+      created_by: user?.id ?? null,
     });
     await pull();
     setBusy(false);
@@ -87,7 +90,7 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
         <div className="stack-card" key={share.id}>
           <div className="flex items-center gap-2">
             <Input
-              className="flex-1 min-w-0" readOnly value={shareUrl(share) || t('share.minting')}
+              className="flex-1 min-w-0" readOnly value={shareUrl(share) || t(mine(share) ? 'share.minting' : 'share.notYours')}
               aria-label={t('share.link')}
               onFocus={(event) => event.currentTarget.select()}
             />

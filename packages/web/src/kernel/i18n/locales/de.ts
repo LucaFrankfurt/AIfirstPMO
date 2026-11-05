@@ -1646,6 +1646,7 @@ export const de: Catalogue = {
   'share.make': 'Link erstellen',
   'share.making': 'Wird erstellt…',
   'share.minting': 'Link wird vorbereitet…',
+  'share.notYours': 'Von jemand anderem angelegt — nur diese Person kann ihn kopieren.',
   'share.link': 'Link',
   'share.revoke': 'Diesen Link abschalten',
   'share.revokeConfirm': 'Diesen Link abschalten? Wer ihn hat, kann dann nicht mehr lesen.',
