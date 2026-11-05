@@ -27,6 +27,8 @@ export interface FormatOptions {
   messages?: FeedbackMessages;
   /** Display labels for the app's own kinds; falls back to `messages.kinds`, then the raw kind. */
   kindLabels?: Readonly<Record<string, string>>;
+  /** Keep the reported URL's query string and fragment. Default: false — they carry reset tokens, OAuth codes and e-mail addresses. */
+  fullUrl?: boolean;
 }
 
 export function kindLabel(kind: string, options: FormatOptions = {}): string {
@@ -40,16 +42,29 @@ function oneLine(value: string, max: number): string {
   return flat.length <= max ? flat : `${flat.slice(0, max - 1).trimEnd()}…`;
 }
 
-/** The route part of a reported URL ("/companies/abc?x=1"), or "" if unparseable. */
-export function routeOf(url: string | undefined): string {
+/** A reported URL without its query string and fragment. */
+function withoutQuery(url: string): string {
+  try {
+    const u = new URL(url);
+    u.search = '';
+    u.hash = '';
+    return u.href;
+  } catch {
+    return url.split(/[?#]/, 1)[0];
+  }
+}
+
+/** The route part of a reported URL ("/companies/abc"; with `fullUrl`, "/companies/abc?x=1"), or "" if unparseable. */
+export function routeOf(url: string | undefined, fullUrl = false): string {
   if (!url) return '';
   try {
     const u = new URL(url);
-    return `${u.pathname}${u.search}`;
+    return fullUrl ? `${u.pathname}${u.search}` : u.pathname;
   } catch {
     // A client-supplied string that isn't a URL. Keep it if it already looks like a
     // path (the common case for a relative report), else drop it rather than guess.
-    return url.startsWith('/') ? oneLine(url, 120) : '';
+    const path = fullUrl ? url : withoutQuery(url);
+    return path.startsWith('/') ? oneLine(path, 120) : '';
   }
 }
 
@@ -64,7 +79,7 @@ export function routeOf(url: string | undefined): string {
 export function buildTitle(report: FeedbackReport, options: FormatOptions = {}): string {
   const messages = options.messages ?? en;
   const kind = kindLabel(report.kind, options);
-  const route = routeOf(typeof report.client?.url === 'string' ? report.client.url : undefined);
+  const route = routeOf(typeof report.client?.url === 'string' ? report.client.url : undefined, options.fullUrl);
   const summary = oneLine(report.message, 80) || messages.report.untitled;
   return oneLine(route ? `[${kind}] ${route} — ${summary}` : `[${kind}] ${summary}`, 200);
 }
@@ -143,7 +158,7 @@ export function buildDescriptionMarkdown(report: FeedbackReport, options: Format
   ];
 
   const clientRows: Array<readonly [string, unknown]> = [
-    [m.url, c.url],
+    [m.url, typeof c.url === 'string' && !options.fullUrl ? withoutQuery(c.url) : c.url],
     [m.pageTitle, c.title],
     [m.viewport, c.viewport],
     [m.screen, c.screen],

@@ -48,7 +48,13 @@ export function collectClientContext(
   const doc = win.document as Document | undefined;
 
   return {
-    url: safe(() => win.location?.href) ?? '',
+    // No query string or fragment: that is where reset tokens, OAuth codes and e-mail addresses travel.
+    url: safe(() => {
+      const u = new URL(win.location.href);
+      u.search = '';
+      u.hash = '';
+      return u.href;
+    }) ?? '',
     title: safe(() => doc?.title) ?? '',
     viewport: safe(() => `${win.innerWidth}x${win.innerHeight}`) ?? '',
     screen: safe(() => (win.screen ? `${win.screen.width}x${win.screen.height}` : '')) ?? '',
