@@ -19903,14 +19903,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "agenda-items": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/AgendaItem"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AgendaItem"
                   }
                 }
               }
@@ -20076,14 +20071,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "artboards": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Artboard"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Artboard"
                   }
                 }
               }
@@ -20249,14 +20239,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "attachments": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Attachment"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Attachment"
                   }
                 }
               }
@@ -20457,14 +20442,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "automations": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Automation"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Automation"
                   }
                 }
               }
@@ -20630,14 +20610,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "baselines": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Baseline"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Baseline"
                   }
                 }
               }
@@ -20803,14 +20778,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "budget-actuals": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/BudgetActual"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BudgetActual"
                   }
                 }
               }
@@ -20976,14 +20946,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "budget-lines": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/BudgetLine"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BudgetLine"
                   }
                 }
               }
@@ -21149,14 +21114,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "budget-scenarios": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/BudgetScenario"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BudgetScenario"
                   }
                 }
               }
@@ -21322,14 +21282,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "budgets": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Budget"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Budget"
                   }
                 }
               }
@@ -21538,14 +21493,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "channel-reads": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/ChannelRead"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChannelRead"
                   }
                 }
               }
@@ -21711,14 +21661,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "channels": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Channel"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Channel"
                   }
                 }
               }
@@ -21884,14 +21829,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "comments": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Comment"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Comment"
                   }
                 }
               }
@@ -22057,14 +21997,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "components": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Component"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Component"
                   }
                 }
               }
@@ -22230,14 +22165,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "cycles": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Cycle"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Cycle"
                   }
                 }
               }
@@ -22403,14 +22333,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "decision-options": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/DecisionOption"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DecisionOption"
                   }
                 }
               }
@@ -22576,14 +22501,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "decision-votes": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/DecisionVote"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DecisionVote"
                   }
                 }
               }
@@ -22749,14 +22669,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "decisions": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Decision"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Decision"
                   }
                 }
               }
@@ -22922,14 +22837,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "environments": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/EnvironmentRow"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EnvironmentRow"
                   }
                 }
               }
@@ -23200,14 +23110,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "field-values": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/FieldValue"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FieldValue"
                   }
                 }
               }
@@ -23373,14 +23278,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "fields": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Field"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Field"
                   }
                 }
               }
@@ -23719,14 +23619,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "intakes": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Intake"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Intake"
                   }
                 }
               }
@@ -23892,14 +23787,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "kpi-readings": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/KpiReading"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/KpiReading"
                   }
                 }
               }
@@ -24065,14 +23955,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "kpi-targets": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/KpiTarget"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/KpiTarget"
                   }
                 }
               }
@@ -24238,14 +24123,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "kpis": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Kpi"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Kpi"
                   }
                 }
               }
@@ -24411,14 +24291,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "labels": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Label"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Label"
                   }
                 }
               }
@@ -25101,14 +24976,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "meetings": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Meeting"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Meeting"
                   }
                 }
               }
@@ -25274,14 +25144,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "messages": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Message"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Message"
                   }
                 }
               }
@@ -25447,14 +25312,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "modules": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Module"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Module"
                   }
                 }
               }
@@ -25620,14 +25480,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "moves": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Move"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Move"
                   }
                 }
               }
@@ -25793,14 +25648,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "notifications": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Notification"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Notification"
                   }
                 }
               }
@@ -25966,14 +25816,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "page-statuses": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/PageStatus"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PageStatus"
                   }
                 }
               }
@@ -26139,14 +25984,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "pages": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Page"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Page"
                   }
                 }
               }
@@ -26312,14 +26152,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "product-capabilities": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/ProductCapability"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProductCapability"
                   }
                 }
               }
@@ -26485,14 +26320,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "product-contributors": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/ProductContributor"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProductContributor"
                   }
                 }
               }
@@ -26658,14 +26488,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "product-costs": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/ProductCost"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProductCost"
                   }
                 }
               }
@@ -26831,14 +26656,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "product-groups": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/ProductGroup"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProductGroup"
                   }
                 }
               }
@@ -27004,14 +26824,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "product-parts": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/ProductPart"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProductPart"
                   }
                 }
               }
@@ -27177,14 +26992,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "product-prices": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/ProductPrice"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProductPrice"
                   }
                 }
               }
@@ -27350,14 +27160,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "product-scenarios": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/ProductScenario"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProductScenario"
                   }
                 }
               }
@@ -27523,14 +27328,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "products": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Product"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Product"
                   }
                 }
               }
@@ -27696,14 +27496,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "project-members": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/ProjectMember"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectMember"
                   }
                 }
               }
@@ -27869,14 +27664,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "projects": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Project"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Project"
                   }
                 }
               }
@@ -28171,14 +27961,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "promotions": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Promotion"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Promotion"
                   }
                 }
               }
@@ -28344,14 +28129,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "purges": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Purge"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Purge"
                   }
                 }
               }
@@ -28517,14 +28297,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "rates": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Rate"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Rate"
                   }
                 }
               }
@@ -28690,14 +28465,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "relations": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Relation"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Relation"
                   }
                 }
               }
@@ -28898,14 +28668,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "secrets": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Secret"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Secret"
                   }
                 }
               }
@@ -29036,14 +28801,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "shares": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Share"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Share"
                   }
                 }
               }
@@ -29209,14 +28969,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "states": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/State"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/State"
                   }
                 }
               }
@@ -29382,14 +29137,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "tasks": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Task"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Task"
                   }
                 }
               }
@@ -29590,14 +29340,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "team-members": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/TeamMember"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TeamMember"
                   }
                 }
               }
@@ -29763,14 +29508,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "teams": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Team"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Team"
                   }
                 }
               }
@@ -29936,14 +29676,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "templates": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Template"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Template"
                   }
                 }
               }
@@ -30109,14 +29844,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "time-entries": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/TimeEntry"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TimeEntry"
                   }
                 }
               }
@@ -30352,14 +30082,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "vendors": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Vendor"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Vendor"
                   }
                 }
               }
@@ -30525,14 +30250,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "views": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/View"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/View"
                   }
                 }
               }
@@ -30698,14 +30418,9 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "webhooks": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Webhook"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Webhook"
                   }
                 }
               }
