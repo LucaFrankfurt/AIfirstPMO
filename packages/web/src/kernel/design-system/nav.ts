@@ -13,7 +13,7 @@
  * So the set lives here and both surfaces render it. They still render it
  * differently — the sidebar adds the project tree and the More screen
  * groups by card — but neither of them decides *what* is in the app, and
- * adding a destination to this list puts it on both.
+ * adding a destination to this list puts it on both, and in the ⌘K palette.
  *
  * `reachable.test.ts` reads the router and asserts that every top-level route
  * is in this list or in the phone's bottom bar, so the next feature cannot

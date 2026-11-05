@@ -3,9 +3,10 @@ import { asIdentifier, matchesTerms, pageExcerpt, parseTerms } from '@kolibri/sh
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { list, useQuery } from './kernel/sync/store';
-
+import { createPage } from './kernel/sync/mutations';
 import { useOpenTask } from './kernel/design-system/navigation';
-import { useSession } from './kernel/identity/session';
+import { DESTINATIONS, enabled } from './kernel/design-system/nav';
+import { useCanWrite, useFeatures, useMe, useSession } from './kernel/identity/session';
 import { useT } from './kernel/i18n/i18n';
 import { Icon, StateDot } from './kernel/design-system/ui';
 import { stateOf } from './modules/work/task-parts';
@@ -40,6 +41,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
   const openTask = useOpenTask();
   const { workspaceId } = useSession();
+  const me = useMe();
+  const has = useFeatures();
+  const canWrite = useCanWrite();
   const listRef = useRef<HTMLDivElement>(null);
 
   const tasks = useQuery(() => list('task', (t) => t.workspace_id === workspaceId && !t.archived), [workspaceId]);
@@ -51,13 +55,32 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
       navigate(path);
       onClose();
     };
+    // The sidebar's places, from the same list (UX-06), with Portfolio on the sidebar's condition.
     const navigation: Command[] = [
       { id: 'nav-my', icon: 'home', title: t('nav.myWork'), run: go('/') },
       { id: 'nav-inbox', icon: 'inbox', title: t('nav.inbox'), run: go('/inbox') },
-      { id: 'nav-pages', icon: 'page', title: t('nav.pages'), run: go('/pages') },
-      { id: 'nav-teams', icon: 'users', title: t('nav.teams'), run: go('/teams') },
+      { id: 'nav-search', icon: 'search', title: t('nav.search'), run: go('/search') },
+      ...enabled(DESTINATIONS, has).map((item) => ({ id: `nav-${item.to}`, icon: item.icon, title: t(item.label), run: go(item.to) })),
+      ...(projects.filter((project) => !project.archived).length > 1
+        ? [{ id: 'nav-portfolio', icon: 'target', title: t('nav.portfolio'), run: go('/portfolio') }]
+        : []),
       { id: 'nav-settings', icon: 'settings', title: t('nav.settings'), run: go('/settings') },
-      { id: 'nav-guide', icon: 'help', title: t('nav.guide'), run: go('/guide') },
+      ...(canWrite ? [
+        {
+          id: 'new-task', icon: 'plus', title: t('nav.newTask'),
+          run: () => {
+            onClose();
+            window.dispatchEvent(new CustomEvent('kolibri:new-task'));
+          },
+        },
+        {
+          id: 'new-page', icon: 'plus', title: t('project.newPage'),
+          run: () => {
+            navigate(`/pages/${createPage({ title: t('common.untitled') }, me)}`);
+            onClose();
+          },
+        },
+      ] : []),
       { id: 'nav-new-project', icon: 'plus', title: t('nav.newProject'), run: go('/projects/new') },
     ];
 
@@ -128,7 +151,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
       ...navigation.filter((command) => match(command.title)),
       ...fullText,
     ];
-  }, [query, tasks, projects, pages, navigate, openTask, onClose, t]);
+  }, [query, tasks, projects, pages, navigate, openTask, onClose, t, has, canWrite, me]);
 
   useEffect(() => setActive(0), [query]);
 

@@ -129,6 +129,19 @@ describe('every screen has a way to it', () => {
     }
   });
 
+  it('offers every destination in the ⌘K palette too', () => {
+    // UX-06: the palette knew seven hand-written places and none of the modules.
+    const body = src('CommandPalette.tsx');
+    assert.match(body, /enabled\(DESTINATIONS, has\)/, 'CommandPalette.tsx should render DESTINATIONS from nav.ts');
+    const own = [...TAB_BAR.filter((path) => path !== '/more'), '/portfolio']
+      .filter((path) => !DESTINATIONS.some((item) => item.to === path));
+    const missing = own.filter((path) => !body.includes(`'${path}'`));
+    assert.deepEqual(missing, [], `the palette offers no way to ${missing.join(', ')}`);
+    for (const { to } of DESTINATIONS) {
+      assert.ok(!body.includes(`'${to}'`), `CommandPalette.tsx hard-codes ${to}; it is in nav.ts, render it from there`);
+    }
+  });
+
   it('lists the modules above the project tree, so a long project list cannot push them off screen', () => {
     // UI-01: Portfolio and the planning modules sat below the projects, one row lower per project.
     const body = src('AppShell.tsx');
