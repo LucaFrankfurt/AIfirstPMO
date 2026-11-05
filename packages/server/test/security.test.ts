@@ -343,4 +343,20 @@ describe('a forged cross-site post', () => {
     const ok = await call('/api/auth/login', { email: 'ada@example.com', password: 'correct horse battery' });
     assert.equal(ok.status, 200);
   });
+
+  it('cannot be read with the cookie from another origin', async () => {
+    const preflight = await fetch(`${base}/api/session`, {
+      method: 'OPTIONS', headers: { origin: 'https://evil.example', 'access-control-request-method': 'POST' },
+    });
+    assert.equal(preflight.headers.get('access-control-allow-origin'), null, 'a foreign origin was reflected');
+    assert.equal(preflight.headers.get('access-control-allow-credentials'), null);
+
+    // The packaged app's origins still are, or it cannot sign in at all.
+    for (const origin of ['capacitor://localhost', 'https://localhost']) {
+      const response = await fetch(`${base}/api/config`, { headers: { origin } });
+      await response.text();
+      assert.equal(response.headers.get('access-control-allow-origin'), origin);
+      assert.equal(response.headers.get('access-control-allow-credentials'), 'true');
+    }
+  });
 });

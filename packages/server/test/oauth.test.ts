@@ -407,6 +407,22 @@ describe('the code, and the token it becomes', () => {
     assert.ok(code);
   });
 
+  it('refuses an Allow posted from another site, and takes it from its own page', async () => {
+    const post = (origin: string) => fetch(`${base}/oauth/authorize`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded', cookie, origin },
+      body: new URLSearchParams({ ...Object.fromEntries(authorizeQuery()), workspace_id: workspaceId, decision: 'allow' }).toString(),
+      redirect: 'manual',
+    });
+    const forged = await post('https://evil.example');
+    assert.equal(forged.status, 403, 'a cross-site form granted a token');
+    assert.equal(forged.headers.get('location'), null, 'and no code went anywhere');
+
+    const own = await post(base);
+    assert.equal(own.status, 302);
+    assert.ok(new URL(own.headers.get('location') ?? '').searchParams.get('code'));
+  });
+
   it('gives nothing to a verifier that does not match the challenge', async () => {
     const { status, body } = await form('/oauth/token', {
       grant_type: 'authorization_code', code, client_id: clientId, redirect_uri: REDIRECT,
