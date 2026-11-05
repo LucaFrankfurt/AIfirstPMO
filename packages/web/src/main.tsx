@@ -1,9 +1,11 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
+import { setOrderTail } from '@kolibri/shared';
 import App, { failure, ScreenBoundary } from './App';
 import { I18nProvider, currentLocale, detectLocale, loadLocale, translate } from './kernel/i18n/i18n';
 import { SessionProvider } from './kernel/identity/session';
+import { agentId } from './kernel/sync/sync';
 import { TooltipProvider } from './kernel/design-system/ui/tooltip';
 import { installEffects } from './wiring';
 import './styles/app.css';
@@ -18,6 +20,9 @@ if (theme && theme !== 'system') document.documentElement.setAttribute('data-the
 // file that is already being fetched alongside the app, and if it never arrives
 // the app still renders, in English.
 await loadLocale(detectLocale());
+
+// Before anything can mint an order key: two devices appending offline must not mint the same one.
+setOrderTail(agentId().slice(-3));
 
 // Before the app can open a stream. See `wiring.ts`.
 installEffects();
