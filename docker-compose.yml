@@ -42,12 +42,14 @@ services:
       minio:
         condition: service_healthy
     ports:
-      - "${KOLIBRI_PORT:-4000}:4000"
+      # Loopback only, because x-forwarded-for is trusted below; KOLIBRI_BIND=0.0.0.0 publishes it.
+      - "${KOLIBRI_BIND:-127.0.0.1}:${KOLIBRI_PORT:-4000}:4000"
     environment:
       # Signs sessions, API tokens and unsubscribe links. Generated into the
       # volume on first start if you leave it empty.
       KOLIBRI_SECRET: "${KOLIBRI_SECRET:-}"
-      KOLIBRI_PUBLIC_URL: "${KOLIBRI_PUBLIC_URL:-http://localhost:4000}"
+      # Empty works out the scheme per request; set it to the https:// address behind --profile tls.
+      KOLIBRI_PUBLIC_URL: "${KOLIBRI_PUBLIC_URL:-}"
       KOLIBRI_ALLOW_SIGNUP: "${KOLIBRI_ALLOW_SIGNUP:-true}"
       KOLIBRI_MAX_UPLOAD_MB: "${KOLIBRI_MAX_UPLOAD_MB:-25}"
       KOLIBRI_SESSION_DAYS: "${KOLIBRI_SESSION_DAYS:-60}"
