@@ -593,6 +593,24 @@ describe('and stay useful when something else is broken', { concurrency: 2 }, ()
   });
 });
 
+// Budgets, KPIs, infrastructure and the timesheet sat behind a switch no browser check turned on.
+describe('every screen the navigation offers is walked by the browser checks', () => {
+  const nav = readFileSync(join(ROOT, 'packages/web/src/kernel/design-system/nav.ts'), 'utf8');
+  const paths = [...nav.matchAll(/\{ to: '(\/[^']*)'/g)].map((m) => m[1]);
+
+  it('nav.ts still lists its destinations in the shape this case reads', () => {
+    assert.ok(paths.length >= 10, `found ${paths.length} destinations in nav.ts`);
+  });
+
+  for (const script of ['walk.mjs', 'a11y.mjs', 'contrast.mjs']) {
+    it(script, () => {
+      const text = readFileSync(join(ROOT, 'scripts', script), 'utf8');
+      const missing = paths.filter((path) => !new RegExp(`['\`]${path}['\`?]`).test(text));
+      assert.deepEqual(missing, [], `${script} never opens ${missing.join(', ')}`);
+    });
+  }
+});
+
 describe('one Node version, everywhere a build picks one', () => {
   const pinned = readFileSync(join(ROOT, '.nvmrc'), 'utf8').trim();
   const atLeast = (version, floor) => {
