@@ -31,6 +31,7 @@ import { switchOnDecisions } from './ballot-fixture.mjs';
 import { switchOnMeetings } from './meeting-fixture.mjs';
 import { switchOnVault } from './vault-fixture.mjs';
 import { switchOnProducts } from './catalogue-fixture.mjs';
+import { switchOnPlanning } from './planning-fixture.mjs';
 
 const base = process.env.KOLIBRI_URL ?? 'http://localhost:4400';
 
@@ -161,6 +162,7 @@ for (const [label, options] of MODES) {
   const meetingId = await switchOnMeetings(page);
   await switchOnVault(page);
   await switchOnProducts(page);
+  const { budgetId, kpiId } = await switchOnPlanning(page);
 
   /*
    * A screen is a path, or a path and what to do once it has loaded.
@@ -195,7 +197,9 @@ for (const [label, options] of MODES) {
     // turned it on. The catalogue is the widest table here and the simulation
     // tab the densest form; between them they carry every rule these checks
     // have.
-    '/products', '/products?tab=promotions', '/guide'];
+    '/products', '/products?tab=promotions',
+    // Behind the budget, kpi, infrastructure and time switches; see `planning-fixture.mjs`.
+    '/budgets', `/budgets/${budgetId}`, '/kpis', `/kpis/${kpiId}`, '/infrastructure', '/timesheet', '/guide'];
 
   const found = new Map();
   for (const screen of SCREENS) {

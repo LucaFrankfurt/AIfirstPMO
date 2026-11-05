@@ -5,7 +5,8 @@
 # dependencies: only the web build needs a toolchain.
 
 # ---------------------------------------------------------------- build web
-FROM node:22-alpine AS build
+# The tag is .nvmrc's version; scripts/checks.test.mjs holds them together.
+FROM node:22.23.4-alpine AS build
 WORKDIR /app
 
 # Copy manifests first so the dependency layer is cached across code changes.
@@ -21,7 +22,7 @@ COPY packages ./packages
 RUN npm run build -w @kolibri/web
 
 # ------------------------------------------------------------------ runtime
-FROM node:22-alpine AS runtime
+FROM node:22.23.4-alpine AS runtime
 ENV NODE_ENV=production \
     KOLIBRI_DATA_DIR=/data \
     KOLIBRI_WEB_DIR=/app/packages/web/dist \

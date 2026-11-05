@@ -15,7 +15,8 @@
 ARG SITE=docs
 
 # ------------------------------------------------------------------- build
-FROM node:22-alpine AS build
+# The tag is .nvmrc's version; scripts/checks.test.mjs holds them together.
+FROM node:22.23.4-alpine AS build
 ARG SITE
 WORKDIR /site
 
