@@ -1127,7 +1127,10 @@ function ChannelSettings({ channel, me, onClose, onGone }: {
               {(mayManage || id === me) && inside.length > 1 && (
                 <Button variant="ghost" size="sm"
                   onClick={async () => {
-                    if (id === me && !(await confirm(t('chat.confirmLeave')))) return;
+                    const asked = id === me
+                      ? confirm(t('chat.confirmLeave', { name: channel.name }), t('chat.leave'), t('chat.leaveTitle'))
+                      : confirm(t('chat.confirmRemove', { name: members.get(id)?.name ?? id, channel: channel.name }), t('chat.remove'), t('chat.removeTitle'));
+                    if (!(await asked)) return;
                     setMembers(inside.filter((other) => other !== id));
                     if (id === me) { onClose(); onGone(); }
                   }}
@@ -1195,7 +1198,7 @@ function ChannelSettings({ channel, me, onClose, onGone }: {
         {mayRetitle && (
           <Button variant="danger" size="sm"
             onClick={async () => {
-              if (!(await confirm(t('chat.confirmDelete')))) return;
+              if (!(await confirm(t('chat.confirmDelete', { name: channel.name })))) return;
               remove('channel', channel.id);
               onClose();
               onGone();

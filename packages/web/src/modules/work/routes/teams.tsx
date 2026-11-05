@@ -6,7 +6,7 @@ import { Header } from '../../../kernel/design-system/chrome';
 import { Avatar, Empty, Icon, MenuButton, Progress, useConfirm } from '../../../kernel/design-system/ui';
 import { create, remove, update } from '../../../kernel/sync/mutations';
 import { byId, list, useQuery } from '../../../kernel/sync/store';
-import { useMembers, useSession } from '../../../kernel/identity/session';
+import { useCanWrite, useMembers, useSession } from '../../../kernel/identity/session';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { Input } from '../../../kernel/design-system/ui/field';
 import { Chip, chipVariants } from '../../../kernel/design-system/ui/chip';
@@ -18,6 +18,7 @@ export function Teams() {
   const navigate = useNavigate();
   const members = useMembers();
   const { confirm, dialog } = useConfirm();
+  const canWrite = useCanWrite();
   const [name, setName] = useState('');
 
   const teams = useQuery(() => list('team', (t) => t.workspace_id === workspaceId && !t.archived), [workspaceId]);
@@ -28,26 +29,28 @@ export function Teams() {
     <>
       <Header title={t('team.title')} />
       <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
-        <form
-          className="flex items-center gap-2 mb-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!name.trim()) return;
-            create('team', { name: name.trim(), key: keyFromName(name), icon: '👥', color: '#6366f1', archived: 0 });
-            setName('');
-          }}
-        >
-          {/* A placeholder vanishes the moment somebody types in the field, so
-              it cannot be the name. The label is visually hidden rather than
-              absent: the row is a single field beside a button and reads fine
-              without a caption, but it still has to have one. */}
-          <label htmlFor="new-team" className="sr-only">{t('team.newLabel')}</label>
-          <Input
-            id="new-team" placeholder={t('team.placeholder')}
-            value={name} onChange={(event) => setName(event.target.value)}
-          />
-          <Button type="submit"><Icon name="plus" size={14} /> {t('action.add')}</Button>
-        </form>
+        {canWrite && (
+          <form
+            className="flex items-center gap-2 mb-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!name.trim()) return;
+              create('team', { name: name.trim(), key: keyFromName(name), icon: '👥', color: '#6366f1', archived: 0 });
+              setName('');
+            }}
+          >
+            {/* A placeholder vanishes the moment somebody types in the field, so
+                it cannot be the name. The label is visually hidden rather than
+                absent: the row is a single field beside a button and reads fine
+                without a caption, but it still has to have one. */}
+            <label htmlFor="new-team" className="sr-only">{t('team.newLabel')}</label>
+            <Input
+              id="new-team" placeholder={t('team.placeholder')}
+              value={name} onChange={(event) => setName(event.target.value)}
+            />
+            <Button type="submit"><Icon name="plus" size={14} /> {t('action.add')}</Button>
+          </form>
+        )}
 
         {!teams.length && (
           <Empty emoji="👥" title={t('team.emptyTitle')} hint={t('team.emptyHint')} guide="teams" />
@@ -70,41 +73,47 @@ export function Teams() {
                   {/* Borderless, so it does not look like a field — which is
                       the point visually and the problem otherwise: nothing on
                       it said what typing here would change. */}
-                  <Input
-                    className="flex-1 min-w-0 font-semibold" style={{ border: 'none', background: 'none' }}
-                    aria-label={t('team.nameLabel')}
-                    value={team.name} onChange={(event) => update('team', team.id, { name: event.target.value })}
-                  />
+                  {canWrite ? (
+                    <Input
+                      className="flex-1 min-w-0 font-semibold" style={{ border: 'none', background: 'none' }}
+                      aria-label={t('team.nameLabel')}
+                      value={team.name} onChange={(event) => update('team', team.id, { name: event.target.value })}
+                    />
+                  ) : <strong className="flex-1 min-w-0 truncate">{team.name}</strong>}
                   <Chip className="font-mono">{team.key}</Chip>
-                  <MenuButton
-                    variant="ghost" size="iconSm"
-                    label={t('common.moreActions')}
-                    search
-                    items={[
-                      ...members.map((member) => {
-                        const membership = teamMembers.find((m) => m.team_id === team.id && m.user_id === member.id);
-                        return {
-                          id: member.id,
-                          section: t('team.members'),
-                          label: member.name,
-                          hint: membership ? '✓' : undefined,
-                          icon: <Avatar user={member} size={20} />,
-                          onSelect: () => {
-                            if (membership) remove('teamMember', membership.id);
-                            else create('teamMember', { team_id: team.id, user_id: member.id, role: 'member' });
+                  {canWrite && (
+                    <MenuButton
+                      variant="ghost" size="iconSm"
+                      label={t('common.moreActions')}
+                      search
+                      items={[
+                        ...members.map((member) => {
+                          const membership = teamMembers.find((m) => m.team_id === team.id && m.user_id === member.id);
+                          return {
+                            id: member.id,
+                            section: t('team.members'),
+                            label: member.name,
+                            hint: membership ? '✓' : undefined,
+                            icon: <Avatar user={member} size={20} />,
+                            onSelect: async () => {
+                              if (!membership) create('teamMember', { team_id: team.id, user_id: member.id, role: 'member' });
+                              else if (await confirm(t('team.removeMemberConfirm', { name: member.name, team: team.name }), t('action.remove'), t('team.removeMemberTitle'))) {
+                                remove('teamMember', membership.id);
+                              }
+                            },
+                          };
+                        }),
+                        {
+                          id: 'delete', section: t('team.danger'), label: t('team.delete'), danger: true,
+                          onSelect: async () => {
+                            if (await confirm(t('team.deleteConfirm', { name: team.name }))) remove('team', team.id);
                           },
-                        };
-                      }),
-                      {
-                        id: 'delete', section: t('team.danger'), label: t('team.delete'), danger: true,
-                        onSelect: async () => {
-                          if (await confirm(t('team.deleteConfirm', { name: team.name }))) remove('team', team.id);
                         },
-                      },
-                    ]}
-                  >
-                    <Icon name="dots" size={14} />
-                  </MenuButton>
+                      ]}
+                    >
+                      <Icon name="dots" size={14} />
+                    </MenuButton>
+                  )}
                 </div>
 
                 <div className="flex items-center flex-wrap gap-1.5 mb-2.5">
@@ -129,17 +138,19 @@ export function Teams() {
                       {project.icon} {project.name}
                     </button>
                   ))}
-                  <MenuButton
-                    className={chipVariants({ interactive: true })}
-                    items={projects.map((project) => ({
-                      id: project.id,
-                      label: `${project.icon ?? ''} ${project.name}`.trim(),
-                      hint: project.team_id === team.id ? '✓' : undefined,
-                      onSelect: () => update('project', project.id, { team_id: project.team_id === team.id ? null : team.id }),
-                    }))}
-                  >
-                    <Icon name="plus" size={12} /> {t('team.addProject')}
-                  </MenuButton>
+                  {canWrite && (
+                    <MenuButton
+                      className={chipVariants({ interactive: true })}
+                      items={projects.map((project) => ({
+                        id: project.id,
+                        label: `${project.icon ?? ''} ${project.name}`.trim(),
+                        hint: project.team_id === team.id ? '✓' : undefined,
+                        onSelect: () => update('project', project.id, { team_id: project.team_id === team.id ? null : team.id }),
+                      }))}
+                    >
+                      <Icon name="plus" size={12} /> {t('team.addProject')}
+                    </MenuButton>
+                  )}
                 </div>
               </div>
             );

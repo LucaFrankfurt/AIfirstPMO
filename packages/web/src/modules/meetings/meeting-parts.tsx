@@ -654,7 +654,7 @@ export function AgendaPoint({
                 label: t('meeting.deleteTopic'),
                 danger: true,
                 onSelect: async () => {
-                  if (await confirm(t('meeting.deleteTopicConfirm', { title: item.title }))) remove('agendaItem', item.id);
+                  if (await confirm(t('meeting.deleteTopicConfirm', { title: item.title }), t('action.remove'))) remove('agendaItem', item.id);
                 },
               },
             ]}

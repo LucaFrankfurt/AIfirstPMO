@@ -24,7 +24,7 @@
 import { useMemo } from 'react';
 import { statusOf, type Label, type Page } from '@kolibri/shared';
 import { useT } from '../../kernel/i18n/i18n';
-import { remove, update } from '../../kernel/sync/mutations';
+import { remove, restore, update } from '../../kernel/sync/mutations';
 import { list, useQuery } from '../../kernel/sync/store';
 import { useSession } from '../../kernel/identity/session';
 import type { Selection } from '../../kernel/design-system/selection';
@@ -112,6 +112,14 @@ export function PageBulkBar({ selection, pages }: { selection: Selection; pages:
   const applyTo = (rows: Page[], patch: Record<string, unknown>) => {
     for (const page of rows) update('page', page.id, patch);
     toast(done(rows.length));
+    selection.clear();
+  };
+
+  // Undo un-archives only what this archived, not what already was.
+  const archive = (rows: Page[]) => {
+    const ids = rows.filter((page) => !page.archived).map((page) => page.id);
+    for (const id of ids) update('page', id, { archived: 1 });
+    toast(done(rows.length), { label: t('action.undo'), run: () => { for (const id of ids) update('page', id, { archived: 0 }); } });
     selection.clear();
   };
 
@@ -246,11 +254,11 @@ export function PageBulkBar({ selection, pages }: { selection: Selection; pages:
           <Icon name="hierarchy" size={14} /> <span className="hide-sm">{t('page.bulkOrganise')}</span>
         </MenuButton>
 
-        <Button variant="ghost" size="sm" onClick={() => applyTo(selected, { archived: 1 })}>
+        <Button variant="ghost" size="sm" onClick={() => archive(selected)}>
           <Icon name="archive" size={14} /> <span className="hide-sm">{t('action.archive')}</span>
         </Button>
         {below.length > 0 && (
-          <Button variant="ghost" size="sm" onClick={() => applyTo([...selected, ...below], { archived: 1 })}>
+          <Button variant="ghost" size="sm" onClick={() => archive([...selected, ...below])}>
             <Icon name="archive" size={14} /> {t('page.bulkWithBelow', { count: below.length })}
           </Button>
         )}
@@ -271,8 +279,9 @@ export function PageBulkBar({ selection, pages }: { selection: Selection; pages:
               t('page.delete'),
             );
             if (!confirmed) return;
-            for (const page of selected) remove('page', page.id);
-            toast(done(count));
+            const ids = selected.map((page) => page.id);
+            for (const id of ids) remove('page', id);
+            toast(done(count), { label: t('action.undo'), run: () => { for (const id of ids) restore('page', id); } });
             selection.clear();
           }}
         >
