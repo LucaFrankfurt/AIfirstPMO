@@ -494,3 +494,23 @@ describe('the settings and mail screens', () => {
     }
   });
 });
+
+// A list the filters emptied read as an empty project; a fifth task on a calendar day could not be opened (UX-12).
+describe('a task view with less on screen than there is', () => {
+  const VIEWS = 'modules/work/views.tsx';
+
+  it('says the filters hid the tasks rather than that there are none', () => {
+    for (const name of ['ListView', 'TableView']) {
+      const body = functionBody(VIEWS, name);
+      assert.doesNotMatch(body, /view\.emptyTitle/, `${name} says "nothing here yet" without asking the filters`);
+      assert.match(body, /<NoTasks\b/);
+    }
+    assert.match(functionBody(VIEWS, 'NoTasks'), /view\.hiddenByFilters/);
+  });
+
+  it('opens every task of a full calendar day', () => {
+    const calendar = functionBody(VIEWS, 'CalendarView');
+    assert.doesNotMatch(calendar, /<span\b[^>]*>\+\{items\.length/, 'the "+N" is text nobody can click');
+    assert.match(calendar, /items\.map\(\(task\) => \([^]*?onOpen\(task\)/, 'no list of the whole day');
+  });
+});
