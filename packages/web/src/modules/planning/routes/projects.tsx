@@ -1,7 +1,7 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
-  DEFAULT_WORKING_DAYS, coversProject, dueTone, excerpt, isDoneGroup, orderKey,
+  addDays, DEFAULT_WORKING_DAYS, coversProject, dueTone, excerpt, isDoneGroup, orderKey,
   STATE_GROUPS, type ProjectScope,
 } from '@kolibri/shared';
 import { Header, Trail, type Crumb } from '../../../kernel/design-system/chrome';
@@ -328,7 +328,7 @@ function ContainerChildren({ projectId }: { projectId: string }) {
     );
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const day = today();
 
   return (
     <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
@@ -338,7 +338,7 @@ function ContainerChildren({ projectId }: { projectId: string }) {
           const mine = tasks.filter((task) => task.project_id === child.id);
           const done = mine.filter((task) => byId('state', task.state_id)?.group_key === 'completed').length;
           const late = mine.filter((task) =>
-            dueTone(task.due_date, byId('state', task.state_id)?.group_key, today) === 'overdue').length;
+            dueTone(task.due_date, byId('state', task.state_id)?.group_key, day) === 'overdue').length;
           return (
             <button
               key={child.id}
@@ -658,7 +658,7 @@ function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycle
     name: cycle?.name ?? '',
     description: cycle?.description ?? '',
     start_date: cycle?.start_date ?? today(),
-    end_date: cycle?.end_date ?? new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10),
+    end_date: cycle?.end_date ?? addDays(today(), 14),
   });
   const choice = useScopeChoice(cycleId ? cycle : undefined, projectId);
   const projects = useScopeTargets();

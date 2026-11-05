@@ -15,6 +15,7 @@
 import { reschedule } from '@kolibri/shared';
 import { all, get, type Row } from '../../../kernel/platform/db/index.ts';
 import { forbidden } from '../../../kernel/platform/http.ts';
+import { todayFor } from '../../../kernel/i18n/i18n.ts';
 import {
   type EntityRule, isWorkspaceAdmin, settleProjectScope, writeEntity, type WriteOpts,
 } from '../../../kernel/write-path/repo.ts';
@@ -104,7 +105,7 @@ export const planningRules = {
   defaults(entity, id, values, opts, setForced) {
     if (entity === 'timeEntry') {
       setForced('user_id', opts.actorId);
-      if (!values.spent_on) setForced('spent_on', new Date().toISOString().slice(0, 10));
+      if (!values.spent_on) setForced('spent_on', todayFor(opts.actorId));
     }
   },
   guards(entity, id, values, existing, opts) {

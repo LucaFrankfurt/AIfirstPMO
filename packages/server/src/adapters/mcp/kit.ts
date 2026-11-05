@@ -14,9 +14,10 @@
  * every tool that returns one uses. Everything is exported, because the point
  * of the file is to be imported from.
  */
-import { annualCost, catalogue, type CatalogueEntry, DEFAULT_ASSUMPTIONS, healthOfProduct, type Product, type ProductContributor, type ProductCost, type ProductPart, type ProductPrice, type Promotion, type Budget, type BudgetActual, type BudgetLine, type BudgetRollUp, type BudgetScenario, type Component, fieldValueId, formatMeasure, formatMoney, type Kpi, type KpiReading, type KpiTarget, type LandscapeCost, livenessOn, normaliseAllocations, oneOffCost, orderKey, parseMoney, parseQuickAdd, PRIORITIES, progressOf, projectScope, type Rate, type RelationKind, rollUp, STATE_GROUPS, type StateGroup, TASK_TITLE_MAX, type TimeEntry, trendOf, type Vendor, type Vocabulary, writeFieldValue } from '@kolibri/shared';
+import { annualCost, catalogue, type CatalogueEntry, DEFAULT_ASSUMPTIONS, healthOfProduct, type Product, type ProductContributor, type ProductCost, type ProductPart, type ProductPrice, type Promotion, type Budget, type BudgetActual, type BudgetLine, type BudgetRollUp, type BudgetScenario, type Component, fieldValueId, formatMeasure, formatMoney, type Kpi, type KpiReading, type KpiTarget, type LandscapeCost, livenessOn, normaliseAllocations, oneOffCost, orderKey, parseMoney, parseQuickAdd, PRIORITIES, progressOf, projectScope, type Rate, type RelationKind, rollUp, STATE_GROUPS, type StateGroup, TASK_TITLE_MAX, type TimeEntry, todayIn, trendOf, type Vendor, type Vocabulary, writeFieldValue } from '@kolibri/shared';
 import { all, get, type Row } from '../../kernel/platform/db/index.ts';
 import { env } from '../../kernel/platform/env.ts';
+import { todayFor } from '../../kernel/i18n/i18n.ts';
 import { type Auth } from '../../kernel/identity/auth.ts';
 import { serverClock } from '../../kernel/write-path/bootstrap.ts';
 import { hasFeature } from '../../kernel/platform/features.ts';
@@ -299,7 +300,7 @@ export function fileTask(
    */
   extra: Record<string, unknown> = {},
 ): Row {
-  const quick = str(args.quick_add) ? parseQuickAdd(String(args.quick_add), vocabularyFor(workspaceId)) : null;
+  const quick = str(args.quick_add) ? parseQuickAdd(String(args.quick_add), vocabularyFor(workspaceId, ctx.auth.userId)) : null;
   const title = (quick?.title ?? str(args.title) ?? '').trim();
   if (!title) throw new McpError('A task needs a title — pass `title`, or a `quick_add` line with words in it', -32602);
   const named = quick?.projectId ?? str(args.project) ?? fallbackProject;
@@ -692,9 +693,9 @@ export function resolveState(projectId: string, name?: string): Row | undefined 
  * then files a task into it by key should find it, and a cache that is one call
  * stale would be a bug nobody could reproduce twice.
  */
-export function vocabularyFor(workspaceId: string): Vocabulary {
+export function vocabularyFor(workspaceId: string, userId?: string): Vocabulary {
   return {
-    today: new Date().toISOString().slice(0, 10),
+    today: todayFor(userId),
     people: all<Row>(
       `SELECT u.id, u.name FROM users u
          JOIN workspace_members m ON m.user_id = u.id
@@ -1256,7 +1257,7 @@ export function productChildren<K extends ProductChild>(entity: K, productId: st
  * are, and a catalogue tool is the one place somebody has two hundred.
  */
 export function catalogueOf(workspaceId: string, options: { months?: number; deliveries?: number; today?: string } = {}) {
-  const today = options.today ?? new Date().toISOString().slice(0, 10);
+  const today = options.today ?? todayIn();
   const products = productsOf(workspaceId).map((row) => serialize('product', row) as unknown as Product);
   const rowsOf = <T>(table: string, entity: 'productPrice' | 'productCost' | 'productContributor'): Map<string, T[]> => {
     const out = new Map<string, T[]>();

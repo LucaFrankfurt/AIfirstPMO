@@ -6,6 +6,7 @@ import { all, type Row } from '../../../kernel/platform/db/index.ts';
 import { env } from '../../../kernel/platform/env.ts';
 import { serialize, writeEntity } from '../../../kernel/write-path/repo.ts';
 import { uid } from '../../../kernel/platform/ids.ts';
+import { todayFor } from '../../../kernel/i18n/i18n.ts';
 import { allocationsFromArgs, budgetChildren, findBudget, findProject, isoDay, lastLineOrder, McpError, money, projectNames, requireFeature, requireMoney, requireWrite, resolveScope, rollUpBudget, scopeOf, str, type ToolDef, visibleBudgets, workspaceOf, writeOpts } from '../kit.ts';
 
 export const budgetTools: ToolDef[] = [
@@ -37,7 +38,7 @@ export const budgetTools: ToolDef[] = [
 
       return {
         budgets: budgets.map((row) => {
-          const rolled = rollUpBudget(row);
+          const rolled = rollUpBudget(row, { asOf: todayFor(ctx.auth.userId) });
           return {
             id: row.id,
             name: row.name,
@@ -81,7 +82,7 @@ export const budgetTools: ToolDef[] = [
       const workspaceId = workspaceOf(args, ctx);
       requireFeature(workspaceId, 'budget');
       const budget = findBudget(String(args.budget), workspaceId, ctx);
-      const asOf = isoDay(args.as_of, 'as_of') ?? undefined;
+      const asOf = isoDay(args.as_of, 'as_of') ?? todayFor(ctx.auth.userId);
 
       let scenario: Row | null = null;
       if (args.scenario) {
@@ -100,7 +101,7 @@ export const budgetTools: ToolDef[] = [
         budget: { id: budget.id, name: budget.name, currency: rolled.currency, status: budget.status },
         scenario: scenario ? { id: scenario.id, name: scenario.name } : null,
         period: rolled.period,
-        as_of: asOf ?? new Date().toISOString().slice(0, 10),
+        as_of: asOf,
         ...money(rolled.currency, {
           approved: rolled.approved,
           planned: rolled.planned,
@@ -232,7 +233,7 @@ export const budgetTools: ToolDef[] = [
         sort_order: orderKey(lastLineOrder(budget.id), null),
       }, writeOpts(workspaceId, ctx));
 
-      const rolled = rollUpBudget(budget);
+      const rolled = rollUpBudget(budget, { asOf: todayFor(ctx.auth.userId) });
       return {
         id: row.id,
         name: row.name,
@@ -294,7 +295,7 @@ export const budgetTools: ToolDef[] = [
         // hosting line is a hosting cost, and asking again invites a mismatch
         // that shows up only as two categories that should have been one.
         category: args.category ?? line?.category ?? 'other',
-        spent_on: isoDay(args.spent_on, 'spent_on') ?? new Date().toISOString().slice(0, 10),
+        spent_on: isoDay(args.spent_on, 'spent_on') ?? todayFor(ctx.auth.userId),
         stage: args.stage ?? 'paid',
         vendor: str(args.vendor) ?? line?.vendor ?? null,
         reference: str(args.reference) ?? null,
@@ -302,7 +303,7 @@ export const budgetTools: ToolDef[] = [
         note: str(args.note) ?? null,
       }, writeOpts(workspaceId, ctx));
 
-      const rolled = rollUpBudget(budget);
+      const rolled = rollUpBudget(budget, { asOf: todayFor(ctx.auth.userId) });
       return {
         id: row.id,
         amount: formatMoney(Number(row.amount), rolled.currency, 'en'),
@@ -345,7 +346,7 @@ export const budgetTools: ToolDef[] = [
       const month = String(args.month ?? '');
       if (!/^\d{4}-\d{2}$/.test(month)) throw new McpError('month must be YYYY-MM');
 
-      const rolled = rollUpBudget(budget);
+      const rolled = rollUpBudget(budget, { asOf: todayFor(ctx.auth.userId) });
       const lines = budgetChildren('budget_lines', [budget])
         .map((row) => serialize('budgetLine', row) as unknown as BudgetLine);
       const actuals = budgetChildren('budget_actuals', [budget])
@@ -422,7 +423,7 @@ export const budgetTools: ToolDef[] = [
       const workspaceId = workspaceOf(args, ctx);
       requireFeature(workspaceId, 'budget');
       const project = findProject(String(args.project), workspaceId, ctx);
-      const asOf = isoDay(args.as_of, 'as_of') ?? undefined;
+      const asOf = isoDay(args.as_of, 'as_of') ?? todayFor(ctx.auth.userId);
       const budgets = visibleBudgets(workspaceId, ctx).filter((row) => !Number(row.archived));
 
       const charged: Record<string, unknown>[] = [];

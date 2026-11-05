@@ -1,4 +1,4 @@
-import { dueTone, type Priority } from '@kolibri/shared';
+import { dueTone, type Priority, todayIn } from '@kolibri/shared';
 import { currentLocale } from '../i18n/i18n';
 import { now } from '../sync/clock';
 
@@ -12,7 +12,8 @@ export const PRIORITY_COLOR: Record<Priority, string> = {
 
 /* -------------------------------------------------------------------- dates */
 
-export const today = (): string => new Date().toISOString().slice(0, 10);
+/** The reader's own calendar day; UTC's is yesterday or tomorrow for hours at a time. */
+export const today = (): string => todayIn();
 
 export function shortDate(value?: string | number | null): string {
   if (!value) return '';

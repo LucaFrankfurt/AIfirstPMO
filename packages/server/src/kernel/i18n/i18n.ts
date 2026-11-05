@@ -11,6 +11,7 @@
  * counterpart in the UI, and coupling the two would mean the server importing
  * a React module.
  */
+import { todayIn } from '@kolibri/shared';
 import { get, type Row } from '../platform/db/index.ts';
 import { env } from '../platform/env.ts';
 
@@ -378,6 +379,12 @@ export function localeOf(userId: string | null | undefined): Locale {
   if (!userId) return defaultLocale();
   const row = get<Row>(`SELECT locale FROM users WHERE id = ?`, userId);
   return isLocale(row?.locale) ? row.locale : defaultLocale();
+}
+
+/** Today in the user's own time zone, or the server's when they have not set one. */
+export function todayFor(userId: string | null | undefined): string {
+  const zone = userId ? get<Row>(`SELECT timezone FROM users WHERE id = ?`, userId)?.timezone : null;
+  return todayIn(typeof zone === 'string' ? zone : null);
 }
 
 /** Bound translator for one recipient, so call sites stay readable. */

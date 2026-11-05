@@ -4,6 +4,7 @@
 
 import { RATE_KINDS } from '@kolibri/shared';
 import { type EntityRule } from '../../../kernel/write-path/repo.ts';
+import { todayFor } from '../../../kernel/i18n/i18n.ts';
 
 /**
  * A rate is money and a day, and both have to be storable.
@@ -14,7 +15,7 @@ import { type EntityRule } from '../../../kernel/write-path/repo.ts';
  * back is not a thing, and a minus somebody typed by accident would quietly
  * subtract from every project they touched.
  */
-function applyRateInvariants(values: Record<string, unknown>, forced: Record<string, unknown>): void {
+function applyRateInvariants(values: Record<string, unknown>, forced: Record<string, unknown>, actorId?: string): void {
   const settle = (field: string, value: unknown) => { values[field] = value; forced[field] = value; };
 
   if (values.kind !== undefined && !(RATE_KINDS as readonly string[]).includes(String(values.kind))) {
@@ -32,7 +33,7 @@ function applyRateInvariants(values: Record<string, unknown>, forced: Record<str
   // A rate that starts on nothing in particular would sort before or after
   // every other depending on how SQLite felt about the string.
   if (values.starts_on !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(String(values.starts_on ?? ''))) {
-    settle('starts_on', new Date().toISOString().slice(0, 10));
+    settle('starts_on', todayFor(actorId));
   }
 }
 
@@ -42,10 +43,10 @@ export const rateRules = {
   entities: ['rate'],
   defaults(entity, id, values, opts, setForced) {
     if (entity === 'rate' && !values.starts_on) {
-      setForced('starts_on', new Date().toISOString().slice(0, 10));
+      setForced('starts_on', todayFor(opts.actorId));
     }
   },
-  invariants(entity, id, values, existing, forced) {
-    applyRateInvariants(values, forced);
+  invariants(entity, id, values, existing, forced, opts) {
+    applyRateInvariants(values, forced, opts.actorId);
   },
 } satisfies EntityRule;

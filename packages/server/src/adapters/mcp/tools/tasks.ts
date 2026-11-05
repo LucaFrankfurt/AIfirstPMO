@@ -6,6 +6,7 @@ import { all, get, limitOf, type Row, tx } from '../../../kernel/platform/db/ind
 import { deleteEntity, visibleProjectIds, visibleProjectsSql, withEffectsHeld, writeEntity } from '../../../kernel/write-path/repo.ts';
 import { searchWorkspace } from '../../../kernel/search/search.ts';
 import { uid } from '../../../kernel/platform/ids.ts';
+import { todayFor } from '../../../kernel/i18n/i18n.ts';
 import { blockingLoop, fileTask, findMember, findModule, findProject, findTask, INVERSE_RELATION, isoDay, McpError, requireWrite, resolveCycle, resolveLabels, resolveState, resolveUsers, str, taskView, type ToolDef, workspaceOf, writeCustomFields, writeOpts } from '../kit.ts';
 
 export const taskTools: ToolDef[] = [
@@ -587,7 +588,7 @@ export const taskTools: ToolDef[] = [
           ORDER BY t.due_date IS NULL, t.due_date, t.priority`,
         workspaceId, ctx.auth.userId,
       ).filter((t) => visible.has(t.project_id)).map(taskView);
-      const today = new Date().toISOString().slice(0, 10);
+      const today = todayFor(ctx.auth.userId);
       return {
         overdue: rows.filter((t) => t.due_date && t.due_date < today),
         today: rows.filter((t) => t.due_date === today),

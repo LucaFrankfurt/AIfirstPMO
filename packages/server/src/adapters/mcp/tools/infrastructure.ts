@@ -5,6 +5,7 @@ import { annualCost, compareLandscapes, type Component, COMPONENT_KINDS, COST_RE
 import { all, type Row } from '../../../kernel/platform/db/index.ts';
 import { canSeeProject, serialize, writeEntity } from '../../../kernel/write-path/repo.ts';
 import { uid } from '../../../kernel/platform/ids.ts';
+import { todayFor } from '../../../kernel/i18n/i18n.ts';
 import { componentsOf, componentView, costView, ensureVendor, findBudget, findComponent, findProject, findVendor, isoDay, lastComponentOrder, McpError, moneyList, requireFeature, requireMoney, requireWrite, str, type ToolDef, vendorsOf, workspaceOf, writeOpts } from '../kit.ts';
 
 export const infrastructureTools: ToolDef[] = [
@@ -73,7 +74,7 @@ export const infrastructureTools: ToolDef[] = [
       requireFeature(workspaceId, 'infrastructure');
       const vendors = vendorsOf(workspaceId);
       const components = componentsOf(workspaceId);
-      const from = isoDay(args.from, 'from') ?? new Date().toISOString().slice(0, 10);
+      const from = isoDay(args.from, 'from') ?? todayFor(ctx.auth.userId);
       const to = isoDay(args.to, 'to') ?? from;
       const diff = compareLandscapes(components, from, to);
       const brief = (rows: Component[]) => rows.map((row) => componentView(row, vendors, to));
@@ -187,7 +188,7 @@ export const infrastructureTools: ToolDef[] = [
         // Said back rather than left to be discovered: a planned component with
         // no start date appears in no landscape, and the caller has just made
         // one if they left the date out.
-        in_a_landscape: livenessOn(stored, new Date().toISOString().slice(0, 10)) !== 'undated',
+        in_a_landscape: livenessOn(stored, todayFor(ctx.auth.userId)) !== 'undated',
       };
     },
   },
@@ -232,7 +233,7 @@ export const infrastructureTools: ToolDef[] = [
       }, writeOpts(workspaceId, ctx));
 
       const stored = serialize('move', row) as unknown as Move;
-      const progress = moveProgress(stored, componentsOf(workspaceId), new Date().toISOString().slice(0, 10));
+      const progress = moveProgress(stored, componentsOf(workspaceId), todayFor(ctx.auth.userId));
       return {
         id: row.id,
         name: row.name,
@@ -263,7 +264,7 @@ export const infrastructureTools: ToolDef[] = [
       requireFeature(workspaceId, 'infrastructure');
       const components = componentsOf(workspaceId);
       const byId = new Map(components.map((row) => [row.id, row.name]));
-      const day = new Date().toISOString().slice(0, 10);
+      const day = todayFor(ctx.auth.userId);
 
       const rows = all<Row>(
         `SELECT * FROM moves WHERE workspace_id = ? AND deleted_at IS NULL ORDER BY target_date`,
@@ -312,7 +313,7 @@ export const infrastructureTools: ToolDef[] = [
     run: (args, ctx) => {
       const workspaceId = workspaceOf(args, ctx);
       requireFeature(workspaceId, 'infrastructure');
-      const day = new Date().toISOString().slice(0, 10);
+      const day = todayFor(ctx.auth.userId);
       const components = componentsOf(workspaceId);
       const vendors = vendorsOf(workspaceId).filter((row) => !row.archived);
 

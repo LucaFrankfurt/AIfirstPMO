@@ -17,6 +17,7 @@
 import { parseMoney } from '../budgets/budget.ts';
 import { duration } from '../work/duration.ts';
 import { MEASURE_HEALTH } from '../../kernel/registry/types.ts';
+import { todayIn } from '../../kernel/registry/day.ts';
 import type {
   ISODate, Kpi, KpiReading, KpiTarget, MeasureCadence, MeasureHealth, Module,
 } from '../../kernel/registry/types.ts';
@@ -216,7 +217,7 @@ export function progressOf(input: {
   modules?: readonly Pick<Module, 'id' | 'target_date'>[];
   asOf?: ISODate;
 }): KpiProgress {
-  const asOf = input.asOf ?? new Date().toISOString().slice(0, 10);
+  const asOf = input.asOf ?? todayIn();
   const reading = readingOn(input.readings, asOf);
   const chosen = targetFor(input.targets ?? [], asOf, input.modules ?? []);
 
@@ -316,7 +317,7 @@ export interface KpiTrend {
 export function trendOf(
   kpi: Pick<Kpi, 'direction' | 'cadence'>,
   readings: readonly KpiReading[],
-  asOf: ISODate = new Date().toISOString().slice(0, 10),
+  asOf: ISODate = todayIn(),
 ): KpiTrend {
   const now = readingOn(readings, asOf);
   if (!now) return { change: null, better: null, from: null, to: null };
@@ -355,7 +356,7 @@ export function seriesOf(input: {
   modules?: readonly Pick<Module, 'id' | 'target_date'>[];
   asOf?: ISODate;
 }): { actual: SeriesPoint[]; target: SeriesPoint[] } {
-  const asOf = input.asOf ?? new Date().toISOString().slice(0, 10);
+  const asOf = input.asOf ?? todayIn();
   const actual = byMeasuredOn(input.readings.filter((row) => row.measured_on && row.measured_on <= asOf)).reverse()
     .map((row) => ({ on: row.measured_on, value: row.value }));
 

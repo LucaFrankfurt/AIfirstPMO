@@ -4,6 +4,7 @@
 import { formatMoney, RATE_KINDS, type TimeEntry, totalsOf, utilisation } from '@kolibri/shared';
 import { writeEntity } from '../../../kernel/write-path/repo.ts';
 import { uid } from '../../../kernel/platform/ids.ts';
+import { todayFor } from '../../../kernel/i18n/i18n.ts';
 import { entriesIn, findMember, findProject, hours, isoDay, moneyList, namesOf, projectNames, ratesOf, requireAdmin, requireFeature, requireMoney, requireWrite, str, type ToolDef, workspaceOf, writeOpts } from '../kit.ts';
 
 export const rateTools: ToolDef[] = [
@@ -93,7 +94,7 @@ export const rateTools: ToolDef[] = [
         kind: args.kind ?? 'cost',
         amount: requireMoney(args.amount, 'amount'),
         currency: String(args.currency ?? 'EUR').trim().toUpperCase(),
-        starts_on: isoDay(args.starts_on, 'starts_on') ?? new Date().toISOString().slice(0, 10),
+        starts_on: isoDay(args.starts_on, 'starts_on') ?? todayFor(ctx.auth.userId),
         note: str(args.note) ?? null,
       }, writeOpts(workspaceId, ctx));
 

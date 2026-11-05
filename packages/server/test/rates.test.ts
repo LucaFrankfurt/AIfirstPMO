@@ -19,6 +19,7 @@ import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
+import { todayIn } from '@kolibri/shared';
 
 const { server } = await import('../src/index.ts');
 const { get } = await import('../src/kernel/platform/db/index.ts');
@@ -113,7 +114,7 @@ describe('setting a rate', () => {
     assert.match(rate.starts_on, /^\d{4}-\d{2}-\d{2}$/);
     // Backdating restates every report that has ever been run, so it is
     // something somebody types rather than something that happens by default.
-    assert.equal(rate.starts_on, new Date().toISOString().slice(0, 10));
+    assert.equal(rate.starts_on, todayIn());
   });
 
   it('upper-cases the currency and rounds the amount', async () => {
@@ -320,5 +321,20 @@ describe('somebody else’s time', () => {
     assert.equal(own.minutes, 540);
     const corrected = await ok(`/api/time-entries/${bobs.id}`, { cookie: admin.cookie, method: 'PATCH', body: { minutes: 500 } });
     assert.equal(corrected.minutes, 500);
+  });
+});
+
+/* ------------------------------------------------------- whose day it is */
+
+describe('a day nobody typed', () => {
+  it('is the day in the writer’s own time zone, not UTC’s', async () => {
+    // 25 hours apart, so the two are never the same day at any moment.
+    await ok('/api/me', { cookie: admin.cookie, method: 'PATCH', body: { timezone: 'Pacific/Kiritimati' } });
+    await ok('/api/me', { cookie: member.cookie, method: 'PATCH', body: { timezone: 'Pacific/Pago_Pago' } });
+    const adas = await ok(`/api/workspaces/${workspace}/time-entries`, { cookie: admin.cookie, body: { project_id: web, minutes: 30 } });
+    const bobs = await ok(`/api/workspaces/${workspace}/time-entries`, { cookie: member.cookie, body: { project_id: web, minutes: 30 } });
+    assert.equal(adas.spent_on, todayIn('Pacific/Kiritimati'));
+    assert.equal(bobs.spent_on, todayIn('Pacific/Pago_Pago'));
+    assert.notEqual(adas.spent_on, bobs.spent_on);
   });
 });
