@@ -17,6 +17,10 @@ concurrency:
   group: ci-${{ github.head_ref || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# No job here writes to the repository; one that needs more says so itself.
+permissions:
+  contents: read
+
 env:
   # Pinned, and deliberately not in the manifest: Playwright is only needed by
   # the browser jobs, and the server ships no runtime dependencies. The pin is
@@ -30,8 +34,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           # 22.18+ runs the server's TypeScript directly and ships node:sqlite.
           node-version: "22"
@@ -55,7 +59,7 @@ jobs:
       # How much of `npm ci`'s own 400-odd seconds is the same call was not
       # measured — the flag costs nothing either way.
       - id: modules
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             node_modules
@@ -69,7 +73,7 @@ jobs:
       # only if the one before it succeeded, so this saves a complete tree or
       # nothing at all.
       - if: steps.modules.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             node_modules
@@ -180,8 +184,8 @@ jobs:
     # responsible for.
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
           cache: npm
@@ -196,7 +200,7 @@ jobs:
       # race cost nothing; and on a cold cache each leg installs for itself, in
       # parallel, which is the same wait as the one job used to have.
       - id: modules
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             node_modules
@@ -228,7 +232,7 @@ jobs:
             npx playwright install chromium
           fi
       - if: steps.modules.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             node_modules
@@ -279,13 +283,13 @@ jobs:
     needs: test
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
           cache: npm
       - id: modules
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             node_modules
@@ -337,8 +341,8 @@ jobs:
       matrix:
         site: [docs, demo]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
           # The runner's cached 22.x can be older than Astro's `engines` floor.
@@ -353,7 +357,7 @@ jobs:
       # the same reason as in `test`: a post-step would write the cache even
       # when the job failed half way through installing.
       - id: modules
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             sites/${{ matrix.site }}/node_modules
@@ -399,7 +403,7 @@ jobs:
             npx playwright install chromium
           fi
       - if: steps.modules.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             sites/${{ matrix.site }}/node_modules
@@ -424,7 +428,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Bring up the whole stack
         run: |
