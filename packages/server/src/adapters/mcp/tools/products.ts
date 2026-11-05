@@ -20,6 +20,7 @@ import { all, type Row } from '../../../kernel/platform/db/index.ts';
 import { env } from '../../../kernel/platform/env.ts';
 import { deleteEntity, serialize, writeEntity } from '../../../kernel/write-path/repo.ts';
 import { uid } from '../../../kernel/platform/ids.ts';
+import { todayFor } from '../../../kernel/i18n/i18n.ts';
 import {
   catalogueOf, findProduct, isoDay, lastChildOrder, McpError, money, PRODUCT_CHILD_TABLES, productChildren,
   productsOf, productView, requireFeature, requireMoney, requireWrite, str, type ProductChild, type ToolDef,
@@ -358,7 +359,7 @@ export const productTools: ToolDef[] = [
         : null;
       if (wanted && !group) throw new McpError(`No product group "${args.group}" in this workspace`);
 
-      const { entries } = catalogueOf(workspaceId, horizon(args));
+      const { entries } = catalogueOf(workspaceId, { ...horizon(args), today: todayFor(ctx.auth.userId) });
       const shown = entries
         .filter((entry) => (args.include_archived ? true : !Number(entry.product.archived)))
         .filter((entry) => (args.status ? entry.product.status === args.status : true))
@@ -394,7 +395,7 @@ export const productTools: ToolDef[] = [
       const workspaceId = workspaceOf(args, ctx);
       requireFeature(workspaceId, 'products');
       const found = findProduct(String(args.product), workspaceId);
-      const { entries, prices, today, parts: allParts } = catalogueOf(workspaceId, horizon(args));
+      const { entries, prices, today, parts: allParts } = catalogueOf(workspaceId, { ...horizon(args), today: todayFor(ctx.auth.userId) });
       const entry = entries.find((row) => row.product.id === found.id);
       if (!entry) throw new McpError(`No product "${args.product}" in this workspace`);
       const currency = entry.economics.currency;
@@ -897,7 +898,7 @@ export const productTools: ToolDef[] = [
       requireWrite(ctx, workspaceId);
       requireFeature(workspaceId, 'products');
       const product = findProduct(String(args.product), workspaceId);
-      const today = new Date().toISOString().slice(0, 10);
+      const today = todayFor(ctx.auth.userId);
       const on = isoDay(args.from, 'from') ?? today;
 
       const prices = productChildren('productPrice', String(product.id)) as unknown as ProductPrice[];
@@ -1049,7 +1050,7 @@ export const productTools: ToolDef[] = [
        * the reply rather than in a margin somebody reads next week.
        */
       const left = productChildren('productPrice', String(product.id)) as unknown as ProductPrice[];
-      const applies = priceFor(left, { on: new Date().toISOString().slice(0, 10), productTerm: Number(product.term_months) || 0 });
+      const applies = priceFor(left, { on: todayFor(ctx.auth.userId), productTerm: Number(product.term_months) || 0 });
       return {
         deleted: String(price.name || price.id),
         product: product.name,
@@ -1159,7 +1160,7 @@ export const productTools: ToolDef[] = [
        * money between the margin and the break-even and a caller cannot see
        * that from the row it just wrote. This is the whole point of the tool.
        */
-      const entry = catalogueOf(workspaceId).entries.find((item) => item.product.id === product.id);
+      const entry = catalogueOf(workspaceId, { today: todayFor(ctx.auth.userId) }).entries.find((item) => item.product.id === product.id);
       return {
         id: row.id,
         product: product.name,
@@ -1206,7 +1207,7 @@ export const productTools: ToolDef[] = [
       const { product, row: cost } = findOn('productCost', args, 'cost', 'cost', workspaceId);
 
       deleteEntity('productCost', String(cost.id), writeOpts(workspaceId, ctx));
-      const entry = catalogueOf(workspaceId).entries.find((item) => item.product.id === product.id);
+      const entry = catalogueOf(workspaceId, { today: todayFor(ctx.auth.userId) }).entries.find((item) => item.product.id === product.id);
       return {
         deleted: String(cost.name || cost.id),
         product: product.name,
@@ -1349,7 +1350,7 @@ export const productTools: ToolDef[] = [
        * `delete_product_cost` answers it, which is also what the tool table
        * says of both.
        */
-      const entry = catalogueOf(workspaceId).entries.find((item) => item.product.id === product.id);
+      const entry = catalogueOf(workspaceId, { today: todayFor(ctx.auth.userId) }).entries.find((item) => item.product.id === product.id);
       return {
         deleted: String(person.name || person.id),
         product: product.name,
@@ -1492,7 +1493,7 @@ export const productTools: ToolDef[] = [
       const workspaceId = workspaceOf(args, ctx);
       requireFeature(workspaceId, 'products');
       const known = capabilitiesIn(workspaceId);
-      const { entries, parts: allParts } = catalogueOf(workspaceId);
+      const { entries, parts: allParts } = catalogueOf(workspaceId, { today: todayFor(ctx.auth.userId) });
       const byId = new Map(entries.map((row) => [String(row.product.id), row.product]));
       const spread = capabilitySpread(
         new Set(known.map((row) => String(row.id))),
@@ -1646,7 +1647,7 @@ export const productTools: ToolDef[] = [
       const capability = findCapability(args.capability, known);
       const id = String(capability.id);
 
-      const { entries, parts: allParts } = catalogueOf(workspaceId);
+      const { entries, parts: allParts } = catalogueOf(workspaceId, { today: todayFor(ctx.auth.userId) });
       const byId = new Map(entries.map((row) => [String(row.product.id), row.product]));
       const spread = capabilitySpread(
         new Set(known.map((row) => String(row.id))),
@@ -1747,7 +1748,7 @@ export const productTools: ToolDef[] = [
     run: (args, ctx) => {
       const workspaceId = workspaceOf(args, ctx);
       requireFeature(workspaceId, 'products');
-      const today = new Date().toISOString().slice(0, 10);
+      const today = todayFor(ctx.auth.userId);
       const product = str(args.product) ? findProduct(String(args.product), workspaceId) : null;
 
       const rows = all<Row>(`SELECT * FROM promotions WHERE workspace_id = ? AND deleted_at IS NULL`, workspaceId)
@@ -1928,7 +1929,7 @@ export const productTools: ToolDef[] = [
       if (!Object.keys(patch).length) throw new McpError('Nothing to change — name at least one field');
 
       const { row } = writeEntity('promotion', String(found.id), patch, writeOpts(workspaceId, ctx));
-      const today = new Date().toISOString().slice(0, 10);
+      const today = todayFor(ctx.auth.userId);
       return {
         id: row.id,
         name: row.name,
@@ -1996,7 +1997,7 @@ export const productTools: ToolDef[] = [
       requireFeature(workspaceId, 'products');
       const found = findProduct(String(args.product), workspaceId);
       const product = serialize('product', found) as unknown as Product;
-      const today = new Date().toISOString().slice(0, 10);
+      const today = todayFor(ctx.auth.userId);
 
       const promotions = all<Row>(`SELECT * FROM promotions WHERE workspace_id = ? AND deleted_at IS NULL`, workspaceId)
         .map((row) => serialize('promotion', row) as unknown as Promotion);
@@ -2114,7 +2115,7 @@ export const productTools: ToolDef[] = [
     run: (args, ctx) => {
       const workspaceId = workspaceOf(args, ctx);
       requireFeature(workspaceId, 'products');
-      const { entries } = catalogueOf(workspaceId);
+      const { entries } = catalogueOf(workspaceId, { today: todayFor(ctx.auth.userId) });
       const wanted = str(args.product) ? String(findProduct(String(args.product), workspaceId).id) : null;
 
       const rows = entries

@@ -13,6 +13,7 @@ import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
+import { addDays, todayIn } from '@kolibri/shared';
 
 const { server } = await import('../src/index.ts');
 
@@ -300,7 +301,7 @@ describe('templates and automations', () => {
       body: { project_id: projectId, title: 'Soon' },
     });
     const after = await api(`/api/tasks/${task.id}`);
-    assert.equal(after.due_date, new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10));
+    assert.equal(after.due_date, addDays(todayIn(), 3));
   });
 
 });

@@ -9,6 +9,7 @@
 
 import { type Allocation, BUDGET_STATUS, COST_CATEGORIES, COST_CONFIDENCE, COST_KINDS, COST_RECURRENCES, type EntityName, normaliseAllocations, SPEND_STAGES } from '@kolibri/shared';
 import { all, get, type Row } from '../../../kernel/platform/db/index.ts';
+import { todayFor } from '../../../kernel/i18n/i18n.ts';
 import { type EntityRule, settleProjectScope, writeEntity, type WriteOpts } from '../../../kernel/write-path/repo.ts';
 
 /** The four tables a budget is made of. */
@@ -23,7 +24,7 @@ const BUDGET_ENTITIES = new Set<EntityName>(['budget', 'budgetLine', 'budgetActu
  * line with a category somebody's old build spelled differently should not
  * take twenty other rows down with it.
  */
-function applyBudgetInvariants(entity: EntityName, values: Record<string, unknown>, forced: Record<string, unknown>): void {
+function applyBudgetInvariants(entity: EntityName, values: Record<string, unknown>, forced: Record<string, unknown>, actorId?: string): void {
   const settle = (field: string, value: unknown) => { values[field] = value; forced[field] = value; };
   /** Snap to one of a fixed list, or to its default. See the enums in `types.ts`. */
   const oneOf = <T extends string>(field: string, allowed: readonly T[], fallback: T): void => {
@@ -85,7 +86,7 @@ function applyBudgetInvariants(entity: EntityName, values: Record<string, unknow
     // A day, or today. A malformed date would sort into the wrong month and
     // then quietly vanish from every report that filters on the period.
     if (values.spent_on !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(String(values.spent_on ?? ''))) {
-      settle('spent_on', new Date().toISOString().slice(0, 10));
+      settle('spent_on', todayFor(actorId));
     }
   }
 }
@@ -151,11 +152,11 @@ export const budgetRules = {
     }
     if (entity === 'budgetActual') {
       if (!opts.system || !values.recorded_by) setForced('recorded_by', opts.actorId);
-      if (!values.spent_on) setForced('spent_on', new Date().toISOString().slice(0, 10));
+      if (!values.spent_on) setForced('spent_on', todayFor(opts.actorId));
     }
   },
-  invariants(entity, id, values, existing, forced) {
-    applyBudgetInvariants(entity, values, forced);
+  invariants(entity, id, values, existing, forced, opts) {
+    applyBudgetInvariants(entity, values, forced, opts.actorId);
     if (entity === 'budgetLine' || entity === 'budgetActual' || entity === 'budgetScenario') {
       followBudgetWorkspace(values, existing);
     }

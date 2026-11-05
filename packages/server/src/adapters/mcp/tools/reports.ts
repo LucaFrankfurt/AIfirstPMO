@@ -1,9 +1,10 @@
 /**
  * The six questions a lead asks on a Monday, each answered with a reason rather than a list.
  */
-import { isDoneGroup, riskOf } from '@kolibri/shared';
+import { addDays, isDoneGroup, riskOf } from '@kolibri/shared';
 import { all, get, type Row } from '../../../kernel/platform/db/index.ts';
 import { visibleProjectIds } from '../../../kernel/write-path/repo.ts';
+import { todayFor } from '../../../kernel/i18n/i18n.ts';
 import { assigneeNames, brief, findProject, holes, McpError, namesOf, perProject, reportScope, safeList, str, taskView, type ToolDef, windowDays, workspaceOf } from '../kit.ts';
 
 /*
@@ -243,7 +244,7 @@ export const reportTools: ToolDef[] = [
         blocking.set(String(row.waiting), list);
       }
 
-      const today = new Date().toISOString().slice(0, 10);
+      const today = todayFor(ctx.auth.userId);
       const names = assigneeNames(rows);
       /* The reasons and the weighting are `riskOf` in `@kolibri/shared`, so the
          answer here and the one the interface paints on a due date come from
@@ -315,8 +316,8 @@ export const reportTools: ToolDef[] = [
         ...projectIds,
       );
 
-      const today = new Date().toISOString().slice(0, 10);
-      const weekEnd = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
+      const today = todayFor(ctx.auth.userId);
+      const weekEnd = addDays(today, 7);
       const names = assigneeNames(rows);
       const blank = () => ({
         open: 0, overdue: 0, due_this_week: 0, unestimated: 0, points: 0,
@@ -581,7 +582,7 @@ export const reportTools: ToolDef[] = [
         return { ...head, cycles: [], totals: { cycles: 0, tasks: 0, completed: 0, cancelled: 0, carried: 0, points_planned: 0, points_completed: 0, unestimated: 0 } };
       }
 
-      const today = new Date().toISOString().slice(0, 10);
+      const today = todayFor(ctx.auth.userId);
       const points = (list: Row[]) => list.reduce((sum, r) => sum + (r.estimate == null ? 0 : Number(r.estimate)), 0);
 
       /* The keys of the projects a *cycle covers*, which is a wider question

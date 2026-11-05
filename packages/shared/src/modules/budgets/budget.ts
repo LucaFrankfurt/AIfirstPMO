@@ -21,6 +21,7 @@
  * why, and `parseMoney` / `formatMoney` for the only two places a decimal point
  * is allowed to exist.
  */
+import { todayIn } from '../../kernel/registry/day.ts';
 import type {
   Allocation, Budget, BudgetActual, BudgetLine, BudgetScenario, CostCategory, CostConfidence,
   CostKind, ID, ISODate, Minor, ScenarioAdjustment, SpendStage,
@@ -638,7 +639,7 @@ export function rollUp(input: {
   scenario?: Pick<BudgetScenario, 'adjustments' | 'weights'> | null;
   asOf?: ISODate;
 }): BudgetRollUp {
-  const asOf = input.asOf ?? new Date().toISOString().slice(0, 10);
+  const asOf = input.asOf ?? todayIn();
   const budget = input.budget;
   const period = periodOf(budget, asOf);
   const lines = applyScenario(input.lines, input.scenario);
@@ -805,7 +806,7 @@ export function projectShare(input: {
   actuals: readonly BudgetActual[];
   asOf?: ISODate;
 }): { currency: string; planned: Minor; actual: Minor; budgets: number }[] {
-  const asOf = input.asOf ?? new Date().toISOString().slice(0, 10);
+  const asOf = input.asOf ?? todayIn();
   const linesFor = new Map<ID, BudgetLine[]>();
   for (const line of input.lines) {
     const rows = linesFor.get(line.budget_id) ?? [];
