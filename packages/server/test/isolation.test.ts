@@ -536,6 +536,22 @@ describe('a colleague outside a private project', () => {
     assert.ok((await pulled(insider, 'automation')).includes(automation.body.id), 'the automation went missing for a member');
   });
 
+  it('is told a private project is not found over MCP, word for word as one that does not exist (API-14)', async () => {
+    const token = (await call('/api/tokens', {
+      cookie: outsider.cookie, body: { name: 'mcp', workspaceId: ada.workspace },
+    })).body.token;
+    const refusal = async (tool: string, args: Record<string, unknown>) => {
+      const { body } = await call('/mcp', {
+        token, body: { jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: tool, arguments: { ...args, workspace_id: ada.workspace } } },
+      });
+      return String(body.result?.content?.[0]?.text ?? body.error?.message ?? '');
+    };
+    const { body: task } = await call(`/api/tasks/${privateTask}`, { cookie: ada.cookie });
+    assert.equal(await refusal('project_status', { project: 'Pay review' }), 'Project Pay review not found');
+    assert.equal(await refusal('project_status', { project: 'Nothing here' }), 'Project Nothing here not found');
+    assert.equal(await refusal('get_task', { task: task.identifier }), `Task ${task.identifier} not found`);
+  });
+
   it('still works for somebody who is on the project', async () => {
     const { status: readable } = await call(`/api/attachments/${attachment}`, { cookie: insider.cookie });
     assert.equal(readable, 200, 'a project member lost access — the fix refuses too much');
