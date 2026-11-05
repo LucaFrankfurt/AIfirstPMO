@@ -13,17 +13,17 @@
 import { all, get, run, type Row } from '../../kernel/platform/db/index.ts';
 import { serverClock } from '../../kernel/write-path/bootstrap.ts';
 import { uid } from '../../kernel/platform/ids.ts';
-import { translatorFor } from '../../kernel/i18n/i18n.ts';
+import { todayFor, translatorFor } from '../../kernel/i18n/i18n.ts';
 import { createNotification } from '../notifications/notify.ts';
 import { canSeeProject, writeEntity } from '../../kernel/write-path/repo.ts';
-import { runAutomationsForDue } from './automation.ts';
+import { dayOfTask, runAutomationsForDue } from './automation.ts';
 import { applyRetention } from '../trash/trash.ts';
 import { sweepBackups } from '../operations/backups.ts';
 
 const HOUR = 3_600_000;
 let timer: ReturnType<typeof setInterval> | null = null;
 
-/** Today as the server sees it. Dates on tasks are plain days, not instants. */
+/** Today in UTC. Dates on tasks are plain days, not instants; no zone's day is more than one after this. */
 export const todayISO = (at = Date.now()): string => new Date(at).toISOString().slice(0, 10);
 
 const addDays = (iso: string, days: number): string =>
@@ -43,8 +43,8 @@ const SOON_DAYS = 2;
  * repeat of the same sentence.
  */
 export function remindAboutDueTasks(now = Date.now()): number {
-  const today = todayISO(now);
-  const limit = addDays(today, SOON_DAYS);
+  // Wide enough for every zone; each recipient's own day decides below.
+  const limit = addDays(todayISO(now), SOON_DAYS + 1);
   const due = all<Row>(
     `SELECT t.*, p.name AS project_name FROM tasks t
        JOIN projects p ON p.id = t.project_id
@@ -59,6 +59,8 @@ export function remindAboutDueTasks(now = Date.now()): number {
     const audience = new Set<string>([...parse(task.assignees), ...parse(task.subscribers)]);
     for (const userId of audience) {
       if (!userId) continue;
+      const today = todayFor(userId, now);
+      if (String(task.due_date) > addDays(today, SOON_DAYS)) continue;
       // The due date is part of the key, so moving a deadline earns one more
       // reminder and leaving it alone does not.
       const marker = `due:${task.id}:${task.due_date}`;
@@ -132,7 +134,7 @@ export function rollRecurringTasks(): number {
 
   let made = 0;
   for (const task of finished) {
-    const base = String(task.due_date || todayISO(Number(task.completed_at)));
+    const base = String(task.due_date || dayOfTask(task, Number(task.completed_at)));
     const next = nextDueDate(base, String(task.recurrence), task.due_date ? seriesDay(task) : undefined);
     if (!next) continue;
 
@@ -203,7 +205,7 @@ export function sweep(now = Date.now()): Record<string, number> {
   return {
     reminders: remindAboutDueTasks(now),
     recurred: rollRecurringTasks(),
-    rules: runAutomationsForDue(todayISO(now)),
+    rules: runAutomationsForDue(now),
     // Off unless somebody set a window. It runs on the hourly tick rather than
     // on a daily one because the cutoff is an age, not a date: running it
     // twice in one day purges nothing the first pass did not already take.

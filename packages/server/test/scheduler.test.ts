@@ -208,3 +208,36 @@ describe('a rule that changes the task instead of filing one', () => {
     assert.equal(after.state_id, review.id, 'and the forbidden one was ignored');
   });
 });
+
+describe('today on the calendar of the person it is for (TZ-REST)', () => {
+  // Noon UTC on the 10th is already the 11th on Kiritimati (UTC+14).
+  const now = Date.parse('2031-03-10T12:00:00Z');
+
+  it('reminds, repeats and runs date rules by the assignee’s day, not by UTC’s', async () => {
+    await api('/api/me', { timezone: 'Pacific/Kiritimati' }, 'PATCH');
+    const task = await api(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'Island deadline', due_date: '2031-03-13', assignees: [userId] });
+
+    remindAboutDueTasks(now);
+    assert.equal(
+      all(`SELECT id FROM notifications WHERE user_id = ? AND kind = 'due_soon' AND task_id = ?`, userId, task.id).length, 1,
+      'due in two days on Kiritimati, though three in UTC',
+    );
+
+    sweep(now);
+    assert.ok(
+      all(`SELECT id FROM automation_runs WHERE task_id = ?`, task.id).length >= 1,
+      'the two-days-out rule covers it on the same day',
+    );
+
+    const states = await api(`/api/workspaces/${workspaceId}/states?project_id=${projectId}`);
+    const done = states.find((state: any) => state.group_key === 'completed');
+    const daily = await api(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'Feed the fish', recurrence: 'daily', assignees: [userId] });
+    await api(`/api/tasks/${daily.id}`, { state_id: done.id }, 'PATCH');
+    run(`UPDATE tasks SET completed_at = ? WHERE id = ?`, now, daily.id);
+    assert.equal(rollRecurringTasks(), 1);
+    assert.equal(
+      get<any>(`SELECT due_date FROM tasks WHERE recurred_from = ?`, daily.id).due_date, '2031-03-12',
+      'finished on the 11th there, so the next one is due on the 12th',
+    );
+  });
+});
