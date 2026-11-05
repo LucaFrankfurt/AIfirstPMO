@@ -166,12 +166,14 @@ export const useRow = <K extends EntityName>(entity: K, id: string | null | unde
 /* ------------------------------------------------------------------ writes */
 
 /**
- * Whether this device is still holding a change to a row that the server has
- * not seen. `sync.ts` answers it from the outbox; the default is "no", which
- * is what a changeset applied outside the engine — a test, a hand-fed row —
- * means.
+ * The changes this device is still holding for a row that the server has not
+ * seen, oldest first. `sync.ts` answers it from the outbox; the default is
+ * none, which is what a changeset applied outside the engine — a test, a
+ * hand-fed row — means.
  */
-export type Unsent = (entity: EntityName, id: string) => boolean;
+export type Unsent = (entity: EntityName, id: string) => readonly { op: string; patch: Record<string, unknown> }[];
+
+const NOTHING_UNSENT: Unsent = () => [];
 
 /**
  * Apply a server changeset (pull result or push echo).
@@ -185,7 +187,7 @@ export type Unsent = (entity: EntityName, id: string) => boolean;
  * nothing to protect and the row that arrived is simply the truth, which is
  * also what makes re-reading a row (`resync`) able to repair anything at all.
  */
-export function applyChanges(changes: ChangeSet, unsent: Unsent = () => false): void {
+export function applyChanges(changes: ChangeSet, unsent: Unsent = NOTHING_UNSENT): void {
   let touched = false;
   for (const entity of ENTITY_NAMES) {
     const rows = (changes as Record<string, any[]>)[entity];
@@ -194,6 +196,7 @@ export function applyChanges(changes: ChangeSet, unsent: Unsent = () => false): 
     const merging = entityDef(entity)?.crdt;
     for (const row of rows) {
       const existing = table.get(row.id);
+      const queued = unsent(entity, row.id);
       // The merge is what stops a page somebody is typing into losing the
       // paragraph to the row coming back from a pull — which is exactly when
       // it would happen, and only while that paragraph is still queued.
@@ -203,8 +206,13 @@ export function applyChanges(changes: ChangeSet, unsent: Unsent = () => false): 
           // A changeset that does not carry the field at all — a push echo is
           // only the values the server decided — must not read as "cleared".
           if (incoming === undefined || incoming === null) row[field] = existing[field] ?? incoming;
-          else if (unsent(entity, row.id)) row[field] = crdt.merge(existing[field], incoming);
+          else if (queued.length) row[field] = crdt.merge(existing[field], incoming);
         }
+      }
+      // Our unsent edits stay on top of the server's row (and its saved copy), or a title or card jumps back until the push lands.
+      for (const { op, patch } of queued) {
+        if (op === 'delete') row.deleted_at = existing?.deleted_at ?? row.deleted_at ?? now();
+        else for (const field in patch) if (!merging?.includes(field)) row[field] = patch[field];
       }
       table.set(row.id, existing ? { ...existing, ...row } : row);
     }

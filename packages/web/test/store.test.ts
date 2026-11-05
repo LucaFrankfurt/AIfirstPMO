@@ -161,7 +161,7 @@ describe('a merged field', () => {
     patchLocal('page', 'p1', { body: mine });
 
     const theirs = crdt.edit(body('one\n'), 'one\ntheirs\n', 'device-b');
-    applyChanges({ page: [page('one\ntheirs\n', theirs)] } as any, () => true);
+    applyChanges({ page: [page('one\ntheirs\n', theirs)] } as any, () => [{ op: 'upsert', patch: { body: mine } }]);
 
     const text = crdt.textOf(byId('page', 'p1')!.body);
     assert.match(text, /mine/, 'the unsent paragraph survived the pull');

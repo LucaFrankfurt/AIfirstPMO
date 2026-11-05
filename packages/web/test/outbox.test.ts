@@ -403,6 +403,35 @@ describe('a slow or failing server (WEB-10)', () => {
   });
 });
 
+describe('a pull while an edit is still queued (WEB-11)', () => {
+  it('keeps the unsent field on screen and on disk, takes the rest, and reads the row back once sent', async () => {
+    let row = { id: 'k1', workspace_id: 'ws-K', title: 'server title', priority: 'low', seq: 1 };
+    server.pulls.set('ws-K', (since) => (since < row.seq ? { changes: { task: [row] }, cursor: row.seq } : { cursor: since }));
+    await sync.start('ws-K', 'ada');
+    assert.equal(store.byId('task', 'k1')?.title, 'server title');
+
+    let release!: () => void;
+    server.hold = new Promise<void>((resolve) => { release = resolve; });
+    mutations.update('task', 'k1', { title: 'my new title' });
+    const sending = sync.flush();
+    // Somebody else changed the priority meanwhile; their row still carries the old title.
+    row = { ...row, priority: 'high', seq: 2 };
+    await sync.pull();
+    assert.equal(store.byId('task', 'k1')?.title, 'my new title', 'the title jumped back to the server’s');
+    assert.equal(store.byId('task', 'k1')?.priority, 'high', 'the rest of the row is the server’s');
+    const saved = (await idb.readAll('task')).find((one: { id: string }) => one.id === 'k1');
+    assert.equal(saved?.title, 'my new title', 'and a reload would have lost it');
+
+    server.requests.length = 0;
+    release();
+    server.hold = null;
+    await sending;
+    await until(() => sync.getStatus().pending === 0 && server.requests.includes('/api/tasks/k1'));
+    assert.ok(server.requests.includes('/api/tasks/k1'), 'a row shown under a queued change is read back once it is sent');
+    sync.stop();
+  });
+});
+
 // Chromium commits a transaction only after its success events ran; a reload right after Enter lost 14 of 40 quick-added tasks.
 describe('a page left right after a change (NEW-QUICKADD)', () => {
   it('saves the change with its row in one committed transaction, and beacons the queue on the way out', async () => {
