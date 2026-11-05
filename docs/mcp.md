@@ -279,7 +279,7 @@ always called it. `billing` still works and is documented as the older spelling.
 |---|---|
 | `list_workspaces` | workspaces this token can reach, with the caller's role |
 | `list_projects` | projects with open/done task counts |
-| `list_tasks` | filter by `project`, `state` (name or group), `assignee` (`"me"` works), `priority`, `label`, `cycle` (`"current"` works), `module`, `due_before`, `query` |
+| `list_tasks` | filter by `project`, `state` (name or group), `assignee` (`"me"` works), `priority`, `label`, `cycle` (`"current"` works), `module`, `due_before`, `query`. With a `project`, `cycle` is looked up among the cycles that cover it; without one, every cycle of that name — or every one running, for `"current"` — counts |
 | `get_task` | one task with description, sub-tasks, relations in both directions (only to tasks the caller can see), comments, attachments and recent activity |
 | `search` | full text across tasks, pages, projects, comments, cycles, modules — and connected mailboxes, which answer for themselves. Words match as prefixes, `"quoted words"` as a phrase, `-word` excludes, and `WEB-12` puts that task first |
 | `list_cycles` | sprints with `total`/`done` counts |
@@ -542,7 +542,7 @@ is inclusive to the end of the day it names.
 
 | Tool | Notes |
 |---|---|
-| `create_task` | project + title required — unless `quick_add` carries both; **labels that do not exist yet are created**, which is why `list_labels` is worth calling first |
+| `create_task` | project + title required — unless `quick_add` carries both; **labels that do not exist yet are created**, which is why `list_labels` is worth calling first. A `cycle` (`"current"` works) is looked up among the cycles that cover the task's project, and one that matches none is refused rather than dropped |
 | `update_task` | any field, including `state`, `assignees`, `cycle`, `module`, `due_date`, `archived` — and `project`, which **files the task under another project**: its state and labels are re-resolved there by meaning rather than by name, a cycle or module the destination is outside of is cleared, its sub-tasks follow it, and its identifier does not change. Anything else in the same call is read against the project it is moving *to*, so `{project: "API", state: "Doing"}` means the destination's column. A container is refused out loud, because it holds projects rather than tasks. A `cycle` is looked up among the cycles that cover the task's project, and a cycle or assignee it cannot find, or `assignees`, `labels` or `archived` of the wrong type, is refused rather than cleared |
 | `create_tasks_batch` | up to 100 tasks in one call, as **one transaction** — a rejected entry takes the whole batch with it, so a retry cannot double what already went in |
 | `create_task_relation` | `blocks`, `blocked_by`, `relates_to`, `duplicates`, `duplicated_by` — written once, in the direction given |

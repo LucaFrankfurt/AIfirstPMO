@@ -590,6 +590,34 @@ describe('kolibri api', () => {
     assert.equal(unknown.result, undefined);
   });
 
+  it('reads a cycle among the ones that cover the project, and refuses one that matches none', async () => {
+    const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+    await callTool('create_project', { name: 'Cycle theirs', key: 'CYA' });
+    await callTool('create_project', { name: 'Cycle ours', key: 'CYB' });
+    // Theirs first and starting later, so a workspace-wide lookup finds it before ours.
+    await callTool('create_cycle', { project: 'CYA', name: 'Same name', start_date: day(0), end_date: day(7) });
+    const ours = (await callTool('create_cycle', {
+      project: 'CYB', name: 'Same name', start_date: day(-3), end_date: day(7),
+    })).result.structuredContent;
+
+    const filed = (await callTool('create_task', { project: 'CYB', title: 'In our sprint', cycle: 'Same name' })).result.structuredContent;
+    assert.equal(filed.cycle_id, ours.id, 'a cycle of the same name in another project was picked');
+
+    const current = (await callTool('list_tasks', { project: 'CYB', cycle: 'current' })).result.structuredContent.result;
+    assert.deepEqual(current.map((task: any) => task.identifier), [filed.identifier]);
+    const anywhere = (await callTool('list_tasks', { cycle: 'current' })).result.structuredContent.result;
+    assert.ok(anywhere.some((task: any) => task.id === filed.id), 'without a project, every running cycle counts');
+
+    const batch = (await callTool('create_tasks_batch', {
+      project: 'CYB', tasks: [{ title: 'Batched into our sprint', cycle: 'current' }],
+    })).result.structuredContent;
+    assert.equal(batch.tasks[0].cycle_id, ours.id);
+
+    const typo = await callTool('create_task', { project: 'CYB', title: 'Typo sprint', cycle: 'Smae name' });
+    assert.match(typo.result.content[0].text, /No cycle matching "Smae name" covers CYB/);
+    assert.equal(all<any>(`SELECT id FROM tasks WHERE title = 'Typo sprint'`).length, 0, 'refused, not filed without it');
+  });
+
   it('links two tasks once, and refuses a circle of blockers', async () => {
     const a = (await callTool('create_task', { project: 'WEB', title: 'Foundations' })).result.structuredContent;
     const b = (await callTool('create_task', { project: 'WEB', title: 'Walls' })).result.structuredContent;
