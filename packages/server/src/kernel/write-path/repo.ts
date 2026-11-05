@@ -181,9 +181,21 @@ export function writeEntity(entity: EntityName, id: string, patch: Record<string
       : updateRow(table, id, { ...values, updated_at: now, seq, clocks: JSON.stringify(clocks) });
 
     afterWrite(entity, row, existing, values, opts);
-    if (!opts.silent) publish({ workspaceId: opts.workspaceId, seq, origin: opts.origin, kind: entity });
+    if (!opts.silent) {
+      publish({ workspaceId: opts.workspaceId, seq, origin: opts.origin, kind: entity });
+      if (row.workspace_id == null && isCrossWorkspace(entity)) {
+        publish({ workspaceId: opts.workspaceId, seq, origin: opts.origin, kind: entity, users: audienceOf(row) });
+      }
+    }
     return { row, forced, created };
   });
+}
+
+/** Who pulls a row that sits in no workspace: its owner, or the people in its conversation. */
+function audienceOf(row: Row): string[] {
+  if (row.user_id) return [String(row.user_id)];
+  if ('members' in row) return parseIds(row.members);
+  return parseIds(get<Row>(`SELECT members FROM channels WHERE id = ?`, row.channel_id)?.members);
 }
 
 /**
