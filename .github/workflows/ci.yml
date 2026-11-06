@@ -59,7 +59,7 @@ jobs:
       # How much of `npm ci`'s own 400-odd seconds is the same call was not
       # measured — the flag costs nothing either way.
       - id: modules
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             node_modules
@@ -200,7 +200,7 @@ jobs:
       # race cost nothing; and on a cold cache each leg installs for itself, in
       # parallel, which is the same wait as the one job used to have.
       - id: modules
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             node_modules
@@ -289,7 +289,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - id: modules
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             node_modules
@@ -355,7 +355,7 @@ jobs:
       # the same reason as in `test`: a post-step would write the cache even
       # when the job failed half way through installing.
       - id: modules
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             sites/${{ matrix.site }}/node_modules
