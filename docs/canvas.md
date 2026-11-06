@@ -218,6 +218,11 @@ stopped running. So a new render loads the frame file again in a second iframe b
 one, and they swap when the new one reports it is drawn — a new realm every time, no empty board in
 between, and from the HTTP cache, so offline too. The scroll position is carried across.
 
+A fresh frame is not always sized yet. Firefox gave a just-inserted frame its width a few
+milliseconds after the first document was written into it, so a board whose script measured itself
+measured 0 and drew a chart of no width (2 in 80 phone redraws under load). The frame file waits for
+a width before it writes the board, and writes it anyway after a second.
+
 **Offline.** The service worker is never asked for a sandboxed frame — measured: a frame served only
 from its cache did not load offline. The browser's HTTP cache is: the server sends `artboard.html`
 with a year-long `immutable` cache, the app asks for it by its hash (`FRAME_VERSION`, which

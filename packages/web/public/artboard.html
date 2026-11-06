@@ -21,12 +21,31 @@
  * (`FRAME_VERSION`), so a browser never keeps an old copy past a deploy.
  */
 (function () {
+  function write(html) {
+    document.open();
+    document.write(html);
+    document.close();
+  }
   function take(event) {
     if (event.source !== parent || !event.data || event.data.type !== 'kolibri:render') return;
     removeEventListener('message', take);
-    document.open();
-    document.write(String(event.data.html));
-    document.close();
+    var html = String(event.data.html);
+    if (innerWidth) return write(html);
+    /*
+     * Firefox can size a frame just inserted a moment after its first document
+     * is written: a board's script that measures itself then measures 0 and
+     * draws a chart of no width (engines.mjs, 2 in 80 under load). So wait for
+     * the size — and write anyway after a second, for a frame that never gets one.
+     */
+    var timer = 0;
+    function go() {
+      removeEventListener('resize', sized);
+      clearTimeout(timer);
+      write(html);
+    }
+    function sized() { if (innerWidth) go(); }
+    addEventListener('resize', sized);
+    timer = setTimeout(go, 1000);
   }
   addEventListener('message', take);
   parent.postMessage({ type: 'kolibri:ready' }, '*');
