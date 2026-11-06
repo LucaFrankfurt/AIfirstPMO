@@ -744,8 +744,8 @@ function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycle
  * A milestone was the odd one out: its scope was chosen on the inline form that
  * creates it and never again, because it is otherwise edited through a card and
  * a menu, and the warning a re-scope needs has nowhere to sit on a card. So it
- * has a sheet now, for the same three fields a cycle's has — the name, the date
- * it is aimed at, and who works on it.
+ * has a sheet now, for the same fields a cycle's has — the name, the date it is
+ * aimed at, what it is for, and who works on it.
  *
  * `update_module` over MCP has always been able to re-scope one and report what
  * it stranded; this is the same move where the caller is a person.
@@ -757,13 +757,14 @@ function ModuleEditor({ projectId, moduleId, onClose }: { projectId: string; mod
   const { confirm, dialog } = useConfirm();
   const [name, setName] = useState(module_?.name ?? '');
   const [target, setTarget] = useState(module_?.target_date ?? '');
+  const [description, setDescription] = useState(module_?.description ?? '');
   const choice = useScopeChoice(moduleId ? module_ : undefined, projectId);
   const projects = useScopeTargets();
   const stranded = useStranded('module_id', moduleId, choice.settled);
 
   const save = async () => {
     if (!name.trim() || choice.incomplete) return;
-    const fields = { name: name.trim(), target_date: target || null };
+    const fields = { name: name.trim(), target_date: target || null, description: description.trim() ? description : null };
     if (moduleId) {
       if (stranded.length
         && !(await confirm(t('module.scopeStrandConfirm', { count: stranded.length }), t('action.save')))) return;
@@ -792,6 +793,10 @@ function ModuleEditor({ projectId, moduleId, onClose }: { projectId: string; mod
         <div className="field">
           <label htmlFor="m-target">{t('module.target')}</label>
           <Input id="m-target" type="date" value={target ?? ''} onChange={(event) => setTarget(event.target.value)} />
+        </div>
+        <div className="field">
+          <label htmlFor="m-desc">{t('module.description')}</label>
+          <MarkdownEditor id="m-desc" value={description} minHeight={90} onChange={setDescription} />
         </div>
 
         <ProjectScopeField
@@ -1095,7 +1100,7 @@ export function ModulePage() {
         {editing ? (
           <div className="mb-3.5">
             <MarkdownEditor
-              value={module.description ?? ''} minHeight={130} autoFocus label={t('task.description')}
+              value={module.description ?? ''} minHeight={130} autoFocus label={t('module.description')}
               attachTo={{ kind: 'module', id: module.id }}
               onChange={(value) => update('module', module.id, { description: value })}
             />

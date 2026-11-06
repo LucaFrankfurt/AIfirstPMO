@@ -2005,6 +2005,7 @@ export const fr: Catalogue = {
   'module.edit': 'Modifier le module',
   'module.name': 'Nom',
   'module.target': 'Date cible',
+  'module.description': 'Description',
   'module.notFound': 'Module introuvable',
   'module.shared': 'Partagé',
   'module.sharedCount_one': '{count} projet',

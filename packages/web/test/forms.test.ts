@@ -699,3 +699,14 @@ describe('a write in the teams screen or a project tab', () => {
     assert.deepEqual(blind, [], `offered to a guest: ${blind.join('; ')}`);
   });
 });
+
+// A module's description had an editor only behind its own page's Edit button; a cycle's is in its sheet.
+describe("a module's sheet", () => {
+  it("asks what the module is for, as a cycle's does, and saves it", () => {
+    const cycle = functionBody('modules/planning/routes/projects.tsx', 'CycleEditor');
+    const module = functionBody('modules/planning/routes/projects.tsx', 'ModuleEditor');
+    assert.match(cycle, /<MarkdownEditor[\s\S]*?form\.description/);
+    assert.match(module, /<MarkdownEditor[^>]*value=\{description\}/);
+    assert.match(module, /const fields = \{[^\n]*\bdescription:/);
+  });
+});

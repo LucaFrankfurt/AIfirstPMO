@@ -2010,6 +2010,7 @@ export const en = {
   'module.edit': 'Edit module',
   'module.name': 'Name',
   'module.target': 'Target date',
+  'module.description': 'Description',
   'module.notFound': 'Module not found',
   'module.shared': 'Shared',
   'module.sharedCount_one': '{count} project',
