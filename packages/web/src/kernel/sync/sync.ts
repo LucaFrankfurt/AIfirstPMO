@@ -15,7 +15,7 @@ import { now } from './clock';
 import { serverUrl, sessionToken } from './server';
 import * as idb from './idb';
 import { currentLocale, translate } from '../i18n/i18n';
-import { applyChanges, byId, forgetLocal, hydrate, notifyStore, purgedRows, reset, tables } from './store';
+import { applyChanges, byId, forgetLocal, hydrate, notifyStore, purgedRows, reset, tables, type Unsent } from './store';
 
 export type SyncState = 'starting' | 'synced' | 'syncing' | 'offline' | 'error';
 
@@ -63,6 +63,26 @@ export const getStatus = (): SyncStatus => status;
  */
 export const isPendingRow = (entity: EntityName, entityId: string): boolean =>
   outbox.some((mutation) => mutation.entity === entity && mutation.entityId === entityId);
+
+/** Rows a changeset was applied to under our queued changes; read back once those are sent, as no pull may mention them again. */
+const masked = new Set<string>();
+const rowKey = (entity: string, id: string): string => `${entity}:${id}`;
+
+/** The outbox by row, built once per changeset rather than scanned per row. */
+function unsentByRow(): Unsent {
+  const byRow = new Map<string, Mutation[]>();
+  for (const mutation of outbox) {
+    const key = rowKey(mutation.entity, mutation.entityId);
+    const queued = byRow.get(key);
+    if (queued) queued.push(mutation);
+    else byRow.set(key, [mutation]);
+  }
+  return (entity, id) => {
+    const queued = byRow.get(rowKey(entity, id)) ?? [];
+    if (queued.length) masked.add(rowKey(entity, id));
+    return queued;
+  };
+}
 
 /* ------------------------------------------------------------------ engine */
 
@@ -133,6 +153,7 @@ export async function start(id: string, userId: string): Promise<void> {
   idb.selectMirror(name);
   cursor = 0;
   outbox = [];
+  masked.clear();
   reset();
   setStatus({ state: 'starting', pending: 0, message: undefined, rejected: [] });
 
@@ -245,7 +266,7 @@ export function pull(): Promise<void> {
           // The rows only: the queue is unsent work and the snapshot does not contain it.
           await idb.clear(ENTITY_NAMES, db);
         }
-        applyChanges(response.changes, isPendingRow);
+        applyChanges(response.changes, unsentByRow());
         await persist(response.changes, db);
         if (mine.generation !== generation) return;
         const before = cursor;
@@ -280,8 +301,10 @@ async function persist(changes: ChangeSet, db = idb.currentMirror()): Promise<vo
 
 /* -------------------------------------------------------------------- push */
 
-/** Queue a local change: store first, network whenever it comes back. */
-export function enqueue(entity: EntityName, entityId: string, patch: Record<string, unknown>, op: 'upsert' | 'delete' = 'upsert'): void {
+/** Queue a local change: store first, network whenever it comes back. `row` is the optimistic row to save with it. */
+export function enqueue(
+  entity: EntityName, entityId: string, patch: Record<string, unknown>, op: 'upsert' | 'delete' = 'upsert', row?: Record<string, unknown>,
+): void {
   const mutation: Mutation = {
     id: crypto.randomUUID(),
     entity,
@@ -294,7 +317,8 @@ export function enqueue(entity: EntityName, entityId: string, patch: Record<stri
   if (replaced.length) outbox = outbox.filter((queued) => !replaced.includes(queued));
   outbox.push(mutation);
   setStatus({ pending: outbox.length, state: 'syncing' });
-  void idb.put(idb.OUTBOX, mutation);
+  // One transaction for the change and its row, so a page left right after keeps both or neither.
+  void idb.putMany([{ store: idb.OUTBOX, values: [mutation] }, ...(row ? [{ store: idb.storeFor(entity), values: [row] }] : [])]);
   // After the put, so a reload in between finds both rather than neither.
   if (replaced.length) void idb.removeMany(idb.OUTBOX, replaced.map((queued) => queued.id));
   scheduleFlush();
@@ -383,8 +407,14 @@ async function push(): Promise<void> {
       await undo(batch.filter((mutation) => declined.some((r) => r.id === mutation.id)));
     }
     // The server may have decided values for us (task identifiers, defaults).
-    applyChanges(response.patched, isPendingRow);
+    applyChanges(response.patched, unsentByRow());
     await persist(response.patched, db);
+    for (const mutation of batch) {
+      const key = rowKey(mutation.entity, mutation.entityId);
+      if (!response.accepted.includes(mutation.id) || !masked.has(key) || isPendingRow(mutation.entity, mutation.entityId)) continue;
+      masked.delete(key);
+      void resync(mutation.entity, mutation.entityId);
+    }
 
     if (failing.length) {
       // The server failed on these (a locked database, say) rather than refused them: kept queued, sent again later.
@@ -409,6 +439,23 @@ async function push(): Promise<void> {
       handleError(err);
     }
   }
+}
+
+/** A page being left beacons its queue (64 KiB cap; a keepalive fetch was measured to drop); the server skips a mutation it already applied. */
+function sendOnLeave(): void {
+  // A beacon carries the cookie only, not the packaged app's bearer token.
+  if (!workspaceId || !outbox.length || refused === generation || !navigator.onLine || sessionToken()) return;
+  if (typeof navigator.sendBeacon !== 'function') return;
+  const batch: Mutation[] = [];
+  let bytes = 0;
+  for (const mutation of outbox) {
+    bytes += sizeOf(mutation);
+    if (bytes > 60_000) break;
+    batch.push(mutation);
+  }
+  if (!batch.length) return;
+  const body = new Blob([JSON.stringify({ workspaceId, clientId, mutations: batch })], { type: 'application/json' });
+  navigator.sendBeacon(serverUrl('/api/sync/push'), body);
 }
 
 /** A 413: halve the batch; one mutation too large alone is dropped like a rejection, or it blocks the queue for good. */
@@ -465,14 +512,14 @@ export function dismissRejected(): Promise<void> {
  * Deliberately *not* merged into what is here. The point of asking is that the
  * local copy is not trusted, and the outbox is empty of it by the time either
  * caller asks — `flush` drops a mutation before it undoes it, and `resync`
- * checks.
+ * checks. An edit queued while the answer was on its way stays on top, as in a pull.
  */
 async function reread(entity: EntityName, id: string): Promise<void> {
   const mine = generation;
   const db = idb.currentMirror();
   const row = await api.get<Record<string, unknown>>(`/api/${COLLECTIONS[entity]}/${id}`, bounded());
   if (mine !== generation) return;
-  applyChanges({ [entity]: [row] } as ChangeSet);
+  applyChanges({ [entity]: [row] } as ChangeSet, unsentByRow());
   await persist({ [entity]: [row] } as ChangeSet, db);
 }
 
@@ -638,6 +685,7 @@ window.addEventListener('online', () => {
   connect();
 });
 window.addEventListener('offline', () => setStatus({ state: 'offline' }));
+window.addEventListener('pagehide', sendOnLeave);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && navigator.onLine) void pull();
 });

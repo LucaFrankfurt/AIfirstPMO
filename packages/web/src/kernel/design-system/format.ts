@@ -1,5 +1,5 @@
 import { dueTone, type Priority, todayIn } from '@kolibri/shared';
-import { currentLocale } from '../i18n/i18n';
+import { currentLocale, type TranslationKey } from '../i18n/i18n';
 import { now } from '../sync/clock';
 
 export const PRIORITY_COLOR: Record<Priority, string> = {
@@ -131,6 +131,12 @@ export function relativeTime(timestamp?: number | null): string {
 export function dueClass(due: string | null | undefined, group: string | null | undefined): string {
   const tone = dueTone(due, group, today());
   return tone === 'overdue' ? 'text-danger' : tone === 'today' ? 'text-warn' : '';
+}
+
+/** The word the colour above stands for, so colour is never the only signal (UX-10). */
+export function dueWord(due: string | null | undefined, group: string | null | undefined): TranslationKey | null {
+  const tone = dueTone(due, group, today());
+  return tone === 'overdue' ? 'myWork.overdue' : tone === 'today' ? 'myWork.dueToday' : null;
 }
 
 /* ------------------------------------------------------------------ people */

@@ -8,7 +8,7 @@ import { useMemo } from 'react';
 import type { Task } from '@kolibri/shared';
 import { PRIORITIES, coversProject } from '@kolibri/shared';
 import { priorityKey, useT } from '../../kernel/i18n/i18n';
-import { moveTaskToProject, remove, update } from '../../kernel/sync/mutations';
+import { moveTaskToProject, remove, restore, update } from '../../kernel/sync/mutations';
 import { byId, list, useQuery } from '../../kernel/sync/store';
 import { useMembers, useSession } from '../../kernel/identity/session';
 import type { Selection } from '../../kernel/design-system/selection';
@@ -210,7 +210,16 @@ export function SelectionBar({ selection, tasks }: { selection: Selection; tasks
               id: 'archive',
               label: t('action.archive'),
               icon: <Icon name="archive" size={14} />,
-              onSelect: () => applyToAll({ archived: 1 }, t('select.archived', { count })),
+              onSelect: () => {
+                // Undo un-archives only what this archived, not what already was.
+                const ids = selected.filter((task) => !task.archived).map((task) => task.id);
+                for (const id of ids) update('task', id, { archived: 1 });
+                toast(t('select.archived', { count }), {
+                  label: t('action.undo'),
+                  run: () => { for (const id of ids) update('task', id, { archived: 0 }); },
+                });
+                selection.clear();
+              },
             },
             {
               id: 'unarchive',
@@ -224,8 +233,12 @@ export function SelectionBar({ selection, tasks }: { selection: Selection; tasks
               icon: <Icon name="trash" size={14} />,
               onSelect: async () => {
                 if (!(await confirm(t('select.deleteConfirm', { count })))) return;
-                for (const task of selected) remove('task', task.id);
-                toast(t('select.deleted', { count }));
+                const ids = selected.map((task) => task.id);
+                for (const id of ids) remove('task', id);
+                toast(t('select.deleted', { count }), {
+                  label: t('action.undo'),
+                  run: () => { for (const id of ids) restore('task', id); },
+                });
                 selection.clear();
               },
             },

@@ -7,15 +7,17 @@
  * time somebody added a screen — and the one that is never updated is the one
  * that silently stops checking the new thing.
  *
- * The fixtures are not optional furniture. Mail, decisions, meetings, the vault
- * and the catalogue are switched off in a seeded workspace, so without them
- * those screens do not merely go unchecked: they do not exist.
+ * The fixtures are not optional furniture. Mail, decisions, meetings, the vault,
+ * the catalogue, budgets, KPIs, the infrastructure register and the timesheet
+ * are switched off in a seeded workspace, so without them those screens do not
+ * merely go unchecked: they do not exist.
  */
 import { switchOnMail, openMailboxEditor } from './mail-fixture.mjs';
 import { switchOnDecisions } from './ballot-fixture.mjs';
 import { switchOnMeetings } from './meeting-fixture.mjs';
 import { switchOnVault } from './vault-fixture.mjs';
 import { switchOnProducts } from './catalogue-fixture.mjs';
+import { switchOnPlanning } from './planning-fixture.mjs';
 
 /** Sign in, switch everything on, and say what there is to walk. */
 export async function walkable(page, base) {
@@ -39,6 +41,7 @@ export async function walkable(page, base) {
   const meetingId = await switchOnMeetings(page);
   await switchOnVault(page);
   await switchOnProducts(page);
+  const { budgetId, kpiId } = await switchOnPlanning(page);
 
   /*
    * A product to open, because `/products` alone was never enough.
@@ -169,6 +172,13 @@ export async function walkable(page, base) {
     // environment, a strength pill, a rotation state and two icon buttons, which
     // at 340px is the case that decides whether a table folds or overflows.
     ['secrets', '/secrets'],
+    // Behind the budget, kpi, infrastructure and time switches; see `planning-fixture.mjs`.
+    ['budgets', '/budgets'],
+    ['budget', `/budgets/${budgetId}`],
+    ['kpis', '/kpis'],
+    ['kpi', `/kpis/${kpiId}`],
+    ['infrastructure', '/infrastructure'],
+    ['timesheet', '/timesheet'],
     ['guide', '/guide'],
   ];
 

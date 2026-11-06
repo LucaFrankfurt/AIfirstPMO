@@ -111,6 +111,21 @@ const inspect = () => {
   // Only #content scrolls; a scrolling document means a second scrollbar.
   if (doc.scrollHeight > doc.clientHeight + 1) out.push(`page scrolls vertically by ${doc.scrollHeight - doc.clientHeight}px (second scrollbar)`);
 
+  // Anything sticky in #content must stop below its sticky header, not slide under it.
+  const content = document.querySelector('#content');
+  const head = content?.querySelector(':scope > .header');
+  if (head) {
+    for (const el of content.querySelectorAll('*')) {
+      const cs = getComputedStyle(el);
+      if (el === head || cs.position !== 'sticky') continue;
+      let box = el.parentElement;
+      while (box && box !== content && !/(auto|scroll|hidden)/.test(getComputedStyle(box).overflowY)) box = box.parentElement;
+      if (box === content && parseFloat(cs.top) < head.offsetHeight - 0.5) {
+        out.push(`${el.tagName.toLowerCase()}.${[...el.classList].join('.')} sticks at ${cs.top}, under the ${head.offsetHeight}px header`);
+      }
+    }
+  }
+
   const header = document.querySelector('.header');
   if (header) {
     const box = header.getBoundingClientRect();

@@ -219,6 +219,35 @@ describe('a request that cannot be read', () => {
     await alive();
   });
 
+  it('is a 400 when a body or a file is the wrong shape, and one bad mutation fails alone (DAT-14)', async () => {
+    assert.equal((await call(`/api/workspaces/${workspace}/tasks`, { body: null })).status, 400);
+    assert.equal((await call(`/api/tasks/${taskId}`, { method: 'PATCH', body: null })).status, 400);
+    assert.equal((await call('/api/sync/push', { body: null })).status, 400);
+
+    const pushed = await call('/api/sync/push', { body: { workspaceId: workspace, clientId: 'c', mutations: [null] } });
+    assert.equal(pushed.status, 200, 'a null mutation failed the whole batch, and the client retries it forever');
+    assert.equal(pushed.body.rejected[0].status, 400);
+
+    const project = (fields: Record<string, unknown>) => call(`/api/workspaces/${workspace}/import/json`, {
+      body: { document: { format: 'kolibri.project/1', project: { name: 'Shapes' }, ...fields } },
+    });
+    assert.equal((await call(`/api/workspaces/${workspace}/import/json`, { body: null })).status, 400);
+    for (const fields of [{ tasks: 5 }, { tasks: [null] }, { people: {} }]) {
+      assert.equal((await project(fields)).status, 400, JSON.stringify(fields));
+    }
+
+    // A task that is its own parent overflowed the stack; a parent cycle was dropped without a word.
+    const looped = await project({ tasks: [
+      { id: 'x', title: 'First' }, { id: 'x', parent_id: 'x', title: 'Its own parent' },
+      { id: 'a', parent_id: 'b', title: 'A' }, { id: 'b', parent_id: 'a', title: 'B' },
+    ] });
+    assert.equal(looped.status, 200);
+    assert.equal(looped.body.counts.tasks, 4, 'every task in a loop arrives');
+    const roots = get<any>(`SELECT count(*) AS n FROM tasks WHERE project_id = ? AND parent_id IS NULL`, looped.body.project.id);
+    assert.equal(roots.n, 2, 'and the loop is broken where it closes, not written as one');
+    await alive();
+  });
+
   it('is a 400 when a file name will not decode, uploaded or asked for', async () => {
     assert.equal((await upload('%E0.txt')).status, 400);
     const { hash } = await (await upload('fine.txt')).json() as any;

@@ -37,8 +37,8 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          # 22.18+ runs the server's TypeScript directly and ships node:sqlite.
-          node-version: "22"
+          # An exact version, the same one the Dockerfiles build with.
+          node-version-file: .nvmrc
           cache: npm
       # `setup-node`'s cache is the npm *download* cache; `npm ci` still writes
       # every file of node_modules, which measured 354–423s on this workspace.
@@ -187,7 +187,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "22"
+          node-version-file: .nvmrc
           cache: npm
       # One cache for both installs, because Playwright lands in the same
       # node_modules that `npm ci` writes — so the key carries the lockfile and
@@ -286,7 +286,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "22"
+          node-version-file: .nvmrc
           cache: npm
       - id: modules
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
@@ -344,9 +344,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "22"
-          # The runner's cached 22.x can be older than Astro's `engines` floor.
-          check-latest: true
+          node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: sites/${{ matrix.site }}/package-lock.json
       # Two trees here: the site's own, and the repo root's — which this job

@@ -360,9 +360,9 @@ describe('mcp reports', () => {
       assert.ok(!text.includes('Do not leak me'), `${name} leaked the private title`);
     }
 
-    // And asking for it by name is refused rather than answered emptily.
-    await assert.rejects(() => tool(graceToken, 'cycle_review', { project: 'SEC' }), /private/);
-    await assert.rejects(() => tool(graceToken, 'deadlines_at_risk', { project: 'SEC' }), /private/);
+    // And asking for it by name is refused rather than answered emptily — as not found, so the name is not confirmed (API-14).
+    await assert.rejects(() => tool(graceToken, 'cycle_review', { project: 'SEC' }), /Project SEC not found/);
+    await assert.rejects(() => tool(graceToken, 'deadlines_at_risk', { project: 'SEC' }), /Project SEC not found/);
   });
 });
 

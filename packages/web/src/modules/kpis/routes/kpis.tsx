@@ -103,7 +103,7 @@ export function KpiIndex() {
                 {rows.map(({ kpi, progress, trend }) => (
                   <tr key={kpi.id} onClick={() => navigate(`/kpis/${kpi.id}`)}>
                     <td className="title">
-                      <Link to={`/kpis/${kpi.id}`}>{kpi.name}</Link>
+                      <Link className="cell-link" to={`/kpis/${kpi.id}`}>{kpi.name}</Link>
                       {/* The row is seven columns wide and a phone shows two,
                           so what somebody came for goes under the name — and
                           only there. See `row-sub-sm` in the stylesheet.

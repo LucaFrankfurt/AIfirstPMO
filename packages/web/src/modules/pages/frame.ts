@@ -29,7 +29,7 @@ import { artboard, fitBoard, fitCss, intoHead } from '@kolibri/shared';
  * for a sandboxed frame. So the address has to change whenever the file does,
  * and `test/frame.test.ts` fails if this is not the file's current hash.
  */
-export const FRAME_VERSION = 'd5c5ac1c1712';
+export const FRAME_VERSION = '71663483e1b1';
 export const FRAME_URL = `/artboard.html?v=${FRAME_VERSION}`;
 
 /**

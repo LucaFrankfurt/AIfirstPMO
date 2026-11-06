@@ -423,7 +423,7 @@ export function ProjectInsights({ projectId }: { projectId: string }) {
         </div>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {byLabel.length > 0 && (
           <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
             <h2 className="chart-title">{t('insights.byLabel')}</h2>

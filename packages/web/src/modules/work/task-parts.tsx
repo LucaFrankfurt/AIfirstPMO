@@ -3,9 +3,9 @@ import {
   PRIORITIES, ancestry, coversProject, descendants, fieldKeys, isDoneGroup, mayEnter,
   type Cycle, type Filters, type Label, type Layout, type Module, type State, type Task,
 } from '@kolibri/shared';
-import { byId, list, useQuery } from '../../kernel/sync/store';
+import { byId, list, listBy, useQuery } from '../../kernel/sync/store';
 import { byOrder, moveTaskToProject, remove, restore, toggleAssignee, toggleLabel, update } from '../../kernel/sync/mutations';
-import { dueClass, shortDate } from '../../kernel/design-system/format';
+import { dueClass, dueWord, shortDate } from '../../kernel/design-system/format';
 import { groupKey, priorityKey, useT, type Translate } from '../../kernel/i18n/i18n';
 import { useMemberMap, useMembers, useSession } from '../../kernel/identity/session';
 import { EMPTY_SELECTION, SelectBox, useLongPressSelect, type Selection } from '../../kernel/design-system/selection';
@@ -448,7 +448,7 @@ export function TaskRow({
   const project = byId('project', task.project_id);
   const done = isDoneGroup(state?.group_key);
   const people = (task.assignees ?? []).map((id) => members.get(id)).filter(Boolean) as any[];
-  const subtasks = useQuery(() => list('task', (t) => t.parent_id === task.id), [task.id]);
+  const subtasks = useQuery(() => listBy('task', 'parent_id', task.id), [task.id]);
   const picked = !!selection?.has(task.id);
   const press = useLongPressSelect(task.id, order ?? [task.id], selection ?? EMPTY_SELECTION);
 
@@ -471,11 +471,24 @@ export function TaskRow({
       <span className="meta">
         <LabelChips ids={task.labels ?? []} projectId={task.project_id} />
         {!!subtasks.length && <span className={chipVariants()} title={t('task.subtasks')}>⑂ {subtasks.length}</span>}
-        {task.due_date && <span className={cn(chipVariants(), dueClass(task.due_date, state?.group_key))}>{shortDate(task.due_date)}</span>}
+        {task.due_date && <DueChip due={task.due_date} group={state?.group_key} />}
         {task.priority !== 'none' && <PriorityBars priority={task.priority} />}
         <AvatarStack users={people} size={20} />
       </span>
     </div>
+  );
+}
+
+/** A due date, coloured when late or today, with a shape and a word as well (UX-10). */
+function DueChip({ due, group }: { due: string; group?: string | null }) {
+  const t = useT();
+  const word = dueWord(due, group);
+  return (
+    <span className={cn(chipVariants(), dueClass(due, group))} title={word ? t(word) : undefined}>
+      {word && <Icon name={word === 'myWork.overdue' ? 'alert' : 'clock'} size={11} />}
+      {word && <span className="sr-only">{t(word)}</span>}
+      {shortDate(due)}
+    </span>
   );
 }
 
@@ -608,7 +621,7 @@ export function TaskCard({
             <span className="truncate">{module.name}</span>
           </span>
         )}
-        {task.due_date && <span className={cn(chipVariants(), dueClass(task.due_date, state?.group_key))}>{shortDate(task.due_date)}</span>}
+        {task.due_date && <DueChip due={task.due_date} group={state?.group_key} />}
         {task.estimate != null && <Chip>{task.estimate}p</Chip>}
         <span className="flex-1 min-w-0" />
         <AvatarStack users={people} size={20} />

@@ -11,9 +11,9 @@
  * feature switch was on — there was simply no link to them on a phone.
  *
  * So the set lives here and both surfaces render it. They still render it
- * differently — the sidebar interleaves the projects and the More screen
+ * differently — the sidebar adds the project tree and the More screen
  * groups by card — but neither of them decides *what* is in the app, and
- * adding a destination to this list puts it on both.
+ * adding a destination to this list puts it on both, and in the ⌘K palette.
  *
  * `reachable.test.ts` reads the router and asserts that every top-level route
  * is in this list or in the phone's bottom bar, so the next feature cannot
@@ -60,9 +60,8 @@ export const WORKSPACE_DESTINATIONS: readonly Destination[] = [
 ];
 
 /**
- * The planning surfaces, which sit under the projects on both navigations
- * because that is what they are about: who is doing what, what it costs, and
- * what it runs on.
+ * The planning surfaces: who is doing what, what it costs, and what it runs on.
+ * Both navigations list them above the projects, which grow (UI-01).
  *
  * Portfolio is not here — it appears only where there is more than one project
  * to hold a portfolio of, which is a condition about data rather than about a

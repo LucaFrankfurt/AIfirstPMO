@@ -15,11 +15,11 @@
  * to its default tone lands here rather than rotting quietly.
  */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import { join } from 'node:path';
 import { cn } from '../src/kernel/design-system/cn.ts';
-import { dueClass, today } from '../src/kernel/design-system/format.ts';
+import { dueClass, dueWord, today } from '../src/kernel/design-system/format.ts';
 
 const SRC = join(import.meta.dirname, '..', 'src');
 
@@ -74,5 +74,23 @@ describe('and whether the chip lets it through', () => {
   it('leaves the chip alone when there is nothing to say', () => {
     const classes = cn(tone, dueClass('2099-01-01', 'started')).split(' ');
     assert.ok(classes.includes('text-soft'), classes.join(' '));
+  });
+});
+
+// Colour alone fails anyone who cannot tell red from orange (UX-10).
+describe('and the word that goes with the colour', () => {
+  it('names late and today, and nothing else', () => {
+    assert.equal(dueWord(yesterday(), 'started'), 'myWork.overdue');
+    assert.equal(dueWord(today(), 'unstarted'), 'myWork.dueToday');
+    assert.equal(dueWord('2099-01-01', 'started'), null);
+    assert.equal(dueWord(yesterday(), 'completed'), null);
+  });
+
+  it('is said wherever a due date is coloured', () => {
+    const colouring = readdirSync(SRC, { recursive: true, encoding: 'utf8' })
+      .filter((file) => /\.tsx?$/.test(file) && !file.endsWith('format.ts'))
+      .filter((file) => readFileSync(join(SRC, file), 'utf8').includes('dueClass('));
+    assert.ok(colouring.length, 'nothing calls dueClass any more — this test is looking at the wrong thing');
+    for (const file of colouring) assert.match(readFileSync(join(SRC, file), 'utf8'), /dueWord\(/, `${file} colours a due date and says nothing`);
   });
 });

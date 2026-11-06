@@ -104,7 +104,7 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
             </Button>
             <Button variant="ghost" size="iconSm" aria-label={t('share.revoke')} title={t('share.revoke')}
               onClick={async () => {
-                if (await confirm(t('share.revokeConfirm'))) remove('share', share.id);
+                if (await confirm(t('share.revokeConfirm'), t('share.revoke'))) remove('share', share.id);
               }}
             >
               <Icon name="trash" size={13} />

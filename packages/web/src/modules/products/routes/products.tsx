@@ -190,7 +190,7 @@ function Capabilities() {
                               label: t('action.delete'),
                               danger: true,
                               onSelect: async () => {
-                                if (await confirm(t('product.removeCapabilityHint'))) remove('productCapability', capability.id);
+                                if (await confirm(t('product.removeCapabilityHint'), t('action.remove'))) remove('productCapability', capability.id);
                               },
                             },
                           ]}
@@ -590,7 +590,7 @@ function GroupAdmin({ groups }: { groups: ProductGroup[] }) {
               title={t('product.removeGroup', { name: group.name })}
               aria-label={t('product.removeGroup', { name: group.name })}
               onClick={async () => {
-                if (await confirm(t('product.removeGroupHint', { name: group.name }))) {
+                if (await confirm(t('product.removeGroupHint', { name: group.name }), t('action.remove'))) {
                   remove('productGroup', group.id);
                 }
               }}
@@ -726,7 +726,7 @@ function Promotions() {
                             id: 'delete',
                             label: t('action.delete'),
                             danger: true,
-                            onSelect: async () => { if (await confirm(t('product.removePromotionHint'))) remove('promotion', promotion.id); },
+                            onSelect: async () => { if (await confirm(t('product.removePromotionHint'), t('action.remove'))) remove('promotion', promotion.id); },
                           },
                           ]}
                         >
@@ -1069,7 +1069,7 @@ function Scenarios() {
                             id: 'delete',
                             label: t('action.delete'),
                             danger: true,
-                            onSelect: async () => { if (await confirm(t('product.removeScenarioHint'))) remove('productScenario', scenario.id); },
+                            onSelect: async () => { if (await confirm(t('product.removeScenarioHint'), t('action.remove'))) remove('productScenario', scenario.id); },
                           },
                           ]}
                         >
@@ -1522,7 +1522,7 @@ function Contributors({ product, contributors }: { product: Product; contributor
                           id: 'delete',
                           label: t('action.delete'),
                           danger: true,
-                          onSelect: async () => { if (await confirm(t('product.removeContributorHint'))) remove('productContributor', person.id); },
+                          onSelect: async () => { if (await confirm(t('product.removeContributorHint'), t('action.remove'))) remove('productContributor', person.id); },
                         },
                         ]}
                       >
@@ -1722,7 +1722,7 @@ function Prices({ product }: { product: Product }) {
                           id: 'delete',
                           label: t('action.delete'),
                           danger: true,
-                          onSelect: async () => { if (await confirm(t('product.removePriceHint'))) remove('productPrice', price.id); },
+                          onSelect: async () => { if (await confirm(t('product.removePriceHint'), t('action.remove'))) remove('productPrice', price.id); },
                         },
                         ]}
                       >
@@ -2078,7 +2078,7 @@ function Costs({ product }: { product: Product }) {
                             id: 'delete',
                             label: t('action.delete'),
                             danger: true,
-                            onSelect: async () => { if (await confirm(t('product.removeCostHint'))) remove('productCost', cost.id); },
+                            onSelect: async () => { if (await confirm(t('product.removeCostHint'), t('action.remove'))) remove('productCost', cost.id); },
                           },
                           ]}
                         >
@@ -2350,7 +2350,7 @@ function Package({ product, entry }: { product: Product; entry: CatalogueEntry }
                         size="icon"
                         aria-label={t('action.delete')}
                         onClick={async () => {
-                          if (await confirm(t('product.removePartHint'))) {
+                          if (await confirm(t('product.removePartHint'), t('action.remove'))) {
                             remove('productPart', part.id);
                           }
                         }}

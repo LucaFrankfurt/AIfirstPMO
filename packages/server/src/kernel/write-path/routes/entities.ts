@@ -58,6 +58,13 @@ const projectOf = (entity: EntityName, row: Row): string | null =>
  */
 const TASK_BOUND = new Set<EntityName>(['comment', 'relation']);
 
+/** A body of `null`, a number or a list is the caller's mistake, not a 500. */
+async function readObject<T>(ctx: Ctx, limit?: number): Promise<T> {
+  const body = await readJson<T>(ctx, limit);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw badRequest('Send a JSON object');
+  return body;
+}
+
 /**
  * Whether this row is one this person may have at all.
  *
@@ -447,7 +454,7 @@ export function registerEntityRoutes(router: Router): void {
     const auth = requireAuth(ctx);
     requireWorkspace(ctx, ctx.params.ws, 'member');
     if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
-    const body = await readJson<{
+    const body = await readObject<{
       document?: unknown; name?: string; key?: string; match_people?: boolean;
       /** Merge into a project that already exists rather than making one. */
       project_id?: string;
@@ -491,7 +498,7 @@ export function registerEntityRoutes(router: Router): void {
   router.post('/api/workspaces/:ws/import/json/inspect', async (ctx: Ctx) => {
     requireAuth(ctx);
     requireWorkspace(ctx, ctx.params.ws, 'member');
-    const body = await readJson<{ document?: unknown }>(ctx, env.maxImportBytes);
+    const body = await readObject<{ document?: unknown }>(ctx, env.maxImportBytes);
     const doc = body.document as Record<string, unknown> | undefined;
     if (doc && typeof doc.format === 'string' && doc.format.startsWith('kolibri.workspace/')) {
       const projects = (doc.projects as { tasks?: unknown[] }[] | undefined) ?? [];
@@ -790,7 +797,7 @@ export function registerEntityRoutes(router: Router): void {
     // one. Everything else is still refused.
     if (!hasRole(role, 'member') && !isGuestWritable(entity)) throw forbidden('Guests cannot create content');
     guardRate(ctx, entity, ctx.params.ws);
-    const body = await readJson<Record<string, unknown>>(ctx);
+    const body = await readObject<Record<string, unknown>>(ctx);
 
     if (entity === 'project') {
       const project = createProject(ctx.params.ws, auth.userId, {
@@ -838,7 +845,7 @@ export function registerEntityRoutes(router: Router): void {
     if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
     if (!hasRole(role, 'member') && !isGuestWritable(entity)) throw forbidden('Guests cannot edit content');
     guardRow(ctx, auth.userId, entity, row, role);
-    const body = await readJson<Record<string, unknown>>(ctx);
+    const body = await readObject<Record<string, unknown>>(ctx);
     const { row: updated } = writeEntity(entity, ctx.params.id, body, {
       workspaceId: row.workspace_id,
       actorId: auth.userId,

@@ -3565,7 +3565,7 @@ await step('with no model configured, reviews leave no trace', async () => {
  * This step exists because two bugs shipped through everything else in this
  * repository, and both were invisible to every check that already ran.
  *
- * The **feature-switched screens are not in any of the browser scripts' lists**
+ * The **feature-switched screens were not in any of the browser scripts' lists**
  * — a seeded instance has budgets, KPIs, the timesheet and mail switched off,
  * so `responsive.mjs`, `contrast.mjs` and this walkthrough all stopped at the
  * door. The mailbox editor shipped with its host field squeezed to two pixels

@@ -33,7 +33,7 @@ import { api } from '../../../kernel/sync/api';
 import { now } from '../../../kernel/sync/clock';
 import { useMinute } from '../../../kernel/design-system/minute';
 import { create, remove, update } from '../../../kernel/sync/mutations';
-import { list, byId, useQuery } from '../../../kernel/sync/store';
+import { list, listBy, byId, useQuery } from '../../../kernel/sync/store';
 import { useT } from '../../../kernel/i18n/i18n';
 import { briefWhen, clockTime, exactTime, longDate } from '../../../kernel/design-system/format';
 import { isPendingRow, subscribeSync } from '../../../kernel/sync/sync';
@@ -186,7 +186,7 @@ function useUnread(channelId: string, me: string): number {
     const marker = byId('channelRead', readStateId(channelId, me));
     if (marker?.notify === 'none') return 0;
     return unreadCount(
-      list('message', (message) => message.channel_id === channelId),
+      listBy('message', 'channel_id', channelId),
       marker?.last_read_at ?? 0,
       me,
     );
@@ -1127,7 +1127,10 @@ function ChannelSettings({ channel, me, onClose, onGone }: {
               {(mayManage || id === me) && inside.length > 1 && (
                 <Button variant="ghost" size="sm"
                   onClick={async () => {
-                    if (id === me && !(await confirm(t('chat.confirmLeave')))) return;
+                    const asked = id === me
+                      ? confirm(t('chat.confirmLeave', { name: channel.name }), t('chat.leave'), t('chat.leaveTitle'))
+                      : confirm(t('chat.confirmRemove', { name: members.get(id)?.name ?? id, channel: channel.name }), t('chat.remove'), t('chat.removeTitle'));
+                    if (!(await asked)) return;
                     setMembers(inside.filter((other) => other !== id));
                     if (id === me) { onClose(); onGone(); }
                   }}
@@ -1195,7 +1198,7 @@ function ChannelSettings({ channel, me, onClose, onGone }: {
         {mayRetitle && (
           <Button variant="danger" size="sm"
             onClick={async () => {
-              if (!(await confirm(t('chat.confirmDelete')))) return;
+              if (!(await confirm(t('chat.confirmDelete', { name: channel.name })))) return;
               remove('channel', channel.id);
               onClose();
               onGone();

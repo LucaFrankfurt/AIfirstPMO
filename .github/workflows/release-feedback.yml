@@ -31,7 +31,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "22"
+          node-version-file: .nvmrc
       # A tag is a promise about what it publishes. Refuse one whose name and the
       # package version disagree, or that points at a commit main never had — a tag on
       # an unreviewed branch would otherwise publish unreviewed code.
@@ -67,9 +67,15 @@ jobs:
       contents: read
       id-token: write
     steps:
+      # Only .nvmrc: this job runs no repository code.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          sparse-checkout: .nvmrc
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "22"
+          node-version-file: .nvmrc
           registry-url: https://registry.npmjs.org
       # Trusted publishing needs npm 11.5.1 or later; Node 22 ships npm 10.
       - run: npm install -g npm@11.21.1 --no-audit --no-fund --ignore-scripts

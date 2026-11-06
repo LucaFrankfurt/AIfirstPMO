@@ -87,9 +87,19 @@ export function startFlow(next = '/'): Pending {
     verifier: base64url(randomBytes(48)),
     // An open redirect is the classic mistake here: only a path on this
     // instance is ever accepted, never a full URL somebody handed us.
-    next: next.startsWith('/') && !next.startsWith('//') ? next : '/',
+    next: samePath(next),
     created_at: Date.now(),
   };
+}
+
+// A browser reads `/\evil.example` as `//evil.example` and drops tabs and newlines, so both are refused.
+function samePath(next: string): string {
+  if (!next.startsWith('/') || /[\\\u0000-\u001f\u007f]/.test(next)) return '/';
+  try {
+    return new URL(next, 'http://kolibri.invalid').origin === 'http://kolibri.invalid' ? next : '/';
+  } catch {
+    return '/';
+  }
 }
 
 export const challengeFor = (verifier: string): string =>

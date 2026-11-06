@@ -323,6 +323,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               />
             ))}
 
+            {projects.length > 1 && <RailItem to="/portfolio" icon="target" label={t('nav.portfolio')} />}
+            {enabled(PLANNING_DESTINATIONS, has).map((item) => (
+              <RailItem key={item.to} to={item.to} icon={item.icon} label={t(item.label)} />
+            ))}
+
             {nested.length > 0 && <div className="my-1.5 h-px w-full bg-line" />}
             {/* Its own emoji rather than a generic folder, because that is what
                 tells two projects apart once the names are gone. The fallback
@@ -334,10 +339,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               >
                 <span style={{ fontSize: 15, lineHeight: 1 }}>{project.icon ?? '•'}</span>
               </NavLink>
-            ))}
-            {projects.length > 1 && <RailItem to="/portfolio" icon="target" label={t('nav.portfolio')} />}
-            {enabled(PLANNING_DESTINATIONS, has).map((item) => (
-              <RailItem key={item.to} to={item.to} icon={item.icon} label={t(item.label)} />
             ))}
 
             <div className="flex-1" />
@@ -376,6 +377,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Item key={item.to} to={item.to} icon={item.icon} count={item.to === '/chat' ? unreadMessages : undefined}>
                 {t(item.label)}
               </Item>
+            ))}
+
+            {/* Above the projects, so a growing project list cannot push whole modules below the fold (UI-01). */}
+            {projects.length > 1 && (
+              <NavLink to="/portfolio" className={navItem()}>
+                <Icon name="target" size={15} />
+                <span className="flex-1 min-w-0 truncate">{t('nav.portfolio')}</span>
+              </NavLink>
+            )}
+            {enabled(PLANNING_DESTINATIONS, has).map((item) => (
+              <NavLink key={item.to} to={item.to} className={navItem()}>
+                <Icon name={item.icon} size={15} />
+                <span className="flex-1 min-w-0 truncate">{t(item.label)}</span>
+              </NavLink>
             ))}
 
             <div className="nav-section">
@@ -424,18 +439,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 {t('nav.moveToTop')}
               </div>
             )}
-            {projects.length > 1 && (
-              <NavLink to="/portfolio" className={navItem()}>
-                <Icon name="target" size={15} />
-                <span className="flex-1 min-w-0 truncate">{t('nav.portfolio')}</span>
-              </NavLink>
-            )}
-            {enabled(PLANNING_DESTINATIONS, has).map((item) => (
-              <NavLink key={item.to} to={item.to} className={navItem()}>
-                <Icon name={item.icon} size={15} />
-                <span className="flex-1 min-w-0 truncate">{t(item.label)}</span>
-              </NavLink>
-            ))}
             {!projects.length && (
               <button className={navItem()} onClick={() => navigate('/projects/new')}>
                 <Icon name="plus" size={15} /> {t('nav.firstProject')}

@@ -13,7 +13,7 @@ import { tokenScope } from '../tokens';
 import { Backups, PersonalExport, WorkspaceTransfer } from '../../../adapters/transfer/data';
 import { Sessions, TwoFactor } from '../../../kernel/identity/security';
 import { downscale } from '../../../kernel/files/uploads';
-import { LOCALE_NAMES, UNREVIEWED, localeLabel, roleKey, useI18n, useT, type Locale, type TranslationKey, type Translate } from '../../../kernel/i18n/i18n';
+import { LOCALE_NAMES, UNREVIEWED, currentLocale, localeLabel, roleKey, useI18n, useT, type Locale, type TranslationKey, type Translate } from '../../../kernel/i18n/i18n';
 import { PushToggle } from '../../../adapters/push/push';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { buttonVariants } from '../../../kernel/design-system/ui/button';
@@ -932,6 +932,7 @@ function ApiSettings() {
   const t = useT();
   const { workspaceId, session } = useSession();
   const toast = useToast();
+  const { confirm, dialog } = useConfirm();
   const [tokens, setTokens] = useState<any[]>([]);
   const [name, setName] = useState('Claude');
   const [confined, setConfined] = useState(false);
@@ -1015,11 +1016,14 @@ function ApiSettings() {
             {token.last_used_at ? t('api.usedAgo', { time: relativeTime(token.last_used_at) }) : t('api.neverUsed')}
           </span>
           <Button variant="ghost" size="iconSm" title={t('api.revoke')} disabled={action.busy}
-            onClick={() => void action.run(async () => {
-              await api.revokeToken(token.id);
-              load();
-              toast(t('api.revoked'));
-            })}
+            onClick={async () => {
+              if (!(await confirm(t('api.revokeConfirm', { name: token.name }), t('api.revokeAction'), t('api.revoke')))) return;
+              void action.run(async () => {
+                await api.revokeToken(token.id);
+                load();
+                toast(t('api.revoked'));
+              });
+            }}
           >
             <Icon name="trash" size={14} />
           </Button>
@@ -1063,6 +1067,7 @@ function ApiSettings() {
           </Button>
         </Sheet>
       )}
+      {dialog}
     </>
   );
 }
@@ -1081,19 +1086,20 @@ function DataSettings() {
     navigator.storage?.persisted?.().then(setPersisted).catch(() => undefined);
   }, []);
 
-  const mb = (value?: number) => (value ? `${(value / 1024 / 1024).toFixed(1)} MB` : '—');
+  const mb = (value?: number) => (value ? `${(value / 1024 / 1024).toLocaleString(currentLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })} MB` : '—');
 
   return (
     <>
+      {/* First, because it is what people come here for and the More screen links straight to it. */}
+      <Trash />
+
+      <div className="my-2 h-px bg-line" style={{ margin: '22px 0' }} />
+
       <AuditLog />
 
       <div className="my-2 h-px bg-line" style={{ margin: '22px 0' }} />
 
       <Webhooks />
-
-      <div className="my-2 h-px bg-line" style={{ margin: '22px 0' }} />
-
-      <Trash />
 
       <div className="my-2 h-px bg-line" style={{ margin: '22px 0' }} />
 

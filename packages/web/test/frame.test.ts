@@ -14,6 +14,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
+import { runInNewContext } from 'node:vm';
 import { FRAME_VERSION, outboundLink, prepare, readMessage, type RuntimeConfig } from '../src/modules/pages/frame.ts';
 
 const config = (mode: RuntimeConfig['mode']): RuntimeConfig => ({
@@ -25,6 +26,52 @@ describe('the frame file', () => {
     const file = readFileSync(new URL('../public/artboard.html', import.meta.url));
     const hash = createHash('sha256').update(file).digest('hex').slice(0, FRAME_VERSION.length);
     assert.equal(FRAME_VERSION, hash, 'artboard.html changed: set FRAME_VERSION to the new hash');
+  });
+
+  /** The frame's own script, run against a window whose size and clock the test holds. */
+  const frame = (width: number) => {
+    const html = readFileSync(new URL('../public/artboard.html', import.meta.url), 'utf8');
+    const script = /<script>([\s\S]*)<\/script>/.exec(html)![1];
+    const listeners = new Map<string, Set<(event: unknown) => void>>();
+    const timers: (() => void)[] = [];
+    const written: string[] = [];
+    const parent = { postMessage() {} };
+    const window = {
+      innerWidth: width, parent,
+      addEventListener: (type: string, fn: (event: unknown) => void) => {
+        if (!listeners.has(type)) listeners.set(type, new Set());
+        listeners.get(type)!.add(fn);
+      },
+      removeEventListener: (type: string, fn: (event: unknown) => void) => listeners.get(type)?.delete(fn),
+      setTimeout: (fn: () => void) => timers.push(fn),
+      clearTimeout: () => { timers.length = 0; },
+      document: { open() {}, write: (text: string) => written.push(text), close() {} },
+    };
+    runInNewContext(script, window);
+    const fire = (type: string, event: unknown = {}) => [...(listeners.get(type) ?? [])].forEach((fn) => fn(event));
+    fire('message', { source: parent, data: { type: 'kolibri:render', html: '<p>board</p>' } });
+    return { window, written, timers, fire };
+  };
+
+  it('writes a board at once into a frame that has a size', () => {
+    assert.deepEqual(frame(374).written, ['<p>board</p>']);
+  });
+
+  it('writes a board into a frame with no width only once it has one', () => {
+    const { window, written, fire } = frame(0);
+    assert.deepEqual(written, []);
+    fire('resize');
+    assert.deepEqual(written, []);
+    window.innerWidth = 374;
+    fire('resize');
+    fire('resize');
+    assert.deepEqual(written, ['<p>board</p>']);
+  });
+
+  it('writes it anyway into a frame that never gets a width', () => {
+    const { written, timers } = frame(0);
+    timers.forEach((fn) => fn());
+    assert.deepEqual(written, ['<p>board</p>']);
   });
 });
 

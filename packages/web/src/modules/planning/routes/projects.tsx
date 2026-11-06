@@ -142,7 +142,7 @@ export function ProjectList() {
         )}
       </Header>
       <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {projects.map((project) => <ProjectCard key={project.id} projectId={project.id} />)}
         </div>
         {!projects.length && (
@@ -330,7 +330,7 @@ function ContainerChildren({ projectId }: { projectId: string }) {
   return (
     <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
       <p className="text-muted text-[12.5px] mb-2.5">{t('project.containerCount', { count: children.length })}</p>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {children.map((child) => {
           const mine = tasks.filter((task) => task.project_id === child.id);
           const done = mine.filter((task) => byId('state', task.state_id)?.group_key === 'completed').length;
@@ -554,6 +554,7 @@ function Cycles({ projectId }: { projectId: string }) {
   );
   const [editing, setEditing] = useState<string | 'new' | null>(null);
   const { confirm, dialog } = useConfirm();
+  const canWrite = useCanWrite();
   const day = today();
 
   return (
@@ -561,12 +562,12 @@ function Cycles({ projectId }: { projectId: string }) {
       <div className="flex items-center gap-2 mb-3">
         <h2 className="text-[15px]">{t('cycle.title')}</h2>
         <span className="flex-1 min-w-0" />
-        <Button size="sm" onClick={() => setEditing('new')}><Icon name="plus" size={14} /> {t('cycle.new')}</Button>
+        {canWrite && <Button size="sm" onClick={() => setEditing('new')}><Icon name="plus" size={14} /> {t('cycle.new')}</Button>}
       </div>
 
       {!cycles.length && <Empty emoji="🔁" title={t('cycle.emptyTitle')} hint={t('cycle.emptyHint')} guide="planning" />}
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {cycles.map((cycle) => {
           const active = cycle.start_date && cycle.end_date && cycle.start_date <= day && cycle.end_date >= day;
           return (
@@ -593,11 +594,11 @@ function Cycles({ projectId }: { projectId: string }) {
                   variant="ghost" size="iconSm"
                   label={t('common.moreActions')}
                   items={[
-                    { id: 'edit', label: t('action.edit'), onSelect: () => setEditing(cycle.id) },
+                    ...(canWrite ? [{ id: 'edit', label: t('action.edit'), onSelect: () => setEditing(cycle.id) }] : []),
                     { id: 'open', label: t('cycle.showTasks'), onSelect: () => navigate(`/cycles/${cycle.id}`) },
-                    { id: 'delete', label: t('action.delete'), danger: true, onSelect: async () => {
+                    ...(canWrite ? [{ id: 'delete', label: t('action.delete'), danger: true, onSelect: async () => {
                       if (await confirm(t(cycle.project_id ? 'cycle.deleteConfirm' : 'cycle.deleteSharedConfirm', { name: cycle.name }))) remove('cycle', cycle.id);
-                    } },
+                    } }] : []),
                   ]}
                 >
                   <Icon name="dots" size={14} />
@@ -878,6 +879,7 @@ export function CyclePage() {
   const cycle = useRow('cycle', id);
   const [view, setView] = useState<ViewConfig>({ ...DEFAULT_VIEW, groupBy: 'state' });
   const [adding, setAdding] = useState(false);
+  const canWrite = useCanWrite();
   const tasks = useQuery(() => list('task', (t) => t.cycle_id === id), [id]);
   const visible = useVisibleTasks(tasks, view);
 
@@ -917,7 +919,7 @@ export function CyclePage() {
             already offers a picker when it is not told one, which is exactly
             the right question to ask here. */}
         <ViewControls view={view} onChange={setView} projectId={cycle.project_id ?? undefined} />
-        <Button variant="primary" size="sm" title={t('nav.newTask')} onClick={() => setAdding(true)}><Icon name="plus" size={14} /></Button>
+        {canWrite && <Button variant="primary" size="sm" title={t('nav.newTask')} onClick={() => setAdding(true)}><Icon name="plus" size={14} /></Button>}
       </Header>
       <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
         <Trail parts={planningCrumbs(cycle.project_id, 'cycles', t('nav.projects'))} />
@@ -960,6 +962,7 @@ function Modules({ projectId }: { projectId: string }) {
      and gives the name and the target date one place instead of two. */
   const [editing, setEditing] = useState<string | 'new' | null>(null);
   const { confirm, dialog } = useConfirm();
+  const canWrite = useCanWrite();
 
   return (
     <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
@@ -967,12 +970,12 @@ function Modules({ projectId }: { projectId: string }) {
         <h2 className="text-[15px]">{t('module.title')}</h2>
         <span className="text-muted text-[12.5px]">{t('module.subtitle')}</span>
         <span className="flex-1 min-w-0" />
-        <Button size="sm" onClick={() => setEditing('new')}><Icon name="plus" size={14} /> {t('module.new')}</Button>
+        {canWrite && <Button size="sm" onClick={() => setEditing('new')}><Icon name="plus" size={14} /> {t('module.new')}</Button>}
       </div>
 
       {!modules.length && <Empty emoji="🎯" title={t('module.emptyTitle')} hint={t('module.emptyHint')} guide="planning" />}
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {modules.map((module) => {
           const tasks = list('task', (task) => task.module_id === module.id);
           const done = tasks.filter((task) => isDoneGroup(byId('state', task.state_id)?.group_key)).length;
@@ -996,32 +999,36 @@ function Modules({ projectId }: { projectId: string }) {
                   </span>
                 )}
                 {lead && <Avatar user={lead} size={20} />}
-                <MenuButton
-                  variant="ghost" size="iconSm"
-                  label={t('common.moreActions')}
-                  items={[
-                    { id: 'edit', label: t('action.edit'), onSelect: () => setEditing(module.id) },
-                    ...members.map((member) => ({
-                      id: member.id, section: t('project.lead'), label: member.name,
-                      onSelect: () => update('module', module.id, { lead_id: member.id }),
-                    })),
-                    { id: 'delete', section: t('module.danger'), label: t('module.delete'), danger: true, onSelect: async () => {
-                      if (await confirm(t(module.project_id ? 'module.deleteConfirm' : 'module.deleteSharedConfirm', { name: module.name }))) remove('module', module.id);
-                    } },
-                  ]}
-                >
-                  <Icon name="dots" size={14} />
-                </MenuButton>
+                {canWrite && (
+                  <MenuButton
+                    variant="ghost" size="iconSm"
+                    label={t('common.moreActions')}
+                    items={[
+                      { id: 'edit', label: t('action.edit'), onSelect: () => setEditing(module.id) },
+                      ...members.map((member) => ({
+                        id: member.id, section: t('project.lead'), label: member.name,
+                        onSelect: () => update('module', module.id, { lead_id: member.id }),
+                      })),
+                      { id: 'delete', section: t('module.danger'), label: t('module.delete'), danger: true, onSelect: async () => {
+                        if (await confirm(t(module.project_id ? 'module.deleteConfirm' : 'module.deleteSharedConfirm', { name: module.name }))) remove('module', module.id);
+                      } },
+                    ]}
+                  >
+                    <Icon name="dots" size={14} />
+                  </MenuButton>
+                )}
               </div>
               <Progress value={done} total={tasks.length} />
               <div className="flex items-center gap-2 text-muted text-[12.5px] mt-1.5">
                 <span>{done}/{tasks.length}</span>
                 <span className="flex-1 min-w-0" />
-                <Input
-                  inputSize="sm" type="date" style={{ width: 150, height: 28 }}
-                  value={module.target_date ?? ''}
-                  onChange={(event) => update('module', module.id, { target_date: event.target.value || null })}
-                />
+                {canWrite ? (
+                  <Input
+                    inputSize="sm" type="date" style={{ width: 150, height: 28 }}
+                    value={module.target_date ?? ''}
+                    onChange={(event) => update('module', module.id, { target_date: event.target.value || null })}
+                  />
+                ) : module.target_date && <span>{shortDate(module.target_date)}</span>}
               </div>
               <Button size="sm" block className="mt-2" onClick={() => navigate(`/modules/${module.id}`)}>{t('action.open')}</Button>
             </div>
@@ -1115,6 +1122,7 @@ function ProjectPages({ projectId }: { projectId: string }) {
   const t = useT();
   const navigate = useNavigate();
   const me = useMe();
+  const canWrite = useCanWrite();
   const pages = useQuery(() => list('page', (p) => p.project_id === projectId && !p.archived), [projectId]);
 
   return (
@@ -1122,9 +1130,11 @@ function ProjectPages({ projectId }: { projectId: string }) {
       <div className="flex items-center gap-2 mb-3">
         <h2 className="text-[15px]">{t('project.pagesTitle')}</h2>
         <span className="flex-1 min-w-0" />
-        <Button size="sm" onClick={() => navigate(`/pages/${createPage({ project_id: projectId, title: t('common.untitled') }, me)}`)}>
-          <Icon name="plus" size={14} /> {t('project.newPage')}
-        </Button>
+        {canWrite && (
+          <Button size="sm" onClick={() => navigate(`/pages/${createPage({ project_id: projectId, title: t('common.untitled') }, me)}`)}>
+            <Icon name="plus" size={14} /> {t('project.newPage')}
+          </Button>
+        )}
       </div>
       {!pages.length && <Empty emoji="📄" title={t('project.noPages')} hint={t('project.noPagesHint')} guide="pages" />}
       {pages.map((page) => (
@@ -1145,6 +1155,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
   const toast = useToast();
   const { workspaceId } = useSession();
   const { confirm, dialog } = useConfirm();
+  const canWrite = useCanWrite();
   const states = useQuery(
     () => list('state', (s) => s.project_id === projectId).sort(byOrder),
     [projectId],
@@ -1291,28 +1302,30 @@ function ProjectSettings({ projectId }: { projectId: string }) {
     <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5" style={{ maxWidth: 620 }}>
       {/* Icon beside name, the shape the create form uses — the screen that
           makes a project and the screen that changes one should not lay the
-          same two fields out differently. */}
-      <div className="flex items-start gap-2.5">
-        <div className="field" style={{ width: 60 }}>
-          <label htmlFor="s-icon">{t('project.icon')}</label>
-          <EmojiPicker
-            id="s-icon" value={project.icon} fallback="🚀"
-            onChange={(next) => update('project', projectId, { icon: next })}
+          same two fields out differently. A guest reads them, disabled (UX-09). */}
+      <fieldset disabled={!canWrite} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
+        <div className="flex items-start gap-2.5">
+          <div className="field" style={{ width: 60 }}>
+            <label htmlFor="s-icon">{t('project.icon')}</label>
+            <EmojiPicker
+              id="s-icon" value={project.icon} fallback="🚀"
+              onChange={(next) => update('project', projectId, { icon: next })}
+            />
+          </div>
+          <div className="field flex-1 min-w-0">
+            <label htmlFor="s-name">{t('project.name')}</label>
+            <Input id="s-name" value={project.name} onChange={(event) => update('project', projectId, { name: event.target.value })} />
+          </div>
+        </div>
+        <div className="field">
+          <label htmlFor="s-desc">{t('project.description')}</label>
+          <MarkdownEditor
+            id="s-desc" value={project.description ?? ''} minHeight={110}
+            attachTo={{ kind: 'project', id: projectId }}
+            onChange={(value) => update('project', projectId, { description: value })}
           />
         </div>
-        <div className="field flex-1 min-w-0">
-          <label htmlFor="s-name">{t('project.name')}</label>
-          <Input id="s-name" value={project.name} onChange={(event) => update('project', projectId, { name: event.target.value })} />
-        </div>
-      </div>
-      <div className="field">
-        <label htmlFor="s-desc">{t('project.description')}</label>
-        <MarkdownEditor
-          id="s-desc" value={project.description ?? ''} minHeight={110}
-          attachTo={{ kind: 'project', id: projectId }}
-          onChange={(value) => update('project', projectId, { description: value })}
-        />
-      </div>
+      </fieldset>
 
       {/* The project's own papers — the statement of work, the brief, the
           signed quote. Under the description because that is the other place
@@ -1333,234 +1346,238 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         pasted identifier has to keep pointing at what it pointed at — but it is
         only honest if it is said, so it is said under the field.
       */}
-      <div className="field-row">
-        <div className="field">
-          <label htmlFor="s-key">{t('project.key')}</label>
-          <Input className="mono" id="s-key" value={project.key ?? ''} maxLength={6}
-            onChange={(event) => update('project', projectId, { key: event.target.value.toUpperCase() })} />
-          {/* The server bounces a taken key back, which on its own is a field
-              that refuses to be typed in for no stated reason. This is the
-              reason, said while it is being typed. */}
-          {keyTaken
-            ? <span className="text-[12px]" style={{ color: 'var(--danger)' }}>{t('project.keyTaken', { name: keyTaken })}</span>
-            : <span className="text-[12px] text-muted">{t('project.keyChangeHint')}</span>}
+      <fieldset disabled={!canWrite} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
+        <div className="field-row">
+          <div className="field">
+            <label htmlFor="s-key">{t('project.key')}</label>
+            <Input className="mono" id="s-key" value={project.key ?? ''} maxLength={6}
+              onChange={(event) => update('project', projectId, { key: event.target.value.toUpperCase() })} />
+            {/* The server bounces a taken key back, which on its own is a field
+                that refuses to be typed in for no stated reason. This is the
+                reason, said while it is being typed. */}
+            {keyTaken
+              ? <span className="text-[12px]" style={{ color: 'var(--danger)' }}>{t('project.keyTaken', { name: keyTaken })}</span>
+              : <span className="text-[12px] text-muted">{t('project.keyChangeHint')}</span>}
+          </div>
+          <div className="field">
+            <label htmlFor="s-vis">{t('project.visibility')}</label>
+            <Select id="s-vis" value={project.visibility ?? 'public'}
+              onChange={(event) => update('project', projectId, { visibility: event.target.value })}>
+              <option value="public">{t('project.visibilityPublic')}</option>
+              <option value="private">{t('project.visibilityPrivate')}</option>
+            </Select>
+          </div>
         </div>
-        <div className="field">
-          <label htmlFor="s-vis">{t('project.visibility')}</label>
-          <Select id="s-vis" value={project.visibility ?? 'public'}
-            onChange={(event) => update('project', projectId, { visibility: event.target.value })}>
-            <option value="public">{t('project.visibilityPublic')}</option>
-            <option value="private">{t('project.visibilityPrivate')}</option>
-          </Select>
-        </div>
-      </div>
-      {/*
-        A container is refused by the server while the project still has tasks,
-        and `forced` sends the old value back — so the box un-ticks itself. The
-        sentence under it is why, said before somebody clicks rather than after.
-      */}
-      <label className="check-row">
-        <input
-          type="checkbox"
-          checked={!!project.is_container}
-          onChange={(event) => update('project', projectId, { is_container: event.target.checked ? 1 : 0 })}
-        />
-        <span>
-          {t('project.isContainer')}
-          <span className="block text-[12px] text-muted">
-            {taskCount > 0 ? t('project.isContainerBusy', { count: taskCount }) : t('project.isContainerHint')}
+        {/*
+          A container is refused by the server while the project still has tasks,
+          and `forced` sends the old value back — so the box un-ticks itself. The
+          sentence under it is why, said before somebody clicks rather than after.
+        */}
+        <label className="check-row">
+          <input
+            type="checkbox"
+            checked={!!project.is_container}
+            onChange={(event) => update('project', projectId, { is_container: event.target.checked ? 1 : 0 })}
+          />
+          <span>
+            {t('project.isContainer')}
+            <span className="block text-[12px] text-muted">
+              {taskCount > 0 ? t('project.isContainerBusy', { count: taskCount }) : t('project.isContainerHint')}
+            </span>
           </span>
-        </span>
-      </label>
+        </label>
 
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
-          <label htmlFor="s-parent">{t('project.parent')}</label>
-          <Select
-            id="s-parent" value={project.parent_id ?? ''}
-            onChange={(event) => update('project', projectId, { parent_id: event.target.value || null })}
-          >
-            <option value="">{t('project.parentNone')}</option>
-            {siblings.map((other) => <option key={other.id} value={other.id}>{other.icon} {other.name}</option>)}
-          </Select>
-          <span className="text-[12px] text-muted">{t('project.parentHint')}</span>
-        </div>
-        <div className="field flex-1 min-w-0">
-          <label htmlFor="s-start">{t('project.startDate')}</label>
-          <Input id="s-start" type="date" value={project.start_date ?? ''}
-            onChange={(event) => update('project', projectId, { start_date: event.target.value || null })} />
-        </div>
-      </div>
-
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
-          <label htmlFor="s-lead">{t('project.lead')}</label>
-          <Select id="s-lead" value={project.lead_id ?? ''} onChange={(event) => update('project', projectId, { lead_id: event.target.value || null })}>
-            <option value="">{t('common.nobody')}</option>
-            {members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
-          </Select>
-        </div>
-        <div className="field flex-1 min-w-0">
-          <label htmlFor="s-target">{t('project.targetDate')}</label>
-          <Input id="s-target" type="date" value={project.target_date ?? ''}
-            onChange={(event) => update('project', projectId, { target_date: event.target.value || null })} />
-        </div>
-      </div>
-
-      {/* Which days the *scheduler* counts. Not a lock: a bar dragged onto a
-          Saturday stays there, because somebody who did that meant it. */}
-      <div className="field">
-        <label id="s-days">{t('project.workingDays')}</label>
-        <div className="flex items-center flex-wrap gap-1" role="group" aria-labelledby="s-days">
-          {WEEKDAYS.map(({ day, key }) => {
-            const days = project.working_days ?? DEFAULT_WORKING_DAYS;
-            const on = days.includes(day);
-            return (
-              <button
-                key={day}
-                type="button"
-                className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), on && 'bg-active text-fg')}
-                style={on ? { background: 'var(--bg-active)' } : undefined}
-                aria-pressed={on}
-                onClick={() => update('project', projectId, {
-                  working_days: on ? days.filter((d) => d !== day) : [...days, day].sort(),
-                })}
-              >
-                {t(key)}
-              </button>
-            );
-          })}
-        </div>
-        <span className="text-[12px] text-muted">{t('project.workingDaysHint')}</span>
-      </div>
-
-      <div className="flex items-center gap-2" style={{ margin: '18px 0 8px' }}>
-        <SectionHeading tight>{t('project.workflowStates')}</SectionHeading>
-        <span className="flex-1 min-w-0" />
-        <GuideHint to="hierarchy" />
-      </div>
-      {states.map((state, at) => (
-        <div className="stack-card" key={state.id}>
-          {/* The name and the two ways to be rid of the state: everything that
-              fits on one line at any width, on one line. */}
-          <div className="flex items-center gap-2">
-            <input
-              type="color" value={state.color} style={{ width: 28, height: 28, border: 'none', background: 'none' }}
-              aria-label={t('project.stateColour')}
-              onChange={(event) => update('state', state.id, { color: event.target.value })}
-            />
-            <Input className="flex-1 min-w-0" value={state.name} aria-label={t('project.name')}
-              onChange={(event) => update('state', state.id, { name: event.target.value })} />
-            {/* The order here is the order of the board's columns — the same
-                fractional keys the cards use, applied one level up. */}
-            <Button variant="ghost" size="icon" aria-label={t('state.moveUp')} disabled={at === 0}
-              onClick={() => update('state', state.id, {
-                sort_order: orderKey(states[at - 2]?.sort_order ?? null, states[at - 1]?.sort_order ?? null),
-              })}>
-              <Icon name="chevronUp" size={14} />
-            </Button>
-            <Button variant="ghost" size="icon" aria-label={t('state.moveDown')} disabled={at === states.length - 1}
-              onClick={() => update('state', state.id, {
-                sort_order: orderKey(states[at + 1]?.sort_order ?? null, states[at + 2]?.sort_order ?? null),
-              })}>
-              <Icon name="chevronDown" size={14} />
-            </Button>
-            <Button variant="ghost" size="icon" aria-label={t('project.deleteState')} onClick={async () => {
-              if (states.length <= 1) return;
-              if (await confirm(t('project.deleteStateConfirm', { name: state.name }))) remove('state', state.id);
-            }}>
-              <Icon name="trash" size={14} />
-            </Button>
+        <div className="field-row">
+          <div className="field flex-1 min-w-0">
+            <label htmlFor="s-parent">{t('project.parent')}</label>
+            <Select
+              id="s-parent" value={project.parent_id ?? ''}
+              onChange={(event) => update('project', projectId, { parent_id: event.target.value || null })}
+            >
+              <option value="">{t('project.parentNone')}</option>
+              {siblings.map((other) => <option key={other.id} value={other.id}>{other.icon} {other.name}</option>)}
+            </Select>
+            <span className="text-[12px] text-muted">{t('project.parentHint')}</span>
           </div>
-          {/*
-            The three settings were a 140px select and two labels sitting to the
-            left of their own controls — so on a phone "Limit" put its box at one
-            indent, "Who may move work here" wrapped onto two lines and put its
-            box at another, and both selects cut their longest option in half.
-            The same rows the form above uses fix all of it: label over control,
-            one column when there is no room for two.
-          */}
-          <div className="field-row mt-2">
-            <div className="field">
-              <label htmlFor={`st-group-${state.id}`}>{t('view.groupState')}</label>
-              <Select id={`st-group-${state.id}`} value={state.group_key}
-                onChange={(event) => update('state', state.id, { group_key: event.target.value })}>
-                {STATE_GROUPS.map((group) => (
-                  <option key={group} value={group}>{t(groupKey(group))}</option>
-                ))}
-              </Select>
-            </div>
-            <div className="field">
-              <label htmlFor={`st-wip-${state.id}`}>{t('state.wipLimit')}</label>
-              {/* Two digits never need a full column; the label above it still
-                  starts on the same edge as its neighbours, which is the part
-                  that has to line up. */}
-              <Input id={`st-wip-${state.id}`} type="number" min={0} max={99} style={{ maxWidth: 110 }}
-                value={state.wip_limit || ''} placeholder="0"
-                onChange={(event) => update('state', state.id, { wip_limit: Number(event.target.value) || 0 })}
+          <div className="field flex-1 min-w-0">
+            <label htmlFor="s-start">{t('project.startDate')}</label>
+            <Input id="s-start" type="date" value={project.start_date ?? ''}
+              onChange={(event) => update('project', projectId, { start_date: event.target.value || null })} />
+          </div>
+        </div>
+
+        <div className="field-row">
+          <div className="field flex-1 min-w-0">
+            <label htmlFor="s-lead">{t('project.lead')}</label>
+            <Select id="s-lead" value={project.lead_id ?? ''} onChange={(event) => update('project', projectId, { lead_id: event.target.value || null })}>
+              <option value="">{t('common.nobody')}</option>
+              {members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
+            </Select>
+          </div>
+          <div className="field flex-1 min-w-0">
+            <label htmlFor="s-target">{t('project.targetDate')}</label>
+            <Input id="s-target" type="date" value={project.target_date ?? ''}
+              onChange={(event) => update('project', projectId, { target_date: event.target.value || null })} />
+          </div>
+        </div>
+
+        {/* Which days the *scheduler* counts. Not a lock: a bar dragged onto a
+            Saturday stays there, because somebody who did that meant it. */}
+        <div className="field">
+          <label id="s-days">{t('project.workingDays')}</label>
+          <div className="flex items-center flex-wrap gap-1" role="group" aria-labelledby="s-days">
+            {WEEKDAYS.map(({ day, key }) => {
+              const days = project.working_days ?? DEFAULT_WORKING_DAYS;
+              const on = days.includes(day);
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), on && 'bg-active text-fg')}
+                  style={on ? { background: 'var(--bg-active)' } : undefined}
+                  aria-pressed={on}
+                  onClick={() => update('project', projectId, {
+                    working_days: on ? days.filter((d) => d !== day) : [...days, day].sort(),
+                  })}
+                >
+                  {t(key)}
+                </button>
+              );
+            })}
+          </div>
+          <span className="text-[12px] text-muted">{t('project.workingDaysHint')}</span>
+        </div>
+
+        <div className="flex items-center gap-2" style={{ margin: '18px 0 8px' }}>
+          <SectionHeading tight>{t('project.workflowStates')}</SectionHeading>
+          <span className="flex-1 min-w-0" />
+          <GuideHint to="hierarchy" />
+        </div>
+        {states.map((state, at) => (
+          <div className="stack-card" key={state.id}>
+            {/* The name and the two ways to be rid of the state: everything that
+                fits on one line at any width, on one line. */}
+            <div className="flex items-center gap-2">
+              <input
+                type="color" value={state.color} style={{ width: 28, height: 28, border: 'none', background: 'none' }}
+                aria-label={t('project.stateColour')}
+                onChange={(event) => update('state', state.id, { color: event.target.value })}
               />
+              <Input className="flex-1 min-w-0" value={state.name} aria-label={t('project.name')}
+                onChange={(event) => update('state', state.id, { name: event.target.value })} />
+              {/* The order here is the order of the board's columns — the same
+                  fractional keys the cards use, applied one level up. */}
+              <Button variant="ghost" size="icon" aria-label={t('state.moveUp')} disabled={at === 0}
+                onClick={() => update('state', state.id, {
+                  sort_order: orderKey(states[at - 2]?.sort_order ?? null, states[at - 1]?.sort_order ?? null),
+                })}>
+                <Icon name="chevronUp" size={14} />
+              </Button>
+              <Button variant="ghost" size="icon" aria-label={t('state.moveDown')} disabled={at === states.length - 1}
+                onClick={() => update('state', state.id, {
+                  sort_order: orderKey(states[at + 1]?.sort_order ?? null, states[at + 2]?.sort_order ?? null),
+                })}>
+                <Icon name="chevronDown" size={14} />
+              </Button>
+              <Button variant="ghost" size="icon" aria-label={t('project.deleteState')} onClick={async () => {
+                if (states.length <= 1) return;
+                if (await confirm(t('project.deleteStateConfirm', { name: state.name }))) remove('state', state.id);
+              }}>
+                <Icon name="trash" size={14} />
+              </Button>
             </div>
-            <div className="field">
-              <label htmlFor={`st-roles-${state.id}`}>{t('state.allowedRoles')}</label>
-              <Select id={`st-roles-${state.id}`}
-                value={state.allowed_roles?.[0] ?? ''}
-                onChange={(event) => update('state', state.id, { allowed_roles: event.target.value ? [event.target.value] : [] })}
-              >
-                <option value="">{t('state.allowedAnyone')}</option>
-                {(['member', 'admin', 'owner'] as const).map((role) => (
-                  <option key={role} value={role}>{t(roleKey(role))}</option>
-                ))}
-              </Select>
+            {/*
+              The three settings were a 140px select and two labels sitting to the
+              left of their own controls — so on a phone "Limit" put its box at one
+              indent, "Who may move work here" wrapped onto two lines and put its
+              box at another, and both selects cut their longest option in half.
+              The same rows the form above uses fix all of it: label over control,
+              one column when there is no room for two.
+            */}
+            <div className="field-row mt-2">
+              <div className="field">
+                <label htmlFor={`st-group-${state.id}`}>{t('view.groupState')}</label>
+                <Select id={`st-group-${state.id}`} value={state.group_key}
+                  onChange={(event) => update('state', state.id, { group_key: event.target.value })}>
+                  {STATE_GROUPS.map((group) => (
+                    <option key={group} value={group}>{t(groupKey(group))}</option>
+                  ))}
+                </Select>
+              </div>
+              <div className="field">
+                <label htmlFor={`st-wip-${state.id}`}>{t('state.wipLimit')}</label>
+                {/* Two digits never need a full column; the label above it still
+                    starts on the same edge as its neighbours, which is the part
+                    that has to line up. */}
+                <Input id={`st-wip-${state.id}`} type="number" min={0} max={99} style={{ maxWidth: 110 }}
+                  value={state.wip_limit || ''} placeholder="0"
+                  onChange={(event) => update('state', state.id, { wip_limit: Number(event.target.value) || 0 })}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor={`st-roles-${state.id}`}>{t('state.allowedRoles')}</label>
+                <Select id={`st-roles-${state.id}`}
+                  value={state.allowed_roles?.[0] ?? ''}
+                  onChange={(event) => update('state', state.id, { allowed_roles: event.target.value ? [event.target.value] : [] })}
+                >
+                  <option value="">{t('state.allowedAnyone')}</option>
+                  {(['member', 'admin', 'owner'] as const).map((role) => (
+                    <option key={role} value={role}>{t(roleKey(role))}</option>
+                  ))}
+                </Select>
+              </div>
             </div>
           </div>
-        </div>
-      ))}
-      <p className="text-[12px] text-muted mt-1">{t('state.wipLimitHint')}</p>
-      <p className="text-[12px] text-muted mb-2">{t('state.allowedHint')}</p>
-      <Button size="sm" className="mt-1.5"
-        onClick={() => create('state', {
-          project_id: projectId, name: t('project.newStateName'), group_key: 'unstarted', color: '#64748b',
-          sort_order: orderKey(states[states.length - 1]?.sort_order ?? null, null),
-        })}
-      >
-        <Icon name="plus" size={14} /> {t('project.addState')}
-      </Button>
-
-      <SectionHeading>{t('field.settingsTitle')}</SectionHeading>
-      <ProjectFields projectId={projectId} />
-
-      <SectionHeading>{t('project.labels')}</SectionHeading>
-      <div className="flex items-center flex-wrap gap-1.5 mb-2">
-        {labels.map((label) => (
-          <button
-            type="button" className={chipVariants({ interactive: true })} key={label.id} title={t('project.labelRemoveHint')}
-            onClick={async () => { if (await confirm(t('project.deleteLabelConfirm', { name: label.name }))) remove('label', label.id); }}
-          >
-            <span className={chipDot} style={{ background: label.color }} /> {label.name} ✕
-          </button>
         ))}
-      </div>
-      <form
-        className="flex items-center gap-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (!newLabel.trim()) return;
-          create('label', { project_id: projectId, name: newLabel.trim(), color: '#6366f1' });
-          setNewLabel('');
-        }}
-      >
-        <Input placeholder={t('project.newLabel')} aria-label={t('project.newLabel')} value={newLabel} onChange={(event) => setNewLabel(event.target.value)} />
-        <Button type="submit" title={t('action.add')}><Icon name="plus" size={14} /></Button>
-      </form>
+        <p className="text-[12px] text-muted mt-1">{t('state.wipLimitHint')}</p>
+        <p className="text-[12px] text-muted mb-2">{t('state.allowedHint')}</p>
+        <Button size="sm" className="mt-1.5"
+          onClick={() => create('state', {
+            project_id: projectId, name: t('project.newStateName'), group_key: 'unstarted', color: '#64748b',
+            sort_order: orderKey(states[states.length - 1]?.sort_order ?? null, null),
+          })}
+        >
+          <Icon name="plus" size={14} /> {t('project.addState')}
+        </Button>
+
+        <SectionHeading>{t('field.settingsTitle')}</SectionHeading>
+        <ProjectFields projectId={projectId} />
+
+        <SectionHeading>{t('project.labels')}</SectionHeading>
+        <div className="flex items-center flex-wrap gap-1.5 mb-2">
+          {labels.map((label) => (
+            <button
+              type="button" className={chipVariants({ interactive: true })} key={label.id} title={t('project.labelRemoveHint')}
+              onClick={async () => { if (await confirm(t('project.deleteLabelConfirm', { name: label.name }))) remove('label', label.id); }}
+            >
+              <span className={chipDot} style={{ background: label.color }} /> {label.name} ✕
+            </button>
+          ))}
+        </div>
+        <form
+          className="flex items-center gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!newLabel.trim()) return;
+            create('label', { project_id: projectId, name: newLabel.trim(), color: '#6366f1' });
+            setNewLabel('');
+          }}
+        >
+          <Input placeholder={t('project.newLabel')} aria-label={t('project.newLabel')} value={newLabel} onChange={(event) => setNewLabel(event.target.value)} />
+          <Button type="submit" title={t('action.add')}><Icon name="plus" size={14} /></Button>
+        </form>
+      </fieldset>
 
       <SectionHeading>{t('time.title')}</SectionHeading>
       <ProjectTime projectId={projectId} />
 
       <SectionHeading>{t('import.title')}</SectionHeading>
       <div className="flex items-center gap-2 flex-wrap">
-        <Button onClick={() => setImporting(true)}>
-          <Icon name="attach" size={14} /> {t('import.action')}
-        </Button>
+        {canWrite && (
+          <Button onClick={() => setImporting(true)}>
+            <Icon name="attach" size={14} /> {t('import.action')}
+          </Button>
+        )}
         <Button onClick={() => void exportJson()}>
           <Icon name="page" size={14} /> {t('transfer.export')}
         </Button>
@@ -1573,17 +1590,19 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         <Button onClick={() => { window.location.href = `/api/workspaces/${workspaceId}/export/tasks.csv?project_id=${projectId}`; }}>
           <Icon name="table" size={14} /> {t('transfer.exportCsv')}
         </Button>
-        <label className={cn(buttonVariants({  }), 'cursor-pointer')}>
-          <Icon name="plus" size={14} /> {t('transfer.import')}
-          <input
-            type="file" accept=".json,.zip,application/json,application/zip" style={{ display: 'none' }}
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              event.target.value = '';
-              if (file) void importJson(file);
-            }}
-          />
-        </label>
+        {canWrite && (
+          <label className={cn(buttonVariants({  }), 'cursor-pointer')}>
+            <Icon name="plus" size={14} /> {t('transfer.import')}
+            <input
+              type="file" accept=".json,.zip,application/json,application/zip" style={{ display: 'none' }}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = '';
+                if (file) void importJson(file);
+              }}
+            />
+          </label>
+        )}
       </div>
       <p className="text-[12px] text-muted mt-1.5">{t('transfer.hint')}</p>
       {importing && <ImportSheet projectId={projectId} onClose={() => setImporting(false)} />}
@@ -1628,10 +1647,14 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         />
       )}
 
-      <SectionHeading>{t('copy.title')}</SectionHeading>
-      <Button onClick={() => setCopying(true)}>
-        <Icon name="copy" size={14} /> {t('copy.action')}
-      </Button>
+      {canWrite && (
+        <>
+          <SectionHeading>{t('copy.title')}</SectionHeading>
+          <Button onClick={() => setCopying(true)}>
+            <Icon name="copy" size={14} /> {t('copy.action')}
+          </Button>
+        </>
+      )}
       {copying && (
         <CopyProjectSheet
           projectId={projectId}
@@ -1640,22 +1663,26 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         />
       )}
 
-      <div className="my-2 h-px bg-line" style={{ margin: '22px 0' }} />
-      <div className="flex items-center gap-2">
-        <Button onClick={() => update('project', projectId, { archived: project.archived ? 0 : 1 })}>
-          <Icon name="archive" size={14} /> {project.archived ? t('project.unarchive') : t('project.archive')}
-        </Button>
-        <Button variant="danger"
-          onClick={async () => {
-            if (await confirm(t('project.deleteConfirm', { name: project.name }))) {
-              remove('project', projectId);
-              navigate('/');
-            }
-          }}
-        >
-          <Icon name="trash" size={14} /> {t('project.delete')}
-        </Button>
-      </div>
+      {canWrite && (
+        <>
+          <div className="my-2 h-px bg-line" style={{ margin: '22px 0' }} />
+          <div className="flex items-center gap-2">
+            <Button onClick={() => update('project', projectId, { archived: project.archived ? 0 : 1 })}>
+              <Icon name="archive" size={14} /> {project.archived ? t('project.unarchive') : t('project.archive')}
+            </Button>
+            <Button variant="danger"
+              onClick={async () => {
+                if (await confirm(t('project.deleteConfirm', { name: project.name }))) {
+                  remove('project', projectId);
+                  navigate('/');
+                }
+              }}
+            >
+              <Icon name="trash" size={14} /> {t('project.delete')}
+            </Button>
+          </div>
+        </>
+      )}
       {dialog}
     </div>
   );

@@ -17,6 +17,7 @@ import { chipDot } from './ui/chip';
 import { Button } from './ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { useMinute } from './minute';
+import { Icon } from './ui';
 
 /* ------------------------------------------------------------ sync status */
 
@@ -53,12 +54,16 @@ function SyncPill() {
         : status.pending ? t('sync.syncing', { count: status.pending })
           : t('sync.synced');
 
+  const icon = refused.length || status.state === 'error' ? 'alert'
+    : status.state === 'offline' ? 'offline'
+      : status.state === 'syncing' || status.pending ? 'refresh' : 'check';
+
   const pill = (
     <button
       className={`status-pill ${refused.length ? 'error' : status.state}`}
       onClick={refused.length ? undefined : () => void pull()}
-      // The word beside the dot is `hide-sm`, so on a phone this button is a
-      // coloured dot and nothing else. The name has to come from somewhere.
+      // The word beside the dot is `hide-sm`, so on a phone this button is an
+      // icon and nothing else. The name has to come from somewhere.
       aria-label={refused.length ? label : `${label} — ${t('sync.now')}`}
       title={[
         refused.at(-1)?.reason ?? status.message ?? (status.lastSyncedAt
@@ -73,7 +78,10 @@ function SyncPill() {
           the stylesheet, and the class had been dropped. The dot was drawing
           nothing. On a desktop the word beside it covered for that; on a phone
           the word is hidden and the status was an empty circle. */}
-      <span className={`dot ${chipDot}`} />
+      <span className={`dot not-sm ${chipDot}`} />
+      {/* On a phone the word is hidden, so a shape stands in for the dot's colour (UX-10). */}
+      <Icon name={icon} size={13} className="state-icon only-sm" />
+      {status.pending > 0 && <span className="only-sm">{status.pending}</span>}
       <span className="hide-sm">{label}</span>
     </button>
   );

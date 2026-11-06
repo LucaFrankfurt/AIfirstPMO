@@ -202,7 +202,7 @@ export function MailboxSettings() {
           redirectUri={redirectUri}
           onPasswordSet={refreshCredentials}
           onRemove={async () => {
-            if (await confirm(t('mailbox.disconnectConfirm', { address: box.address }))) {
+            if (await confirm(t('mailbox.disconnectConfirm', { address: box.address }), t('mailbox.disconnect'))) {
               remove('mailbox', box.id);
             }
           }}
