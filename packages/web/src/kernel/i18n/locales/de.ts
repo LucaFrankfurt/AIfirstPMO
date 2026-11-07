@@ -2004,6 +2004,7 @@ export const de: Catalogue = {
   'module.edit': 'Modul bearbeiten',
   'module.name': 'Name',
   'module.target': 'Zieldatum',
+  'module.description': 'Beschreibung',
   'module.notFound': 'Modul nicht gefunden',
   'module.shared': 'Geteilt',
   'module.sharedCount_one': '{count} Projekt',
