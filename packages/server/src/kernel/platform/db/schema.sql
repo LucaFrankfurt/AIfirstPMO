@@ -2182,6 +2182,12 @@ CREATE TABLE IF NOT EXISTS widgets (
   secret       TEXT NOT NULL DEFAULT '',
   -- The address a support email's Reply-To names. See the upgrade list.
   reply_to     TEXT,
+  -- 'off' | 'suggest' | 'answer': the model drafts for the team, or answers first.
+  assistant    TEXT NOT NULL DEFAULT 'off',
+  -- JSON list of page ids the model may read, and nothing else.
+  knowledge    TEXT NOT NULL DEFAULT '[]',
+  -- Answers a day the model may give from this widget.
+  assistant_budget INTEGER NOT NULL DEFAULT 50,
   created_by   TEXT,
   created_at   INTEGER NOT NULL,
   updated_at   INTEGER NOT NULL,
@@ -2210,6 +2216,8 @@ CREATE TABLE IF NOT EXISTS conversations (
   last_author     TEXT,
   agent_read_at   INTEGER,
   visitor_read_at INTEGER,
+  -- When the model handed over, or a person took the conversation.
+  handover_at     INTEGER,
   -- The queued email a reply is waiting behind, withdrawn if the visitor reads
   -- the reply first. Server-only.
   pending_mail    TEXT,
@@ -2226,12 +2234,14 @@ CREATE TABLE IF NOT EXISTS conversation_messages (
   id              TEXT PRIMARY KEY,
   workspace_id    TEXT NOT NULL,
   conversation_id TEXT NOT NULL,
-  -- 'visitor' | 'agent'
+  -- 'visitor' | 'agent' | 'bot'
   author          TEXT NOT NULL DEFAULT 'agent',
   author_id       TEXT,
   body            TEXT NOT NULL DEFAULT '',
   -- JSON list of { hash, name, type, size, width, height }.
   files           TEXT NOT NULL DEFAULT '[]',
+  -- The knowledge pages a model's answer rests on, by title.
+  sources         TEXT NOT NULL DEFAULT '[]',
   created_at      INTEGER NOT NULL,
   updated_at      INTEGER NOT NULL,
   deleted_at      INTEGER,

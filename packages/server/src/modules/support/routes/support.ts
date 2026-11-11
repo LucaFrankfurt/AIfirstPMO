@@ -7,12 +7,19 @@
  * stored at all.
  */
 import { get, run, type Row } from '../../../kernel/platform/db/index.ts';
-import { badRequest, forbidden, notFound, readJson, type Ctx, type Router } from '../../../kernel/platform/http.ts';
+import { HttpError, badRequest, forbidden, notFound, readJson, type Ctx, type Router } from '../../../kernel/platform/http.ts';
 import { token, uid } from '../../../kernel/platform/ids.ts';
 import { requireAuth, requireWorkspace } from '../../../kernel/identity/auth.ts';
 import { serverClock } from '../../../kernel/write-path/bootstrap.ts';
 import { canSeeProject, displayName, serialize, writeEntity } from '../../../kernel/write-path/repo.ts';
+import { env } from '../../../kernel/platform/env.ts';
+import { byValue, enforce } from '../../../kernel/identity/ratelimit.ts';
+import { AiError } from '../../ai-review/model.ts';
+import { draftReply } from '../assistant.ts';
 import { setTyping, taskTitle, transcript, typingIn } from '../support.ts';
+
+/** The same allowance a task review has: a person clicking, paced like one. */
+const SUGGEST_LIMIT = { burst: env.ai.burst, everySeconds: env.ai.everySeconds, deepens: false };
 
 function widgetForAdmin(ctx: Ctx): Row {
   requireAuth(ctx);
@@ -71,6 +78,23 @@ export function registerSupportRoutes(router: Router): void {
       task: serialize('task', task),
       conversation: serialize('conversation', get<Row>(`SELECT * FROM conversations WHERE id = ?`, conversation.id)),
     };
+  });
+
+  /**
+   * A draft answer from the model, for the member to read and send — or not.
+   * Nothing is written: the draft comes back and goes into the member's box.
+   */
+  router.post('/api/conversations/:id/suggest', async (ctx: Ctx) => {
+    const conversation = conversationForMember(ctx);
+    const auth = ctx.auth!;
+    if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
+    enforce(ctx, [byValue(SUGGEST_LIMIT, 'support-suggest', auth.userId)]);
+    try {
+      return await draftReply(conversation);
+    } catch (error) {
+      if (!(error instanceof AiError)) throw error;
+      throw new HttpError(error.permanent ? 400 : 502, error.message, 'ai_failed');
+    }
   });
 
   /** Whether the visitor is typing — asked by the open conversation every few seconds. */

@@ -154,6 +154,24 @@ function ConversationRow({ conversation, widget, active, onOpen }: {
   );
 }
 
+/**
+ * Whether the server has a model, asked once per page.
+ *
+ * The workspace switch is in the session; whether a key is configured is the
+ * server's to say, and `/api/config` says it without a session at all.
+ */
+let modelConfigured: Promise<boolean> | null = null;
+function useModelConfigured(): boolean {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    modelConfigured ??= api.config().then((config) => !!config.ai).catch(() => false);
+    let alive = true;
+    void modelConfigured.then((value) => { if (alive) setOn(value); });
+    return () => { alive = false; };
+  }, []);
+  return on;
+}
+
 /** How often an open conversation asks whether the visitor is typing. */
 const TYPING_POLL_MS = 3000;
 
@@ -170,6 +188,14 @@ function Answer({ conversation, widget, onBack }: { conversation: Conversation; 
   const people = useMembers();
   const [typing, setTyping] = useState(false);
   const [attached, setAttached] = useState<ConversationFile[]>([]);
+  // Held here rather than in the box, so a suggested reply can be put in it.
+  const [draft, setDraft] = useState('');
+  const modelOn = useModelConfigured();
+  const aiSwitch = useFeature('ai');
+  // Read defensively: rows synced before these columns existed have neither.
+  const assistant = widget?.assistant ?? 'off';
+  const assistantAnswering = assistant === 'answer' && !conversation.handover_at && modelOn && aiSwitch;
+  const canSuggest = canWrite && assistant !== 'off' && modelOn && aiSwitch;
 
   const messages = useQuery(
     () => list('conversationMessage', (row) => row.conversation_id === conversation.id)
@@ -199,19 +225,31 @@ function Answer({ conversation, widget, onBack }: { conversation: Conversation; 
   }, [conversation.id]);
 
   const lines: ThreadLine[] = messages.map((message) => {
+    const bot = message.author === 'bot';
     const agent = message.author === 'agent' || (!message.author && !!message.author_id);
     const author = agent ? members.get(message.author_id ?? '') : undefined;
+    const sources = Array.isArray(message.sources) ? message.sources : [];
     return {
       id: message.id,
-      mine: agent,
+      // The model writes for the team, so its lines are on the team's side,
+      // marked as its own.
+      mine: agent || bot,
       author: agent ? author?.name : visitorLabel(conversation),
       avatar: agent
         ? <Avatar user={author} size={26} />
         : <Avatar user={{ id: conversation.visitor_id, name: visitorLabel(conversation) }} size={26} />,
       body: message.body,
       at: message.created_at,
+      meta: bot ? <span>{t('support.assistantLabel')}</span> : undefined,
+      below: sources.length ? <span className="mt-0.5 px-1 text-[11px] text-muted">{t('support.sources')}: {sources.join(', ')}</span> : undefined,
       files: filesOf(message).map((file) => ({ key: file.hash, name: file.name, type: file.type, src: fileUrl(file), width: file.width, height: file.height })),
     };
+  });
+
+  const suggest = () => action.run(async () => {
+    const drafted = await api.post<{ answer: string; handover: boolean }>(`/api/conversations/${conversation.id}/suggest`, {});
+    if (drafted.answer) setDraft(drafted.answer);
+    else toast(t('support.suggestNothing'));
   });
 
   const send = (body: string) => {
@@ -246,6 +284,9 @@ function Answer({ conversation, widget, onBack }: { conversation: Conversation; 
         <div className="min-w-0 flex-1">
           <span className="flex min-w-0 items-center gap-1.5">
             <strong className="truncate">{visitorLabel(conversation)}</strong>
+            {assistantAnswering && (
+              <Chip className="h-5 px-2 leading-5" tone="on" title={t('support.assistantAnsweringHint')}>{t('support.assistantAnswering')}</Chip>
+            )}
             <Chip className="h-5 px-2 leading-5" tone={conversation.verified ? 'on' : 'default'} title={t(conversation.verified ? 'support.verifiedHint' : 'support.unverifiedHint')}>
               {t(conversation.verified ? 'support.verified' : 'support.unverified')}
             </Chip>
@@ -308,8 +349,17 @@ function Answer({ conversation, widget, onBack }: { conversation: Conversation; 
       {canWrite && (
         <Composer
           words={words}
+          value={draft}
+          onValueChange={setDraft}
           onSend={send}
           onAttach={attach}
+          status={canSuggest ? (
+            <div className="mb-1.5 flex">
+              <Button size="sm" variant="ghost" disabled={action.busy} onClick={suggest}>
+                <Icon name="sparkle" size={13} /> {t('support.suggest')}
+              </Button>
+            </div>
+          ) : undefined}
           attached={attached.length ? (
             <div className="flex flex-wrap gap-1.5">
               {attached.map((file) => (

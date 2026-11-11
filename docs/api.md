@@ -372,6 +372,7 @@ workspace with `support` switched on. Its signing secret is never in the row:
 GET  /api/widgets/:id/secret              admin; the secret a host signs its visitors' tokens with
 POST /api/widgets/:id/secret              admin; a new one — every token signed with the old one stops
 POST /api/conversations/:id/task          a task in the widget's project, the transcript as its description
+POST /api/conversations/:id/suggest       a draft from the widget's assistant: { answer, sources, handover }
 GET  /api/conversations/:id/typing        { visitor: boolean }
 POST /api/conversations/:id/typing        { typing: boolean }, from a member
 ```
@@ -393,8 +394,9 @@ POST /w/:widget/session                   { token } signed, or { name, email } a
 GET  /w/:widget/messages                  the thread
 POST /w/:widget/messages                  { body, files }
 POST /w/:widget/read                      the visitor has seen it; withdraws a pending email
+POST /w/:widget/handover                  "talk to a person": the assistant goes quiet, the team is told
 POST /w/:widget/typing                    { typing }
-GET  /w/:widget/stream                    server-sent events: message, gone, read, typing, end
+GET  /w/:widget/stream                    server-sent events: message, gone, read, typing, handover, end
 POST /w/:widget/files                     a picture, raw body, as the app's own uploads
 GET  /w/:widget/files/:hash               a file used in this conversation, and no other
 ```

@@ -30,10 +30,12 @@ interface Config {
 
 interface Line {
   id: string;
-  author: 'visitor' | 'agent';
+  author: 'visitor' | 'agent' | 'bot';
   agent: string | null;
   body: string;
   files: ConversationFile[];
+  /** The knowledge pages a model's answer rests on, by title. */
+  sources?: string[];
   created_at: number;
   seq: number;
   pending?: boolean;
@@ -123,6 +125,8 @@ export function VisitorChat() {
   const [images, setImages] = useState<Record<string, string>>({});
   /** Bumped to open the stream again after it closed for a reason that was not the session. */
   const [attempt, setAttempt] = useState(0);
+  /** When the model handed over, or the visitor asked for a person. */
+  const [handedOver, setHandedOver] = useState<number | null>(null);
   const retried = useRef(0);
   const readUpTo = useRef(0);
   const unread = useRef(0);
@@ -182,24 +186,26 @@ export function VisitorChat() {
     let source: EventSource | null = null;
     let alive = true;
     let typingTimer = 0;
-    call<{ messages: Line[]; conversation: { agent_read_at: number | null } }>('/messages', session)
+    call<{ messages: Line[]; conversation: { agent_read_at: number | null; handover_at?: number | null } }>('/messages', session)
       .then((history) => {
         if (!alive) return;
         setLines(history.messages);
         setAgentRead(history.conversation.agent_read_at);
+        setHandedOver(history.conversation.handover_at ?? null);
         readUpTo.current = Math.max(readUpTo.current, ...history.messages.map((line) => line.created_at), 0);
         const after = Math.max(0, ...history.messages.map((line) => line.seq));
         source = new EventSource(`${base}/stream?session=${encodeURIComponent(session)}&after=${after}`);
         source.addEventListener('message', (event) => {
           const line = JSON.parse((event as MessageEvent).data) as Line;
           setLines((now) => merge(now, line));
-          if (line.author === 'agent') setAgentTyping(false);
+          if (line.author !== 'visitor') setAgentTyping(false);
         });
         source.addEventListener('gone', (event) => {
           const { id } = JSON.parse((event as MessageEvent).data) as { id: string };
           setLines((now) => now.filter((line) => line.id !== id));
         });
         source.addEventListener('read', (event) => setAgentRead(JSON.parse((event as MessageEvent).data).agent_read_at));
+        source.addEventListener('handover', (event) => setHandedOver(JSON.parse((event as MessageEvent).data).handover_at ?? null));
         source.addEventListener('typing', (event) => {
           const typing = !!JSON.parse((event as MessageEvent).data).agent;
           setAgentTyping(typing);
@@ -231,7 +237,7 @@ export function VisitorChat() {
 
   // Read while it is on screen; counted as unread for the host's badge while it is not.
   useEffect(() => {
-    const newest = lines.filter((line) => line.author === 'agent').reduce((at, line) => Math.max(at, line.created_at), 0);
+    const newest = lines.filter((line) => line.author !== 'visitor').reduce((at, line) => Math.max(at, line.created_at), 0);
     if (!newest || newest <= readUpTo.current) return;
     if (open && document.visibilityState === 'visible') {
       readUpTo.current = newest;
@@ -239,7 +245,7 @@ export function VisitorChat() {
       tell({ type: 'kolibri-chat:unread', count: 0 });
       void call('/read', session, { method: 'POST', body: '{}' }).catch(() => undefined);
     } else {
-      unread.current = lines.filter((line) => line.author === 'agent' && line.created_at > readUpTo.current).length;
+      unread.current = lines.filter((line) => line.author !== 'visitor' && line.created_at > readUpTo.current).length;
       tell({ type: 'kolibri-chat:unread', count: unread.current });
     }
   }, [lines, open, session]);
@@ -314,11 +320,14 @@ export function VisitorChat() {
     ...lines.map((line): ThreadLine => ({
       id: line.id,
       mine: line.author === 'visitor',
-      author: line.agent ?? words.team,
+      author: line.author === 'bot' ? words.assistant : (line.agent ?? words.team),
       avatar: <TeamMark />,
       body: line.body,
       at: line.created_at,
       pending: line.pending,
+      below: line.sources?.length
+        ? <span className="mt-0.5 px-1 text-[11px] text-muted">{words.sources}: {line.sources.join(', ')}</span>
+        : undefined,
       failed: line.failed ? (
         <button type="button" className="underline" onClick={() => void send(line.body, line.files, line.id)}>
           {words.sendFailed} {words.retry}
@@ -369,6 +378,25 @@ export function VisitorChat() {
       {stage === 'ready' && (
         <>
           <Thread words={words} lines={threadLines} typing={agentTyping ? words.team : false} seenAt={agentRead} />
+          {/* While the model is answering, a person is one click away; once one
+              is coming, the visitor is told rather than left to wonder. */}
+          {!handedOver && lines.some((line) => line.author === 'bot') && (
+            <div className="flex justify-center pb-1">
+              <button
+                type="button"
+                className="rounded-full border border-line px-3 py-1 text-[12.5px] text-soft hover:bg-hover"
+                onClick={() => {
+                  setHandedOver(Date.now());
+                  void call('/handover', session, { method: 'POST', body: '{}' }).catch(() => undefined);
+                }}
+              >
+                {words.person}
+              </button>
+            </div>
+          )}
+          {!!handedOver && !lines.some((line) => line.author === 'agent' && line.created_at > handedOver) && lines.some((line) => line.author === 'bot') && (
+            <p className="m-0 px-4 pb-1 text-center text-[12px] text-muted">{words.personComing}</p>
+          )}
           {notice && <p className="m-0 px-4 pb-1 text-[12px] text-danger">{notice}</p>}
           <Composer
             words={words}

@@ -307,6 +307,7 @@ const TYPING_EVERY_MS = 3000;
  */
 export function Composer({
   words, onSend, onTyping, onAttach, attached, placeholder, disabled, autoFocus, className, status, field, canSend: allowed,
+  value, onValueChange,
 }: {
   words: ThreadWords;
   /** With `field`, called with an empty string: the caller holds the text. */
@@ -326,8 +327,13 @@ export function Composer({
   field?: (send: ReactNode) => ReactNode;
   /** With `field`: whether there is anything to send. */
   canSend?: boolean;
+  /** The text, when the caller holds it — so it can put a draft in the box. */
+  value?: string;
+  onValueChange?: (text: string) => void;
 }) {
-  const [text, setText] = useState('');
+  const [ownText, setOwnText] = useState('');
+  const text = value ?? ownText;
+  const setText = onValueChange ?? setOwnText;
   const own = useRef<HTMLTextAreaElement>(null);
   const picker = useRef<HTMLInputElement>(null);
   const saidTyping = useRef(0);

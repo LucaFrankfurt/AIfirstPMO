@@ -4,12 +4,17 @@
  * The server decides with these and the settings screen previews with them, so
  * a site the screen accepts is a site the server will let frame the widget.
  */
-import type { Conversation, WidgetIdentity } from '../../kernel/registry/types.ts';
+import type { Conversation, WidgetAssistant, WidgetIdentity } from '../../kernel/registry/types.ts';
 
 export const WIDGET_IDENTITIES = ['signed', 'anonymous'] as const satisfies readonly WidgetIdentity[];
 
 export const isWidgetIdentity = (value: unknown): value is WidgetIdentity =>
   (WIDGET_IDENTITIES as readonly unknown[]).includes(value);
+
+export const WIDGET_ASSISTANTS = ['off', 'suggest', 'answer'] as const satisfies readonly WidgetAssistant[];
+
+export const isWidgetAssistant = (value: unknown): value is WidgetAssistant =>
+  (WIDGET_ASSISTANTS as readonly unknown[]).includes(value);
 
 /** Long enough for a stack trace pasted by a customer, short enough to refuse a novel. */
 export const SUPPORT_MESSAGE_MAX = 4000;

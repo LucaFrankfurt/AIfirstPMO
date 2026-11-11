@@ -354,12 +354,12 @@ footer {
 
   <div class="tally">
 <!-- generated: tally -->
-    <div><span class="v num">388</span><span class="k">source files</span></div>
+    <div><span class="v num">389</span><span class="k">source files</span></div>
     <div><span class="v num">50</span><span class="k">modules</span></div>
-    <div><span class="v num">123 710</span><span class="k">lines</span></div>
+    <div><span class="v num">124 273</span><span class="k">lines</span></div>
 <!-- end -->
     <div><span class="v num">64</span><span class="k">entities</span></div>
-    <div><span class="v num">160</span><span class="k">endpoints</span></div>
+    <div><span class="v num">162</span><span class="k">endpoints</span></div>
     <div><span class="v num">135</span><span class="k">MCP tools</span></div>
   </div>
 
@@ -428,7 +428,7 @@ footer {
 <!-- ══════════════════════════════════════════════ 02 inventory ══ -->
 <section id="inventory">
 <!-- generated: files -->
-  <span class="eyebrow">02 — All 388 files, sorted</span>
+  <span class="eyebrow">02 — All 389 files, sorted</span>
 <!-- end -->
   <h2>The inventory</h2>
   <div class="stack">
@@ -441,9 +441,9 @@ footer {
 
     <div class="legend" role="list">
 <!-- generated: legend -->
-      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 34 252 lines, 28%</span>
-      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 60 289 lines, 49%</span>
-      <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 26 472 lines, 21%</span>
+      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 34 342 lines, 28%</span>
+      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 60 695 lines, 49%</span>
+      <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 26 539 lines, 21%</span>
       <span role="listitem"><i style="background: var(--shell)"></i> Shell — 2 697 lines, 2%</span>
 <!-- end -->
     </div>
@@ -1028,8 +1028,8 @@ footer {
       <code>architecture.md</code> accepts is still accepted.
     </li>
     <li>
-      <strong><code>i18n</code> stays the largest kernel module.</strong> 11 293 lines is three
-      catalogues of 3 397 keys. Step 2 stops shipping the two nobody asked for; it does not make the
+      <strong><code>i18n</code> stays the largest kernel module.</strong> 11 353 lines is three
+      catalogues of 3 417 keys. Step 2 stops shipping the two nobody asked for; it does not make the
       catalogues smaller, and it should not — a compile error on a missing key is worth more than the
       file size.
     </li>
@@ -1145,8 +1145,8 @@ footer {
           <tr><td>kernel → a capability</td><td class="n">5</td><td class="n"><b>0</b></td></tr>
           <tr><td>kernel → an adapter</td><td class="n">3</td><td class="n"><b>0</b></td></tr>
           <tr><td>capability → an adapter</td><td class="n">12</td><td class="n"><b>0</b></td></tr>
-          <tr><td>capability → another capability</td><td class="n">14</td><td class="n">24</td></tr>
-          <tr><td>adapter → a capability <span class="dim">(inward — allowed)</span></td><td class="n">1</td><td class="n">23</td></tr>
+          <tr><td>capability → another capability</td><td class="n">14</td><td class="n">25</td></tr>
+          <tr><td>adapter → a capability <span class="dim">(inward — allowed)</span></td><td class="n">1</td><td class="n">24</td></tr>
 <!-- end -->
         </tbody>
       </table>
@@ -1155,7 +1155,7 @@ footer {
       <strong>Nothing points outward any more. <code>KNOWN_OUTWARD</code> is empty, and rule 5
       keeps it that way.</strong>
       The last row moves the other way on purpose: an adapter is <em>supposed</em> to lean on a
-      capability, and it does so 23 times now precisely because the outward edges were turned
+      capability, and it does so 24 times now precisely because the outward edges were turned
       round.
       The way out was the same every time — the inner ring says what it needs, the outer one
       registers. There are <strong>14 ports</strong> across <strong>11 modules</strong> now, and
@@ -1279,7 +1279,7 @@ footer {
       <code>work</code> imports <code>planning</code> because the timeline view of a task list is a
       Gantt chart; no inversion changes that, and a registry invented per one-off relationship would
       be the counted budget this document argues against, in a costume. What they can be is
-      <em>ordered</em>, and they already are — 24 imports across 21 module pairs, generated
+      <em>ordered</em>, and they already are — 25 imports across 22 module pairs, generated
       from the import graph rather than remembered:
     </p>
     <div class="scroller">
@@ -1288,11 +1288,11 @@ footer {
         <tbody>
 <!-- generated: leans -->
           <tr><td><code>pages</code></td><td><span class="dim">—</span></td><td class="n">4 (<code>ai-review</code>, <code>automation</code>, <code>meetings</code>, <code>work</code>)</td></tr>
+          <tr><td><code>ai-review</code></td><td><code>pages</code></td><td class="n">2 (<code>support</code>, <code>work</code>)</td></tr>
           <tr><td><code>budgets</code></td><td><span class="dim">—</span></td><td class="n">2 (<code>kpis</code>, <code>products</code>)</td></tr>
           <tr><td><code>notifications</code></td><td><span class="dim">—</span></td><td class="n">2 (<code>automation</code>, <code>support</code>)</td></tr>
           <tr><td><code>share</code></td><td><span class="dim">—</span></td><td class="n">2 (<code>intake</code>, <code>work</code>)</td></tr>
           <tr><td><code>work</code></td><td><code>ai-review</code>, <code>decisions</code>, <code>meetings</code>, <code>pages</code>, <code>planning</code>, <code>share</code>, <code>time</code></td><td class="n">2 (<code>intake</code>, <code>kpis</code>)</td></tr>
-          <tr><td><code>ai-review</code></td><td><code>pages</code></td><td class="n">1 (<code>work</code>)</td></tr>
           <tr><td><code>chat</code></td><td><span class="dim">—</span></td><td class="n">1 (<code>meetings</code>)</td></tr>
           <tr><td><code>decisions</code></td><td><span class="dim">—</span></td><td class="n">1 (<code>work</code>)</td></tr>
           <tr><td><code>guide</code></td><td><span class="dim">—</span></td><td class="n">1 (<code>automation</code>)</td></tr>
@@ -1308,7 +1308,7 @@ footer {
           <tr><td><code>mail</code></td><td><span class="dim">—</span></td><td class="n"><span class="dim">—</span></td></tr>
           <tr><td><code>products</code></td><td><code>budgets</code></td><td class="n"><span class="dim">—</span></td></tr>
           <tr><td><code>secrets</code></td><td><span class="dim">—</span></td><td class="n"><span class="dim">—</span></td></tr>
-          <tr><td><code>support</code></td><td><code>notifications</code></td><td class="n"><span class="dim">—</span></td></tr>
+          <tr><td><code>support</code></td><td><code>ai-review</code>, <code>notifications</code></td><td class="n"><span class="dim">—</span></td></tr>
 <!-- end -->
         </tbody>
       </table>
@@ -1333,7 +1333,7 @@ footer {
         <div class="rank">1</div>
         <div class="body">
           <h3>There is no stratum</h3>
-          <div class="evidence"><b>22 capabilities</b><b>21 edges</b><b>most leaned-on: 4</b><b>8 leaned on by nobody</b></div>
+          <div class="evidence"><b>22 capabilities</b><b>22 edges</b><b>most leaned-on: 4</b><b>8 leaned on by nobody</b></div>
           <p>
             A ring is not "the important ones", it is a <em>set that depends on nothing above it and
             that the things above it depend on</em>. The most leaned-on capability is
@@ -1343,7 +1343,7 @@ footer {
             leaned on by nobody at all, and three of those lean on nothing either.
           </p>
           <p>
-            There are <strong>80 414</strong> ways to split this graph into a lower part that depends on
+            There are <strong>63 902</strong> ways to split this graph into a lower part that depends on
             nothing above it and an upper part. Every one of them was tried. The lower part that the
             most capabilities lean on is <code>budgets</code>, <code>pages</code> and
             <code>share</code>: <strong>4 modules that 8 of the rest lean on</strong>. That is the strongest case
@@ -1364,7 +1364,7 @@ footer {
             below capabilities and all seven of those imports point outward, which is what rule 5
             forbids: <strong>a ring that breaks the ring rule on the day it is drawn is not a
             ring</strong>. Move the seven down with it and the split is legal again — but it is then
-            one of the 80 414 counted above, and not the best of them.
+            one of the 63 902 counted above, and not the best of them.
           </p>
         </div>
       </article>
@@ -1382,7 +1382,7 @@ footer {
           <div class="fix">
             <strong>What changes instead is the description.</strong> This analysis called
             capabilities peers. They are not: they are a sparse partial order, 22 members and
-            21 edges, no cycles. Smaller and truer than a fifth ring, and it costs nothing to keep
+            22 edges, no cycles. Smaller and truer than a fifth ring, and it costs nothing to keep
             honest.
           </div>
         </div>
@@ -1417,12 +1417,12 @@ footer {
 <script>
 /* generated: inventory */
 const MODULES = [
-{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":11293,"biggest":"kernel/i18n/locales/en.ts","biggestLines":3568},
-{"ring":"kernel","name":"registry","flag":"","files":8,"lines":4229,"biggest":"kernel/registry/types.ts","biggestLines":2721},
-{"ring":"kernel","name":"design-system","flag":"","files":33,"lines":3391,"biggest":"kernel/design-system/ui.tsx","biggestLines":688},
+{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":11353,"biggest":"kernel/i18n/locales/en.ts","biggestLines":3588},
+{"ring":"kernel","name":"registry","flag":"","files":8,"lines":4243,"biggest":"kernel/registry/types.ts","biggestLines":2732},
+{"ring":"kernel","name":"design-system","flag":"","files":33,"lines":3397,"biggest":"kernel/design-system/ui.tsx","biggestLines":688},
 {"ring":"kernel","name":"write-path","flag":"","files":3,"lines":2770,"biggest":"kernel/write-path/repo.ts","biggestLines":1364},
 {"ring":"kernel","name":"sync","flag":"","files":8,"lines":2656,"biggest":"kernel/sync/sync.ts","biggestLines":696},
-{"ring":"kernel","name":"platform","flag":"","files":11,"lines":2434,"biggest":"kernel/platform/env.ts","biggestLines":650},
+{"ring":"kernel","name":"platform","flag":"","files":11,"lines":2444,"biggest":"kernel/platform/env.ts","biggestLines":650},
 {"ring":"kernel","name":"identity","flag":"","files":10,"lines":2380,"biggest":"kernel/identity/routes/auth.ts","biggestLines":579},
 {"ring":"kernel","name":"search","flag":"","files":9,"lines":2377,"biggest":"kernel/search/query.ts","biggestLines":489},
 {"ring":"kernel","name":"files","flag":"","files":9,"lines":1227,"biggest":"kernel/files/zip.ts","biggestLines":327},
@@ -1440,10 +1440,10 @@ const MODULES = [
 {"ring":"capability","name":"infrastructure","flag":"infrastructure","files":4,"lines":1642,"biggest":"modules/infrastructure/landscape.tsx","biggestLines":582},
 {"ring":"capability","name":"guide","flag":"","files":6,"lines":1626,"biggest":"modules/guide/diagrams.tsx","biggestLines":628},
 {"ring":"capability","name":"meetings","flag":"meetings","files":4,"lines":1602,"biggest":"modules/meetings/meeting-parts.tsx","biggestLines":776},
+{"ring":"capability","name":"support","flag":"support","files":7,"lines":1569,"biggest":"modules/support/routes/support.tsx","biggestLines":382},
 {"ring":"capability","name":"automation","flag":"","files":3,"lines":1523,"biggest":"modules/automation/settings.tsx","biggestLines":738},
 {"ring":"capability","name":"time","flag":"time","files":6,"lines":1501,"biggest":"modules/time/rates.tsx","biggestLines":581},
 {"ring":"capability","name":"secrets","flag":"secrets","files":6,"lines":1412,"biggest":"modules/secrets/routes/secrets.tsx","biggestLines":496},
-{"ring":"capability","name":"support","flag":"support","files":6,"lines":1163,"biggest":"modules/support/routes/support.tsx","biggestLines":332},
 {"ring":"capability","name":"decisions","flag":"decisions","files":5,"lines":1131,"biggest":"modules/decisions/decision-parts.tsx","biggestLines":282},
 {"ring":"capability","name":"ai-review","flag":"ai","files":7,"lines":818,"biggest":"modules/ai-review/review.ts","biggestLines":200},
 {"ring":"capability","name":"trash","flag":"","files":2,"lines":482,"biggest":"modules/trash/trash.ts","biggestLines":255},
@@ -1454,7 +1454,7 @@ const MODULES = [
 {"ring":"adapter","name":"transfer","flag":"","files":8,"lines":3693,"biggest":"adapters/transfer/transfer.ts","biggestLines":873},
 {"ring":"adapter","name":"webhooks","flag":"","files":7,"lines":2007,"biggest":"adapters/webhooks/foreign.ts","biggestLines":747},
 {"ring":"adapter","name":"mail","flag":"","files":8,"lines":1430,"biggest":"adapters/mail/mail.ts","biggestLines":412},
-{"ring":"adapter","name":"widget","flag":"","files":6,"lines":1251,"biggest":"adapters/widget/visitor.tsx","biggestLines":466},
+{"ring":"adapter","name":"widget","flag":"","files":6,"lines":1318,"biggest":"adapters/widget/visitor.tsx","biggestLines":494},
 {"ring":"adapter","name":"imap","flag":"","files":4,"lines":1194,"biggest":"adapters/imap/imap.ts","biggestLines":371},
 {"ring":"adapter","name":"oauth","flag":"","files":4,"lines":978,"biggest":"adapters/oauth/routes/oauth.ts","biggestLines":515},
 {"ring":"adapter","name":"kolibri","flag":"","files":3,"lines":905,"biggest":"feedback/src/adapters/kolibri/preflight.ts","biggestLines":598},

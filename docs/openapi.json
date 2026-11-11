@@ -1680,6 +1680,14 @@
             ],
             "readOnly": true
           },
+          "handover_at": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "When the model handed over, or a person took the conversation. The model is quiet after.",
+            "readOnly": true
+          },
           "id": {
             "type": "string",
             "readOnly": true
@@ -1692,6 +1700,7 @@
             "enum": [
               "visitor",
               "agent",
+              "bot",
               null
             ],
             "readOnly": true
@@ -1778,7 +1787,8 @@
             "type": "string",
             "enum": [
               "visitor",
-              "agent"
+              "agent",
+              "bot"
             ],
             "readOnly": true
           },
@@ -1787,7 +1797,7 @@
               "string",
               "null"
             ],
-            "description": "The member who wrote it; null for the visitor.",
+            "description": "The member who wrote it; null for the visitor and for the model.",
             "readOnly": true
           },
           "body": {
@@ -1846,6 +1856,14 @@
           "seq": {
             "type": "number",
             "description": "Server-assigned, workspace-monotonic sync cursor.",
+            "readOnly": true
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The knowledge pages a model's answer rests on, by title.",
             "readOnly": true
           },
           "updated_at": {
@@ -5929,6 +5947,18 @@
             },
             "description": "Who is told about a new message. Empty means the workspace's owners and admins."
           },
+          "assistant": {
+            "type": "string",
+            "enum": [
+              "off",
+              "suggest",
+              "answer"
+            ]
+          },
+          "assistant_budget": {
+            "type": "number",
+            "description": "Answers a day the model may give from this widget."
+          },
           "color": {
             "type": [
               "string",
@@ -5973,6 +6003,13 @@
               "anonymous",
               "signed"
             ]
+          },
+          "knowledge": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The pages the model may read, and nothing else."
           },
           "name": {
             "type": "string"
@@ -9648,6 +9685,41 @@
           },
           "404": {
             "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/conversations/{id}/suggest": {
+      "post": {
+        "operationId": "postConversationsSuggest",
+        "summary": "POST /api/conversations/:id/suggest",
+        "description": "Defined in `packages/server/src/modules/support/routes/support.ts`. Its request and response shapes are not derivable from the registry, so they are not described here — read the handler.",
+        "tags": [
+          "hand-written"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "See the handler."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
             "content": {
               "application/json": {
                 "schema": {
@@ -32654,6 +32726,41 @@
           },
           {
             "name": "hash",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "See the handler."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/w/{widget}/handover": {
+      "post": {
+        "operationId": "postWHandover",
+        "summary": "POST /w/:widget/handover",
+        "description": "Defined in `packages/server/src/adapters/widget/routes/widget.ts`. Its request and response shapes are not derivable from the registry, so they are not described here — read the handler.",
+        "tags": [
+          "hand-written"
+        ],
+        "parameters": [
+          {
+            "name": "widget",
             "in": "path",
             "required": true,
             "schema": {

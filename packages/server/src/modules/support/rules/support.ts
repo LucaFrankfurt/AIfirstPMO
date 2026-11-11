@@ -8,7 +8,7 @@
  * row, and who wrote it is the server's to say.
  */
 import {
-  SUPPORT_MESSAGE_MAX, cleanOrigins, isWidgetColor, isWidgetIdentity, type ConversationFile,
+  SUPPORT_MESSAGE_MAX, cleanOrigins, isWidgetAssistant, isWidgetColor, isWidgetIdentity, type ConversationFile,
 } from '@kolibri/shared';
 import { get, run, type Row } from '../../../kernel/platform/db/index.ts';
 import { hasFeature } from '../../../kernel/platform/features.ts';
@@ -65,6 +65,16 @@ function applyWidgetInvariants(values: Record<string, unknown>, forced: Record<s
     if (encoded !== values.agents) settle('agents', encoded);
   }
   if (values.identity !== undefined && !isWidgetIdentity(values.identity)) settle('identity', 'signed');
+  if (values.assistant !== undefined && !isWidgetAssistant(values.assistant)) settle('assistant', 'off');
+  if (values.knowledge !== undefined) {
+    const encoded = JSON.stringify(parseIds(parseList(values.knowledge)).slice(0, 20));
+    if (encoded !== values.knowledge) settle('knowledge', encoded);
+  }
+  if (values.assistant_budget !== undefined) {
+    const budget = Math.round(Number(values.assistant_budget));
+    const clamped = Number.isFinite(budget) ? Math.min(10_000, Math.max(0, budget)) : 50;
+    if (clamped !== values.assistant_budget) settle('assistant_budget', clamped);
+  }
   if (values.color !== undefined && values.color !== null && !isWidgetColor(values.color)) settle('color', null);
   if (typeof values.name === 'string' && values.name.trim() !== values.name) settle('name', values.name.trim());
   if (typeof values.greeting === 'string' && values.greeting.length > 500) settle('greeting', values.greeting.slice(0, 500));
@@ -175,7 +185,11 @@ export const supportRules = {
     const at = Number(row.created_at);
     const patch: Record<string, unknown> = { last_message_at: at, last_author: row.author };
     if (row.author === 'visitor' && conversation.status === 'resolved') patch.status = 'open';
-    if (row.author === 'agent') patch.agent_read_at = at;
+    // A person answering takes the conversation over: the model goes quiet.
+    if (row.author === 'agent') {
+      patch.agent_read_at = at;
+      if (!conversation.handover_at) patch.handover_at = at;
+    }
     writeEntity('conversation', String(conversation.id), patch, { ...opts, system: true });
   },
 } satisfies EntityRule;

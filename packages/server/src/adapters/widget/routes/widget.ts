@@ -30,6 +30,7 @@ import {
   conversationFor, liveWidget, markVisitorRead, messagesOf, onTyping, parseFiles, postVisitorMessage,
   setTyping, typingIn, type Visitor,
 } from '../../../modules/support/support.ts';
+import { handOver, respondTo } from '../../../modules/support/assistant.ts';
 import { readSession, signSession, verifyHostToken } from '../token.ts';
 import { withdrawMail } from '../mail.ts';
 
@@ -77,15 +78,26 @@ const conversationView = (conversation: Row) => ({
   status: conversation.status,
   agent_read_at: conversation.agent_read_at ?? null,
   visitor_name: conversation.visitor_name ?? null,
+  handover_at: conversation.handover_at ?? null,
 });
 
-/** A message as the visitor sees it: who answered is a first name, not a user id. */
+const listOf = (value: unknown): string[] => {
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+};
+
+/** A message as the visitor sees it: who answered is a name, not a user id; the model is the model. */
 const messageView = (message: Row) => ({
   id: message.id,
   author: message.author,
   agent: message.author === 'agent' ? displayName(String(message.author_id ?? '')) : null,
   body: message.body,
   files: parseFiles(message.files),
+  sources: listOf(message.sources),
   created_at: message.created_at,
   seq: message.seq,
 });
@@ -206,6 +218,7 @@ export function registerWidgetRoutes(router: Router): void {
     const { conversation } = visitorOf(ctx);
     const body = await readJson<{ body?: string; files?: unknown }>(ctx, 64 * 1024);
     const message = postVisitorMessage(conversation, String(body.body ?? ''), storedFiles(String(conversation.workspace_id), body.files));
+    respondTo(conversation, message);
     return { message: messageView(message) };
   });
 
@@ -215,6 +228,14 @@ export function registerWidgetRoutes(router: Router): void {
     const { conversation } = visitorOf(ctx);
     markVisitorRead(conversation);
     withdrawMail(String(conversation.id));
+    return { ok: true };
+  });
+
+  /** "I would like a person": the model goes quiet and the team is told now. */
+  router.post('/w/:widget/handover', (ctx: Ctx) => {
+    enforce(ctx, byAddress(ctx, LIMITS.widgetSignal, 'widget-signal'));
+    const { widget, conversation } = visitorOf(ctx);
+    handOver(conversation, widget);
     return { ok: true };
   });
 
@@ -239,6 +260,7 @@ export function registerWidgetRoutes(router: Router): void {
     const id = String(conversation.id);
     let after = Number(ctx.query.get('after') ?? 0) || 0;
     let read = Number(conversation.agent_read_at ?? 0);
+    let handedOver = Number(conversation.handover_at ?? 0);
 
     ctx.res.writeHead(200, {
       'content-type': 'text/event-stream; charset=utf-8',
@@ -259,7 +281,7 @@ export function registerWidgetRoutes(router: Router): void {
         if (message.deleted_at) send('gone', { id: message.id });
         else send('message', messageView(message));
       }
-      const now = get<Row>(`SELECT agent_read_at, deleted_at FROM conversations WHERE id = ?`, id);
+      const now = get<Row>(`SELECT agent_read_at, handover_at, deleted_at FROM conversations WHERE id = ?`, id);
       if (!now || now.deleted_at) {
         send('end', {});
         stop();
@@ -268,6 +290,10 @@ export function registerWidgetRoutes(router: Router): void {
       if (Number(now.agent_read_at ?? 0) !== read) {
         read = Number(now.agent_read_at ?? 0);
         send('read', { agent_read_at: read });
+      }
+      if (Number(now.handover_at ?? 0) !== handedOver) {
+        handedOver = Number(now.handover_at ?? 0);
+        send('handover', { handover_at: handedOver || null });
       }
     };
 

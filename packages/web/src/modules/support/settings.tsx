@@ -5,9 +5,10 @@
  * workspace may write into it. The server refuses anybody else; this keeps
  * the screen from offering what would only answer 403.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  WIDGET_IDENTITIES, cleanOrigins, isWidgetColor, widgetSnippet, type Widget, type WidgetIdentity,
+  WIDGET_ASSISTANTS, WIDGET_IDENTITIES, cleanOrigins, isWidgetColor, widgetSnippet,
+  type Widget, type WidgetAssistant, type WidgetIdentity,
 } from '@kolibri/shared';
 import { Empty, Sheet, useAction, useConfirm, useToast } from '../../kernel/design-system/ui';
 import { Button } from '../../kernel/design-system/ui/button';
@@ -15,11 +16,14 @@ import { Chip } from '../../kernel/design-system/ui/chip';
 import { Input, Label, Select, Textarea } from '../../kernel/design-system/ui/field';
 import { SectionHeading } from '../../kernel/design-system/ui/section';
 import { useT } from '../../kernel/i18n/i18n';
-import { useMembers, useRunsWorkspace } from '../../kernel/identity/session';
+import { useFeature, useMembers, useRunsWorkspace } from '../../kernel/identity/session';
 import { api } from '../../kernel/sync/api';
 import { create, remove, update } from '../../kernel/sync/mutations';
 import { serverOrigin } from '../../kernel/sync/server';
 import { list, useQuery } from '../../kernel/sync/store';
+
+const ASSISTANT_LABEL = { off: 'widgets.assistantOff', suggest: 'widgets.assistantSuggest', answer: 'widgets.assistantAnswer' } as const;
+const ASSISTANT_HINT = { off: 'widgets.assistantOffHint', suggest: 'widgets.assistantSuggestHint', answer: 'widgets.assistantAnswerHint' } as const;
 
 /** Where this instance answers, for the snippet: the packaged app knows it; a browser is on it. */
 const publicUrl = (): string => serverOrigin() || window.location.origin;
@@ -125,8 +129,20 @@ function WidgetSheet({ widget, onClose }: { widget: Widget | null; onClose: () =
   const [color, setColor] = useState(widget?.color ?? '');
   const [agents, setAgents] = useState<string[]>(listOf<string>(widget?.agents));
   const [enabled, setEnabled] = useState(widget ? !!widget.enabled : true);
-  // Read defensively: a widget synced before the column existed has none.
+  // Read defensively: a widget synced before these columns existed has none of them.
   const [replyTo, setReplyTo] = useState(widget?.reply_to ?? '');
+  const [assistant, setAssistant] = useState<WidgetAssistant>(widget?.assistant ?? 'off');
+  const [knowledge, setKnowledge] = useState<string[]>(listOf<string>(widget?.knowledge));
+  const [budget, setBudget] = useState(String(widget?.assistant_budget ?? 50));
+  const aiSwitch = useFeature('ai');
+  const [modelOn, setModelOn] = useState(true);
+  useEffect(() => { api.config().then((config) => setModelOn(!!config.ai)).catch(() => setModelOn(false)); }, []);
+  // Only pages the workspace can read are offered: the server leaves a private one out anyway.
+  const pages = useQuery(
+    () => list('page', (page) => !page.archived && page.access !== 'private').sort((a, b) => (a.title ?? '').localeCompare(b.title ?? '')),
+    [],
+  );
+  const titleOf = new Map(pages.map((page) => [page.id, page.title || t('widgets.untitledPage')]));
 
   const origins = cleanOrigins(sites);
   const typed = sites.split(/[\s,]+/).filter(Boolean);
@@ -138,6 +154,7 @@ function WidgetSheet({ widget, onClose }: { widget: Widget | null; onClose: () =
       name: name.trim(), project_id: projectId, identity, origins, greeting: greeting.trim() || null,
       color: isWidgetColor(color) ? color : null, agents, enabled: enabled ? 1 : 0,
       reply_to: replyTo.trim() || null,
+      assistant, knowledge, assistant_budget: Math.max(0, Math.round(Number(budget) || 0)),
     };
     if (widget) update('widget', widget.id, values);
     else create('widget', values);
@@ -210,6 +227,48 @@ function WidgetSheet({ widget, onClose }: { widget: Widget | null; onClose: () =
             </label>
           ))}
         </fieldset>
+        <fieldset className="m-0 flex flex-col gap-1.5 border-0 p-0">
+          <legend className="mb-1 text-[13px] font-medium">{t('widgets.assistant')}</legend>
+          {WIDGET_ASSISTANTS.map((option) => (
+            <label key={option} className="check-row">
+              <input type="radio" name="assistant" checked={assistant === option} onChange={() => setAssistant(option)} />
+              <span>
+                <span>{t(ASSISTANT_LABEL[option])}</span>
+                <span className="text-[12px] text-muted">{t(ASSISTANT_HINT[option])}</span>
+              </span>
+            </label>
+          ))}
+          {assistant !== 'off' && !(modelOn && aiSwitch) && (
+            <p className="m-0 text-[12px] text-warn">{t('widgets.assistantNeeds')}</p>
+          )}
+        </fieldset>
+        {assistant !== 'off' && (
+          <>
+            <Label label={t('widgets.knowledge')} hint={t('widgets.knowledgeHint')}>
+              <Select value="" onChange={(event) => event.target.value && setKnowledge((now) => [...now, event.target.value])}>
+                <option value="">{t('widgets.knowledgeAdd')}</option>
+                {pages.filter((page) => !knowledge.includes(page.id)).map((page) => (
+                  <option key={page.id} value={page.id}>{page.title || t('widgets.untitledPage')}</option>
+                ))}
+              </Select>
+            </Label>
+            {knowledge.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {knowledge.map((id) => (
+                  <Chip key={id} className="h-7 leading-7">
+                    <span className="max-w-[200px] truncate">{titleOf.get(id) ?? t('widgets.untitledPage')}</span>
+                    <button type="button" aria-label={t('action.remove')} onClick={() => setKnowledge((now) => now.filter((one) => one !== id))}>×</button>
+                  </Chip>
+                ))}
+              </div>
+            )}
+            {assistant === 'answer' && (
+              <Label label={t('widgets.budget')} hint={t('widgets.budgetHint')}>
+                <Input type="number" min={0} max={10000} value={budget} onChange={(event) => setBudget(event.target.value)} />
+              </Label>
+            )}
+          </>
+        )}
         <Label label={t('widgets.replyTo')} hint={t('widgets.replyToHint')}>
           <Input type="email" value={replyTo} placeholder="support@example.com" onChange={(event) => setReplyTo(event.target.value)} />
         </Label>

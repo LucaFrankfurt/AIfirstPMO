@@ -30,6 +30,7 @@ import { displayName, onCommitted } from '../../kernel/write-path/repo.ts';
 import { onMailArrival } from '../../modules/mail/poll.ts';
 import type { FetchedMessage } from '../../modules/mail/store.ts';
 import { liveWidget, postVisitorMessage } from '../../modules/support/support.ts';
+import { respondTo } from '../../modules/support/assistant.ts';
 import { queueMail } from '../mail/mail.ts';
 
 /** Long enough that somebody still in the window reads it there first. */
@@ -128,7 +129,7 @@ export function takeReply(workspaceId: string, message: Pick<FetchedMessage, 'su
   if (!liveWidget(String(conversation.widget_id))) return false;
   const text = replyText(String(message.body ?? ''));
   if (!text) return false;
-  postVisitorMessage(conversation, text);
+  respondTo(conversation, postVisitorMessage(conversation, text));
   return true;
 }
 

@@ -828,9 +828,12 @@ export const ENTITIES = {
    */
   widget: {
     table: 'widgets',
-    fields: ['workspace_id', 'project_id', 'name', 'origins', 'identity', 'greeting', 'color', 'agents', 'enabled', 'reply_to', 'created_by'],
+    fields: [
+      'workspace_id', 'project_id', 'name', 'origins', 'identity', 'greeting', 'color', 'agents', 'enabled', 'reply_to',
+      'assistant', 'knowledge', 'assistant_budget', 'created_by',
+    ],
     secret: ['secret'],
-    json: ['origins', 'agents'],
+    json: ['origins', 'agents', 'knowledge'],
   },
   /**
    * Opened by a visitor, never by a client: the public routes create it as a
@@ -843,7 +846,7 @@ export const ENTITIES = {
     fields: ['workspace_id', 'status', 'assignee_id', 'agent_read_at'],
     serverOnly: [
       'project_id', 'widget_id', 'visitor_id', 'visitor_name', 'visitor_email', 'verified',
-      'task_id', 'last_message_at', 'last_author', 'visitor_read_at',
+      'task_id', 'last_message_at', 'last_author', 'visitor_read_at', 'handover_at',
     ],
     secret: ['pending_mail'],
   },
@@ -851,8 +854,8 @@ export const ENTITIES = {
   conversationMessage: {
     table: 'conversation_messages',
     fields: ['workspace_id', 'conversation_id', 'body', 'files'],
-    serverOnly: ['author', 'author_id'],
-    json: ['files'],
+    serverOnly: ['author', 'author_id', 'sources'],
+    json: ['files', 'sources'],
   },
 } as const satisfies Record<EntityName, EntityDef>;
 

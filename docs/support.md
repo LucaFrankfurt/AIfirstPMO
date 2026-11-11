@@ -2,15 +2,15 @@
 
 Chat widgets on other websites, and an inbox inside Kolibri the team answers them from.
 
-**Status:** phases 1 and 2 are built, the team chat included. What is open, and why, is at the end
-and in `TODO.md`.
+**Status:** built — phases 1 and 2, the team chat on the shared components, answers by email, and the
+model. What is open, and why, is at the end and in `TODO.md`.
 
 ## The goal
 
 A workspace defines **several chat widgets**, each for one audience — signed-in B2B customers,
 prospects, end customers — and embeds each on other websites with one script tag. The same team
 answers all of them, live from Kolibri; when nobody is there, the answer reaches the customer by
-email. Later a model answers first and hands over to a person.
+email. A model may answer first, from pages the team chose, and hand over to a person.
 
 It is not a Chatwoot clone. `docs/comparison.md` already says service management is a different
 product's job, and that stays true: one channel (the website), one inbox, and a conversation that
@@ -35,6 +35,7 @@ outside the workspace may write in:
 | colour | the button, the window's header and the visitor's own messages |
 | who is told | members notified of a new message; nobody ticked means the workspace's owners and admins |
 | replies by email go to | an inbox connected under Mail; answering the support email then writes into the conversation |
+| the assistant | off, suggests replies to the team, or answers first — with the pages it may read and its answers a day |
 | live | off hides the window on every site without deleting anything |
 
 ## Decisions
@@ -164,15 +165,35 @@ What was measured: a token from `jose`'s `SignJWT` verifies against the server's
 same two tags on a plain HTML page on another origin open the chat, send, and receive an answer
 live. The Next.js wrapper itself has not been run inside a Next.js app.
 
-## Phase 3 — the model (not started)
+## The model
 
-1. **Suggested replies.** The model drafts and an agent sends. Nothing it writes reaches a visitor
-   unread, so it can be wrong without harm.
-2. **The model answers first.** It answers from the pages a widget names as its knowledge — never the
-   workspace-wide search — with sources, hands over on request or when unsure, and the agent sees
-   everything it said. No tools and no writes, and a daily budget per widget, because otherwise an
-   anonymous stranger spends the operator's key. It needs the existing double switch: the operator's
-   key and the workspace's `ai` flag.
+Per widget, under **The assistant**: off, **suggests replies to the team**, or **answers first and
+hands over when unsure**. It needs both switches the task review needs — a model configured on the
+server, and AI switched on for the workspace — and the screen says so when one is missing.
+`modules/support/assistant.ts`.
+
+**Suggest.** A button over the inbox's answer box drafts a reply from the widget's pages and puts it
+in the box; a person sends it, edits it, or does not. Nothing the model writes reaches a visitor
+unread. Where the pages do not cover the question the draft is empty, rather than a "a colleague
+will answer you" line a colleague would then send.
+
+**Answer first.** The model answers a visitor's line itself, with "typing" while it writes, and names
+the pages it used under the answer. It hands the conversation to a person — goes quiet, and the team
+is told at once — when:
+
+- it cannot answer from the pages, or the visitor is upset or asks about their own account (it says
+  so in one line, in the visitor's language);
+- the visitor presses "Talk to a person";
+- a member answers in the conversation (answering is taking over);
+- the widget's **answers a day** are spent;
+- the model does not answer, or answers something that cannot be read.
+
+The fences, which are the point: it reads **only the pages the widget names** — never the
+workspace's search, never a private page, never a task; it has no tools and writes one line of text
+as itself; it is asked for JSON and argued with (`parseAnswer`), so a source it names that is not one
+of the pages is dropped and an answer it cannot shape is a hand-over; and the conversation is given
+to it as data, with the rule that instructions inside it change nothing. Measured with a fake model
+in `support-assistant.test.ts`, including that a private page ticked as knowledge is never sent.
 
 ## Not doing
 

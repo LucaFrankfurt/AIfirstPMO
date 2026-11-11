@@ -2319,7 +2319,9 @@ export interface Purge extends Base {
  */
 export type WidgetIdentity = 'signed' | 'anonymous';
 export type ConversationStatus = 'open' | 'resolved';
-export type ConversationAuthor = 'visitor' | 'agent';
+export type ConversationAuthor = 'visitor' | 'agent' | 'bot';
+/** What the model does in a widget: nothing, drafts for the team, or answers first. */
+export type WidgetAssistant = 'off' | 'suggest' | 'answer';
 
 /**
  * A chat window embedded on somebody else's site, for one audience.
@@ -2347,6 +2349,11 @@ export interface Widget extends Base {
    * reaches the conversation. Null leaves the instance's own.
    */
   reply_to: string | null;
+  assistant: WidgetAssistant;
+  /** The pages the model may read, and nothing else. */
+  knowledge: ID[];
+  /** Answers a day the model may give from this widget. */
+  assistant_budget: number;
   created_by: ID | null;
 }
 
@@ -2369,6 +2376,8 @@ export interface Conversation extends Base {
   /** The newest message the team has seen. Shared: one person reading is the team reading. */
   agent_read_at: number | null;
   visitor_read_at: number | null;
+  /** When the model handed over, or a person took the conversation. The model is quiet after. */
+  handover_at: number | null;
 }
 
 /** A picture or file sent in a conversation. */
@@ -2385,10 +2394,12 @@ export interface ConversationMessage extends Base {
   workspace_id: ID;
   conversation_id: ID;
   author: ConversationAuthor;
-  /** The member who wrote it; null for the visitor. */
+  /** The member who wrote it; null for the visitor and for the model. */
   author_id: ID | null;
   body: string;
   files: ConversationFile[];
+  /** The knowledge pages a model's answer rests on, by title. */
+  sources: string[];
 }
 
 export interface EntityMap {

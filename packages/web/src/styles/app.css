@@ -2998,6 +2998,10 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   white-space: nowrap;
 }
 .thread-bubble .md > p:last-child::after { content: ""; display: inline-block; width: 3.6rem; }
+/* A corner that says more than the time — "edited", "Assistant" — needs more
+   room, or the last words run under it. Asked of the corner itself, because a
+   caller's meta can render nothing (a line that is not waiting to be sent). */
+.thread-bubble:has(.thread-meta > :not(:last-child)) .md > p:last-child::after { width: 8rem; }
 .thread-bubble:has(.md > p:last-child) { padding-bottom: 6px; }
 /* Anything whose last line is not a paragraph — an image, a code block, a
    checklist — cannot reserve the space inline, so the corner is given a line

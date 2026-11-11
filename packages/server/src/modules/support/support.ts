@@ -89,7 +89,13 @@ export const messagesOf = (conversationId: string, limit = 200): Row[] =>
     conversationId, limit,
   );
 
-/** What a visitor sends: words, files, or both — never neither. */
+/**
+ * What a visitor sends: words, files, or both — never neither.
+ *
+ * Who hears about it is not decided here: the model may answer it first, or
+ * the team is told. That is `respondTo` in `assistant.ts`, which every caller
+ * hands the line to next — the widget's route and the email poller.
+ */
 export function postVisitorMessage(conversation: Row, body: string, files: ConversationFile[] = []): Row {
   const text = String(body ?? '').trim().slice(0, SUPPORT_MESSAGE_MAX);
   if (!text && !files.length) throw badRequest('Write something first');
@@ -103,13 +109,6 @@ export function postVisitorMessage(conversation: Row, body: string, files: Conve
     files,
   }, asWidget(widget));
   setTyping(String(conversation.id), 'visitor', false);
-  // A system write tells no listeners — see `afterWrite` — so the team is told
-  // here, the way an intake form tells it.
-  try {
-    tellTeam(widget, get<Row>(`SELECT * FROM conversations WHERE id = ?`, conversation.id)!, row);
-  } catch (error) {
-    console.error('[support] could not tell the team about a message', error);
-  }
   return row;
 }
 
@@ -148,14 +147,21 @@ export function teamOf(widget: Row, conversation: Row): string[] {
  */
 const BURST_MS = 5 * 60_000;
 
-function tellTeam(widget: Row, conversation: Row, message: Row): void {
+/**
+ * Tell the team about a visitor's line — once per burst, unless `now`.
+ *
+ * A system write tells no listeners (see `afterWrite`), so this is called
+ * directly, the way an intake form tells. `now` is the hand-over: the model has
+ * been answering, and this line is the one a person has to pick up.
+ */
+export function tellTeam(widget: Row, conversation: Row, message: Row, now = false): void {
   const previous = get<Row>(
     `SELECT author, created_at FROM conversation_messages
       WHERE conversation_id = ? AND id <> ? AND deleted_at IS NULL
       ORDER BY created_at DESC LIMIT 1`,
     conversation.id, message.id,
   );
-  if (previous?.author === 'visitor' && Number(message.created_at) - Number(previous.created_at) < BURST_MS) return;
+  if (!now && previous?.author === 'visitor' && Number(message.created_at) - Number(previous.created_at) < BURST_MS) return;
   const files = parseFiles(message.files);
   const body = String(message.body ?? '') ? excerpt(String(message.body), 280) : files.map((file) => file.name).join(', ');
   for (const userId of teamOf(widget, conversation)) {

@@ -12,6 +12,10 @@ import type { ThreadWords } from '../../kernel/design-system/conversation';
 
 const CATALOGUE = {
   en: {
+    assistant: 'Assistant',
+    sources: 'From',
+    person: 'Talk to a person',
+    personComing: 'A person from the team will answer here.',
     welcome: 'Hi! How can we help?',
     connecting: 'Connecting…',
     unavailable: 'This chat is not available right now.',
@@ -39,6 +43,10 @@ const CATALOGUE = {
     typingNamed: '{name} is typing',
   },
   de: {
+    assistant: 'Assistent',
+    sources: 'Aus',
+    person: 'Mit einem Menschen sprechen',
+    personComing: 'Ein Mensch aus dem Team antwortet hier.',
     welcome: 'Hallo! Wie können wir helfen?',
     connecting: 'Verbinde…',
     unavailable: 'Dieser Chat ist gerade nicht verfügbar.',
@@ -66,6 +74,10 @@ const CATALOGUE = {
     typingNamed: '{name} schreibt',
   },
   fr: {
+    assistant: 'Assistant',
+    sources: 'Source',
+    person: 'Parler à une personne',
+    personComing: 'Une personne de l’équipe va répondre ici.',
     welcome: 'Bonjour ! Comment pouvons-nous aider ?',
     connecting: 'Connexion…',
     unavailable: 'Ce chat n’est pas disponible pour le moment.',
