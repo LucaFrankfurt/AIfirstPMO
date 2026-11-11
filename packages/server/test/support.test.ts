@@ -343,47 +343,113 @@ describe('answering the email', () => {
   });
 });
 
+/** A 1×1 PNG with a colour of its own, so every call is a different file. */
+async function picture(seed: number): Promise<Buffer> {
+  const { deflateSync } = await import('node:zlib');
+  const table = Array.from({ length: 256 }, (_, n) => {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    return c >>> 0;
+  });
+  const crc = (buf: Buffer) => {
+    let x = 0xffffffff;
+    for (const b of buf) x = table[(x ^ b) & 0xff] ^ (x >>> 8);
+    return (x ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type: string, data: Buffer) => {
+    const length = Buffer.alloc(4); length.writeUInt32BE(data.length);
+    const typed = Buffer.concat([Buffer.from(type), data]);
+    const sum = Buffer.alloc(4); sum.writeUInt32BE(crc(typed));
+    return Buffer.concat([length, typed, sum]);
+  };
+  const header = Buffer.alloc(13); header.writeUInt32BE(1, 0); header.writeUInt32BE(1, 4); header[8] = 8; header[9] = 2;
+  return Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', header),
+    chunk('IDAT', deflateSync(Buffer.from([0, seed & 255, 7, 9]))), chunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
+/** A signed visitor who sends one line and one picture. Returns the conversation and the picture's hash. */
+async function visitorWithPicture(sub: string, bytes: Buffer): Promise<{ conversation: string; hash: string; session: string }> {
+  resetRateLimits();
+  const opened = await visit(`/w/${widget.id}/session`, { token: hostToken(secret, { sub, name: 'Ada', email: 'ada.v@example.com', exp: inAnHour() }) });
+  const uploaded = await fetch(`${base}/w/${widget.id}/files`, {
+    method: 'POST',
+    headers: { 'content-type': 'image/png', 'x-filename': 'screen.png', 'x-widget-session': opened.json.session },
+    body: bytes,
+  });
+  const { file } = await uploaded.json() as { file: { hash: string } };
+  await visit(`/w/${widget.id}/messages`, { body: 'Here is what I see.', files: [file] }, opened.json.session);
+  return { conversation: opened.json.conversation.id, hash: file.hash, session: opened.json.session };
+}
+
+describe('a visitor done with a chat', () => {
+  it('hears that the team resolved it, and reopens it by writing on', async () => {
+    const { conversation, session } = await visitorWithPicture('done-1', await picture(11));
+    const history = await visit(`/w/${widget.id}/messages`, undefined, session);
+    assert.equal(history.json.conversation.status, 'open');
+    const after = Math.max(...history.json.messages.map((message: any) => message.seq));
+    const controller = new AbortController();
+    const stream = await fetch(`${base}/w/${widget.id}/stream?session=${encodeURIComponent(session)}&after=${after}`, { signal: controller.signal });
+    const reader = stream.body!.getReader();
+
+    await ok(`/api/conversations/${conversation}`, { status: 'resolved' }, 'PATCH');
+    let heard = '';
+    const decoder = new TextDecoder();
+    while (!heard.includes('"resolved"')) heard += decoder.decode((await reader.read()).value);
+    controller.abort();
+    assert.match(heard, /event: status\ndata: \{"status":"resolved"\}/);
+
+    await visit(`/w/${widget.id}/messages`, { body: 'One more thing.' }, session);
+    assert.equal(get<any>(`SELECT status FROM conversations WHERE id = ?`, conversation).status, 'open');
+  });
+
+  it('resolves it themselves, without waking the team', async () => {
+    const { conversation, session } = await visitorWithPicture('done-2', await picture(12));
+    const before = all(`SELECT * FROM notifications WHERE kind = 'support'`).length;
+    assert.equal((await visit(`/w/${widget.id}/resolve`, {}, session)).status, 200);
+    assert.equal(get<any>(`SELECT status FROM conversations WHERE id = ?`, conversation).status, 'resolved');
+    assert.equal(all(`SELECT * FROM notifications WHERE kind = 'support'`).length, before);
+  });
+
+  it('starts a new chat, which closes the one they leave and is the one they come back to', async () => {
+    const { conversation, session } = await visitorWithPicture('done-3', await picture(13));
+    const fresh = await visit(`/w/${widget.id}/conversations`, {}, session);
+    assert.equal(fresh.status, 200);
+    assert.notEqual(fresh.json.conversation.id, conversation);
+    assert.equal(get<any>(`SELECT status FROM conversations WHERE id = ?`, conversation).status, 'resolved');
+    const thread = await visit(`/w/${widget.id}/messages`, undefined, fresh.json.session);
+    assert.deepEqual(thread.json.messages, [], 'a new chat starts clean');
+    const row = get<any>(`SELECT * FROM conversations WHERE id = ?`, fresh.json.conversation.id);
+    assert.equal(row.visitor_id, 'done-3');
+    assert.equal(row.verified, 1, 'still the visitor their site vouched for');
+
+    const back = await visit(`/w/${widget.id}/session`, { token: hostToken(secret, { sub: 'done-3', name: 'Ada', exp: inAnHour() }) });
+    assert.equal(back.json.conversation.id, fresh.json.conversation.id, 'the next page opens the newest');
+  });
+});
+
+describe('a conversation as a task', () => {
+  it('links back to the chat and shows its pictures as pictures', async () => {
+    const { conversation, hash } = await visitorWithPicture('task-1', await picture(21));
+    const { task } = await ok(`/api/conversations/${conversation}/task`, {});
+    const [link] = task.description.split('\n');
+    assert.equal(link, `[From the support chat with Ada via Merchants](/support/${conversation})`);
+    assert.match(task.description, new RegExp(`!\\[screen\\.png\\]\\(/files/${hash}/screen\\.png\\)`));
+  });
+
+  it('can be made again once the task it became is deleted', async () => {
+    const { conversation } = await visitorWithPicture('task-2', await picture(22));
+    const first = (await ok(`/api/conversations/${conversation}/task`, {})).task;
+    await assert.rejects(ok(`/api/conversations/${conversation}/task`, {}), /already a task/);
+    await ok(`/api/tasks/${first.id}`, undefined, 'DELETE');
+    const second = await ok(`/api/conversations/${conversation}/task`, {});
+    assert.notEqual(second.task.id, first.id);
+    assert.equal(second.conversation.task_id, second.task.id);
+  });
+});
+
 describe('deleting a conversation, and emptying the trash', () => {
-  /** A 1×1 PNG with a colour of its own, so every call is a different file. */
-  async function picture(seed: number): Promise<Buffer> {
-    const { deflateSync } = await import('node:zlib');
-    const table = Array.from({ length: 256 }, (_, n) => {
-      let c = n;
-      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-      return c >>> 0;
-    });
-    const crc = (buf: Buffer) => {
-      let x = 0xffffffff;
-      for (const b of buf) x = table[(x ^ b) & 0xff] ^ (x >>> 8);
-      return (x ^ 0xffffffff) >>> 0;
-    };
-    const chunk = (type: string, data: Buffer) => {
-      const length = Buffer.alloc(4); length.writeUInt32BE(data.length);
-      const typed = Buffer.concat([Buffer.from(type), data]);
-      const sum = Buffer.alloc(4); sum.writeUInt32BE(crc(typed));
-      return Buffer.concat([length, typed, sum]);
-    };
-    const header = Buffer.alloc(13); header.writeUInt32BE(1, 0); header.writeUInt32BE(1, 4); header[8] = 8; header[9] = 2;
-    return Buffer.concat([
-      Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', header),
-      chunk('IDAT', deflateSync(Buffer.from([0, seed & 255, 7, 9]))), chunk('IEND', Buffer.alloc(0)),
-    ]);
-  }
-
-  /** A signed visitor who sends one line and one picture. Returns the conversation and the picture's hash. */
-  async function visitorWithPicture(sub: string, bytes: Buffer): Promise<{ conversation: string; hash: string }> {
-    resetRateLimits();
-    const opened = await visit(`/w/${widget.id}/session`, { token: hostToken(secret, { sub, name: 'Ada', email: 'ada.v@example.com', exp: inAnHour() }) });
-    const uploaded = await fetch(`${base}/w/${widget.id}/files`, {
-      method: 'POST',
-      headers: { 'content-type': 'image/png', 'x-filename': 'screen.png', 'x-widget-session': opened.json.session },
-      body: bytes,
-    });
-    const { file } = await uploaded.json() as { file: { hash: string } };
-    await visit(`/w/${widget.id}/messages`, { body: 'Here is what I see.', files: [file] }, opened.json.session);
-    return { conversation: opened.json.conversation.id, hash: file.hash };
-  }
-
   const liveLines = (conversation: string) =>
     all(`SELECT id FROM conversation_messages WHERE conversation_id = ? AND deleted_at IS NULL`, conversation).length;
 
@@ -421,5 +487,15 @@ describe('deleting a conversation, and emptying the trash', () => {
     await ok(`/api/conversations/${gone.conversation}`, undefined, 'DELETE');
     await ok(`/api/workspaces/${workspaceId}/trash/empty`, {});
     assert.ok(get(`SELECT 1 FROM files WHERE hash = ?`, live.hash), 'still in use, so it stays');
+  });
+});
+
+describe('the snippet', () => {
+  it('carries the widget\'s colour, so the button matches the window it opens', async () => {
+    const { widgetSnippet } = await import('@kolibri/shared');
+    assert.match(widgetSnippet('https://k.example.com/', 'w1', 'signed', '#e5383b'), /color: '#e5383b',/);
+    assert.match(widgetSnippet('https://k.example.com', 'w1', 'anonymous', '#e5383b'), /color: '#e5383b'/);
+    assert.doesNotMatch(widgetSnippet('https://k.example.com', 'w1', 'anonymous', null), /color/);
+    assert.doesNotMatch(widgetSnippet('https://k.example.com', 'w1', 'signed', "red'; alert(1)//"), /alert/, 'only a colour gets in');
   });
 });

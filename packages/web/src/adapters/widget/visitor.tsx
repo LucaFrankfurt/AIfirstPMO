@@ -127,9 +127,16 @@ export function VisitorChat() {
   const [attempt, setAttempt] = useState(0);
   /** When the model handed over, or the visitor asked for a person. */
   const [handedOver, setHandedOver] = useState<number | null>(null);
+  /** Resolved by the team or by the visitor; writing on reopens it. */
+  const [resolved, setResolved] = useState(false);
   const retried = useRef(0);
   const readUpTo = useRef(0);
   const unread = useRef(0);
+
+  /** Keep an anonymous visitor's session in this frame's storage, so the next page finds the chat. */
+  const keep = (opened: { session: string; expiresAt: number }) => {
+    try { localStorage.setItem(STORE, JSON.stringify({ session: opened.session, expiresAt: opened.expiresAt })); } catch { /* storage refused */ }
+  };
 
   const begin = async (widget: Config) => {
     if (widget.identity === 'anonymous') {
@@ -186,12 +193,13 @@ export function VisitorChat() {
     let source: EventSource | null = null;
     let alive = true;
     let typingTimer = 0;
-    call<{ messages: Line[]; conversation: { agent_read_at: number | null; handover_at?: number | null } }>('/messages', session)
+    call<{ messages: Line[]; conversation: { agent_read_at: number | null; handover_at?: number | null; status: string } }>('/messages', session)
       .then((history) => {
         if (!alive) return;
         setLines(history.messages);
         setAgentRead(history.conversation.agent_read_at);
         setHandedOver(history.conversation.handover_at ?? null);
+        setResolved(history.conversation.status === 'resolved');
         readUpTo.current = Math.max(readUpTo.current, ...history.messages.map((line) => line.created_at), 0);
         const after = Math.max(0, ...history.messages.map((line) => line.seq));
         source = new EventSource(`${base}/stream?session=${encodeURIComponent(session)}&after=${after}`);
@@ -206,6 +214,7 @@ export function VisitorChat() {
         });
         source.addEventListener('read', (event) => setAgentRead(JSON.parse((event as MessageEvent).data).agent_read_at));
         source.addEventListener('handover', (event) => setHandedOver(JSON.parse((event as MessageEvent).data).handover_at ?? null));
+        source.addEventListener('status', (event) => setResolved(JSON.parse((event as MessageEvent).data).status === 'resolved'));
         source.addEventListener('typing', (event) => {
           const typing = !!JSON.parse((event as MessageEvent).data).agent;
           setAgentTyping(typing);
@@ -265,6 +274,8 @@ export function VisitorChat() {
   const send = async (body: string, files = attached, replacing?: string) => {
     setAttached([]);
     setNotice('');
+    // Writing into a resolved chat reopens it; the server does the same.
+    setResolved(false);
     const temp = replacing ?? `local-${Date.now()}`;
     setLines((now) => merge(now, { id: temp, author: 'visitor', agent: null, body, files, created_at: Date.now(), seq: 0, pending: true }));
     try {
@@ -294,6 +305,32 @@ export function VisitorChat() {
       setAttached((now) => [...now, stored]);
     } catch {
       setNotice(words.uploadFailed);
+    }
+  };
+
+  /** The visitor is done. Nothing else changes: writing again reopens it. */
+  const resolve = () => {
+    setResolved(true);
+    void call('/resolve', session, { method: 'POST', body: '{}' }).catch((error) => {
+      if (error instanceof Ended) ended();
+      else setResolved(false);
+    });
+  };
+
+  /** A fresh conversation, under a session of its own; the stream follows the new session. */
+  const startOver = async () => {
+    setNotice('');
+    try {
+      const opened = await call<{ session: string; expiresAt: number }>('/conversations', session, { method: 'POST', body: '{}' });
+      if (config?.identity === 'anonymous') keep(opened);
+      setLines([]);
+      setAgentRead(null);
+      setHandedOver(null);
+      setResolved(false);
+      setSession(opened.session);
+    } catch (error) {
+      if (error instanceof Ended) ended();
+      else setNotice(words.unavailable);
     }
   };
 
@@ -346,6 +383,16 @@ export function VisitorChat() {
         style={{ background: 'var(--thread-accent, var(--accent))', color: 'var(--thread-accent-fg, var(--accent-fg))' }}
       >
         <strong className="min-w-0 flex-1 truncate text-[15px]">{config?.name ?? ''}</strong>
+        {stage === 'ready' && !resolved && lines.length > 0 && (
+          <button
+            type="button"
+            className="inline-flex h-8 items-center gap-1 rounded-full px-2.5 text-[12.5px] font-medium hover:bg-black/10"
+            title={words.resolve}
+            onClick={resolve}
+          >
+            <Icon name="check" size={14} /> {words.done}
+          </button>
+        )}
         {framed && (
           <button
             type="button"
@@ -369,7 +416,7 @@ export function VisitorChat() {
           greeting={config.greeting || words.welcome}
           onStart={async (values) => {
             const opened = await call<{ session: string; expiresAt: number }>('/session', '', { method: 'POST', body: JSON.stringify(values) });
-            try { localStorage.setItem(STORE, JSON.stringify({ session: opened.session, expiresAt: opened.expiresAt })); } catch { /* storage refused */ }
+            keep(opened);
             setSession(opened.session);
             setStage('ready');
           }}
@@ -396,6 +443,21 @@ export function VisitorChat() {
           )}
           {!!handedOver && !lines.some((line) => line.author === 'agent' && line.created_at > handedOver) && lines.some((line) => line.author === 'bot') && (
             <p className="m-0 px-4 pb-1 text-center text-[12px] text-muted">{words.personComing}</p>
+          )}
+          {/* Resolved — by the team or by the visitor — is said, not left to be
+              guessed from silence. Writing on reopens it; a new chat starts clean. */}
+          {resolved && (
+            <div className="mx-3 mb-1.5 flex flex-col items-center gap-2 rounded-xl border border-line bg-raised px-3 py-2.5 text-center" role="status">
+              <p className="m-0 text-[12.5px] text-soft">{words.resolvedNotice}</p>
+              <button
+                type="button"
+                className="rounded-full px-3 py-1 text-[12.5px] font-medium"
+                style={{ background: 'var(--thread-accent, var(--accent))', color: 'var(--thread-accent-fg, var(--accent-fg))' }}
+                onClick={() => void startOver()}
+              >
+                {words.newChat}
+              </button>
+            </div>
           )}
           {notice && <p className="m-0 px-4 pb-1 text-[12px] text-danger">{notice}</p>}
           <Composer

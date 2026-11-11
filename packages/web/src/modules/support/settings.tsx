@@ -59,7 +59,7 @@ function WidgetCard({ widget, onEdit }: { widget: Widget; onEdit: () => void }) 
   const action = useAction();
   const { confirm, dialog } = useConfirm();
   const [secret, setSecret] = useState('');
-  const snippet = widgetSnippet(publicUrl(), widget.id, widget.identity);
+  const snippet = widgetSnippet(publicUrl(), widget.id, widget.identity, widget.color);
   const origins = listOf<string>(widget.origins);
 
   const copy = (text: string) => void navigator.clipboard.writeText(text).then(() => toast(t('widgets.copied')));

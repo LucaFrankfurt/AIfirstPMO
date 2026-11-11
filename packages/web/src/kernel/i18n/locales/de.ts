@@ -3499,7 +3499,7 @@ export const de: Catalogue = {
   'support.makeTask': 'Aufgabe erstellen',
   'support.makeTaskHint': 'Eine Aufgabe im Projekt des Widgets, mit dieser Unterhaltung als Beschreibung',
   'support.taskMade': 'Aufgabe erstellt',
-  'support.resolve': 'Erledigt',
+  'support.resolve': 'Erledigen',
   'support.reopen': 'Wieder öffnen',
   'support.emptyThread': 'Noch nichts geschrieben.',
   'support.emailFallback': 'Ist der Besucher schon weg, geht deine Antwort nach ein paar Minuten per E-Mail an ihn.',

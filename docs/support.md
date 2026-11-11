@@ -66,8 +66,12 @@ hidden field no person fills in turns a form-filling program away, and the route
 rate limits (`LIMITS.widget*`). Their session lives thirty days in the iframe's own storage; where a
 browser refuses third-party storage the window still works and simply forgets them on the next page.
 
-**One conversation per visitor per widget.** A returning visitor finds their history by widget and
-`sub`. A visitor writing into a resolved conversation reopens it. There is no contacts table.
+**One conversation at a time per visitor and widget.** A returning visitor finds their newest
+conversation by widget and `sub`. Resolved is said, not left to be guessed: when the team resolves a
+conversation the window shows it, and writing on reopens it. The visitor can resolve it themselves
+(the tick in the window's header), and once it is resolved, **start a new chat** — which resolves the
+one they leave, because the window shows one conversation and an answer in the old one would reach
+them only by email. The team sees the old one in the resolved list. There is no contacts table.
 
 **Deleting means gone.** Deleting a conversation lets go of its visitor — the same visitor writing
 again starts a new one rather than bringing the old one back — and makes every line in it a
@@ -100,7 +104,9 @@ forged tag, another sender, a widget switched off: nothing. A tag in the subject
 Message-ID chain, because the transports write their own Message-ID and keep no record of it.
 
 **A conversation can become a task** in the widget's project, with its transcript as the
-description. Once; after that the button opens it.
+description: a first line linking back to the conversation, so whoever works the task can answer the
+person who asked, and the pictures as pictures. Once; after that the button opens it — unless the
+task has been deleted since, in which case the button makes a new one.
 
 **One conversation component for three places.** `Thread` and `Composer` in
 `kernel/design-system/conversation.tsx` draw the team chat, the support inbox and the visitor's
@@ -172,8 +178,8 @@ What was measured, with exactly the two files above in a Next.js 15.5 app (App R
 and `next start`, `jose` 5.9) on another origin: before any click the page asks the instance for
 `widget.js` and nothing else; the click opens the chat, the token route is called then, and the
 conversation arrives signed in — the visitor id is the `sub` the route signed, the name and address
-are its claims. Add `color: '#rrggbb'` to `window.kolibriChat` for a button in the site's colour;
-the window itself takes the widget's.
+are its claims. The snippet the settings screen shows carries the widget's colour as `color`, so
+the button matches the window before anything has been asked of the instance.
 
 ## The model
 

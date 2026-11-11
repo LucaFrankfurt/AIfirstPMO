@@ -6,11 +6,13 @@
  * conversation, which creates and numbers one; and "typing", which is not
  * stored at all.
  */
+import { visitorLabel, type Conversation } from '@kolibri/shared';
 import { get, run, type Row } from '../../../kernel/platform/db/index.ts';
 import { HttpError, badRequest, forbidden, notFound, readJson, type Ctx, type Router } from '../../../kernel/platform/http.ts';
 import { token, uid } from '../../../kernel/platform/ids.ts';
 import { requireAuth, requireWorkspace } from '../../../kernel/identity/auth.ts';
 import { serverClock } from '../../../kernel/write-path/bootstrap.ts';
+import { translatorFor } from '../../../kernel/i18n/i18n.ts';
 import { canSeeProject, displayName, serialize, writeEntity } from '../../../kernel/write-path/repo.ts';
 import { env } from '../../../kernel/platform/env.ts';
 import { byValue, enforce } from '../../../kernel/identity/ratelimit.ts';
@@ -57,20 +59,26 @@ export function registerSupportRoutes(router: Router): void {
 
   /**
    * The conversation as a task in the widget's project, its transcript as the
-   * description. Once: a conversation that is already a task says which.
+   * description. Once: a conversation that is already a task says which —
+   * unless that task has been deleted since, which leaves nothing to open.
    */
   router.post('/api/conversations/:id/task', async (ctx: Ctx) => {
     const conversation = conversationForMember(ctx);
     const auth = ctx.auth!;
     if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
-    if (conversation.task_id) throw badRequest('This conversation is already a task');
+    if (conversation.task_id && get(`SELECT 1 FROM tasks WHERE id = ? AND deleted_at IS NULL`, conversation.task_id)) {
+      throw badRequest('This conversation is already a task');
+    }
     const body = await readJson<{ title?: string }>(ctx).catch(() => ({}) as { title?: string });
     const opts = { workspaceId: String(conversation.workspace_id), actorId: auth.userId, hlc: serverClock.now() };
     const { row: task } = writeEntity('task', uid(), {
       workspace_id: conversation.workspace_id,
       project_id: conversation.project_id,
       title: String(body.title ?? '').trim() || taskTitle(conversation),
-      description: transcript(conversation, displayName),
+      description: transcript(conversation, displayName, translatorFor(auth.userId)('support.taskFrom', {
+        name: visitorLabel(conversation as Conversation),
+        widget: String(get<Row>(`SELECT name FROM widgets WHERE id = ?`, conversation.widget_id)?.name ?? ''),
+      })),
       created_by: auth.userId,
     }, opts);
     writeEntity('conversation', String(conversation.id), { task_id: task.id }, { ...opts, system: true });
