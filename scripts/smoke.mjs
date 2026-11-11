@@ -2001,10 +2001,10 @@ await step('chat: a channel, a message, and a badge that clears', async () => {
 
   await page.fill('.chat-composer textarea', 'Hello from the walkthrough.');
   await page.click(`.chat-composer button:has-text("${LABELS.send}")`);
-  await page.waitForSelector('.chat-message', { timeout: 5000 });
-  const said = await page.locator('.chat-message .body').last().innerText();
+  await page.waitForSelector('.thread [data-line]', { timeout: 5000 });
+  const said = await page.locator('.thread [data-line] .thread-bubble').last().innerText();
   if (!said.includes('Hello from the walkthrough')) throw new Error(`message did not appear: "${said}"`);
-  console.log('     messages in the new channel:', await page.locator('.chat-message').count());
+  console.log('     messages in the new channel:', await page.locator('.thread [data-line]').count());
 
   // Reading is what marks it read, so the badge must not be left behind.
   await page.waitForTimeout(600);
@@ -2045,22 +2045,22 @@ await step('chat: a picture, a reaction, and a member list that can be added to'
     throw new Error('pasting an image put nothing in the box');
   }
   await page.click(`.chat-composer button:has-text("${LABELS.send}")`);
-  await page.waitForSelector('.chat-stream img', { timeout: 6000 });
+  await page.waitForSelector('.thread img', { timeout: 6000 });
   await page.waitForTimeout(1200);
   // Rendered, not merely referenced: a broken image has no natural size.
-  const drawn = await page.locator('.chat-stream img').last()
+  const drawn = await page.locator('.thread img').last()
     .evaluate((img) => img.naturalWidth > 0 && img.naturalHeight > 0);
   if (!drawn) throw new Error('the pasted image did not render');
 
-  await page.locator('.chat-message').first().hover();
-  await page.locator('.chat-message .chat-actions button').first().click();
+  await page.locator('.thread [data-line]').first().hover();
+  await page.locator('.thread [data-line] .thread-actions button').first().click();
   // Six emoji in a row rather than a column of menu rows: a picker is a
   // different shape from a list of commands, so it is a popover of plain
   // buttons and not `role=menuitem` under `role=menu`.
   await page.waitForSelector('.reaction-pick', { timeout: 3000 });
   await page.locator('.reaction-pick').first().click();
   await page.waitForTimeout(500);
-  const chips = await page.locator('.chat-stream .reaction').count();
+  const chips = await page.locator('.thread .reaction').count();
   if (!chips) throw new Error('reacting left no chip');
   console.log('     reaction chips:', chips);
 });
@@ -2183,12 +2183,12 @@ await step('chat: a message can point at a task and a project', async () => {
   await page.locator('.chat-composer textarea').type('and #WEB, but not UTF-8 or NOPE-1.', { delay: 5 });
   await page.click(`.chat-composer button:has-text("${LABELS.send}")`);
   await page.waitForTimeout(900);
-  const said = page.locator('.chat-message').last();
+  const said = page.locator('.thread [data-line]').last();
   const refs = await said.locator('a.md-ref').evaluateAll((links) => links.map((a) => `${a.textContent}→${a.getAttribute('href')}`));
   if (refs.length !== 2) throw new Error(`expected a task and a project, got ${JSON.stringify(refs)}`);
   if (refs[0] !== `${picked}→/t/${picked}`) throw new Error(`the task reference is ${refs[0]}, not ${picked}`);
   if (!refs[1].startsWith('#WEB→/projects/')) throw new Error(`the project reference is ${refs[1]}`);
-  const html = await said.locator('.body').innerHTML();
+  const html = await said.locator('.thread-bubble').innerHTML();
   if (!html.includes('UTF-8') || !html.includes('NOPE-1')) throw new Error('the message lost some of its text');
   if (/href="\/t\/(UTF-8|NOPE-1)"/.test(html)) throw new Error('something that is not a task was linked');
   console.log('     references:', refs.join('  '), '· offered:', offered.replace(/\n/g, ' '));
@@ -2265,13 +2265,13 @@ await step('chat: history, drafts, order and Enter — the four that were broken
 
   await page.goto(`${base}/chat/${rooms.long}`, { waitUntil: 'networkidle' });
   await closeTour(page);
-  await page.waitForSelector('.chat-message', { timeout: 8000 });
+  await page.waitForSelector('.thread [data-line]', { timeout: 8000 });
   await page.waitForTimeout(600);
 
   // The order the lines were written in is the order they read in. A batch
   // like this one lands inside a millisecond or two, so a sort on the
   // timestamp alone decides these by whatever the store happened to return.
-  const order = await page.locator('.chat-message .body').allInnerTexts();
+  const order = await page.locator('.thread [data-line] .thread-bubble').allInnerTexts();
   const numbers = order.map((line) => Number(line.match(/line (\d+)/)?.[1])).filter(Number.isFinite);
   const ascending = numbers.every((n, i) => i === 0 || numbers[i - 1] < n);
   if (numbers.length < 20) throw new Error(`only ${numbers.length} of the 40 lines were drawn`);
@@ -2281,14 +2281,14 @@ await step('chat: history, drafts, order and Enter — the four that were broken
   // `justify-content` looks identical to one that does not, right up until the
   // messages outgrow the box and everything above the fold becomes unreachable.
   const reachable = await page.evaluate(async () => {
-    const stream = document.querySelector('.chat-stream');
+    const stream = document.querySelector('.thread');
     if (stream.scrollHeight <= stream.clientHeight) return 'the conversation is not tall enough to test';
     stream.scrollTop = 0;
     await new Promise((done) => setTimeout(done, 400));
     if (stream.scrollTop !== 0) return 'the stream refused to scroll up';
     // Reaching the top may draw older messages; either way the first line
     // drawn must now be inside the box rather than clipped above it.
-    const first = stream.querySelector('.chat-message');
+    const first = stream.querySelector('[data-line]');
     return first.getBoundingClientRect().top >= stream.getBoundingClientRect().top - 2
       ? null
       : 'the oldest message drawn is still above the top of the stream';
@@ -2300,7 +2300,7 @@ await step('chat: history, drafts, order and Enter — the four that were broken
   // over was one React component being reused across conversations, which a
   // full page load would tear down and hide. Drafts live in memory for the
   // session, so a reload here would prove nothing either way.
-  await page.evaluate(() => { document.querySelector('.chat-stream').scrollTop = 1e6; });
+  await page.evaluate(() => { document.querySelector('.thread').scrollTop = 1e6; });
   const secret = `draft that must not follow me ${stamp}`;
   await page.fill('.chat-composer textarea', secret);
   await page.waitForTimeout(250);
@@ -2319,11 +2319,11 @@ await step('chat: history, drafts, order and Enter — the four that were broken
   if (kept !== secret) throw new Error(`the draft was not waiting where it was written: "${kept}"`);
 
   // ...and Enter sends it, on a pointer that has a keyboard behind it.
-  const before = await page.locator('.chat-message').count();
+  const before = await page.locator('.thread [data-line]').count();
   await page.locator('.chat-composer textarea').click();
   await page.keyboard.press('Enter');
   await page.waitForTimeout(900);
-  const after = await page.locator('.chat-message').count();
+  const after = await page.locator('.thread [data-line]').count();
   if (after !== before + 1) throw new Error(`Enter did not send: ${before} messages, then ${after}`);
   if ((await page.locator('.chat-composer textarea').inputValue()).trim()) {
     throw new Error('Enter sent the message and left it in the box');
@@ -2479,13 +2479,29 @@ await step('a connector can be authorised in a browser', async () => {
    * side of it a run landed on was the runner's business, not this instance's.
    *
    * So wait for the redirect itself. Then the gap can be whatever it likes.
+   *
+   * And wait for it as a *request*, not only as a route. Playwright does not
+   * route the target of a redirect, so the first callback request goes to the
+   * network: on a runner without one it fails to resolve and Chromium tries
+   * again, and the retry is what the route handler was given. Behind a proxy —
+   * a sandboxed agent's browser — it fails at the tunnel instead, is never
+   * retried, and the handler never ran: the step reported a form-action policy
+   * that was letting the redirect through every time. The request event fires
+   * either way, before the network is asked, and it is exactly the proof this
+   * step wants: a policy that refused the redirect would stop it before any
+   * request was made.
    */
   let arrived = () => {};
   const back = new Promise((resolve) => { arrived = resolve; });
-  await view.route(`${redirect}*`, (route) => {
-    code = new URL(route.request().url()).searchParams.get('code') ?? '';
-    route.fulfill({ status: 200, contentType: 'text/html', body: 'ok' });
+  const heard = (url) => {
+    const found = new URL(url).searchParams.get('code');
+    if (found) code = found;
     arrived();
+  };
+  view.on('request', (request) => { if (request.url().startsWith(redirect)) heard(request.url()); });
+  await view.route(`${redirect}*`, (route) => {
+    heard(route.request().url());
+    route.fulfill({ status: 200, contentType: 'text/html', body: 'ok' });
   });
   try {
     await view.goto(`${base}/oauth/authorize?${query}`);

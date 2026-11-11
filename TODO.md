@@ -1733,7 +1733,7 @@ follows is what was deliberately *not* built, and why, so that none of it is re-
       that one column and can never invent one — and both the terminal and a comment above the table
       say so rather than leaving it to be inferred. Doing it properly means rebuilding the table
       instead of altering it, in a generator that so far only ever adds. It is one column out of the
-      **70** the list carries; the other undroppable-looking eight turned out to be something else
+      **76** the list carries; the other undroppable-looking eight turned out to be something else
       entirely, list entries for columns `CREATE TABLE` never creates at all, which is the shape
       everything here is trying to reach. The shape comparison inherits the same blind spot: the
       recorded table carries the `UNIQUE`, so the check believes an upgraded instance has it, while
@@ -1952,6 +1952,30 @@ written.
 - [ ] **A board cannot read the workspace.** A live dashboard — a KPI board that stays current —
       would need a channel from the app into the frame, answered with the viewer's own permissions.
       Deliberately later: it is the largest security decision on this list.
+
+## Support chat: what is left open
+
+See [`docs/support.md`](docs/support.md) for what is built and why it is shaped the way it is.
+
+- [x] **The team chat on the shared conversation components** (`Thread`, `Composer`). The chat's
+      own drawing moved down into them, with its quote, reactions, hover bar and touch dot-button;
+      it keeps its markdown editor and its scrolling. Its six walkthrough steps pass.
+- [x] **The model in a widget**: suggested replies for the team, or the first answer from the
+      widget's own knowledge pages with sources, handing over when unsure, when asked, when a person
+      answers or when the day's budget is spent.
+- [ ] **The assistant has not met a real model here.** Every behaviour is measured against a fake
+      provider; what a real one answers to the prompt — how often it hands over, whether it keeps to
+      the visitor's language — has not been looked at. **P2**
+- [x] **Replying to the support email reaches the conversation**, when the widget names a reply
+      address that is a connected inbox: a signed tag in the subject, the sender checked against the
+      conversation's address, the quoted email cut off.
+- [x] **The visitor's window was heavy for what it is.** 222 KB gzipped on the first click, now
+      125 KB: it carries thirty words of its own instead of the app's catalogue, and its icons no
+      longer pull in every dialog and menu. Most of what is left is React.
+- [x] **A deleted conversation came back** when its visitor wrote again, history and all. Deleting
+      now lets go of the visitor, who starts a new one.
+- [ ] **No wildcard sites.** A widget lists exact origins; a platform whose customers each have a
+      subdomain would need `https://*.example.com`, which `frame-ancestors` can carry. **P3**
 
 ## The UI port, and what is left of it
 

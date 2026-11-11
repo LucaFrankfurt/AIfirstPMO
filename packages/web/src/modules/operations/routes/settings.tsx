@@ -5,7 +5,7 @@ import { Avatar, Empty, Icon, Sheet, failure, useAction, useConfirm, useToast } 
 import { GuideHint } from '../../guide/hint';
 import { api } from '../../../kernel/sync/api';
 import { relativeTime } from '../../../kernel/design-system/format';
-import { useFeature, useSeesMoney, useSession } from '../../../kernel/identity/session';
+import { useFeature, useRunsWorkspace, useSeesMoney, useSession } from '../../../kernel/identity/session';
 import { AutomationSettings } from '../../automation/settings';
 import { Trash } from '../../trash/trash';
 import { AuditLog, Webhooks } from '../admin';
@@ -23,6 +23,7 @@ import { SectionHeading } from '../../../kernel/design-system/ui/section';
 import { RateSettings } from '../../time/rates';
 import { PageStatusSettings } from '../../pages/status';
 import { MailboxSettings } from '../../mail/settings';
+import { WidgetSettings } from '../../support/settings';
 import { Chip, chipVariants } from '../../../kernel/design-system/ui/chip';
 import { TelegramConnection } from '../../../adapters/telegram/telegram';
 import { InstanceSettings } from '../instance';
@@ -30,12 +31,12 @@ import { useTabStrip } from '../../../kernel/design-system/tab-strip';
 import { TabButton, TabList } from '../../../kernel/design-system/ui/tabs';
 import { useMinute } from '../../../kernel/design-system/minute';
 
-type Tab = 'profile' | 'notifications' | 'workspace' | 'members' | 'rates' | 'mailboxes' | 'automation' | 'api' | 'data' | 'instance';
+type Tab = 'profile' | 'notifications' | 'workspace' | 'members' | 'rates' | 'mailboxes' | 'widgets' | 'automation' | 'api' | 'data' | 'instance';
 
 const TAB_KEY: Record<Tab, TranslationKey> = {
   profile: 'settings.tabProfile', notifications: 'settings.tabNotifications',
   workspace: 'settings.tabWorkspace', members: 'settings.tabMembers', rates: 'settings.tabRates',
-  mailboxes: 'settings.tabMailboxes',
+  mailboxes: 'settings.tabMailboxes', widgets: 'settings.tabWidgets',
   automation: 'settings.tabAutomation', api: 'settings.tabApi', data: 'settings.tabData',
   instance: 'settings.tabInstance',
 };
@@ -64,10 +65,13 @@ export function Settings() {
   // A tab for a feature nobody switched on is a tab that answers 403 — the same
   // reason the rates tab asks about `time`.
   const mail = useFeature('mail');
+  const support = useFeature('support');
+  const runs = useRunsWorkspace();
   const tabs = (Object.keys(TAB_KEY) as Tab[])
     .filter((name) => name !== 'instance' || instanceAdmin)
     .filter((name) => name !== 'rates' || (seesMoney && time))
-    .filter((name) => name !== 'mailboxes' || mail);
+    .filter((name) => name !== 'mailboxes' || mail)
+    .filter((name) => name !== 'widgets' || (support && runs));
 
   const choose = (next: Tab) => {
     setTab(next);
@@ -90,6 +94,7 @@ export function Settings() {
         {tab === 'members' && <Members />}
         {tab === 'rates' && seesMoney && time && <RateSettings />}
         {tab === 'mailboxes' && mail && <MailboxSettings />}
+        {tab === 'widgets' && support && runs && <WidgetSettings />}
         {tab === 'automation' && <AutomationSettings />}
         {tab === 'api' && <ApiSettings />}
         {tab === 'data' && <DataSettings />}
@@ -682,6 +687,25 @@ function WorkspaceSettings() {
         <span>
           <span>{t('workspace.featureMail')}</span>
           <span className="text-[12px] text-muted">{t('workspace.featureMailHint')}</span>
+        </span>
+      </label>
+
+      {/* The first switch that lets people outside the workspace write to it
+          live. Off closes every widget at once; the conversations stay. */}
+      <label className="check-row">
+        <input
+          type="checkbox"
+          checked={!!workspace?.features?.support}
+          disabled={!canEdit}
+          onChange={async (event) => {
+            await api.patch(`/api/workspaces/${workspaceId}`, { features: { support: event.target.checked } });
+            await refresh();
+            toast(t('workspace.updated'));
+          }}
+        />
+        <span>
+          <span>{t('workspace.featureSupport')}</span>
+          <span className="text-[12px] text-muted">{t('workspace.featureSupportHint')}</span>
         </span>
       </label>
 

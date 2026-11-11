@@ -134,6 +134,9 @@ function filterFor(entity: EntityName, table: string = ENTITIES[entity].table): 
     case 'intake':
       // A report about a project is only visible to people who can see the
       // project — the same rule the tasks it may become already follow.
+    case 'widget':
+    case 'conversation':
+      // Support follows its project for the same reason intake does.
     case 'task':
     case 'state':
     case 'field':
@@ -360,6 +363,14 @@ function filterFor(entity: EntityName, table: string = ENTITIES[entity].table): 
                         OR EXISTS (SELECT 1 FROM json_each(c.members) WHERE json_each.value = ?2)))`;
     case 'channelRead':
       return `AND ${table}.user_id = ?2`;
+    // A support message inherits its conversation's answer, `deleted_at`
+    // included — the lesson `message` above learned the hard way.
+    case 'conversationMessage':
+      return `AND EXISTS (
+                SELECT 1 FROM conversations cv
+                 WHERE cv.id = ${table}.conversation_id
+                   AND cv.deleted_at IS NULL
+                   AND cv.project_id IN (${VISIBLE_PROJECTS}))`;
     /*
      * A mailbox reaches a device when its access rule says so — and note the
      * inversion against every other `members` list above: an empty list here

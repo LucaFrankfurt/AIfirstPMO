@@ -1586,3 +1586,68 @@ CREATE TABLE search_refs (
   doc    INTEGER NOT NULL,
   PRIMARY KEY (kind, ref_id)
 );
+
+CREATE TABLE conversation_messages (
+  id              TEXT PRIMARY KEY,
+  workspace_id    TEXT NOT NULL,
+  conversation_id TEXT NOT NULL,
+  -- 'visitor' | 'agent'
+  author          TEXT NOT NULL DEFAULT 'agent',
+  author_id       TEXT,
+  body            TEXT NOT NULL DEFAULT '',
+  -- JSON list of { hash, name, type, size, width, height }.
+  files           TEXT NOT NULL DEFAULT '[]',
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER NOT NULL,
+  deleted_at      INTEGER,
+  seq             INTEGER NOT NULL DEFAULT 0,
+  clocks          TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE TABLE conversations (
+  id              TEXT PRIMARY KEY,
+  workspace_id    TEXT NOT NULL,
+  project_id      TEXT NOT NULL,
+  widget_id       TEXT NOT NULL,
+  visitor_id      TEXT NOT NULL,
+  visitor_name    TEXT,
+  visitor_email   TEXT,
+  verified        INTEGER NOT NULL DEFAULT 0,
+  status          TEXT NOT NULL DEFAULT 'open',
+  assignee_id     TEXT,
+  task_id         TEXT,
+  last_message_at INTEGER,
+  last_author     TEXT,
+  agent_read_at   INTEGER,
+  visitor_read_at INTEGER,
+  -- The queued email a reply is waiting behind, withdrawn if the visitor reads
+  -- the reply first. Server-only.
+  pending_mail    TEXT,
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER NOT NULL,
+  deleted_at      INTEGER,
+  seq             INTEGER NOT NULL DEFAULT 0,
+  clocks          TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE TABLE widgets (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  project_id   TEXT NOT NULL,
+  name         TEXT NOT NULL DEFAULT '',
+  -- JSON list of exact origins allowed to frame it.
+  origins      TEXT NOT NULL DEFAULT '[]',
+  identity     TEXT NOT NULL DEFAULT 'signed',
+  greeting     TEXT,
+  color        TEXT,
+  -- JSON list of members told about a new message; empty means the project's.
+  agents       TEXT NOT NULL DEFAULT '[]',
+  enabled      INTEGER NOT NULL DEFAULT 1,
+  secret       TEXT NOT NULL DEFAULT '',
+  created_by   TEXT,
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);

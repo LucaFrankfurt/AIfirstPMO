@@ -247,8 +247,11 @@ export const IMPORTANT_KINDS = ['assigned', 'mention', 'invite', 'due_soon', 'ag
  * message that arrives in a two-hour summary is a message answered too late to
  * matter — so it is important for Telegram and Web Push and deliberately not
  * for email. That is a real difference, and it is stated instead of hidden.
+ *
+ * A message from a support widget is the same case with more at stake: the
+ * person on the other end is a customer, and may still be looking at the window.
  */
-export const INSTANT_ONLY_KINDS = ['message'] as const;
+export const INSTANT_ONLY_KINDS = ['message', 'support'] as const;
 
 export const isImportantFor = (channel: 'email' | 'instant', kind: string): boolean =>
   (IMPORTANT_KINDS as readonly string[]).includes(kind)

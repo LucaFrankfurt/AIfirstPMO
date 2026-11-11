@@ -13,7 +13,7 @@
  * `lib/presence.ts` on this side and `lib/presence.ts` on the server. A device
  * that ignores them entirely loses a dot and nothing else.
  */
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   canManageMembers,
@@ -35,11 +35,13 @@ import { useMinute } from '../../../kernel/design-system/minute';
 import { create, remove, update } from '../../../kernel/sync/mutations';
 import { list, listBy, byId, useQuery } from '../../../kernel/sync/store';
 import { useT } from '../../../kernel/i18n/i18n';
-import { briefWhen, clockTime, exactTime, longDate } from '../../../kernel/design-system/format';
+import { briefWhen } from '../../../kernel/design-system/format';
 import { isPendingRow, subscribeSync } from '../../../kernel/sync/sync';
 import { setTyping, useOnline, useOnlineIds, useTypists } from '../presence';
 import { useCanWrite, useMe, useMemberMap, usePeople, useSession } from '../../../kernel/identity/session';
 import { Markdown, MarkdownEditor } from '../../pages/Markdown';
+import { Composer, SEND_ON_ENTER, Thread, type ThreadLine } from '../../../kernel/design-system/conversation';
+import { useThreadWords } from '../../../kernel/design-system/thread-words';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { buttonVariants } from '../../../kernel/design-system/ui/button';
 import { cn } from '../../../kernel/design-system/cn';
@@ -78,17 +80,6 @@ const partnerOf = (channel: Channel, me: string): string | undefined =>
   (channel.kind === 'direct' ? (channel.members ?? []).find((id) => id !== me) : undefined);
 
 /**
- * Whether Enter sends.
- *
- * Where the primary pointer is fine there is a keyboard in front of somebody,
- * and Enter-to-send is what every messenger has taught their hands. Where it
- * is coarse — a phone, a tablet — the return key is how you get a second
- * line, and the send button is under your thumb anyway. Shift+Enter breaks a
- * line either way, and Cmd/Ctrl+Enter keeps sending everywhere.
- */
-const SEND_ON_ENTER = typeof window !== 'undefined' && !window.matchMedia('(pointer: coarse)').matches;
-
-/**
  * How big a button in the bar over a message is.
  *
  * Set at the call sites rather than in the stylesheet, because `cn` merges
@@ -101,20 +92,6 @@ const ACTION_SIZE = 'size-[26px]';
 
 /** How many messages a conversation draws at once, and grows by. */
 const PAGE = 60;
-
-/**
- * The day a line was said, as a person would say it.
- *
- * Today and yesterday by name, because a date for either reads as further
- * away than it is; anything older as the date itself.
- */
-function dayLabel(at: number, t: ReturnType<typeof useT>): string {
-  const now = new Date();
-  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  if (at >= midnight) return t('chat.today');
-  if (at >= midnight - 86_400_000) return t('chat.yesterday');
-  return longDate(at);
-}
 
 /**
  * A mark on your own line while it is still on this device.
@@ -409,6 +386,7 @@ function ConversationRow({ channel, last, me, active, title, onOpen }: {
 
 function Conversation({ channel, me, onBack }: { channel: Channel; me: string; onBack: () => void }) {
   const t = useT();
+  const words = useThreadWords();
   const members = usePeople();
   const { confirm, dialog } = useConfirm();
   const canWrite = useCanWrite();
@@ -416,8 +394,6 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
   const [editing, setEditing] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [managing, setManaging] = useState(false);
-  /** Which message has been asked for its actions, where there is no hover. */
-  const [tapped, setTapped] = useState<string | null>(null);
   /** The find-in-conversation box: null when it is not open. */
   const [needle, setNeedle] = useState<string | null>(null);
   /**
@@ -602,7 +578,7 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
 
   const scrollToMessage = (id: string) => {
     const box = stream.current;
-    const target = box?.querySelector<HTMLElement>(`[data-message="${id}"]`);
+    const target = box?.querySelector<HTMLElement>(`[data-line="${id}"]`);
     if (!box || !target) return false;
     // Measured against the stream's own box rather than `offsetTop`, which is
     // relative to whichever ancestor happens to be positioned, and left a
@@ -705,9 +681,12 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
       )}
       {managing && <ChannelSettings channel={channel} me={me} onClose={() => setManaging(false)} onGone={onBack} />}
 
-      <div
-        className="chat-stream"
-        ref={stream}
+      <Thread
+        words={words}
+        boxRef={stream}
+        follow={false}
+        grouped={!hunting}
+        days={!hunting}
         onScroll={() => {
           const el = stream.current;
           if (!el) return;
@@ -716,114 +695,83 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
           // it has done its job and goes.
           if (stuck.current && waiting) setWaiting(0);
         }}
-      >
-        {messages.length === 0 && (
-          <div className="chat-blank">
-            <p className="m-0">{t('chat.emptyStream')}</p>
-            {/* Three things this box can do that nothing on screen says it
-                can. The empty conversation is the one moment there is room to
-                say them. */}
-            {canWrite && <p className="text-muted m-0 text-[12px]">{t('chat.emptyHint')}</p>}
-          </div>
-        )}
-        {hunting && found.length === 0 && (
-          <p className="text-muted text-[12.5px]">{t('chat.noMatches')}</p>
-        )}
-        {older && (
-          <button className="chat-earlier" onClick={reachBack}>
-            {t('chat.earlier', { count: messages.length - drawn.length })}
-          </button>
-        )}
-        {drawn.map((message, index) => {
-          const author = members.get(message.author_id ?? '');
-          // Consecutive lines from the same person within five minutes are one
-          // block. A name and an avatar on every line turns a conversation into
-          // a list of records. Never while searching: two results from the same
-          // person an hour apart are not a block, and the second would lose the
-          // name and time that make it findable.
-          const previous = drawn[index - 1];
-          const grouped = !hunting && previous
-            && previous.author_id === message.author_id
-            && message.created_at - previous.created_at < 5 * 60_000
-            && !message.reply_to;
-          const answered = message.reply_to ? messages.find((m) => m.id === message.reply_to) : undefined;
-          // Which side of the conversation this is. The single most useful
-          // thing a chat can say about a line, and this one used to say it
-          // only by printing a name above every block.
-          const mine = message.author_id === me;
-          // A name belongs on somebody else's first line in a room with more
-          // than two people in it. In a direct conversation both names are in
-          // the header already, and repeating them down the page is noise.
-          const named = !mine && !grouped && channel.kind !== 'direct';
-          // A new calendar day gets a line saying so. Without it yesterday
-          // evening and this morning read as one conversation.
-          const dayBefore = previous ? new Date(previous.created_at).toDateString() : null;
-          const day = new Date(message.created_at).toDateString();
-
-          return (
-            <Fragment key={message.id}>
-            {!hunting && day !== dayBefore && (
-              <div className="chat-day"><span>{dayLabel(message.created_at, t)}</span></div>
+        before={(
+          <>
+            {messages.length === 0 && (
+              <div className="chat-blank">
+                <p className="m-0">{t('chat.emptyStream')}</p>
+                {/* Three things this box can do that nothing on screen says it
+                    can. The empty conversation is the one moment there is room to
+                    say them. */}
+                {canWrite && <p className="text-muted m-0 text-[12px]">{t('chat.emptyHint')}</p>}
+              </div>
             )}
-            <div
-              className={cn('chat-message', grouped && 'grouped', mine && 'mine', tapped === message.id && 'tapped')}
-              key={message.id}
-              data-message={message.id}
-              // Every line can be asked when it was said, not only the one at
-              // the top of a block — and a relative stamp rendered once is
-              // wrong by the time anybody reads it twice.
-              title={exactTime(message.created_at)}
-            >
-              {/* Only the other person gets a face: yours is not news to you,
-                  and on a phone it is a third of the width of the line. */}
-              {!mine && (grouped ? <span className="gutter" /> : <Avatar user={author} size={26} />)}
-              <div className="body">
-                <div className="bubble">
-                {named && <span className="who">{author?.name ?? t('common.someone')}</span>}
-                {/* The quote is a way back to what was said, so it is a button
-                    — and `orphan` is the same "it is not there any more" this
-                    class already means beside a comment. The answer outlives
-                    the question, and saying so beats dropping the quote and
-                    leaving a reply that answers nothing visible. */}
-                {message.reply_to && (answered ? (
-                  <button className="quoted" title={t('chat.jumpToReplied')} onClick={() => jumpTo(answered.id)}>
-                    <Icon name="reply" size={11} />
-                    {' '}
-                    {/* One string rather than a name, a colon and a body glued
-                        together here: the punctuation between somebody's name
-                        and their words is a translator's decision. The body is
-                        the words and not the markdown — `**ship it**` in a
-                        quote should read as what somebody said. */}
-                    {t('chat.quoted', {
-                      name: members.get(answered.author_id ?? '')?.name ?? t('common.someone'),
-                      said: excerpt(answered.body ?? '', 80),
-                    })}
-                  </button>
-                ) : (
-                  <p className="quoted orphan">
-                    <Icon name="reply" size={11} /> <em>{t('chat.replyGone')}</em>
-                  </p>
-                ))}
-                {editing === message.id ? (
-                  <EditBox
-                    initial={message.body}
-                    onDone={(body) => {
-                      if (body.trim() && body !== message.body) update('message', message.id, { body: body.trim() });
-                      setEditing(null);
-                    }}
-                  />
-                ) : (
-                  <Markdown source={message.body} />
-                )}
-                {/* When it was said, and anything else true about the line,
-                    tucked into the corner of the bubble the way a messenger
-                    puts it — the last paragraph reserves the room for it. */}
-                <span className="meta">
-                  {message.edited_at && <span>{t('chat.edited')}</span>}
-                  {mine && <Unsent id={message.id} />}
-                  <span className="when" title={exactTime(message.created_at)}>{clockTime(message.created_at)}</span>
-                </span>
-                </div>
+            {hunting && found.length === 0 && (
+              <p className="text-muted text-[12.5px]">{t('chat.noMatches')}</p>
+            )}
+            {older && (
+              <button className="chat-earlier" onClick={reachBack}>
+                {t('chat.earlier', { count: messages.length - drawn.length })}
+              </button>
+            )}
+          </>
+        )}
+        lines={drawn.map((message): ThreadLine => {
+          const author = members.get(message.author_id ?? '');
+          const answered = message.reply_to ? messages.find((m) => m.id === message.reply_to) : undefined;
+          const mine = message.author_id === me;
+          return {
+            id: message.id,
+            mine,
+            at: message.created_at,
+            // A name belongs on somebody else's first line in a room with more
+            // than two people in it. In a direct conversation both names are in
+            // the header already, and repeating them down the page is noise.
+            author: channel.kind === 'direct' ? undefined : (author?.name ?? t('common.someone')),
+            avatar: <Avatar user={author} size={26} />,
+            // A reply starts a block of its own: it points somewhere else.
+            breaks: !!message.reply_to,
+            /* The quote is a way back to what was said, so it is a button —
+               and `orphan` is the same "it is not there any more" this class
+               already means beside a comment. The answer outlives the question,
+               and saying so beats dropping the quote and leaving a reply that
+               answers nothing visible. */
+            quote: message.reply_to ? (answered ? (
+              <button className="quoted" title={t('chat.jumpToReplied')} onClick={() => jumpTo(answered.id)}>
+                <Icon name="reply" size={11} />
+                {' '}
+                {/* One string rather than a name, a colon and a body glued
+                    together here: the punctuation between somebody's name and
+                    their words is a translator's decision. The body is the words
+                    and not the markdown — `**ship it**` in a quote should read
+                    as what somebody said. */}
+                {t('chat.quoted', {
+                  name: members.get(answered.author_id ?? '')?.name ?? t('common.someone'),
+                  said: excerpt(answered.body ?? '', 80),
+                })}
+              </button>
+            ) : (
+              <p className="quoted orphan">
+                <Icon name="reply" size={11} /> <em>{t('chat.replyGone')}</em>
+              </p>
+            )) : undefined,
+            body: editing === message.id ? (
+              <EditBox
+                initial={message.body}
+                onDone={(body) => {
+                  if (body.trim() && body !== message.body) update('message', message.id, { body: body.trim() });
+                  setEditing(null);
+                }}
+              />
+            ) : <Markdown source={message.body} />,
+            meta: (
+              <>
+                {message.edited_at && <span>{t('chat.edited')}</span>}
+                {mine && <Unsent id={message.id} />}
+              </>
+            ),
+            below: (
+              <>
                 {/* A search result is out of its context by definition, so it
                     carries a way back into it. */}
                 {hunting && (
@@ -832,16 +780,10 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
                   </button>
                 )}
                 <Reactions kind="message" id={message.id} reactions={message.reactions} canWrite={canWrite} />
-              {/* Shown only where there is no hover to reveal the bar with. */}
-              <button
-                className="chat-more"
-                aria-label={t('chat.messageActions')}
-                aria-expanded={tapped === message.id}
-                onClick={() => setTapped(tapped === message.id ? null : message.id)}
-              >
-                <Icon name="dots" size={14} />
-              </button>
-              <div className="chat-actions">
+              </>
+            ),
+            actions: (
+              <>
                 {canWrite && (
                   <ReactionPicker kind="message" id={message.id} reactions={message.reactions}>
                     <Button variant="ghost" size="iconSm" className={ACTION_SIZE} title={t('task.react')}>
@@ -852,7 +794,7 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
                 <Button variant="ghost" size="iconSm" className={ACTION_SIZE} title={t('chat.reply')} onClick={() => startReply(message.id)}>
                   <Icon name="reply" size={13} />
                 </Button>
-                {message.author_id === me && (
+                {mine && (
                   <>
                     <Button variant="ghost" size="iconSm" className={ACTION_SIZE} title={t('action.edit')} onClick={() => setEditing(message.id)}>
                       <Icon name="pencil" size={13} />
@@ -867,13 +809,11 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
                     </Button>
                   </>
                 )}
-              </div>
-              </div>
-            </div>
-            </Fragment>
-          );
+              </>
+            ),
+          };
         })}
-      </div>
+      />
 
       {/* Reading history while a conversation moves: the stream stays where it
           was, and this says what is waiting below rather than dragging the
@@ -886,51 +826,55 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
       )}
 
       {canWrite ? (
-      <div className="chat-composer">
-        {replyTo && (
-          <div className="flex items-center gap-2 quoted-draft">
-            <Icon name="reply" size={12} />
-            <span className="flex-1 min-w-0 truncate">
-              {t('chat.replyingTo', {
-                name: members.get(messages.find((m) => m.id === replyTo)?.author_id ?? '')?.name ?? t('common.someone'),
-              })}
-            </span>
-            <Button variant="ghost" size="iconSm" aria-label={t('annotate.clear')} onClick={() => setReplyTo(null)}>
-              <Icon name="close" size={12} />
-            </Button>
-          </div>
-        )}
-        <Typing
-          channelId={channel.id}
-          me={me}
-          idle={SEND_ON_ENTER && draft.trim() ? t('chat.enterHint') : undefined}
-        />
-        <MarkdownEditor
-          value={draft}
-          onChange={(next) => {
-            setDraft(next);
-            // The empty composer is not "still typing" — somebody who deletes
-            // what they wrote and walks away should not leave the line up for
-            // the other person to keep watching.
-            setTyping(next.trim() ? channel.id : null);
-          }}
-          placeholder={t('chat.placeholder', { where: title })}
-          label={t('chat.placeholder', { where: title })}
-          onSubmit={send}
-          submitOnEnter={SEND_ON_ENTER}
-          fieldRef={composer}
-          compact
-          actions={(
-            <Button variant="primary" size="sm" disabled={!draft.trim()} onClick={send}>
-              <Icon name="send" size={13} /> {t('chat.send')}
-            </Button>
+        <Composer
+          words={words}
+          className="chat-composer"
+          canSend={!!draft.trim()}
+          onSend={send}
+          status={(
+            <Typing
+              channelId={channel.id}
+              me={me}
+              idle={SEND_ON_ENTER && draft.trim() ? t('chat.enterHint') : undefined}
+            />
+          )}
+          attached={replyTo ? (
+            <div className="flex items-center gap-2 quoted-draft">
+              <Icon name="reply" size={12} />
+              <span className="flex-1 min-w-0 truncate">
+                {t('chat.replyingTo', {
+                  name: members.get(messages.find((m) => m.id === replyTo)?.author_id ?? '')?.name ?? t('common.someone'),
+                })}
+              </span>
+              <Button variant="ghost" size="iconSm" aria-label={t('annotate.clear')} onClick={() => setReplyTo(null)}>
+                <Icon name="close" size={12} />
+              </Button>
+            </div>
+          ) : undefined}
+          field={(sendButton) => (
+            <MarkdownEditor
+              value={draft}
+              onChange={(next) => {
+                setDraft(next);
+                // The empty composer is not "still typing" — somebody who deletes
+                // what they wrote and walks away should not leave the line up for
+                // the other person to keep watching.
+                setTyping(next.trim() ? channel.id : null);
+              }}
+              placeholder={t('chat.placeholder', { where: title })}
+              label={t('chat.placeholder', { where: title })}
+              onSubmit={send}
+              submitOnEnter={SEND_ON_ENTER}
+              fieldRef={composer}
+              compact
+              actions={sendButton}
+            />
           )}
         />
-      </div>
       ) : (
         /* A guest can read an open channel and cannot write anywhere. Saying so
            here beats a composer that takes a paragraph and then refuses it. */
-        <div className="chat-composer">
+        <div className="chat-composer flex-none border-t border-line pt-2.5">
           <p className="text-muted text-[12.5px] m-0">{t('chat.readOnly')}</p>
         </div>
       )}

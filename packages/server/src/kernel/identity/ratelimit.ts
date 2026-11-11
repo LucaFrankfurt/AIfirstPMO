@@ -126,6 +126,18 @@ export const LIMITS = {
    * scrolling a canvas of a dozen boards twice should never meet it.
    */
   shareFrame: { burst: 60, everySeconds: 2 },
+  /**
+   * Opening a support chat. A signed token is checked with an HMAC, which is
+   * cheap, so this is about an anonymous widget minting conversations: nobody
+   * opens ten chats a minute from one address.
+   */
+  widgetSession: { burst: 10, everySeconds: 60 },
+  /** A visitor writing. Bursty by nature — three lines in a row is normal — and not more than that. */
+  widgetMessage: { burst: 15, everySeconds: 4 },
+  /** A visitor sending a screenshot. Bytes on the server's disk, so tight. */
+  widgetUpload: { burst: 5, everySeconds: 60 },
+  /** "Typing" signals and read marks: cheap, frequent, and still not unbounded. */
+  widgetSignal: { burst: 60, everySeconds: 1, deepens: false },
 } as const satisfies Record<string, Limit>;
 
 function take(key: string, limit: Limit, now: number): boolean {

@@ -265,6 +265,9 @@ export function Inbox() {
                   // A point somebody was made responsible for: the meeting it
                   // is on, which carries no project for the branch below.
                   else if (notification.meeting_id) navigate(`/meetings/${notification.meeting_id}`);
+                  // A visitor wrote through a widget: the support inbox, where
+                  // the newest unanswered conversation is at the top.
+                  else if (notification.kind === 'support') navigate('/support');
                   // A report from outside is about a project's queue rather
                   // than a row, so it opens the tab that holds it.
                   else if (notification.project_id) navigate(`/projects/${notification.project_id}?tab=intake`);
@@ -276,7 +279,9 @@ export function Inbox() {
                     <strong className="text-[13.5px]">{notification.title}</strong>
                     {!notification.read_at && <span className="size-1.5 flex-none rounded-full bg-accent" />}
                   </span>
-                  {notification.body && <span className="text-muted truncate text-[12.5px]">{excerpt(notification.body, 90)}</span>}
+                  {/* `block`, or `truncate` has no width to cut at: an inline span runs on,
+                      and a support message's first line pushed the row 92px past a phone. */}
+                  {notification.body && <span className="block text-muted truncate text-[12.5px]">{excerpt(notification.body, 90)}</span>}
                 </span>
                 <span className="text-muted text-[11.5px]">{relativeTime(notification.created_at)}</span>
               </button>

@@ -179,6 +179,20 @@ for (const [table, column, definition] of [
   ['comments', 'resolution', 'TEXT'],
   ['comments', 'resolved_by', 'TEXT'],
   ['comments', 'resolved_at', 'INTEGER'],
+  // Where a visitor's answer to a support email goes: an inbox the workspace
+  // has connected, so the answer reaches the conversation. Null is the
+  // instance's own Reply-To, which reaches nobody's conversation.
+  ['widgets', 'reply_to', 'TEXT'],
+  // The model in a support widget: whether it suggests replies to the team or
+  // answers first, which pages it may read, and how many answers a day it may
+  // give. Off, nothing and fifty on every widget that predates it.
+  ['widgets', 'assistant', `TEXT NOT NULL DEFAULT 'off'`],
+  ['widgets', 'knowledge', `TEXT NOT NULL DEFAULT '[]'`],
+  ['widgets', 'assistant_budget', 'INTEGER NOT NULL DEFAULT 50'],
+  // When the model handed a conversation to a person, or a person took it.
+  ['conversations', 'handover_at', 'INTEGER'],
+  // The knowledge pages a model's answer rests on, by title.
+  ['conversation_messages', 'sources', `TEXT NOT NULL DEFAULT '[]'`],
 ] as const) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!columns.some((c) => c.name === column)) {

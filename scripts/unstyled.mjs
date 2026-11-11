@@ -43,6 +43,9 @@ const MARKERS = new Set([
   // them. The widths come from `.narrow` and from the table, not from these.
   'type', 'state', 'assignees', 'priority', 'due_date', 'estimate', 'labels', 'created_by', 'updated_at',
   'auto-recipient',
+  // The team chat's composer: the walkthrough finds its field and its send
+  // button inside it. `Composer` draws itself with utilities.
+  'chat-composer',
 ]);
 
 /** Every class the stylesheet defines, including inside compound selectors. */

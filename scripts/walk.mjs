@@ -13,6 +13,7 @@
  * merely go unchecked: they do not exist.
  */
 import { switchOnMail, openMailboxEditor } from './mail-fixture.mjs';
+import { switchOnSupport } from './support-fixture.mjs';
 import { switchOnDecisions } from './ballot-fixture.mjs';
 import { switchOnMeetings } from './meeting-fixture.mjs';
 import { switchOnVault } from './vault-fixture.mjs';
@@ -37,6 +38,7 @@ export async function walkable(page, base) {
   // Mail is off in a seeded workspace, so its two screens are not merely
   // unchecked without this — they do not exist. See `mail-fixture.mjs`.
   await switchOnMail(page);
+  const { widgetId, conversationId } = await switchOnSupport(page);
   await switchOnDecisions(page);
   const meetingId = await switchOnMeetings(page);
   await switchOnVault(page);
@@ -135,6 +137,13 @@ export async function walkable(page, base) {
     // nothing about the thing that broke.
     ['mail', '/mail'],
     ['settings: mailboxes', '/settings?tab=mailboxes', openMailboxEditor],
+    // Behind the support switch, reached only because the fixture above turned
+    // it on: the inbox, one conversation in it, the widgets tab, and the page a
+    // visitor sees inside the iframe — the one screen here a stranger reads.
+    ['support', '/support'],
+    ['support: conversation', `/support/${conversationId}`],
+    ['settings: widgets', '/settings?tab=widgets'],
+    ['widget: visitor window', `/w/${widgetId}`],
     // Behind the decisions switch, and reached only because the fixture above
     // turned it on. The ballot is a row that has to hold a mark, a label that can
     // wrap, and a count — at 340px, where a label of any length is the thing that

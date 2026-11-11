@@ -248,6 +248,7 @@ const SCOPED_REFERENCES: Record<string, string> = {
   agenda_item_id: 'agenda_items',
   carried_from: 'agenda_items',
   minutes_page_id: 'pages',
+  conversation_id: 'conversations',
 };
 
 function guardReferences(entity: EntityName, values: Record<string, unknown>, opts: WriteOpts): void {

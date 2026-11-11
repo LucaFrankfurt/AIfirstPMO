@@ -87,7 +87,7 @@ const RING_OF_DIR = { kernel: 'kernel', modules: 'capability', adapters: 'adapte
 const ABOUT = {
   'i18n': ['Catalogues, plurals, and the locale a person reads in.'],
   'design-system': ['The shell, the palette, and the parts every screen is built from.'],
-  'registry': ['The 61 entities: fields, merge rules, visibility, and what the client mirrors.'],
+  'registry': ['The 64 entities: fields, merge rules, visibility, and what the client mirrors.'],
   'write-path': ['One way in for every write: defaults, invariants, guards, effects, tombstones.'],
   'identity': ['Accounts, sessions, two-factor, workspaces, members and invites.'],
   'platform': ['Configuration, the database handle, the router, ids, the bus.'],
@@ -112,6 +112,8 @@ const ABOUT = {
   'ai-review': ['Asking a model to read a task back, or to draw a board on a canvas. Manual, off by default.', 'ai'],
   'trash': ['Tombstones, restore and the purge.'],
   'intake': ['A form that becomes a task, and the queue in front of it.'],
+  'support': ['Chat widgets on other sites, the conversations they open, and the inbox the team answers them from.', 'support'],
+  'widget': ['The widget\'s side of the wall: the loader, the iframe, the signed token, the session, the stream and the email a reply waits behind.'],
   'notifications': ['What is worth telling somebody about, once.'],
   'mcp': ['The tool surface an assistant talks to: 81 tools and 5 prompts.'],
   'transfer': ['Import and export, per project and per workspace.'],

@@ -33,6 +33,7 @@ import { Teams } from './modules/work/routes/teams';
 const TimesheetPage = lazy(() => import('./modules/time/routes/timesheet').then((m) => ({ default: m.TimesheetPage })));
 const Infrastructure = lazy(() => import('./modules/infrastructure/routes/infrastructure').then((m) => ({ default: m.Infrastructure })));
 const MailScreen = lazy(() => import('./modules/mail/routes/mail').then((m) => ({ default: m.MailScreen })));
+const SupportInbox = lazy(() => import('./modules/support/routes/support').then((m) => ({ default: m.SupportInbox })));
 const SecretsIndex = lazy(() => import('./modules/secrets/routes/secrets').then((m) => ({ default: m.SecretsIndex })));
 const KpiIndex = lazy(() => import('./modules/kpis/routes/kpis').then((m) => ({ default: m.KpiIndex })));
 const KpiDetail = lazy(() => import('./modules/kpis/routes/kpis').then((m) => ({ default: m.KpiDetail })));
@@ -215,6 +216,7 @@ export default function App() {
       if (has('time')) fetchQuietly(() => import('./modules/time/routes/timesheet'));
       if (has('infrastructure')) fetchQuietly(() => import('./modules/infrastructure/routes/infrastructure'));
       if (has('mail')) fetchQuietly(() => import('./modules/mail/routes/mail'));
+      if (has('support')) fetchQuietly(() => import('./modules/support/routes/support'));
       if (has('kpi')) fetchQuietly(() => import('./modules/kpis/routes/kpis'));
       if (has('decisions')) fetchQuietly(() => import('./modules/decisions/routes/decisions'));
       if (has('meetings')) fetchQuietly(() => import('./modules/meetings/routes/meetings'));
@@ -302,6 +304,8 @@ export default function App() {
           <Route path="/timesheet" element={<TimesheetPage />} />
           <Route path="/infrastructure" element={<Infrastructure />} />
           <Route path="/mail" element={<MailScreen />} />
+          <Route path="/support" element={<SupportInbox />} />
+          <Route path="/support/:id" element={<SupportInbox />} />
           <Route path="/secrets" element={<SecretsIndex />} />
           <Route path="/kpis" element={<KpiIndex />} />
           <Route path="/kpis/:id" element={<KpiDetail />} />

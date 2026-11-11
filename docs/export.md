@@ -50,6 +50,10 @@ emails, and these are either secrets or somebody else's.
   a workspace, not the workspace.
 - **Intake reports**, which carry the email addresses of people outside the
   workspace who filled in a form.
+- **Support widgets and their conversations**, for the same reason: a conversation
+  is a stranger's name, address and words. A widget's signing secret never leaves
+  the server anyway, so on the far side the widgets are made again and each site's
+  snippet is pointed at the new instance.
 
 ## Reading one back
 

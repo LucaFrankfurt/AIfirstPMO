@@ -1338,8 +1338,8 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 
 .reactions { margin-top: 4px; }
 /* Under the bubble, on the bubble's side. */
-.chat-message.mine .reactions { justify-content: flex-end; }
-.chat-message .chat-in-context { margin-top: 3px; }
+.thread-line.mine .reactions { justify-content: flex-end; }
+.thread-line .chat-in-context { margin-top: 3px; }
 .reaction {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 1px 7px; border: 1px solid var(--line); border-radius: 999px;
@@ -2907,10 +2907,10 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   flex: none;
 }
 
-.chat-stream {
+.thread {
   flex: 1;
   overflow-y: auto;
-  padding: 10px 0;
+  padding: 10px 2px;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -2920,7 +2920,7 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
    rather than `justify-content: flex-end`, which looks identical right up
    until the messages outgrow the box: overflow past a flex container's start
    edge is not scrollable, and every message above the fold was unreachable. */
-.chat-stream > :first-child { margin-top: auto; }
+.thread > :first-child { margin-top: auto; }
 
 /*
  * A message is a bubble, and which side it is on says who said it.
@@ -2936,15 +2936,15 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
  * gained space is where the hover actions now live, instead of the gutter
  * they used to need carved out of the text column.
  */
-.chat-message { display: flex; gap: 9px; padding: 1px 0; position: relative; }
-.chat-message:not(.grouped) { padding-top: 9px; }
-.chat-message.mine { flex-direction: row-reverse; }
-.chat-message .body { flex: 0 1 auto; min-width: 0; max-width: min(78%, 34rem); display: flex; flex-direction: column; align-items: flex-start; }
-.chat-message.mine .body { align-items: flex-end; }
+.thread-line { display: flex; gap: 9px; padding: 1px 0; position: relative; }
+.thread-line:not(.grouped) { padding-top: 9px; }
+.thread-line.mine { flex-direction: row-reverse; }
+.thread-body { flex: 0 1 auto; min-width: 0; max-width: min(78%, 34rem); display: flex; flex-direction: column; align-items: flex-start; }
+.thread-line.mine .thread-body { align-items: flex-end; }
 /* Where the avatar would be on a grouped line, so the text stays in one column. */
-.chat-message .gutter { width: 26px; flex: none; }
+.thread-gutter { width: 26px; flex: none; }
 
-.bubble {
+.thread-bubble {
   position: relative;
   max-width: 100%;
   min-width: 0;
@@ -2954,21 +2954,27 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   background: var(--bg-raised);
 }
 /* Yours carries the accent, quietly — it is a background for ordinary text,
-   not a highlight, so it stays a tint rather than the accent itself. */
-.chat-message.mine .bubble { background: var(--accent-soft); border-color: transparent; }
+   not a highlight, so it stays a tint rather than the accent itself. A support
+   widget sets its site's colour instead, through the two variables, because on
+   somebody else's site the visitor's own lines should look like that site. */
+.thread-line.mine .thread-bubble {
+  background: var(--thread-mine-bg, var(--accent-soft));
+  color: var(--thread-mine-fg, inherit);
+  border-color: transparent;
+}
+.thread-line.mine .thread-bubble .thread-meta { color: var(--thread-mine-meta, var(--fg-muted)); }
 /* The corner nearest the speaker is squared off on the first bubble of a
    block: the cheap version of a tail, and it points the right way in both
    directions because it is written in logical properties. */
-.chat-message:not(.grouped):not(.mine) .bubble { border-start-start-radius: 5px; }
-.chat-message:not(.grouped).mine .bubble { border-start-end-radius: 5px; }
+.thread-line:not(.grouped):not(.mine) .thread-bubble { border-start-start-radius: 5px; }
+.thread-line:not(.grouped).mine .thread-bubble { border-start-end-radius: 5px; }
 
-.chat-message .who { display: block; font-size: 12.5px; font-weight: 600; margin-bottom: 1px; }
-.chat-message .when { font-size: 11px; color: var(--fg-muted); }
-.chat-message p:last-child { margin-bottom: 0; }
+.thread-who { display: block; font-size: 12.5px; font-weight: 600; margin-bottom: 1px; }
+.thread-bubble p:last-child { margin-bottom: 0; }
 /* A message can hold a code block or a table, and neither of those is going to
    fit. They scroll inside the bubble rather than stretching it past the edge
    of the screen. */
-.bubble .md pre, .bubble .md table { max-width: 100%; overflow-x: auto; }
+.thread-bubble .md pre, .thread-bubble .md table { max-width: 100%; overflow-x: auto; }
 
 /*
  * The time sits in the corner of the bubble, and the last paragraph makes room
@@ -2979,7 +2985,7 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
  * of the last paragraph instead, so a short message wears its time beside the
  * words and a long one lets it sit under the last line.
  */
-.bubble .meta {
+.thread-meta {
   position: absolute;
   inset-inline-end: 11px;
   bottom: 5px;
@@ -2991,15 +2997,19 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   color: var(--fg-muted);
   white-space: nowrap;
 }
-.bubble .md > p:last-child::after { content: ""; display: inline-block; width: 3.6rem; }
-.bubble:has(.md > p:last-child) { padding-bottom: 6px; }
+.thread-bubble .md > p:last-child::after { content: ""; display: inline-block; width: 3.6rem; }
+/* A corner that says more than the time — "edited", "Assistant" — needs more
+   room, or the last words run under it. Asked of the corner itself, because a
+   caller's meta can render nothing (a line that is not waiting to be sent). */
+.thread-bubble:has(.thread-meta > :not(:last-child)) .md > p:last-child::after { width: 8rem; }
+.thread-bubble:has(.md > p:last-child) { padding-bottom: 6px; }
 /* Anything whose last line is not a paragraph — an image, a code block, a
    checklist — cannot reserve the space inline, so the corner is given a line
    of its own underneath. */
-.bubble:not(:has(.md > p:last-child)) { padding-bottom: 20px; }
+.thread-bubble:not(:has(.md > p:last-child)) { padding-bottom: 20px; }
 /* Editing replaces the body with a box of its own; the corner steps aside. */
-.bubble:has(.editor) .meta { display: none; }
-.bubble:has(.editor) { padding-bottom: 6px; }
+.thread-bubble:has(.editor) .thread-meta { display: none; }
+.thread-bubble:has(.editor) { padding-bottom: 6px; }
 
 /*
  * The actions sit in the space beside the bubble, on the side the bubble does
@@ -3012,8 +3022,8 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
  * already there — on the left of your own lines and the right of everybody
  * else's — and the text column gets its width back.
  */
-.chat-message .body { position: relative; }
-.chat-actions {
+.thread-body { position: relative; }
+.thread-actions {
   position: absolute;
   /* Just past the bubble's own edge, not the row's: the body shrinks to the
      bubble, so this follows however wide the message happens to be. */
@@ -3039,13 +3049,13 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
    this lit the bar on whichever message was last touched and left it there,
    fighting the dot-button that is supposed to be in charge down there. */
 @media (hover: hover) {
-  .chat-message:hover .chat-actions { opacity: 1; pointer-events: auto; }
+  .thread-line:hover .thread-actions { opacity: 1; pointer-events: auto; }
 }
-.chat-actions:focus-within { opacity: 1; pointer-events: auto; }
+.thread-actions:focus-within { opacity: 1; pointer-events: auto; }
 
 /* Your own lines put it on the other side, because that is where their free
    space is. */
-.chat-message.mine .chat-actions {
+.thread-line.mine .thread-actions {
   inset-inline-start: auto;
   inset-inline-end: 100%;
   margin-inline-start: 0;
@@ -3064,16 +3074,16 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
  * still counts towards how far its container can scroll. Overlapping is fine
  * when somebody has just asked for it and it goes away again.
  */
-.chat-more { display: none; }
+.thread-more { display: none; }
 @media (hover: none) {
-  .chat-actions {
+  .thread-actions {
     inset-inline-start: auto;
     inset-inline-end: 0;
     margin-inline: 0;
     top: -13px;
   }
-  .chat-message.mine .chat-actions { inset-inline-end: 0; inset-inline-start: auto; }
-  .chat-more {
+  .thread-line.mine .thread-actions { inset-inline-end: 0; inset-inline-start: auto; }
+  .thread-more {
     display: inline-flex;
     position: absolute;
     inset-inline-start: 100%;
@@ -3089,25 +3099,25 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
     color: var(--fg-muted);
     cursor: pointer;
   }
-  .chat-message.mine .chat-more {
+  .thread-line.mine .thread-more {
     inset-inline-start: auto;
     inset-inline-end: 100%;
     margin-inline-start: 0;
     margin-inline-end: 2px;
   }
-  .chat-message.tapped .chat-actions { opacity: 1; pointer-events: auto; }
-  .chat-message.tapped .chat-more { opacity: 0; }
+  .thread-line.tapped .thread-actions { opacity: 1; pointer-events: auto; }
+  .thread-line.tapped .thread-more { opacity: 0; }
 }
 
 /* Where a jumped-to message lands: bright for a moment, then not. Long enough
    to find with your eye, short enough that it is gone before it is annoying. */
-@keyframes chat-found {
+@keyframes thread-found {
   from { background: color-mix(in srgb, var(--accent) 20%, transparent); }
   to { background: transparent; }
 }
-.chat-message.found { animation: chat-found 1.6s ease-out; border-radius: 6px; }
+.thread-line.found { animation: thread-found 1.6s ease-out; border-radius: 6px; }
 @media (prefers-reduced-motion: reduce) {
-  .chat-message.found { animation-duration: 2.4s; }
+  .thread-line.found { animation-duration: 2.4s; }
 }
 
 /* "3 new messages", between the stream and the composer, for a reader who is
@@ -3131,7 +3141,7 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 
 /* A line naming the day, with the day's first message under it. Without one,
    yesterday evening runs straight into this morning. */
-.chat-day {
+.thread-day {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -3139,8 +3149,8 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   font-size: 11.5px;
   color: var(--fg-muted);
 }
-.chat-day::before, .chat-day::after { content: ""; flex: 1; height: 1px; background: var(--line); }
-.chat-day > span { flex: none; }
+.thread-day::before, .thread-day::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.thread-day > span { flex: none; }
 
 /* The way further back, at the top of what is drawn. */
 .chat-earlier {
@@ -3223,15 +3233,6 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 .reaction-pick:hover { background: var(--bg-hover); }
 .reaction-pick.mine { background: var(--accent-soft); }
 
-.chat-composer {
-  flex: none;
-  border-top: 1px solid var(--line);
-  padding-top: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-bottom: env(safe-area-inset-bottom);
-}
 
 
 }

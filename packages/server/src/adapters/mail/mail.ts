@@ -58,6 +58,12 @@ export interface QueuedMail {
   /** Delay before the worker may pick it up. */
   delaySeconds?: number;
   headers?: Record<string, string>;
+  /**
+   * Where an answer to this one should go, in place of the instance's own.
+   * A support reply names the inbox it is read back from, so that answering
+   * the email reaches the conversation.
+   */
+  replyTo?: string;
 }
 
 export function queueMail(mail: QueuedMail): string | null {
@@ -72,7 +78,7 @@ export function queueMail(mail: QueuedMail): string | null {
     `INSERT INTO email_queue (id, user_id, workspace_id, to_email, subject, body_text, body_html, headers, kind, send_after, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id, mail.userId ?? null, mail.workspaceId ?? null, mail.to, mail.subject, mail.text, mail.html ?? null,
-    JSON.stringify(mail.headers ?? {}), mail.kind ?? 'notification',
+    JSON.stringify({ ...(mail.headers ?? {}), ...(mail.replyTo ? { [REPLY_TO]: mail.replyTo } : {}) }), mail.kind ?? 'notification',
     Date.now() + (mail.delaySeconds ?? 0) * 1000, Date.now(),
   );
   return id;
@@ -127,15 +133,18 @@ export async function flushQueue(limit = 20): Promise<{ sent: number; failed: nu
   let failed = 0;
   for (const row of due) {
     try {
+      // A queued Reply-To travels in the headers column and leaves through the
+      // transport's own field, so the message never carries two of them.
+      const { [REPLY_TO]: replyTo, ...headers } = safeHeaders(row.headers);
       await deliver({
         from: env.mail.from,
         fromName: env.mail.fromName,
-        replyTo: env.mail.replyTo,
+        replyTo: replyTo || env.mail.replyTo,
         to: row.to_email,
         subject: row.subject,
         text: row.body_text,
         html: row.body_html ?? undefined,
-        headers: safeHeaders(row.headers),
+        headers,
       });
       run(`UPDATE email_queue SET sent_at = ?, attempts = attempts + 1 WHERE id = ?`, Date.now(), row.id);
       sent++;
@@ -163,6 +172,9 @@ export async function flushQueue(limit = 20): Promise<{ sent: number; failed: nu
   }
   return { sent, failed };
 }
+
+/** The key a queued Reply-To is kept under in `email_queue.headers`; not a header name, so it cannot leak out as one. */
+const REPLY_TO = ':reply-to';
 
 const safeHeaders = (raw: string): Record<string, string> => {
   try {

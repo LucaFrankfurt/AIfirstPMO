@@ -142,6 +142,8 @@ protocol-relative URLs are refused; external links carry `rel="noopener noreferr
 Content-Security-Policy (`lib/csp.ts`) is the second lock rather than the first: `default-src 'self'`,
 no inline or `eval`'d script, `frame-ancestors 'none'`. It is computed rather than constant, because
 a pre-signed download redirects the browser to the object store and that origin has to be named.
+One page is framed on purpose: a support widget's `/w/:widget`, served with the same policy except
+`frame-ancestors 'self'` and the exact origins the widget lists — see [`support.md`](support.md).
 
 **Artboards — somebody's code, on purpose.** A board on a canvas page is a whole HTML document with
 its scripts, so it is the one place this app runs code it did not write. It never runs in the app: it
@@ -195,7 +197,7 @@ uploaded SVG downloads from the bucket exactly as it downloads from disk.
 ## Rate limits
 
 On the routes where guessing is the attack: signing in, registering, looking up an invite code,
-opening a share link, posting to an intake form, dynamic client registration, the calendar feed, the
+opening a share link, posting to an intake form, opening or writing in a support widget, dynamic client registration, the calendar feed, the
 inbound webhook, the bounce endpoint, and the two places a session is asked to re-confirm its
 password. Token buckets in memory; a refusal costs a token too, so hammering after a `429` does not
 reset the clock.
