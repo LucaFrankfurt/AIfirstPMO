@@ -1753,7 +1753,6 @@ export const de: Catalogue = {
   'chat.replyingTo': 'Antwort an {name}',
   'chat.deleteMessage': 'Diese Nachricht löschen?',
   'chat.placeholder': 'Nachricht an {where}',
-  'chat.send': 'Senden',
   'chat.enterHint': 'Enter sendet · Shift+Enter für eine neue Zeile',
   'presence.online': 'Online',
   'presence.offline': 'Offline',

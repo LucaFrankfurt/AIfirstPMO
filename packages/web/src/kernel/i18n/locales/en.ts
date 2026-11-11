@@ -1759,7 +1759,6 @@ export const en = {
   'chat.replyingTo': 'Replying to {name}',
   'chat.deleteMessage': 'Delete this message?',
   'chat.placeholder': 'Message {where}',
-  'chat.send': 'Send',
   'chat.enterHint': 'Enter sends · Shift+Enter for a new line',
   'presence.online': 'Online',
   'presence.offline': 'Offline',

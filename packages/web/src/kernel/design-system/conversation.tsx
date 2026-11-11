@@ -1,21 +1,24 @@
 /**
  * A conversation on screen: the thread and the box you answer in.
  *
- * The accent is `--thread-accent` (and `--thread-accent-fg` for what is written
- * on it) when a surrounding element sets one, and the app's accent otherwise:
- * a widget carries its site's colour, the inbox carries Kolibri's.
+ * One component for three places — the team chat, the support inbox, and a
+ * visitor's window on somebody else's site — so the three look and behave
+ * alike and a fix to one is a fix to all. They know nothing about where their
+ * lines come from: a caller hands over lines already decided (whose side, what
+ * to show, what can be done to them) and gets a thread that groups, dates,
+ * scrolls, offers the actions and says "seen".
  *
- * Built for support, where the same two pieces have to work in two very
- * different places — the team's inbox inside the app, and a visitor's iframe
- * on somebody else's site — and so they know nothing about where the messages
- * come from. A caller hands over lines already decided (whose side, what to
- * show) and gets a thread that groups, dates, scrolls and says "seen".
+ * The drawing lives in `app.css` under `.thread*`, with the reasons beside the
+ * rules: the bubble, its squared corner, the time tucked into it, the bar of
+ * actions beside it on a pointer and behind a dot-button on a finger. It was
+ * the team chat's, and was moved down rather than redrawn.
  *
- * What it deliberately leaves out: reactions, replies to a line, editing in
- * place. Those belong to the team chat and can be layered on there; a support
- * thread is a question and its answers.
+ * Colours: your own lines take `--thread-mine-bg` / `--thread-mine-fg` when a
+ * surrounding element sets them (a widget sets its site's colour), and the
+ * accent's tint otherwise. The send button and the focused field take
+ * `--thread-accent` / `--thread-accent-fg`, or the app's accent.
  */
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type Ref } from 'react';
 import { cn } from './cn';
 import { clockTime, exactTime, longDate } from './format';
 import { Icon } from './ui';
@@ -33,13 +36,13 @@ export interface ThreadFile {
 
 export interface ThreadLine {
   id: string;
-  /** This side of the conversation: drawn on the right, in the accent. */
+  /** This side of the conversation: drawn on the right, in the accent's tint. */
   mine: boolean;
-  /** Whose line it is, said over the first line of a block from the other side. */
+  /** Whose line it is, named on the first line of a block from the other side. Leave it out to name nobody. */
   author?: string;
-  /** A face for that first line. */
+  /** A face beside the first line of a block from the other side. */
   avatar?: ReactNode;
-  /** The words, already rendered — plain text here, markdown in the team chat. */
+  /** A string is drawn as plain text; anything else as given — rendered markdown, an edit box. */
   body: ReactNode;
   at: number;
   files?: ThreadFile[];
@@ -47,6 +50,16 @@ export interface ThreadLine {
   pending?: boolean;
   /** Could not be sent; the caller says what to do about it. */
   failed?: ReactNode;
+  /** Starts a block of its own even when it would join the one before — a reply, say. */
+  breaks?: boolean;
+  /** Inside the bubble, over the words: the line this one answers. */
+  quote?: ReactNode;
+  /** In the bubble's corner before the time: "edited", "not sent yet". */
+  meta?: ReactNode;
+  /** Under the bubble: reactions, a way back into context. */
+  below?: ReactNode;
+  /** What can be done to the line: shown on hover and focus, and behind a dot-button on a touch screen. */
+  actions?: ReactNode;
 }
 
 /** Lines from one side within this long of each other read as one block. */
@@ -60,14 +73,20 @@ function dayOf(at: number, t: ReturnType<typeof useT>): string {
   return longDate(at);
 }
 
+const sameDay = (a: number, b: number) => new Date(a).toDateString() === new Date(b).toDateString();
+
 /**
- * The lines, oldest at the top, kept at the bottom while you are there.
+ * The lines, oldest at the top.
  *
- * "While you are there" is the part that matters: somebody scrolled up to
- * read an earlier answer is not yanked back down by a new one. Your own line
- * always brings you down, because you have just written it and want to see it.
+ * By default it keeps itself at the bottom while you are there — somebody
+ * scrolled up to read an earlier answer is not yanked down by a new one, and
+ * your own line always brings you down. The team chat steers its own scrolling
+ * (it reaches back sixty lines at a time and jumps to a search hit), so it
+ * turns that off with `follow={false}` and holds the box through `boxRef`.
  */
-export function Thread({ lines, typing, seenAt, empty, className }: {
+export function Thread({
+  lines, typing, seenAt, empty, before, grouped = true, days = true, follow = true, boxRef, onScroll, className,
+}: {
   lines: ThreadLine[];
   /** The other side is typing: who, or `true` for "somebody". */
   typing?: string | boolean;
@@ -75,90 +94,109 @@ export function Thread({ lines, typing, seenAt, empty, className }: {
   seenAt?: number | null;
   /** Shown while there is nothing yet: a greeting, a hint. */
   empty?: ReactNode;
+  /** Above the lines: the way further back, a note about a search. */
+  before?: ReactNode;
+  /** Off while searching: two hits an hour apart are not one block. */
+  grouped?: boolean;
+  /** Off while searching, for the same reason. */
+  days?: boolean;
+  follow?: boolean;
+  boxRef?: Ref<HTMLDivElement>;
+  onScroll?: () => void;
   className?: string;
 }) {
   const t = useT();
-  const box = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLDivElement | null>(null);
   const atBottom = useRef(true);
+  /** Which line has been asked for its actions, where there is no hover. */
+  const [tapped, setTapped] = useState<string | null>(null);
   const last = lines[lines.length - 1];
+
+  const attach = useCallback((element: HTMLDivElement | null) => {
+    box.current = element;
+    if (typeof boxRef === 'function') boxRef(element);
+    else if (boxRef) (boxRef as { current: HTMLDivElement | null }).current = element;
+  }, [boxRef]);
 
   useLayoutEffect(() => {
     const el = box.current;
-    if (!el) return;
+    if (!follow || !el) return;
     if (atBottom.current || last?.mine) el.scrollTop = el.scrollHeight;
-  }, [lines.length, last?.id, last?.mine, typing]);
+  }, [follow, lines.length, last?.id, last?.mine, typing]);
 
   // The last line of yours the other side has read — the one place "seen" is said.
-  const seen = seenAt
-    ? [...lines].reverse().find((line) => line.mine && !line.pending && line.at <= seenAt)?.id
-    : undefined;
-  const newestMine = [...lines].reverse().find((line) => line.mine)?.id;
+  const newestMine = [...lines].reverse().find((line) => line.mine);
+  const seen = seenAt && newestMine && !newestMine.pending && newestMine.at <= seenAt ? newestMine.id : undefined;
+
+  const joins = (a?: ThreadLine, b?: ThreadLine) =>
+    grouped && !!a && !!b && !b.breaks && a.mine === b.mine && a.author === b.author
+    && Math.abs(b.at - a.at) < BLOCK_MS && sameDay(a.at, b.at);
 
   return (
     <div
-      ref={box}
+      ref={attach}
       role="log"
-      aria-live="polite"
-      className={cn('flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-4 sm:px-4', className)}
+      className={cn('thread', className)}
       onScroll={() => {
         const el = box.current;
         if (el) atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+        onScroll?.();
       }}
     >
-      {!lines.length && empty && <div className="my-auto">{empty}</div>}
+      {before}
+      {!lines.length && empty}
       {lines.map((line, index) => {
         const previous = lines[index - 1];
-        const next = lines[index + 1];
-        const day = new Date(line.at).toDateString();
-        const newDay = !previous || new Date(previous.at).toDateString() !== day;
-        const joins = (a?: ThreadLine, b?: ThreadLine) =>
-          !!a && !!b && a.mine === b.mine && a.author === b.author && Math.abs(b.at - a.at) < BLOCK_MS
-          && new Date(a.at).toDateString() === new Date(b.at).toDateString();
+        const newDay = days && (!previous || !sameDay(previous.at, line.at));
         const first = newDay || !joins(previous, line);
-        const lastOfBlock = !joins(line, next);
+        const words = line.body !== null && line.body !== undefined && line.body !== false && line.body !== '';
+        const time = (
+          <span className="thread-meta">
+            {line.meta}
+            <span className="tabular-nums">{line.pending ? t('thread.sending') : clockTime(line.at)}</span>
+          </span>
+        );
         return (
           <Fragment key={line.id}>
-            {newDay && (
-              <div className="my-3 flex items-center gap-3 text-[11.5px] text-muted" role="separator">
-                <span className="h-px flex-1 bg-line" />
-                <span>{dayOf(line.at, t)}</span>
-                <span className="h-px flex-1 bg-line" />
-              </div>
-            )}
-            <div className={cn('flex items-end gap-2', line.mine ? 'justify-end' : 'justify-start', first ? 'mt-3' : 'mt-0.5')}>
-              {!line.mine && (
-                <span className="flex w-7 flex-none justify-center">{lastOfBlock ? line.avatar : null}</span>
-              )}
-              <div className={cn('flex min-w-0 max-w-[78%] flex-col', line.mine ? 'items-end' : 'items-start')}>
-                {first && !line.mine && line.author && (
-                  <span className="mb-1 px-1 text-[11.5px] font-medium text-muted">{line.author}</span>
-                )}
+            {newDay && <div className="thread-day" role="separator"><span>{dayOf(line.at, t)}</span></div>}
+            <div
+              className={cn('thread-line', !first && 'grouped', line.mine && 'mine', tapped === line.id && 'tapped')}
+              data-line={line.id}
+            >
+              {/* Only the other side gets a face: yours is not news to you, and
+                  on a phone it is a third of the width of the line. */}
+              {!line.mine && (first && line.avatar ? line.avatar : <span className="thread-gutter" />)}
+              <div className="thread-body">
                 {!!line.files?.length && <Files files={line.files} mine={line.mine} />}
-                {hasBody(line.body) && (
-                  <div
-                    title={exactTime(line.at)}
-                    className={cn(
-                      'whitespace-pre-wrap break-words px-3 py-2 text-[14px] leading-[1.45]',
-                      line.mine
-                        ? 'bg-[var(--thread-accent,var(--accent))] text-[var(--thread-accent-fg,var(--accent-fg))]'
-                        : 'border border-line bg-raised text-fg',
-                      // The corner nearest the next line of the same block is
-                      // squared off, so a block reads as one shape.
-                      line.mine
-                        ? cn('rounded-2xl', !first && 'rounded-tr-md', !lastOfBlock && 'rounded-br-md')
-                        : cn('rounded-2xl', !first && 'rounded-tl-md', !lastOfBlock && 'rounded-bl-md'),
-                      line.pending && 'opacity-60',
-                    )}
-                  >
-                    {line.body}
+                {words && (
+                  <div className="thread-bubble" title={exactTime(line.at)} style={line.pending ? { opacity: 0.65 } : undefined}>
+                    {first && !line.mine && line.author && <span className="thread-who">{line.author}</span>}
+                    {line.quote}
+                    {typeof line.body === 'string'
+                      ? <div className="md"><p className="whitespace-pre-wrap break-words">{line.body}</p></div>
+                      : line.body}
+                    {time}
                   </div>
                 )}
+                {/* A line that is only a picture still says when. */}
+                {!words && <span className="mt-0.5 flex gap-1.5 px-1 text-[11px] text-muted">{line.meta}{line.pending ? t('thread.sending') : clockTime(line.at)}</span>}
                 {line.failed && <div className="mt-1 px-1 text-[11.5px] text-danger">{line.failed}</div>}
-                {lastOfBlock && !line.failed && (
-                  <span className="mt-1 px-1 text-[11px] tabular-nums text-muted">
-                    {line.pending ? t('thread.sending') : clockTime(line.at)}
-                    {line.id === seen && line.id === newestMine && <> · {t('thread.seen')}</>}
-                  </span>
+                {line.id === seen && <span className="mt-0.5 px-1 text-[11px] text-muted">{t('thread.seen')}</span>}
+                {line.below}
+                {line.actions && (
+                  <>
+                    {/* Shown only where there is no hover to reveal the bar with. */}
+                    <button
+                      type="button"
+                      className="thread-more"
+                      aria-label={t('chat.messageActions')}
+                      aria-expanded={tapped === line.id}
+                      onClick={() => setTapped(tapped === line.id ? null : line.id)}
+                    >
+                      <Icon name="dots" size={14} />
+                    </button>
+                    <div className="thread-actions">{line.actions}</div>
+                  </>
                 )}
               </div>
             </div>
@@ -166,16 +204,14 @@ export function Thread({ lines, typing, seenAt, empty, className }: {
         );
       })}
       {typing && (
-        <div className="mt-3 flex items-end gap-2" aria-label={typeof typing === 'string' ? t('thread.typingNamed', { name: typing }) : t('thread.typing')}>
-          <span className="w-7 flex-none" />
+        <div className="thread-line" aria-label={typeof typing === 'string' ? t('thread.typingNamed', { name: typing }) : t('thread.typing')}>
+          <span className="thread-gutter" />
           <TypingDots />
         </div>
       )}
     </div>
   );
 }
-
-const hasBody = (body: ReactNode): boolean => body !== null && body !== undefined && body !== false && body !== '';
 
 function Files({ files, mine }: { files: ThreadFile[]; mine: boolean }) {
   return (
@@ -226,9 +262,9 @@ export function TypingDots() {
  *
  * On a keyboard it does, and Shift+Enter breaks the line. Where the pointer is
  * coarse — a phone — the return key is how you get a second line and the send
- * button is under your thumb anyway. The team chat made the same call.
+ * button is under your thumb anyway. Cmd/Ctrl+Enter sends everywhere.
  */
-const SEND_ON_ENTER = typeof window !== 'undefined' && !window.matchMedia?.('(pointer: coarse)').matches;
+export const SEND_ON_ENTER = typeof window !== 'undefined' && !window.matchMedia?.('(pointer: coarse)').matches;
 
 /** How often "still typing" is said while somebody keeps typing. */
 const TYPING_EVERY_MS = 3000;
@@ -236,31 +272,43 @@ const TYPING_EVERY_MS = 3000;
 /**
  * The box you answer in.
  *
- * Grows with what is written up to a few lines, sends on Enter, takes a pasted
- * or chosen picture when the caller accepts files, and says "typing" — once
- * every few seconds while it lasts and once when it stops — so the caller does
- * not have to.
+ * Two ways to use it. Alone, it is a plain field that grows with what is
+ * written, sends on Enter, takes a pasted or chosen picture when the caller
+ * accepts files, and says "typing" — once every few seconds while it lasts and
+ * once when it stops. With `field`, the caller brings its own editor (the team
+ * chat's, with its mention and reference menus) and owns the text; this then
+ * draws the frame around it and hands it the send button to place, so the
+ * button is the same everywhere.
  */
-export function Composer({ onSend, onTyping, onAttach, attached, placeholder, disabled, autoFocus, className }: {
+export function Composer({
+  onSend, onTyping, onAttach, attached, placeholder, disabled, autoFocus, className, status, field, canSend: allowed,
+}: {
+  /** With `field`, called with an empty string: the caller holds the text. */
   onSend: (text: string) => void | Promise<unknown>;
   onTyping?: (typing: boolean) => void;
   /** Offered when given: a button, and pasting a picture. */
   onAttach?: (file: File) => void;
-  /** What is waiting to go with the next message; a message may then be empty. */
+  /** What is waiting to go with the next message — a reply, a picture; a message may then be empty. */
   attached?: ReactNode;
   placeholder?: string;
   disabled?: boolean;
   autoFocus?: boolean;
   className?: string;
+  /** A line over the field, always there: who is typing, how to send. */
+  status?: ReactNode;
+  /** The caller's own editor, given the send button to place. */
+  field?: (send: ReactNode) => ReactNode;
+  /** With `field`: whether there is anything to send. */
+  canSend?: boolean;
 }) {
   const t = useT();
   const [text, setText] = useState('');
-  const field = useRef<HTMLTextAreaElement>(null);
+  const own = useRef<HTMLTextAreaElement>(null);
   const picker = useRef<HTMLInputElement>(null);
   const saidTyping = useRef(0);
 
   useLayoutEffect(() => {
-    const el = field.current;
+    const el = own.current;
     if (!el) return;
     el.style.height = 'auto';
     // `scrollHeight` leaves out the border, and the box is sized with it: two
@@ -283,88 +331,99 @@ export function Composer({ onSend, onTyping, onAttach, attached, placeholder, di
     }
   };
 
-  const canSend = !disabled && (!!text.trim() || !!attached);
+  const canSend = !disabled && (field ? !!allowed : (!!text.trim() || !!attached));
   const send = () => {
     if (!canSend) return;
+    if (field) {
+      void onSend('');
+      return;
+    }
     const value = text.trim();
     setText('');
     if (saidTyping.current) onTyping?.(false);
     saidTyping.current = 0;
     void onSend(value);
-    field.current?.focus();
+    own.current?.focus();
   };
 
+  const sendButton = (
+    <button
+      type="button"
+      className="inline-flex size-9 flex-none items-center justify-center rounded-full bg-[var(--thread-accent,var(--accent))] text-[var(--thread-accent-fg,var(--accent-fg))] transition-opacity disabled:opacity-30"
+      title={t('thread.send')}
+      disabled={!canSend}
+      onClick={send}
+    >
+      <Icon name="send" size={15} />
+      <span className="sr-only">{t('thread.send')}</span>
+    </button>
+  );
+
   return (
-    <div className={cn('border-t border-line bg-bg px-3 pb-3 pt-2', className)}>
+    <div className={cn('flex-none border-t border-line bg-bg px-3 pt-2 pb-[max(12px,env(safe-area-inset-bottom))]', className)}>
+      {status}
       {attached && <div className="mb-2">{attached}</div>}
-      {/* The field is the pill, with the buttons beside it, so the focus ring
-          sits on the element that has the focus — where a keyboard user looks
-          for it, and where `check:a11y` measures it. */}
-      <div className="flex items-end gap-1.5">
-        {onAttach && (
-          <>
-            <button
-              type="button"
-              className="inline-flex size-9 flex-none items-center justify-center rounded-full text-muted hover:bg-hover hover:text-fg disabled:opacity-50"
-              aria-label={t('thread.attach')}
-              title={t('thread.attach')}
-              disabled={disabled}
-              onClick={() => picker.current?.click()}
-            >
-              <Icon name="image" size={16} />
-            </button>
-            <input
-              ref={picker}
-              type="file"
-              accept="image/*"
-              hidden
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                event.target.value = '';
-                if (file) onAttach(file);
-              }}
-            />
-          </>
-        )}
-        <textarea
-          ref={field}
-          rows={1}
-          value={text}
-          autoFocus={autoFocus}
-          disabled={disabled}
-          placeholder={placeholder ?? t('thread.placeholder')}
-          aria-label={placeholder ?? t('thread.placeholder')}
-          className={cn(
-            'max-h-40 min-h-9 min-w-0 flex-1 resize-none rounded-[18px] border border-line-strong bg-raised px-3.5 py-2 text-[14px] leading-[1.4] text-fg placeholder:text-muted',
-            'focus-visible:border-[var(--thread-accent,var(--accent))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--thread-accent,var(--accent))]',
+      {field ? field(sendButton) : (
+        // The field is the pill, with the buttons beside it, so the focus ring
+        // sits on the element that has the focus — where a keyboard user looks
+        // for it, and where `check:a11y` measures it.
+        <div className="flex items-end gap-1.5">
+          {onAttach && (
+            <>
+              <button
+                type="button"
+                className="inline-flex size-9 flex-none items-center justify-center rounded-full text-muted hover:bg-hover hover:text-fg disabled:opacity-50"
+                aria-label={t('thread.attach')}
+                title={t('thread.attach')}
+                disabled={disabled}
+                onClick={() => picker.current?.click()}
+              >
+                <Icon name="image" size={16} />
+              </button>
+              <input
+                ref={picker}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = '';
+                  if (file) onAttach(file);
+                }}
+              />
+            </>
           )}
-          onChange={(event) => typed(event.target.value)}
-          onPaste={(event) => {
-            if (!onAttach) return;
-            const file = [...event.clipboardData.files].find((candidate) => candidate.type.startsWith('image/'));
-            if (!file) return;
-            event.preventDefault();
-            onAttach(file);
-          }}
-          onKeyDown={(event) => {
-            if (event.key !== 'Enter' || event.nativeEvent.isComposing) return;
-            if (event.metaKey || event.ctrlKey || (SEND_ON_ENTER && !event.shiftKey)) {
+          <textarea
+            ref={own}
+            rows={1}
+            value={text}
+            autoFocus={autoFocus}
+            disabled={disabled}
+            placeholder={placeholder ?? t('thread.placeholder')}
+            aria-label={placeholder ?? t('thread.placeholder')}
+            className={cn(
+              'max-h-40 min-h-9 min-w-0 flex-1 resize-none rounded-[18px] border border-line-strong bg-raised px-3.5 py-2 text-[14px] leading-[1.4] text-fg placeholder:text-muted',
+              'focus-visible:border-[var(--thread-accent,var(--accent))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--thread-accent,var(--accent))]',
+            )}
+            onChange={(event) => typed(event.target.value)}
+            onPaste={(event) => {
+              if (!onAttach) return;
+              const file = [...event.clipboardData.files].find((candidate) => candidate.type.startsWith('image/'));
+              if (!file) return;
               event.preventDefault();
-              send();
-            }
-          }}
-        />
-        <button
-          type="button"
-          className="inline-flex size-9 flex-none items-center justify-center rounded-full bg-[var(--thread-accent,var(--accent))] text-[var(--thread-accent-fg,var(--accent-fg))] transition-opacity disabled:opacity-30"
-          aria-label={t('thread.send')}
-          title={t('thread.send')}
-          disabled={!canSend}
-          onClick={send}
-        >
-          <Icon name="send" size={15} />
-        </button>
-      </div>
+              onAttach(file);
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' || event.nativeEvent.isComposing) return;
+              if (event.metaKey || event.ctrlKey || (SEND_ON_ENTER && !event.shiftKey)) {
+                event.preventDefault();
+                send();
+              }
+            }}
+          />
+          {sendButton}
+        </div>
+      )}
     </div>
   );
 }

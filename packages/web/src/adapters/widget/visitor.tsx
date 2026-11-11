@@ -291,7 +291,15 @@ export function VisitorChat() {
   };
 
   const accent = config?.color ?? null;
-  const style = (accent ? { '--thread-accent': accent, '--thread-accent-fg': inkFor(accent) } : {}) as CSSProperties;
+  // The site's colour on the send button, the header and the visitor's own lines.
+  const ink = accent ? inkFor(accent) : '';
+  const style = (accent ? {
+    '--thread-accent': accent,
+    '--thread-accent-fg': ink,
+    '--thread-mine-bg': accent,
+    '--thread-mine-fg': ink,
+    '--thread-mine-meta': ink === '#ffffff' ? 'rgb(255 255 255 / 75%)' : 'rgb(0 0 0 / 60%)',
+  } : {}) as CSSProperties;
 
   const threadLines: ThreadLine[] = [
     ...(config?.greeting || stage === 'ready' ? [{

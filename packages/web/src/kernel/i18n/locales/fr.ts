@@ -1755,7 +1755,6 @@ export const fr: Catalogue = {
   'chat.replyingTo': 'Réponse à {name}',
   'chat.deleteMessage': 'Supprimer ce message ?',
   'chat.placeholder': 'Message à {where}',
-  'chat.send': 'Envoyer',
   'chat.enterHint': 'Entrée envoie · Maj+Entrée pour une nouvelle ligne',
   'presence.online': 'En ligne',
   'presence.offline': 'Hors ligne',
