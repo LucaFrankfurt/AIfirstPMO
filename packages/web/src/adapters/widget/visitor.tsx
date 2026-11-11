@@ -102,11 +102,19 @@ function storedSession(): string {
   }
 }
 
-/** Black or white, whichever reads on the site's colour. */
+/**
+ * Black or white, whichever has more contrast on the site's colour.
+ *
+ * Compared, not cut at a guess: the cut used to be at luminance 0.4, which put
+ * white on a mid red (#e5383b) at 4.2:1 — below what text needs — where black
+ * reads at 5:1. Pure black and white, because whichever wins then clears 4.5:1
+ * on every colour there is.
+ */
 function inkFor(hex: string): string {
   const [r, g, b] = [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16) / 255)
     .map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.4 ? '#111111' : '#ffffff';
+  const light = 0.2126 * r + 0.7152 * g + 0.0722 * b + 0.05;
+  return light / 0.05 > 1.05 / light ? '#000000' : '#ffffff';
 }
 
 const merge = (lines: Line[], line: Line): Line[] =>
