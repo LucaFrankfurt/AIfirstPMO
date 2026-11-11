@@ -7,9 +7,9 @@ stays unbuilt moves to `TODO.md` with its reason.
 ## The goal
 
 A workspace defines **several chat widgets**, each for one audience — signed-in B2B customers,
-prospects, end customers — and embeds each on other websites with one script tag. The team answers
-the conversations live from Kolibri; when nobody is there, the answer reaches the customer by email.
-Later a model answers first and hands over to a person.
+prospects, end customers — and embeds each on other websites with one script tag. The same team
+answers all of them, live from Kolibri; when nobody is there, the answer reaches the customer by
+email. Later a model answers first and hands over to a person.
 
 It is not a Chatwoot clone. `docs/comparison.md` already says service management is a different
 product's job, and that stays true: one channel (the website), one inbox per widget, and a
@@ -27,8 +27,8 @@ like every other flag.
 **A small loader plus an iframe, opened on click.** The script tag draws a button and nothing
 else. The iframe, served by Kolibri, is created on the first click. Neither side's CSS or script
 can reach the other, no CORS is opened, and each widget's allowed sites become that iframe's
-`frame-ancestors`. CSP accepts `https://*.example.com` there, which covers a platform whose shops
-live on subdomains.
+`frame-ancestors`. A widget lists exact origins — `https://example.com` and
+`https://dev.example.com` — and no wildcards until a site actually needs one.
 
 **Nothing before the click.** No cookie, no request to the instance, no pixel. The only request
 before then is the script itself. This is a privacy promise worth making out loud, and it also
@@ -80,7 +80,9 @@ GET  /w/:widget/stream           server-sent events for that one conversation
 The visitor side is a second Vite entry in `packages/web`, loaded only inside that iframe. The
 agent side needs nothing new for live updates, because a conversation is an ordinary synced row.
 
-In the order it should land, each a pull request of its own:
+One pull request. None of these parts is any use without the others, so shipping them apart would
+only mean reviewing a half that does nothing. The commits land in this order, each passing the
+checks on its own:
 
 1. **Widgets.** Flag, registry, schema, the settings screen: define a widget, copy the snippet,
    reveal and rotate the secret.
@@ -88,6 +90,28 @@ In the order it should land, each a pull request of its own:
 3. **The inbox.** The new components, conversation list, reply, resolve, assign, notifications
    (bell, push, Telegram — whatever the agent already has on).
 4. **The rest of the loop.** Email when a reply goes unseen, and making a task from a conversation.
+
+### What the host site does (Next.js)
+
+It signs the token on its own server, where the secret lives:
+
+```ts
+import { SignJWT } from 'jose';
+
+const secret = new TextEncoder().encode(process.env.SUPPORT_CHAT_SECRET);
+
+export const supportChatToken = (user: { id: string; name: string; email: string }) =>
+  new SignJWT({ name: user.name, email: user.email })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setSubject(user.id)
+    .setExpirationTime('1h')
+    .sign(secret);
+```
+
+It serves that token from a route of its own and adds the loader with `next/script`. The loader
+asks for the token on the first click, never before, so the token is never stale and a widget
+nobody opens costs the host nothing. The exact client snippet ships with the implementation,
+tested against it.
 
 ## Phase 2 — prospects and the rough edges
 
@@ -109,12 +133,3 @@ In the order it should land, each a pull request of its own:
 Other channels (WhatsApp, social, email as an inbox), SLA clocks, satisfaction ratings, routing
 rules, canned responses, reports, a contacts register — and **one tenant per shop**: if each shop
 owner were to answer their own end customers, that is a platform of its own, not a widget.
-
-## Open questions
-
-- End customers: does this team answer them, or each shop owner? The first is just another widget;
-  the second is the tenant model listed above as not doing.
-- Does the end-customer widget run on one domain, or on every shop's own domain? The second needs a
-  wildcard, or "any site", in the allowed list.
-- Which stack is the first host application? The documentation should carry a tested signing
-  example for it.
