@@ -212,7 +212,23 @@ describe('a signed visitor', () => {
     await assert.rejects(ok(`/api/workspaces/${workspaceId}/conversations`, { project_id: projectId, status: 'open' }), /opened by a visitor/);
   });
 
+  it('starts afresh after the team deletes the conversation, rather than bringing it back', async () => {
+    const claims = { sub: 'merchant-9', name: 'Ada B', exp: inAnHour() };
+    const first = await visit(`/w/${widget.id}/session`, { token: hostToken(secret, claims) });
+    await visit(`/w/${widget.id}/messages`, { body: 'Something private I regret sending.' }, first.json.session);
+    await ok(`/api/conversations/${first.json.conversation.id}`, undefined, 'DELETE');
+
+    assert.equal((await visit(`/w/${widget.id}/messages`, undefined, first.json.session)).status, 401, 'the old session names a row that is gone');
+    const again = await visit(`/w/${widget.id}/session`, { token: hostToken(secret, claims) });
+    assert.notEqual(again.json.conversation.id, first.json.conversation.id);
+    const thread = await visit(`/w/${widget.id}/messages`, undefined, again.json.session);
+    assert.deepEqual(thread.json.messages, [], 'nothing of the deleted thread comes back');
+    const old = get<any>(`SELECT deleted_at FROM conversations WHERE id = ?`, first.json.conversation.id);
+    assert.ok(old.deleted_at, 'and the deleted one stays deleted');
+  });
+
   it('stops when the secret is rotated', async () => {
+    resetRateLimits();
     const old = secret;
     secret = (await ok(`/api/widgets/${widget.id}/secret`, {})).secret;
     assert.notEqual(secret, old);

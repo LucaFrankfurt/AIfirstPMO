@@ -56,9 +56,6 @@ export function conversationFor(widget: Row, visitor: Visitor): Row {
     const patch: Record<string, unknown> = {};
     if (visitor.verified && visitor.name !== found.visitor_name) patch.visitor_name = visitor.name;
     if (visitor.verified && visitor.email !== found.visitor_email) patch.visitor_email = visitor.email;
-    // The team deleted it, and the visitor is back: a write brings it back,
-    // because the unique index leaves no room for a second one.
-    if (found.deleted_at) patch.status = 'open';
     if (Object.keys(patch).length) writeEntity('conversation', String(found.id), patch, asWidget(widget));
     return find()!;
   }
