@@ -1,8 +1,10 @@
-# Support chat — the plan
+# Support chat
 
-**Status: agreed direction, nothing built yet.** This file is the target the first pull requests
-are measured against. It becomes the feature's documentation as the parts land, and anything that
-stays unbuilt moves to `TODO.md` with its reason.
+Chat widgets on other websites, and an inbox inside Kolibri the team answers them from.
+
+**Status:** phase 1 and phase 2 are built, except moving the team chat onto the new conversation
+components. Phase 3 (the model) is not started. What is open, and why, is at the end and in
+`TODO.md`.
 
 ## The goal
 
@@ -12,124 +14,171 @@ answers all of them, live from Kolibri; when nobody is there, the answer reaches
 email. Later a model answers first and hands over to a person.
 
 It is not a Chatwoot clone. `docs/comparison.md` already says service management is a different
-product's job, and that stays true: one channel (the website), one inbox per widget, and a
-conversation that can become a task — because that last step is what a tracker has and a helpdesk
-does not.
+product's job, and that stays true: one channel (the website), one inbox, and a conversation that
+can become a task — because that last step is what a tracker has and a helpdesk does not.
+
+## Switching it on
+
+Settings → Workspace → **Support chat**. Off by default, like every other switch: it is the first
+time people outside the workspace can write to it live. Switching it off closes every widget at
+once — the button on a site opens onto "not available" — and keeps every conversation.
+
+Settings → **Widgets** then makes one. An owner's or admin's screen, because a widget decides who
+outside the workspace may write in:
+
+| field | what it decides |
+|---|---|
+| name | the window's title, and the name in the inbox and in notifications |
+| project | who sees the conversations (whoever can see the project), and where tasks made from them land |
+| who may write | **signed-in visitors** (the host site vouches for them) or **anyone** (a typed name and email, unverified) |
+| allowed sites | exact origins allowed to frame the widget; `https` only, `http` only for `localhost`; no wildcards |
+| greeting | the first line a visitor reads |
+| colour | the button, the window's header and the visitor's own messages |
+| who is told | members notified of a new message; nobody ticked means the workspace's owners and admins |
+| live | off hides the window on every site without deleting anything |
 
 ## Decisions
 
-**Own entities, not chat channels.** A visitor is not a user, so `messages.author_id` has nothing
-to point at. And putting a stranger's message straight into the team chat is exactly what
-`intakes` exist to prevent: there, nothing reaches the board until a member accepts it. Support
-gets its own capability, `modules/support`, behind its own workspace flag. It is off by default,
-like every other flag.
+**Own entities, not chat channels.** `widget`, `conversation` and `conversationMessage` in
+`modules/support`. A visitor is not a user, so `messages.author_id` had nothing to point at, and a
+stranger's message landing in the team chat is exactly what `intakes` exist to prevent.
 
-**A small loader plus an iframe, opened on click.** The script tag draws a button and nothing
-else. The iframe, served by Kolibri, is created on the first click. Neither side's CSS or script
-can reach the other, no CORS is opened, and each widget's allowed sites become that iframe's
-`frame-ancestors`. A widget lists exact origins — `https://example.com` and
-`https://dev.example.com` — and no wildcards until a site actually needs one.
+**A small loader plus an iframe, opened on click.** `widget.js` draws a button inside a shadow root
+and nothing else. The iframe, served by Kolibri at `/w/:widget`, is created on the first click.
+Neither side's CSS or script can reach the other, no CORS is opened, and the widget's allowed sites
+become that page's `frame-ancestors` (plus this instance itself, so the settings screen can preview
+it).
 
-**Nothing before the click.** No cookie, no request to the instance, no pixel. The only request
-before then is the script itself. This is a privacy promise worth making out loud, and it also
-means a page view costs the instance nothing.
+**Nothing before the click.** Measured in a browser: a host page that embeds a widget makes exactly
+one request to the instance before the click — `widget.js` itself. No cookie, no beacon, no frame.
 
-**Signed-in visitors are proven by their own site, not by Kolibri.** The host application signs a
-short-lived HS256 JWT on its server with the widget's secret: `sub` (its own user id), `name`,
-`email` and `exp`. Every language has a library that produces one. Kolibri verifies it (HS256 only,
-`exp` required) and exchanges it once for a short session of its own. The token travels to the
-iframe by `postMessage` and never in a URL. The widget's secret is a registry `secret` field, so it
-never syncs to a device, the way a webhook's signing secret does not.
+**Signed-in visitors are proven by their own site.** The host signs a short-lived HS256 JWT on its
+server with the widget's secret: `sub` (its own user id), `name`, `email`, `exp`. Kolibri verifies it
+with `node:crypto` (`adapters/widget/token.ts`) — HS256 only, so `alg: none` is refused; `exp` is
+required and may be at most a day away — and exchanges it for a stateless session of its own, signed
+with the instance secret and valid for twelve hours. The token reaches the iframe by `postMessage`
+and is never in a URL. The secret is a registry `secret` field, so it never syncs; an admin reveals
+it on request and can rotate it, which stops every token signed with the old one at once.
 
-**When nobody answers live, email does.** A reply the visitor has not seen within a few minutes is
-sent to the address in their token, through the existing mail adapter. Replying to that email into
-the conversation comes later, if at all.
+**Anonymous visitors** may leave a name and an email, both optional and both shown as unverified. A
+hidden field no person fills in turns a form-filling program away, and the routes have their own
+rate limits (`LIMITS.widget*`). Their session lives thirty days in the iframe's own storage; where a
+browser refuses third-party storage the window still works and simply forgets them on the next page.
 
-**New conversation components.** The current chat screen is the weakest part of the app's UI. The
-message list and composer are built fresh, once, for both sides: the agent's inbox and the
-visitor's iframe. The team chat moves onto them afterwards, as its own step.
+**One conversation per visitor per widget.** A returning visitor finds their history by widget and
+`sub`. A visitor writing into a resolved conversation reopens it. There is no contacts table.
 
-**The model comes last and arrives with fences.** It may read only the pages a widget names as its
-knowledge — never the workspace-wide search. It gets no tools and no writes, it cites its sources,
-and each widget has a daily budget, because otherwise an anonymous stranger spends the operator's
-key. It needs the existing double switch: the operator's key and the workspace's `ai` flag.
+**Live both ways.** The visitor's window listens on `/w/:widget/stream` (server-sent events) and
+asks one indexed question per change on the workspace's feed, rather than trusting the event's
+`kind` — the bus coalesces a burst and keeps the first kind. The team needs nothing new: a
+conversation is an ordinary synced row. "Typing" is kept in memory only; the inbox asks for it every
+three seconds while a conversation is open.
 
-## Phase 1 — live chat for signed-in customers
+**The team is told once per burst.** A visitor's message notifies the assignee, otherwise the
+widget's agents, otherwise the owners and admins — never anybody who cannot see the project — and
+not again for further lines within five minutes. It counts as urgent for Telegram and Web Push, and
+not for the email digest.
 
-The data, all synced to members who can see the widget's project:
+**When nobody answers live, email does.** An answer the visitor has not read within five minutes is
+emailed to the address they have, through the ordinary mail queue. Reading it in the window first
+withdraws the email. One pending email per conversation. Replying to that email does not reach the
+conversation.
 
-| entity | carries |
-|---|---|
-| `widget` | name, project, allowed sites, greeting, accent colour, the agents it notifies, enabled; `secret` server-only |
-| `conversation` | widget, the visitor's `sub`, name and email (from the token), open or resolved, assignee, last message, task once one is made |
-| `conversationMessage` | conversation, from (`visitor`, `agent`, later `bot`), author if an agent, body |
+**A conversation can become a task** in the widget's project, with its transcript as the
+description. Once; after that the button opens it.
 
-There is no contacts table. A returning visitor is found by widget plus `sub`.
+**New conversation components.** `Thread` and `Composer` in `kernel/design-system/conversation.tsx`,
+used by both the inbox and the visitor's window: grouped lines with squared-off corners inside a
+block, a line per day, a "seen" mark, typing dots, pictures, a field that grows and sends on Enter.
 
-The public surface, in a new `adapters/widget` on the server:
+## For the host site
 
+The snippet the settings screen shows, for a signed widget:
+
+```html
+<script>
+  window.kolibriChat = {
+    widget: '<widget id>',
+    // Ask your own server for a token signed with this widget's secret.
+    token: () => fetch('/api/support-chat-token').then((r) => r.text()),
+  };
+</script>
+<script src="https://kolibri.example.com/widget.js" async></script>
 ```
-GET  /w/loader.js                the button; cacheable, no per-widget content
-GET  /w/:widget                  the iframe page; frame-ancestors from the widget
-POST /w/:widget/session          signed token in, short Kolibri session out
-GET  /w/:widget/messages         the visitor's history
-POST /w/:widget/messages         a message from the visitor
-GET  /w/:widget/stream           server-sent events for that one conversation
-```
 
-The visitor side is a second Vite entry in `packages/web`, loaded only inside that iframe. The
-agent side needs nothing new for live updates, because a conversation is an ordinary synced row.
+`widget` and `token` are read on the first click, and `token` is called then — so a widget nobody
+opens costs the host's server nothing. Also accepted: `color`, `position: 'left'`, and
+`launcher: false` together with `window.KolibriChat.open()` for a button of the site's own.
 
-One pull request. None of these parts is any use without the others, so shipping them apart would
-only mean reviewing a half that does nothing. The commits land in this order, each passing the
-checks on its own:
+### Next.js
 
-1. **Widgets.** Flag, registry, schema, the settings screen: define a widget, copy the snippet,
-   reveal and rotate the secret.
-2. **The visitor side.** Loader, iframe, token exchange, messages, the stream, rate limits.
-3. **The inbox.** The new components, conversation list, reply, resolve, assign, notifications
-   (bell, push, Telegram — whatever the agent already has on).
-4. **The rest of the loop.** Email when a reply goes unseen, and making a task from a conversation.
-
-### What the host site does (Next.js)
-
-It signs the token on its own server, where the secret lives:
+The token, signed on the server with `jose`:
 
 ```ts
+// app/api/support-chat-token/route.ts
 import { SignJWT } from 'jose';
+import { currentUser } from '@/lib/auth'; // your own session
 
 const secret = new TextEncoder().encode(process.env.SUPPORT_CHAT_SECRET);
 
-export const supportChatToken = (user: { id: string; name: string; email: string }) =>
-  new SignJWT({ name: user.name, email: user.email })
+export async function GET() {
+  const user = await currentUser();
+  if (!user) return new Response('', { status: 401 });
+  const token = await new SignJWT({ name: user.name, email: user.email })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(user.id)
     .setExpirationTime('1h')
     .sign(secret);
+  return new Response(token);
+}
 ```
 
-It serves that token from a route of its own and adds the loader with `next/script`. The loader
-asks for the token on the first click, never before, so the token is never stale and a widget
-nobody opens costs the host nothing. The exact client snippet ships with the implementation,
-tested against it.
+The two tags, in a client component mounted wherever signed-in pages render:
 
-## Phase 2 — prospects and the rough edges
+```tsx
+'use client';
+import Script from 'next/script';
 
-- **Anonymous widgets**: a name and email prompt, the honeypot and buckets intake already uses, and
-  the allowed sites as the only gate. Deliberately after phase 1, because it is the first time a
-  stranger with no account can open a live line into the team.
-- Attachments (a screenshot is half of every support question) and a typing indicator.
-- The team chat on the new components.
+export function SupportChat({ widget }: { widget: string }) {
+  return (
+    <>
+      <Script id="kolibri-chat-config">{`window.kolibriChat = { widget: ${JSON.stringify(widget)}, token: () => fetch('/api/support-chat-token').then((r) => r.text()) };`}</Script>
+      <Script src="https://kolibri.example.com/widget.js" strategy="afterInteractive" />
+    </>
+  );
+}
+```
 
-## Phase 3 — the model
+What was measured: a token from `jose`'s `SignJWT` verifies against the server's check, and the
+same two tags on a plain HTML page on another origin open the chat, send, and receive an answer
+live. The Next.js wrapper itself has not been run inside a Next.js app.
+
+## Phase 3 — the model (not started)
 
 1. **Suggested replies.** The model drafts and an agent sends. Nothing it writes reaches a visitor
    unread, so it can be wrong without harm.
-2. **The model answers first.** It answers from the widget's knowledge pages with sources, hands
-   over on request or when unsure, and the agent sees everything it said.
+2. **The model answers first.** It answers from the pages a widget names as its knowledge — never the
+   workspace-wide search — with sources, hands over on request or when unsure, and the agent sees
+   everything it said. No tools and no writes, and a daily budget per widget, because otherwise an
+   anonymous stranger spends the operator's key. It needs the existing double switch: the operator's
+   key and the workspace's `ai` flag.
 
 ## Not doing
 
 Other channels (WhatsApp, social, email as an inbox), SLA clocks, satisfaction ratings, routing
 rules, canned responses, reports, a contacts register — and **one tenant per shop**: if each shop
 owner were to answer their own end customers, that is a platform of its own, not a widget.
+
+## Open
+
+- **The team chat is not on the new components yet.** It does a great deal the support thread does
+  not — replies, reactions, editing, search, mentions, paging back, drafts per channel — and the
+  smoke walkthrough leans on its markup in some eighty places. Moving it is its own step; doing half
+  of it would be worse than either.
+- **The visitor's window costs about 220 KB gzipped on the first click** — 171 KB of it the chunk
+  it shares with the app (the English catalogue, the design system), 26 KB the stylesheet — and a
+  German or French visitor fetches their catalogue on top. Measured from the build when this
+  landed, not tuned.
+- **Replying to the email** does not reach the conversation.
+- **A conversation the team deletes comes back** with its history when the same visitor writes
+  again, because there is one per visitor per widget. Resolve is the button for "done".

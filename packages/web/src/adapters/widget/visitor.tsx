@@ -120,6 +120,8 @@ export function VisitorChat() {
   const [notice, setNotice] = useState('');
   const [open, setOpen] = useState(true);
   const [images, setImages] = useState<Record<string, string>>({});
+  /** Bumped to open the stream again after it closed for a reason that was not the session. */
+  const [attempt, setAttempt] = useState(0);
   const retried = useRef(0);
   const readUpTo = useRef(0);
   const unread = useRef(0);
@@ -204,8 +206,19 @@ export function VisitorChat() {
           if (typing) typingTimer = window.setTimeout(() => setAgentTyping(false), SUPPORT_TYPING_MS);
         });
         source.addEventListener('end', () => { source?.close(); ended(); });
-        // A refused reconnect closes the source for good — the session is over.
-        source.onerror = () => { if (source?.readyState === EventSource.CLOSED && alive) ended(); };
+        /*
+         * A closed source is not proof the session is over. Leaving the page
+         * closes it too, with an error — and reading that as "ended" wiped an
+         * anonymous visitor's stored session on every reload. So ask: a 401 is
+         * the end; anything else, including a request the unload aborted, is not.
+         */
+        source.onerror = () => {
+          if (source?.readyState !== EventSource.CLOSED || !alive) return;
+          call('/messages', session).then(
+            () => { if (alive) setAttempt((n) => n + 1); },
+            (error) => { if (error instanceof Ended && alive) ended(); },
+          );
+        };
       })
       .catch((error) => { if (error instanceof Ended) ended(); else setStage('unavailable'); });
     return () => {
@@ -213,7 +226,7 @@ export function VisitorChat() {
       window.clearTimeout(typingTimer);
       source?.close();
     };
-  }, [stage, session]);
+  }, [stage, session, attempt]);
 
   // Read while it is on screen; counted as unread for the host's badge while it is not.
   useEffect(() => {

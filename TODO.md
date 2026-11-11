@@ -1953,6 +1953,25 @@ written.
       would need a channel from the app into the frame, answered with the viewer's own permissions.
       Deliberately later: it is the largest security decision on this list.
 
+## Support chat: what is left open
+
+See [`docs/support.md`](docs/support.md) for what is built and why it is shaped the way it is.
+
+- [ ] **The team chat on the new conversation components** (`Thread`, `Composer`). Deliberately its
+      own step: the team chat carries replies, reactions, editing, search, mentions, paging back and
+      drafts per channel, none of which the support thread needs, and the smoke walkthrough leans on
+      its markup in some eighty places. **P2**
+- [ ] **The model answering first** (phase 3): suggested replies, then answers from a widget's own
+      knowledge pages with sources, a hand-over, and a daily budget per widget. **P2**
+- [ ] **Replying to the support email** does not reach the conversation; the email says to answer
+      in the chat. **P3**
+- [ ] **The visitor's window is heavy for what it is** — about 220 KB gzipped on the first click,
+      most of it the chunk it shares with the app. Measured, not tuned. **P3**
+- [ ] **A deleted conversation comes back** when its visitor writes again, history and all — there
+      is one per visitor per widget. Resolving is what "done" means. **P3**
+- [ ] **No wildcard sites.** A widget lists exact origins; a platform whose customers each have a
+      subdomain would need `https://*.example.com`, which `frame-ancestors` can carry. **P3**
+
 ## The UI port, and what is left of it
 
 Decided: Tailwind + shadcn-style components on Radix, usability first.

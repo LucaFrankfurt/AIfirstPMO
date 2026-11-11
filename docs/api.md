@@ -344,8 +344,8 @@ and a tickbox is not consent to publish it.
 
 ### Intake
 
-A share of kind `intake` is a link to a **form**, not a document — the one place in the app an
-anonymous request can write:
+A share of kind `intake` is a link to a **form**, not a document — one of the two places in the
+app an anonymous request can write (the other is an anonymous support widget, below):
 
 ```bash
 curl -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' \
@@ -362,6 +362,45 @@ What it writes is an `intake` row, never a task. That is the whole defence: a ti
 address, a honeypot field and length caps are worth having, but the reason spam cannot reach the
 board is that *nothing* reaches the board until a member accepts it. Neither the name nor the email
 address is verified, and both are shown as unverified wherever they appear.
+
+### Support widgets
+
+A `widget` is an ordinary entity (`/api/workspaces/:ws/widgets`), written by an owner or admin of a
+workspace with `support` switched on. Its signing secret is never in the row:
+
+```
+GET  /api/widgets/:id/secret              admin; the secret a host signs its visitors' tokens with
+POST /api/widgets/:id/secret              admin; a new one — every token signed with the old one stops
+POST /api/conversations/:id/task          a task in the widget's project, the transcript as its description
+GET  /api/conversations/:id/typing        { visitor: boolean }
+POST /api/conversations/:id/typing        { typing: boolean }, from a member
+```
+
+`conversation` rows are opened only by visitors; members may set `status`, `assignee_id` and
+`agent_read_at`. A member answers by creating a `conversationMessage` with `conversation_id` and
+`body` (and `files`, references to uploads already in the workspace); `author` and `author_id` are
+set by the server.
+
+What a visitor's browser talks to, all on this origin and reached from the iframe — no CORS, no
+cookie. Every route but the first two wants the session in `x-widget-session` (the stream reads
+`?session=`, because `EventSource` cannot set a header):
+
+```
+GET  /widget.js                           the loader a site embeds
+GET  /w/:widget                           the iframe page, framed only by the widget's origins
+GET  /w/:widget/config                    name, greeting, colour, identity
+POST /w/:widget/session                   { token } signed, or { name, email } anonymous → { session, expiresAt }
+GET  /w/:widget/messages                  the thread
+POST /w/:widget/messages                  { body, files }
+POST /w/:widget/read                      the visitor has seen it; withdraws a pending email
+POST /w/:widget/typing                    { typing }
+GET  /w/:widget/stream                    server-sent events: message, gone, read, typing, end
+POST /w/:widget/files                     a picture, raw body, as the app's own uploads
+GET  /w/:widget/files/:hash               a file used in this conversation, and no other
+```
+
+The host's token is an HS256 JWT with `sub`, `name`, `email` and `exp`, at most a day away. See
+[`support.md`](support.md) for the whole of it.
 
 ## Files
 
