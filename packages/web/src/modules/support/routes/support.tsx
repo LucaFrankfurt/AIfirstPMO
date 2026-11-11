@@ -16,19 +16,20 @@ import {
 import { Composer, Thread, type ThreadLine } from '../../../kernel/design-system/conversation';
 import { useThreadWords } from '../../../kernel/design-system/thread-words';
 import { cn } from '../../../kernel/design-system/cn';
-import { relativeTime } from '../../../kernel/design-system/format';
+import { briefWhen } from '../../../kernel/design-system/format';
 import { useMinute } from '../../../kernel/design-system/minute';
 import { useOpenTask } from '../../../kernel/design-system/navigation';
-import { Avatar, Empty, Icon, useAction, useToast } from '../../../kernel/design-system/ui';
+import { Avatar, Empty, Icon, MenuButton, useAction, useToast } from '../../../kernel/design-system/ui';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { Chip } from '../../../kernel/design-system/ui/chip';
 import { Select } from '../../../kernel/design-system/ui/field';
+import { navItem } from '../../../kernel/design-system/ui/nav';
 import { useT } from '../../../kernel/i18n/i18n';
 import { useCanWrite, useFeature, useMe, useMemberMap, useMembers, useSession } from '../../../kernel/identity/session';
 import { api } from '../../../kernel/sync/api';
 import { now } from '../../../kernel/sync/clock';
 import { create, update } from '../../../kernel/sync/mutations';
-import { list, useQuery } from '../../../kernel/sync/store';
+import { byId, list, useQuery } from '../../../kernel/sync/store';
 
 type Filter = 'open' | 'resolved';
 
@@ -91,12 +92,12 @@ export function SupportInbox() {
           {widgets.length > 0 && !conversations.length && (
             <p className="text-[12.5px] text-muted">{t(filter === 'open' ? 'support.noneOpen' : 'support.noneResolved')}</p>
           )}
-          <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
+          <ul className="m-0 flex list-none flex-col p-0">
             {conversations.map((conversation) => (
               <li key={conversation.id}>
                 <ConversationRow
                   conversation={conversation}
-                  widget={widgetName.get(conversation.widget_id) ?? ''}
+                  widget={widgets.length > 1 ? widgetName.get(conversation.widget_id) ?? '' : ''}
                   active={conversation.id === id}
                   onOpen={() => navigate(`/support/${conversation.id}`)}
                 />
@@ -113,6 +114,11 @@ export function SupportInbox() {
   );
 }
 
+/**
+ * One conversation in the list, drawn like a row of the team chat's list: who,
+ * when, and what was said last — two lines, so a dozen fit without scrolling.
+ * The widget is named only when there is more than one to tell apart.
+ */
 function ConversationRow({ conversation, widget, active, onOpen }: {
   conversation: Conversation; widget: string; active: boolean; onOpen: () => void;
 }) {
@@ -124,32 +130,20 @@ function ConversationRow({ conversation, widget, active, onOpen }: {
   );
   const unread = unreadByTeam(conversation);
   const said = last ? (last.body || filesOf(last).map((file) => file.name).join(', ')) : '';
+  const who = last?.author === 'agent' ? `${t('support.you')} ` : '';
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      aria-current={active ? 'true' : undefined}
-      className={cn(
-        'flex w-full items-start gap-2.5 rounded-[var(--radius-sm)] px-2 py-2 text-left hover:bg-hover',
-        active && 'bg-active',
-      )}
-    >
-      <Avatar user={{ id: conversation.visitor_id, name: visitorLabel(conversation) }} size={28} />
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="flex min-w-0 items-center gap-1.5">
-          <span className={cn('min-w-0 flex-1 truncate text-[13.5px]', unread ? 'font-semibold text-fg' : 'text-soft')}>
-            {visitorLabel(conversation)}
-          </span>
-          <span className="flex-none text-[11px] tabular-nums text-muted">{relativeTime(conversation.last_message_at ?? conversation.created_at)}</span>
+    <button type="button" onClick={onOpen} aria-current={active ? 'true' : undefined} className={cn(navItem({ active }), 'chat-row', unread && 'unread')}>
+      <Avatar user={{ id: conversation.visitor_id, name: visitorLabel(conversation) }} size={22} />
+      <span className="chat-row-body">
+        <span className="chat-row-line">
+          <span className="chat-row-title truncate">{visitorLabel(conversation)}</span>
+          <span className="chat-row-when">{briefWhen(conversation.last_message_at ?? conversation.created_at)}</span>
         </span>
-        <span className="truncate text-[11.5px] text-muted">{widget}</span>
-        {said && (
-          <span className={cn('line-clamp-2 text-[12px] leading-[1.35]', unread ? 'text-soft' : 'text-muted')}>
-            {last?.author === 'agent' && <>{t('support.you')} </>}{said}
-          </span>
+        {(said || widget) && (
+          <span className="chat-row-said truncate">{[widget, `${who}${said}`.trim()].filter(Boolean).join(' · ')}</span>
         )}
       </span>
-      {unread && <span className="mt-1.5 size-2 flex-none rounded-full bg-accent" aria-label={t('support.unread')} />}
+      {unread && <span className="size-2 flex-none rounded-full bg-accent" aria-label={t('support.unread')} />}
     </button>
   );
 }
@@ -274,6 +268,10 @@ function Answer({ conversation, widget, onBack }: { conversation: Conversation; 
   });
 
   const resolved = conversation.status === 'resolved';
+  const assignee = conversation.assignee_id ? members.get(conversation.assignee_id) : undefined;
+  // The task the conversation became — unless it has been deleted since, which
+  // leaves nothing to open and the conversation free to become one again.
+  const task = useQuery(() => byId('task', conversation.task_id), [conversation.task_id]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -296,44 +294,55 @@ function Answer({ conversation, widget, onBack }: { conversation: Conversation; 
           </div>
         </div>
         {canWrite && (
-          <Select
-            inputSize="sm"
-            className="w-auto max-w-[150px]"
-            aria-label={t('support.assignee')}
-            value={conversation.assignee_id ?? ''}
-            onChange={(event) => update('conversation', conversation.id, { assignee_id: event.target.value || null })}
-          >
-            <option value="">{t('support.unassigned')}</option>
-            {people.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}
-          </Select>
-        )}
-        {canWrite && (conversation.task_id ? (
-          <Button size="sm" variant="ghost" onClick={() => openTask({ id: conversation.task_id! })}>
-            <Icon name="check" size={13} /> <span className="hide-sm">{t('support.openTask')}</span>
-          </Button>
-        ) : (
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={action.busy}
-            title={t('support.makeTaskHint')}
-            onClick={() => action.run(async () => {
-              const made = await api.post<{ task: { id: string } }>(`/api/conversations/${conversation.id}/task`, {});
-              toast(t('support.taskMade'));
-              openTask({ id: made.task.id });
-            })}
-          >
-            <Icon name="plus" size={13} /> <span className="hide-sm">{t('support.makeTask')}</span>
-          </Button>
-        ))}
-        {canWrite && (
-          <Button
-            size="sm"
-            variant={resolved ? 'secondary' : 'primary'}
-            onClick={() => update('conversation', conversation.id, { status: resolved ? 'open' : 'resolved' })}
-          >
-            {t(resolved ? 'support.reopen' : 'support.resolve')}
-          </Button>
+          <div className="flex flex-none items-center gap-1">
+            <MenuButton
+              size="sm"
+              label={t('support.assignee')}
+              title={t('support.assignee')}
+              search={people.length > 8}
+              align="end"
+              items={[
+                { id: '', label: t('support.unassigned'), onSelect: () => update('conversation', conversation.id, { assignee_id: null }) },
+                ...people.map((person) => ({
+                  id: person.id,
+                  label: person.name,
+                  icon: <Avatar user={person} size={16} />,
+                  onSelect: () => update('conversation', conversation.id, { assignee_id: person.id }),
+                })),
+              ]}
+            >
+              {assignee ? <Avatar user={assignee} size={18} /> : <Icon name="users" size={14} />}
+              <span className="hide-sm max-w-[140px] truncate">{assignee?.name ?? t('support.unassigned')}</span>
+            </MenuButton>
+            {task ? (
+              <Button size="sm" variant="ghost" title={task.identifier ?? undefined} onClick={() => openTask({ id: task.id })}>
+                <Icon name="check" size={13} /> <span className="hide-sm">{t('support.openTask')}</span>
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={action.busy}
+                title={t('support.makeTaskHint')}
+                onClick={() => action.run(async () => {
+                  const made = await api.post<{ task: { id: string } }>(`/api/conversations/${conversation.id}/task`, {});
+                  toast(t('support.taskMade'));
+                  openTask({ id: made.task.id });
+                })}
+              >
+                <Icon name="plus" size={13} /> <span className="hide-sm">{t('support.makeTask')}</span>
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant={resolved ? 'secondary' : 'primary'}
+              aria-label={t(resolved ? 'support.reopen' : 'support.resolve')}
+              title={t(resolved ? 'support.reopen' : 'support.resolve')}
+              onClick={() => update('conversation', conversation.id, { status: resolved ? 'open' : 'resolved' })}
+            >
+              <Icon name={resolved ? 'undo' : 'check'} size={13} /> <span className="hide-sm">{t(resolved ? 'support.reopen' : 'support.resolve')}</span>
+            </Button>
+          </div>
         )}
       </header>
       <Thread

@@ -202,6 +202,11 @@ for (const [table, column, definition] of [
 
 db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS users_calendar_token ON users (calendar_token) WHERE calendar_token IS NOT NULL`);
 
+// A visitor may have several conversations with one widget — "start a new
+// chat" — so the index that allowed one is dropped where it was ever made.
+// `schema.sql` declares the plain lookup index in its place.
+db.exec('DROP INDEX IF EXISTS conversations_visitor');
+
 /*
  * Here rather than in `schema.sql`, and the difference is an upgrade that boots.
  *

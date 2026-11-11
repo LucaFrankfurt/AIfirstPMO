@@ -32672,6 +32672,41 @@
         }
       }
     },
+    "/w/{widget}/conversations": {
+      "post": {
+        "operationId": "postWConversations",
+        "summary": "POST /w/:widget/conversations",
+        "description": "Defined in `packages/server/src/adapters/widget/routes/widget.ts`. Its request and response shapes are not derivable from the registry, so they are not described here — read the handler.",
+        "tags": [
+          "hand-written"
+        ],
+        "parameters": [
+          {
+            "name": "widget",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "See the handler."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/w/{widget}/files": {
       "post": {
         "operationId": "postWFiles",
@@ -32857,6 +32892,41 @@
       "post": {
         "operationId": "postWRead",
         "summary": "POST /w/:widget/read",
+        "description": "Defined in `packages/server/src/adapters/widget/routes/widget.ts`. Its request and response shapes are not derivable from the registry, so they are not described here — read the handler.",
+        "tags": [
+          "hand-written"
+        ],
+        "parameters": [
+          {
+            "name": "widget",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "See the handler."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/w/{widget}/resolve": {
+      "post": {
+        "operationId": "postWResolve",
+        "summary": "POST /w/:widget/resolve",
         "description": "Defined in `packages/server/src/adapters/widget/routes/widget.ts`. Its request and response shapes are not derivable from the registry, so they are not described here — read the handler.",
         "tags": [
           "hand-written"

@@ -96,6 +96,14 @@
     var options = config();
     var left = options.position === 'left';
     var color = /^#[0-9a-f]{6}$/i.test(options.color || '') ? options.color : '#5b5bd6';
+    // The glyph in black or white, whichever stands out more — the same choice
+    // the window makes, so a pale site colour does not hide the button's icon.
+    var light = 0.05;
+    [1, 3, 5].forEach(function (at, i) {
+      var c = parseInt(color.slice(at, at + 2), 16) / 255;
+      light += [0.2126, 0.7152, 0.0722][i] * (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+    });
+    var ink = light / 0.05 > 1.05 / light ? '#000' : '#fff';
     var host = document.createElement('div');
     host.setAttribute('data-kolibri-chat', '');
     var root = host.attachShadow ? host.attachShadow({ mode: 'open' }) : host;
@@ -104,7 +112,7 @@
       '<style>' +
       ':host{all:initial}' +
       '.launcher{position:fixed;bottom:20px;' + side + ':20px;z-index:2147483000;width:56px;height:56px;border:0;border-radius:50%;' +
-      'background:' + color + ';color:#fff;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.2);display:flex;align-items:center;justify-content:center}' +
+      'background:' + color + ';color:' + ink + ';cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.2);display:flex;align-items:center;justify-content:center}' +
       '.launcher:focus-visible{outline:3px solid ' + color + ';outline-offset:3px}' +
       '.badge{position:absolute;top:-2px;' + (left ? 'left' : 'right') + ':-2px;min-width:20px;height:20px;padding:0 5px;border-radius:10px;' +
       'background:#e5484d;color:#fff;font:600 11px/20px system-ui,sans-serif;text-align:center;box-sizing:border-box}' +

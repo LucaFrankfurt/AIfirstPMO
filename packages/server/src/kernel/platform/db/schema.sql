@@ -2197,9 +2197,9 @@ CREATE TABLE IF NOT EXISTS widgets (
 );
 CREATE INDEX IF NOT EXISTS widgets_seq ON widgets (workspace_id, seq);
 
--- One per visitor per widget, so a returning visitor finds their history by
--- the id their own site gave them. `project_id` is copied from the widget so a
--- pull can scope it the way it scopes a task.
+-- A visitor's conversations with one widget, found by the id their own site
+-- gave them; a session opens the newest. `project_id` is copied from the widget
+-- so a pull can scope it the way it scopes a task.
 CREATE TABLE IF NOT EXISTS conversations (
   id              TEXT PRIMARY KEY,
   workspace_id    TEXT NOT NULL,
@@ -2228,7 +2228,8 @@ CREATE TABLE IF NOT EXISTS conversations (
   clocks          TEXT NOT NULL DEFAULT '{}'
 );
 CREATE INDEX IF NOT EXISTS conversations_seq ON conversations (workspace_id, seq);
-CREATE UNIQUE INDEX IF NOT EXISTS conversations_visitor ON conversations (widget_id, visitor_id);
+-- Not unique: a visitor may start a new chat. Their newest is the one a session opens.
+CREATE INDEX IF NOT EXISTS conversations_visitor_newest ON conversations (widget_id, visitor_id, created_at);
 
 CREATE TABLE IF NOT EXISTS conversation_messages (
   id              TEXT PRIMARY KEY,

@@ -27,8 +27,8 @@ import * as storage from '../../../kernel/files/storage.ts';
 import { storeFile } from '../../../kernel/files/uploads.ts';
 import { displayName } from '../../../kernel/write-path/repo.ts';
 import {
-  conversationFor, liveWidget, markVisitorRead, messagesOf, onTyping, parseFiles, postVisitorMessage,
-  setTyping, typingIn, type Visitor,
+  conversationFor, liveWidget, markVisitorRead, messagesOf, newConversation, onTyping, parseFiles, postVisitorMessage,
+  resolveByVisitor, setTyping, typingIn, type Visitor,
 } from '../../../modules/support/support.ts';
 import { handOver, respondTo } from '../../../modules/support/assistant.ts';
 import { readSession, signSession, verifyHostToken } from '../token.ts';
@@ -116,7 +116,7 @@ function widgetOf(ctx: Ctx): Row {
  * The session rides in a header, except on the stream, where `EventSource`
  * cannot set one — the reason the app's own stream reads a query too.
  */
-function visitorOf(ctx: Ctx, fromQuery = false): { widget: Row; conversation: Row } {
+function visitorOf(ctx: Ctx, fromQuery = false): { widget: Row; conversation: Row; expiresAt: number } {
   const widget = widgetOf(ctx);
   const token = String(ctx.req.headers['x-widget-session'] ?? (fromQuery ? ctx.query.get('session') ?? '' : ''));
   const session = readSession(token, String(widget.id));
@@ -126,7 +126,7 @@ function visitorOf(ctx: Ctx, fromQuery = false): { widget: Row; conversation: Ro
     session.c, widget.id,
   );
   if (!conversation) throw sessionEnded();
-  return { widget, conversation };
+  return { widget, conversation, expiresAt: session.exp };
 }
 
 const cleanText = (value: unknown, max: number): string | null =>
@@ -231,6 +231,35 @@ export function registerWidgetRoutes(router: Router): void {
     return { ok: true };
   });
 
+  /**
+   * "Start a new chat": a fresh conversation for the same visitor, and a
+   * session for it that ends when the old one would have.
+   *
+   * The one they leave is resolved on the way out. The window shows one
+   * conversation, so an answer in the old one would reach the visitor only by
+   * email, if at all — and an open conversation nobody will read again sits in
+   * the team's list for ever.
+   */
+  router.post('/w/:widget/conversations', (ctx: Ctx) => {
+    enforce(ctx, byAddress(ctx, LIMITS.widgetSession, 'widget-session'));
+    const { widget, conversation, expiresAt } = visitorOf(ctx);
+    resolveByVisitor(widget, conversation);
+    const fresh = newConversation(widget, conversation);
+    return {
+      session: signSession({ w: String(widget.id), c: String(fresh.id), exp: expiresAt }),
+      expiresAt,
+      conversation: conversationView(fresh),
+    };
+  });
+
+  /** The visitor says it is done. Writing again reopens it, as it does after the team resolved it. */
+  router.post('/w/:widget/resolve', (ctx: Ctx) => {
+    enforce(ctx, byAddress(ctx, LIMITS.widgetSignal, 'widget-signal'));
+    const { widget, conversation } = visitorOf(ctx);
+    resolveByVisitor(widget, conversation);
+    return { ok: true };
+  });
+
   /** "I would like a person": the model goes quiet and the team is told now. */
   router.post('/w/:widget/handover', (ctx: Ctx) => {
     enforce(ctx, byAddress(ctx, LIMITS.widgetSignal, 'widget-signal'));
@@ -261,6 +290,7 @@ export function registerWidgetRoutes(router: Router): void {
     let after = Number(ctx.query.get('after') ?? 0) || 0;
     let read = Number(conversation.agent_read_at ?? 0);
     let handedOver = Number(conversation.handover_at ?? 0);
+    let status = String(conversation.status);
 
     ctx.res.writeHead(200, {
       'content-type': 'text/event-stream; charset=utf-8',
@@ -281,7 +311,7 @@ export function registerWidgetRoutes(router: Router): void {
         if (message.deleted_at) send('gone', { id: message.id });
         else send('message', messageView(message));
       }
-      const now = get<Row>(`SELECT agent_read_at, handover_at, deleted_at FROM conversations WHERE id = ?`, id);
+      const now = get<Row>(`SELECT agent_read_at, handover_at, status, deleted_at FROM conversations WHERE id = ?`, id);
       if (!now || now.deleted_at) {
         send('end', {});
         stop();
@@ -290,6 +320,12 @@ export function registerWidgetRoutes(router: Router): void {
       if (Number(now.agent_read_at ?? 0) !== read) {
         read = Number(now.agent_read_at ?? 0);
         send('read', { agent_read_at: read });
+      }
+      // Resolved by the team, or reopened: the visitor is told, not left
+      // writing into a conversation they cannot see has been closed.
+      if (String(now.status) !== status) {
+        status = String(now.status);
+        send('status', { status });
       }
       if (Number(now.handover_at ?? 0) !== handedOver) {
         handedOver = Number(now.handover_at ?? 0);

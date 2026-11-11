@@ -43,39 +43,60 @@ export interface Visitor {
   verified: boolean;
 }
 
+/** A new conversation for this visitor, in this widget. */
+function openConversation(widget: Row, visitor: Visitor): Row {
+  const id = uid();
+  writeEntity('conversation', id, {
+    workspace_id: widget.workspace_id,
+    project_id: widget.project_id,
+    widget_id: widget.id,
+    visitor_id: visitor.id,
+    visitor_name: visitor.name,
+    visitor_email: visitor.email,
+    verified: visitor.verified ? 1 : 0,
+    status: 'open',
+  }, asWidget(widget));
+  return get<Row>(`SELECT * FROM conversations WHERE id = ?`, id)!;
+}
+
 /**
- * The visitor's conversation with this widget, opened if there is none yet.
+ * The visitor's newest conversation with this widget, opened if there is none.
+ *
+ * Newest, not open: a visitor whose chat the team resolved comes back to it,
+ * sees that it was resolved, and writes on (which reopens it) or starts a new
+ * one. A deleted conversation is not theirs to come back to.
  *
  * A signed visitor's name and address are refreshed from every token, because
  * the host site is the authority on them and people do change their email.
  */
 export function conversationFor(widget: Row, visitor: Visitor): Row {
-  const find = () => get<Row>(`SELECT * FROM conversations WHERE widget_id = ? AND visitor_id = ?`, widget.id, visitor.id);
-  const found = find();
-  if (found) {
-    const patch: Record<string, unknown> = {};
-    if (visitor.verified && visitor.name !== found.visitor_name) patch.visitor_name = visitor.name;
-    if (visitor.verified && visitor.email !== found.visitor_email) patch.visitor_email = visitor.email;
-    if (Object.keys(patch).length) writeEntity('conversation', String(found.id), patch, asWidget(widget));
-    return find()!;
-  }
-  try {
-    writeEntity('conversation', uid(), {
-      workspace_id: widget.workspace_id,
-      project_id: widget.project_id,
-      widget_id: widget.id,
-      visitor_id: visitor.id,
-      visitor_name: visitor.name,
-      visitor_email: visitor.email,
-      verified: visitor.verified ? 1 : 0,
-      status: 'open',
-    }, asWidget(widget));
-  } catch (error) {
-    // Two tabs opening the same visitor's first conversation at once: the
-    // unique index lets one through, and the other finds it.
-    if (!find()) throw error;
-  }
-  return find()!;
+  const found = get<Row>(
+    `SELECT * FROM conversations WHERE widget_id = ? AND visitor_id = ? AND deleted_at IS NULL
+      ORDER BY created_at DESC LIMIT 1`,
+    widget.id, visitor.id,
+  );
+  if (!found) return openConversation(widget, visitor);
+  const patch: Record<string, unknown> = {};
+  if (visitor.verified && visitor.name !== found.visitor_name) patch.visitor_name = visitor.name;
+  if (visitor.verified && visitor.email !== found.visitor_email) patch.visitor_email = visitor.email;
+  if (Object.keys(patch).length) writeEntity('conversation', String(found.id), patch, asWidget(widget));
+  return get<Row>(`SELECT * FROM conversations WHERE id = ?`, found.id)!;
+}
+
+/** "Start a new chat": a fresh conversation for the same visitor, who they are taken from the one they are in. */
+export function newConversation(widget: Row, from: Row): Row {
+  return openConversation(widget, {
+    id: String(from.visitor_id),
+    name: from.visitor_name ?? null,
+    email: from.visitor_email ?? null,
+    verified: !!Number(from.verified),
+  });
+}
+
+/** The visitor says it is done. The team is not woken for it: nothing is waiting on them. */
+export function resolveByVisitor(widget: Row, conversation: Row): void {
+  if (conversation.status === 'resolved') return;
+  writeEntity('conversation', String(conversation.id), { status: 'resolved' }, asWidget(widget));
 }
 
 /** The thread, oldest first. Deleted messages are left out; the visitor never saw a tombstone. */
@@ -220,18 +241,26 @@ export function onTyping(listener: (conversationId: string) => void): () => void
 /* ------------------------------------------------------------ into a task */
 
 /**
- * A conversation as a task description: who said what, oldest first.
+ * A conversation as a task description: where it came from, then who said
+ * what, oldest first.
  *
- * The visitor's name is prose, not a user — the same as an intake reporter.
+ * The first line links back to the conversation, so whoever works the task can
+ * answer the person who asked. Pictures go in as pictures, through the same
+ * `/files` route the inbox shows them with — which also keeps them out of the
+ * trash for as long as the task shows them. The visitor's name is prose, not a
+ * user — the same as an intake reporter.
  */
-export function transcript(conversation: Row, names: (userId: string) => string): string {
+export function transcript(conversation: Row, names: (userId: string) => string, from: string): string {
   const visitor = visitorLabel(conversation as Conversation);
-  return messagesOf(String(conversation.id), 100).map((message) => {
+  const lines = messagesOf(String(conversation.id), 100).map((message) => {
     const who = message.author === 'visitor' ? visitor : names(String(message.author_id ?? ''));
     const at = new Date(Number(message.created_at)).toISOString().slice(0, 16).replace('T', ' ');
-    const files = parseFiles(message.files).map((file) => `[${file.name}]`).join(' ');
+    const files = parseFiles(message.files)
+      .map((file) => `![${file.name.replace(/[[\]]/g, '')}](/files/${file.hash}/${encodeURIComponent(file.name)})`)
+      .join(' ');
     return `**${who}** · ${at}\n\n${[String(message.body ?? ''), files].filter(Boolean).join('\n\n')}`;
-  }).join('\n\n---\n\n');
+  });
+  return [`[${from}](/support/${conversation.id})`, ...lines].join('\n\n---\n\n');
 }
 
 /** A title from the visitor's first words, or their name when they sent only a picture. */

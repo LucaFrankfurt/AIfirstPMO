@@ -10,7 +10,7 @@
 import {
   SUPPORT_MESSAGE_MAX, cleanOrigins, isWidgetAssistant, isWidgetColor, isWidgetIdentity, type ConversationFile,
 } from '@kolibri/shared';
-import { all, get, run, type Row } from '../../../kernel/platform/db/index.ts';
+import { all, get, type Row } from '../../../kernel/platform/db/index.ts';
 import { hasFeature } from '../../../kernel/platform/features.ts';
 import { badRequest, forbidden } from '../../../kernel/platform/http.ts';
 import { token } from '../../../kernel/platform/ids.ts';
@@ -162,20 +162,11 @@ export const supportRules = {
   },
 
   effects(entity, row, before, changed, opts) {
-    /*
-     * A deleted conversation lets go of its visitor.
-     *
-     * There is one conversation per visitor per widget, so while the deleted
-     * row held the slot, the same visitor writing again brought it back — and
-     * with it everything the team had meant to throw away. Renamed here with a
-     * plain UPDATE, because any write through the write path to a deleted row
-     * is exactly the resurrection this is preventing. The visitor's session
-     * names the old row, finds it gone, and starts a new one.
-     */
     if (entity === 'conversation' && row.deleted_at && !before?.deleted_at) {
-      run(`UPDATE conversations SET visitor_id = ? WHERE id = ?`, `${row.visitor_id}#deleted:${row.id}`, row.id);
       /*
-       * And its lines go with it, as tombstones of their own.
+       * A deleted conversation takes its lines with it, as tombstones of their
+       * own. (Its visitor does not find it again: the session lookup skips
+       * deleted rows, and they start a new one.)
        *
        * Hidden is not gone: the pull already stopped sending a deleted
        * conversation's lines, but they stayed live rows — on every device that

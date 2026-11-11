@@ -395,8 +395,10 @@ GET  /w/:widget/messages                  the thread
 POST /w/:widget/messages                  { body, files }
 POST /w/:widget/read                      the visitor has seen it; withdraws a pending email
 POST /w/:widget/handover                  "talk to a person": the assistant goes quiet, the team is told
+POST /w/:widget/resolve                   the visitor is done; writing again reopens it
+POST /w/:widget/conversations             a new chat: resolves this one → { session, expiresAt, conversation }
 POST /w/:widget/typing                    { typing }
-GET  /w/:widget/stream                    server-sent events: message, gone, read, typing, handover, end
+GET  /w/:widget/stream                    server-sent events: message, gone, read, status, typing, handover, end
 POST /w/:widget/files                     a picture, raw body, as the app's own uploads
 GET  /w/:widget/files/:hash               a file used in this conversation, and no other
 ```

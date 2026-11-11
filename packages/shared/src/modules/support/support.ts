@@ -87,10 +87,14 @@ export const unreadByTeam = (conversation: Pick<Conversation, 'last_message_at' 
  * loads; the token function is called then too, so a signed widget nobody
  * opens costs the host's server nothing.
  */
-export function widgetSnippet(publicUrl: string, widgetId: string, identity: WidgetIdentity): string {
+export function widgetSnippet(publicUrl: string, widgetId: string, identity: WidgetIdentity, color?: string | null): string {
   const base = publicUrl.replace(/\/+$/, '');
+  // The button is drawn before anything is asked of the instance, so the
+  // widget's colour has to be in the page already — or the button is the
+  // default purple under a window in the site's red.
+  const tint = color && isWidgetColor(color) ? `\n    color: '${color}',` : '';
   const config = identity === 'signed'
-    ? `window.kolibriChat = {\n    widget: '${widgetId}',\n    // Ask your own server for a token signed with this widget's secret.\n    token: () => fetch('/api/support-chat-token').then((r) => r.text()),\n  };`
-    : `window.kolibriChat = { widget: '${widgetId}' };`;
+    ? `window.kolibriChat = {\n    widget: '${widgetId}',${tint}\n    // Ask your own server for a token signed with this widget's secret.\n    token: () => fetch('/api/support-chat-token').then((r) => r.text()),\n  };`
+    : tint ? `window.kolibriChat = {\n    widget: '${widgetId}',${tint}\n  };` : `window.kolibriChat = { widget: '${widgetId}' };`;
   return `<script>\n  ${config}\n</script>\n<script src="${base}/widget.js" async></script>`;
 }
