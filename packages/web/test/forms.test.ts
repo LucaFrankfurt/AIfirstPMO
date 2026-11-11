@@ -174,8 +174,10 @@ describe('every icon-only control', () => {
   /** Text a screen reader would read out of the tag's own children. */
   const speaks = (body: string): boolean =>
     // Words between the tags, ignoring JSX elements and expressions. `{t('x')}`
-    // counts: a translated string is text, whatever it renders to.
-    /(^|>)[^<>{}]*[A-Za-z0-9][^<>{}]*(<|$)/.test(body) || /\{t\(/.test(body) || /\{[a-z]\w*\.(name|title|label)\b/.test(body);
+    // counts: a translated string is text, whatever it renders to — and so does
+    // `{words.x}`, the support widget's own catalogue (`adapters/widget/words.ts`).
+    /(^|>)[^<>{}]*[A-Za-z0-9][^<>{}]*(<|$)/.test(body) || /\{t\(/.test(body) || /\{words\.\w+\}/.test(body)
+    || /\{[a-z]\w*\.(name|title|label)\b/.test(body);
 
   it('has a name that is not only a title attribute', () => {
     const mute: string[] = [];
