@@ -3542,6 +3542,8 @@ export const fr: Catalogue = {
   'widgets.defaultColor': 'Couleur par défaut',
   'widgets.agents': 'Qui est prévenu',
   'widgets.agentsHint': 'Personne de coché signifie les propriétaires et administrateurs.',
+  'widgets.replyTo': 'Les réponses par e-mail vont à',
+  'widgets.replyToHint': 'Une boîte connectée sous Courrier. Un visiteur qui répond à l’e-mail écrit alors dans la conversation ; vide, l’e-mail l’invite à répondre dans le chat.',
   'widgets.enabled': 'Actif',
   'widgets.enabledHint': 'Désactivé masque la fenêtre partout sans rien supprimer.',
 };

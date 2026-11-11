@@ -179,6 +179,10 @@ for (const [table, column, definition] of [
   ['comments', 'resolution', 'TEXT'],
   ['comments', 'resolved_by', 'TEXT'],
   ['comments', 'resolved_at', 'INTEGER'],
+  // Where a visitor's answer to a support email goes: an inbox the workspace
+  // has connected, so the answer reaches the conversation. Null is the
+  // instance's own Reply-To, which reaches nobody's conversation.
+  ['widgets', 'reply_to', 'TEXT'],
 ] as const) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!columns.some((c) => c.name === column)) {

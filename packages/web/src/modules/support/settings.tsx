@@ -125,6 +125,8 @@ function WidgetSheet({ widget, onClose }: { widget: Widget | null; onClose: () =
   const [color, setColor] = useState(widget?.color ?? '');
   const [agents, setAgents] = useState<string[]>(listOf<string>(widget?.agents));
   const [enabled, setEnabled] = useState(widget ? !!widget.enabled : true);
+  // Read defensively: a widget synced before the column existed has none.
+  const [replyTo, setReplyTo] = useState(widget?.reply_to ?? '');
 
   const origins = cleanOrigins(sites);
   const typed = sites.split(/[\s,]+/).filter(Boolean);
@@ -135,6 +137,7 @@ function WidgetSheet({ widget, onClose }: { widget: Widget | null; onClose: () =
     const values = {
       name: name.trim(), project_id: projectId, identity, origins, greeting: greeting.trim() || null,
       color: isWidgetColor(color) ? color : null, agents, enabled: enabled ? 1 : 0,
+      reply_to: replyTo.trim() || null,
     };
     if (widget) update('widget', widget.id, values);
     else create('widget', values);
@@ -207,6 +210,9 @@ function WidgetSheet({ widget, onClose }: { widget: Widget | null; onClose: () =
             </label>
           ))}
         </fieldset>
+        <Label label={t('widgets.replyTo')} hint={t('widgets.replyToHint')}>
+          <Input type="email" value={replyTo} placeholder="support@example.com" onChange={(event) => setReplyTo(event.target.value)} />
+        </Label>
         <label className="check-row">
           <input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />
           <span>

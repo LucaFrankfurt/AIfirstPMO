@@ -828,7 +828,7 @@ export const ENTITIES = {
    */
   widget: {
     table: 'widgets',
-    fields: ['workspace_id', 'project_id', 'name', 'origins', 'identity', 'greeting', 'color', 'agents', 'enabled', 'created_by'],
+    fields: ['workspace_id', 'project_id', 'name', 'origins', 'identity', 'greeting', 'color', 'agents', 'enabled', 'reply_to', 'created_by'],
     secret: ['secret'],
     json: ['origins', 'agents'],
   },

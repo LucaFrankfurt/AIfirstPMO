@@ -68,6 +68,11 @@ function applyWidgetInvariants(values: Record<string, unknown>, forced: Record<s
   if (values.color !== undefined && values.color !== null && !isWidgetColor(values.color)) settle('color', null);
   if (typeof values.name === 'string' && values.name.trim() !== values.name) settle('name', values.name.trim());
   if (typeof values.greeting === 'string' && values.greeting.length > 500) settle('greeting', values.greeting.slice(0, 500));
+  if (values.reply_to !== undefined) {
+    const address = typeof values.reply_to === 'string' ? values.reply_to.trim().toLowerCase() : '';
+    const valid = /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/.test(address);
+    if ((valid ? address : null) !== values.reply_to) settle('reply_to', valid ? address : null);
+  }
 }
 
 /** A stored JSON list, or a list, or a string of them: the three ways a list of sites arrives. */

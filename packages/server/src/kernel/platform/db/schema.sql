@@ -2180,6 +2180,8 @@ CREATE TABLE IF NOT EXISTS widgets (
   agents       TEXT NOT NULL DEFAULT '[]',
   enabled      INTEGER NOT NULL DEFAULT 1,
   secret       TEXT NOT NULL DEFAULT '',
+  -- The address a support email's Reply-To names. See the upgrade list.
+  reply_to     TEXT,
   created_by   TEXT,
   created_at   INTEGER NOT NULL,
   updated_at   INTEGER NOT NULL,

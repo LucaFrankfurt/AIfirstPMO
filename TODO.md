@@ -1733,7 +1733,7 @@ follows is what was deliberately *not* built, and why, so that none of it is re-
       that one column and can never invent one — and both the terminal and a comment above the table
       say so rather than leaving it to be inferred. Doing it properly means rebuilding the table
       instead of altering it, in a generator that so far only ever adds. It is one column out of the
-      **70** the list carries; the other undroppable-looking eight turned out to be something else
+      **71** the list carries; the other undroppable-looking eight turned out to be something else
       entirely, list entries for columns `CREATE TABLE` never creates at all, which is the shape
       everything here is trying to reach. The shape comparison inherits the same blind spot: the
       recorded table carries the `UNIQUE`, so the check believes an upgraded instance has it, while
@@ -1962,8 +1962,9 @@ See [`docs/support.md`](docs/support.md) for what is built and why it is shaped 
       it keeps its markdown editor and its scrolling. Its six walkthrough steps pass.
 - [ ] **The model answering first** (phase 3): suggested replies, then answers from a widget's own
       knowledge pages with sources, a hand-over, and a daily budget per widget. **P2**
-- [ ] **Replying to the support email** does not reach the conversation; the email says to answer
-      in the chat. **P3**
+- [x] **Replying to the support email reaches the conversation**, when the widget names a reply
+      address that is a connected inbox: a signed tag in the subject, the sender checked against the
+      conversation's address, the quoted email cut off.
 - [x] **The visitor's window was heavy for what it is.** 222 KB gzipped on the first click, now
       125 KB: it carries thirty words of its own instead of the app's catalogue, and its icons no
       longer pull in every dialog and menu. Most of what is left is React.

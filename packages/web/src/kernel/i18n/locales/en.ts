@@ -3554,6 +3554,8 @@ export const en = {
   'widgets.defaultColor': 'Use the default',
   'widgets.agents': 'Who is told',
   'widgets.agentsHint': 'Nobody ticked means the workspace’s owners and admins.',
+  'widgets.replyTo': 'Replies by email go to',
+  'widgets.replyToHint': 'An inbox connected under Mail. A visitor answering the support email then writes into the conversation; leave it empty and the email asks them to answer in the chat.',
   'widgets.enabled': 'Live',
   'widgets.enabledHint': 'Off hides the window on every site without deleting anything.',
 } as const;

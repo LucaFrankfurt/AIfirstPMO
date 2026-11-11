@@ -356,7 +356,7 @@ footer {
 <!-- generated: tally -->
     <div><span class="v num">388</span><span class="k">source files</span></div>
     <div><span class="v num">50</span><span class="k">modules</span></div>
-    <div><span class="v num">123 564</span><span class="k">lines</span></div>
+    <div><span class="v num">123 710</span><span class="k">lines</span></div>
 <!-- end -->
     <div><span class="v num">64</span><span class="k">entities</span></div>
     <div><span class="v num">160</span><span class="k">endpoints</span></div>
@@ -441,9 +441,9 @@ footer {
 
     <div class="legend" role="list">
 <!-- generated: legend -->
-      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 34 234 lines, 28%</span>
-      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 60 252 lines, 49%</span>
-      <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 26 381 lines, 21%</span>
+      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 34 252 lines, 28%</span>
+      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 60 289 lines, 49%</span>
+      <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 26 472 lines, 21%</span>
       <span role="listitem"><i style="background: var(--shell)"></i> Shell — 2 697 lines, 2%</span>
 <!-- end -->
     </div>
@@ -1028,8 +1028,8 @@ footer {
       <code>architecture.md</code> accepts is still accepted.
     </li>
     <li>
-      <strong><code>i18n</code> stays the largest kernel module.</strong> 11 284 lines is three
-      catalogues of 3 395 keys. Step 2 stops shipping the two nobody asked for; it does not make the
+      <strong><code>i18n</code> stays the largest kernel module.</strong> 11 293 lines is three
+      catalogues of 3 397 keys. Step 2 stops shipping the two nobody asked for; it does not make the
       catalogues smaller, and it should not — a compile error on a missing key is worth more than the
       file size.
     </li>
@@ -1146,7 +1146,7 @@ footer {
           <tr><td>kernel → an adapter</td><td class="n">3</td><td class="n"><b>0</b></td></tr>
           <tr><td>capability → an adapter</td><td class="n">12</td><td class="n"><b>0</b></td></tr>
           <tr><td>capability → another capability</td><td class="n">14</td><td class="n">24</td></tr>
-          <tr><td>adapter → a capability <span class="dim">(inward — allowed)</span></td><td class="n">1</td><td class="n">21</td></tr>
+          <tr><td>adapter → a capability <span class="dim">(inward — allowed)</span></td><td class="n">1</td><td class="n">23</td></tr>
 <!-- end -->
         </tbody>
       </table>
@@ -1155,11 +1155,11 @@ footer {
       <strong>Nothing points outward any more. <code>KNOWN_OUTWARD</code> is empty, and rule 5
       keeps it that way.</strong>
       The last row moves the other way on purpose: an adapter is <em>supposed</em> to lean on a
-      capability, and it does so 21 times now precisely because the outward edges were turned
+      capability, and it does so 23 times now precisely because the outward edges were turned
       round.
       The way out was the same every time — the inner ring says what it needs, the outer one
-      registers. There are <strong>13 ports</strong> across <strong>11 modules</strong> now, and
-      all 13 are filled. Four of the fixes were not inversions at all but things filed in the wrong
+      registers. There are <strong>14 ports</strong> across <strong>11 modules</strong> now, and
+      all 14 are filled. Four of the fixes were not inversions at all but things filed in the wrong
       place, and those four are the interesting ones.
     </p>
     <div class="scroller">
@@ -1176,6 +1176,7 @@ footer {
           <tr><td><code>kernel/write-path</code></td><td>a listener run inside the write's own transaction <span class="dim"><code>onWrite</code></span></td><td><code>capability/automation</code></td></tr>
           <tr><td><code>capability/ai-review</code></td><td>a model that can answer, under a configuration name <span class="dim"><code>provideModel</code></span></td><td><code>adapter/ai</code></td></tr>
           <tr><td><code>capability/automation</code></td><td>a chore for the periodic sweep to run <span class="dim"><code>onSweep</code></span></td><td><code>adapter/telegram</code>, <code>adapter/webhooks</code></td></tr>
+          <tr><td><code>capability/mail</code></td><td>somebody told when a message first arrives in a connected mailbox <span class="dim"><code>onMailArrival</code></span></td><td><code>adapter/widget</code></td></tr>
           <tr><td><code>capability/mail</code></td><td>a provider that can mint a mailbox token <span class="dim"><code>registerMailAuthProvider</code></span></td><td><code>adapter/oauth</code></td></tr>
           <tr><td><code>capability/mail</code></td><td>a transport that can read a mailbox <span class="dim"><code>registerMailFetcher</code></span></td><td><code>adapter/imap</code></td></tr>
           <tr><td><code>capability/notifications</code></td><td>a channel a notification is carried on <span class="dim"><code>onNotification</code></span></td><td><code>adapter/push</code>, <code>adapter/telegram</code></td></tr>
@@ -1416,12 +1417,12 @@ footer {
 <script>
 /* generated: inventory */
 const MODULES = [
-{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":11284,"biggest":"kernel/i18n/locales/en.ts","biggestLines":3566},
-{"ring":"kernel","name":"registry","flag":"","files":8,"lines":4224,"biggest":"kernel/registry/types.ts","biggestLines":2716},
+{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":11293,"biggest":"kernel/i18n/locales/en.ts","biggestLines":3568},
+{"ring":"kernel","name":"registry","flag":"","files":8,"lines":4229,"biggest":"kernel/registry/types.ts","biggestLines":2721},
 {"ring":"kernel","name":"design-system","flag":"","files":33,"lines":3391,"biggest":"kernel/design-system/ui.tsx","biggestLines":688},
 {"ring":"kernel","name":"write-path","flag":"","files":3,"lines":2770,"biggest":"kernel/write-path/repo.ts","biggestLines":1364},
 {"ring":"kernel","name":"sync","flag":"","files":8,"lines":2656,"biggest":"kernel/sync/sync.ts","biggestLines":696},
-{"ring":"kernel","name":"platform","flag":"","files":11,"lines":2430,"biggest":"kernel/platform/env.ts","biggestLines":650},
+{"ring":"kernel","name":"platform","flag":"","files":11,"lines":2434,"biggest":"kernel/platform/env.ts","biggestLines":650},
 {"ring":"kernel","name":"identity","flag":"","files":10,"lines":2380,"biggest":"kernel/identity/routes/auth.ts","biggestLines":579},
 {"ring":"kernel","name":"search","flag":"","files":9,"lines":2377,"biggest":"kernel/search/query.ts","biggestLines":489},
 {"ring":"kernel","name":"files","flag":"","files":9,"lines":1227,"biggest":"kernel/files/zip.ts","biggestLines":327},
@@ -1432,8 +1433,8 @@ const MODULES = [
 {"ring":"capability","name":"products","flag":"products","files":4,"lines":5338,"biggest":"modules/products/routes/products.tsx","biggestLines":2881},
 {"ring":"capability","name":"planning","flag":"","files":12,"lines":4787,"biggest":"modules/planning/routes/projects.tsx","biggestLines":1695},
 {"ring":"capability","name":"operations","flag":"","files":11,"lines":4019,"biggest":"modules/operations/routes/settings.tsx","biggestLines":1178},
+{"ring":"capability","name":"mail","flag":"mail","files":15,"lines":3272,"biggest":"modules/mail/settings.tsx","biggestLines":556},
 {"ring":"capability","name":"budgets","flag":"budget","files":4,"lines":3261,"biggest":"modules/budgets/routes/budgets.tsx","biggestLines":1701},
-{"ring":"capability","name":"mail","flag":"mail","files":15,"lines":3246,"biggest":"modules/mail/settings.tsx","biggestLines":556},
 {"ring":"capability","name":"chat","flag":"","files":6,"lines":2346,"biggest":"modules/chat/routes/chat.tsx","biggestLines":1347},
 {"ring":"capability","name":"kpis","flag":"kpi","files":4,"lines":1872,"biggest":"modules/kpis/routes/kpis.tsx","biggestLines":972},
 {"ring":"capability","name":"infrastructure","flag":"infrastructure","files":4,"lines":1642,"biggest":"modules/infrastructure/landscape.tsx","biggestLines":582},
@@ -1442,7 +1443,7 @@ const MODULES = [
 {"ring":"capability","name":"automation","flag":"","files":3,"lines":1523,"biggest":"modules/automation/settings.tsx","biggestLines":738},
 {"ring":"capability","name":"time","flag":"time","files":6,"lines":1501,"biggest":"modules/time/rates.tsx","biggestLines":581},
 {"ring":"capability","name":"secrets","flag":"secrets","files":6,"lines":1412,"biggest":"modules/secrets/routes/secrets.tsx","biggestLines":496},
-{"ring":"capability","name":"support","flag":"support","files":6,"lines":1152,"biggest":"modules/support/routes/support.tsx","biggestLines":332},
+{"ring":"capability","name":"support","flag":"support","files":6,"lines":1163,"biggest":"modules/support/routes/support.tsx","biggestLines":332},
 {"ring":"capability","name":"decisions","flag":"decisions","files":5,"lines":1131,"biggest":"modules/decisions/decision-parts.tsx","biggestLines":282},
 {"ring":"capability","name":"ai-review","flag":"ai","files":7,"lines":818,"biggest":"modules/ai-review/review.ts","biggestLines":200},
 {"ring":"capability","name":"trash","flag":"","files":2,"lines":482,"biggest":"modules/trash/trash.ts","biggestLines":255},
@@ -1452,9 +1453,9 @@ const MODULES = [
 {"ring":"adapter","name":"mcp","flag":"","files":19,"lines":11007,"biggest":"adapters/mcp/tools/products.ts","biggestLines":2160},
 {"ring":"adapter","name":"transfer","flag":"","files":8,"lines":3693,"biggest":"adapters/transfer/transfer.ts","biggestLines":873},
 {"ring":"adapter","name":"webhooks","flag":"","files":7,"lines":2007,"biggest":"adapters/webhooks/foreign.ts","biggestLines":747},
-{"ring":"adapter","name":"mail","flag":"","files":8,"lines":1418,"biggest":"adapters/mail/mail.ts","biggestLines":400},
+{"ring":"adapter","name":"mail","flag":"","files":8,"lines":1430,"biggest":"adapters/mail/mail.ts","biggestLines":412},
+{"ring":"adapter","name":"widget","flag":"","files":6,"lines":1251,"biggest":"adapters/widget/visitor.tsx","biggestLines":466},
 {"ring":"adapter","name":"imap","flag":"","files":4,"lines":1194,"biggest":"adapters/imap/imap.ts","biggestLines":371},
-{"ring":"adapter","name":"widget","flag":"","files":6,"lines":1172,"biggest":"adapters/widget/visitor.tsx","biggestLines":466},
 {"ring":"adapter","name":"oauth","flag":"","files":4,"lines":978,"biggest":"adapters/oauth/routes/oauth.ts","biggestLines":515},
 {"ring":"adapter","name":"kolibri","flag":"","files":3,"lines":905,"biggest":"feedback/src/adapters/kolibri/preflight.ts","biggestLines":598},
 {"ring":"adapter","name":"share","flag":"","files":3,"lines":802,"biggest":"adapters/share/routes/share.ts","biggestLines":642},

@@ -5927,7 +5927,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Who is told about a new message. Empty means every member of the project."
+            "description": "Who is told about a new message. Empty means the workspace's owners and admins."
           },
           "color": {
             "type": [
@@ -5986,6 +5986,13 @@
           },
           "project_id": {
             "type": "string"
+          },
+          "reply_to": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The Reply-To of a support email: a connected inbox, so the visitor's answer reaches the conversation. Null leaves the instance's own."
           },
           "seq": {
             "type": "number",

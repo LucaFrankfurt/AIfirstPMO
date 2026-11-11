@@ -100,6 +100,22 @@ const INTERVAL_MS = 5 * 60_000;
  */
 const BACKOFF_MS = [60_000, 5 * 60_000, 15 * 60_000, 60 * 60_000];
 
+/** Somebody who wants to know a message has just arrived in one of a workspace's mailboxes. */
+export type MailArrival = (workspaceId: string, message: FetchedMessage) => void;
+
+const arrivals: MailArrival[] = [];
+
+/**
+ * Hear about every message the first time it is stored — never on a re-scan.
+ *
+ * The support widget is the listener: a visitor answering a support email
+ * lands in a connected inbox, and from there in their conversation.
+ */
+/** @port somebody told when a message first arrives in a connected mailbox */
+export function onMailArrival(listener: MailArrival): void {
+  if (!arrivals.includes(listener)) arrivals.push(listener);
+}
+
 export interface PollResult {
   mailbox: string;
   fetched: number;
@@ -140,7 +156,17 @@ export async function pollMailbox(row: Row): Promise<PollResult> {
         limit: BATCH,
       });
       for (const message of messages) {
-        if (storeMessage(String(row.workspace_id), String(row.id), folder, message)) fetched += 1;
+        if (!storeMessage(String(row.workspace_id), String(row.id), folder, message)) continue;
+        fetched += 1;
+        for (const listener of arrivals) {
+          // A listener's failure is its own: the message is stored, and the
+          // next one in the batch still is.
+          try {
+            listener(String(row.workspace_id), message);
+          } catch (error) {
+            console.error('[mail] a listener failed on an arriving message', error);
+          }
+        }
       }
     }
   } catch (error) {

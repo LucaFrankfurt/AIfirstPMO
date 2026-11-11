@@ -2339,9 +2339,14 @@ export interface Widget extends Base {
   greeting: string | null;
   /** `#rrggbb`, or null for the app's accent. */
   color: string | null;
-  /** Who is told about a new message. Empty means every member of the project. */
+  /** Who is told about a new message. Empty means the workspace's owners and admins. */
   agents: ID[];
   enabled: number;
+  /**
+   * The Reply-To of a support email: a connected inbox, so the visitor's answer
+   * reaches the conversation. Null leaves the instance's own.
+   */
+  reply_to: string | null;
   created_by: ID | null;
 }
 

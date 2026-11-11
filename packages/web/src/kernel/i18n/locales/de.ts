@@ -3548,6 +3548,8 @@ export const de: Catalogue = {
   'widgets.defaultColor': 'Standard verwenden',
   'widgets.agents': 'Wer benachrichtigt wird',
   'widgets.agentsHint': 'Niemand ausgewählt heißt: die Owner und Admins des Workspace.',
+  'widgets.replyTo': 'Antworten per E-Mail gehen an',
+  'widgets.replyToHint': 'Ein unter E-Mail verbundenes Postfach. Antwortet der Besucher auf die Support-Mail, landet das in der Unterhaltung; leer gelassen bittet die Mail, im Chat zu antworten.',
   'widgets.enabled': 'Aktiv',
   'widgets.enabledHint': 'Aus blendet das Fenster auf allen Seiten aus, ohne etwas zu löschen.',
 };

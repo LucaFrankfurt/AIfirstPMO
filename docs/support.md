@@ -34,6 +34,7 @@ outside the workspace may write in:
 | greeting | the first line a visitor reads |
 | colour | the button, the window's header and the visitor's own messages |
 | who is told | members notified of a new message; nobody ticked means the workspace's owners and admins |
+| replies by email go to | an inbox connected under Mail; answering the support email then writes into the conversation |
 | live | off hides the window on every site without deleting anything |
 
 ## Decisions
@@ -78,10 +79,17 @@ widget's agents, otherwise the owners and admins — never anybody who cannot se
 not again for further lines within five minutes. It counts as urgent for Telegram and Web Push, and
 not for the email digest.
 
-**When nobody answers live, email does.** An answer the visitor has not read within five minutes is
-emailed to the address they have, through the ordinary mail queue. Reading it in the window first
-withdraws the email. One pending email per conversation. Replying to that email does not reach the
-conversation.
+**When nobody answers live, email does — both ways.** An answer the visitor has not read within five
+minutes is emailed to the address they have, through the ordinary mail queue. Reading it in the
+window first withdraws the email. One pending email per conversation.
+
+When the widget names a **reply address** — an inbox the workspace has connected under Mail — the
+email's Reply-To is that inbox and its subject carries a signed tag (`[#a1b2c3d4-9f8e7d]`). The mail
+poller hands every new message to `takeReply` through a port (`onMailArrival`): a message with a
+valid tag, from the address the conversation already has, has the quoted email cut off and goes
+into the conversation as the visitor's line — the team is told, a resolved conversation reopens. A
+forged tag, another sender, a widget switched off: nothing. A tag in the subject rather than the
+Message-ID chain, because the transports write their own Message-ID and keep no record of it.
 
 **A conversation can become a task** in the widget's project, with its transcript as the
 description. Once; after that the button opens it.
@@ -179,4 +187,3 @@ owner were to answer their own end customers, that is a platform of its own, not
   222 KB until the window stopped importing the app's catalogue and its menus and dialogs — it now
   carries its own thirty words (`adapters/widget/words.ts`, held to the app's wording by a test) and
   draws icons from `ui/icon.tsx` rather than through `ui.tsx`.
-- **Replying to the email** does not reach the conversation.
