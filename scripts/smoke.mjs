@@ -2479,13 +2479,29 @@ await step('a connector can be authorised in a browser', async () => {
    * side of it a run landed on was the runner's business, not this instance's.
    *
    * So wait for the redirect itself. Then the gap can be whatever it likes.
+   *
+   * And wait for it as a *request*, not only as a route. Playwright does not
+   * route the target of a redirect, so the first callback request goes to the
+   * network: on a runner without one it fails to resolve and Chromium tries
+   * again, and the retry is what the route handler was given. Behind a proxy —
+   * a sandboxed agent's browser — it fails at the tunnel instead, is never
+   * retried, and the handler never ran: the step reported a form-action policy
+   * that was letting the redirect through every time. The request event fires
+   * either way, before the network is asked, and it is exactly the proof this
+   * step wants: a policy that refused the redirect would stop it before any
+   * request was made.
    */
   let arrived = () => {};
   const back = new Promise((resolve) => { arrived = resolve; });
-  await view.route(`${redirect}*`, (route) => {
-    code = new URL(route.request().url()).searchParams.get('code') ?? '';
-    route.fulfill({ status: 200, contentType: 'text/html', body: 'ok' });
+  const heard = (url) => {
+    const found = new URL(url).searchParams.get('code');
+    if (found) code = found;
     arrived();
+  };
+  view.on('request', (request) => { if (request.url().startsWith(redirect)) heard(request.url()); });
+  await view.route(`${redirect}*`, (route) => {
+    heard(route.request().url());
+    route.fulfill({ status: 200, contentType: 'text/html', body: 'ok' });
   });
   try {
     await view.goto(`${base}/oauth/authorize?${query}`);
