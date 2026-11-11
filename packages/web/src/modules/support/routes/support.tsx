@@ -14,6 +14,7 @@ import {
   type Conversation, type ConversationFile, type ConversationMessage, type Widget,
 } from '@kolibri/shared';
 import { Composer, Thread, type ThreadLine } from '../../../kernel/design-system/conversation';
+import { useThreadWords } from '../../../kernel/design-system/thread-words';
 import { cn } from '../../../kernel/design-system/cn';
 import { relativeTime } from '../../../kernel/design-system/format';
 import { useMinute } from '../../../kernel/design-system/minute';
@@ -158,6 +159,7 @@ const TYPING_POLL_MS = 3000;
 
 function Answer({ conversation, widget, onBack }: { conversation: Conversation; widget?: Widget; onBack: () => void }) {
   const t = useT();
+  const words = useThreadWords();
   const me = useMe();
   const toast = useToast();
   const action = useAction();
@@ -294,6 +296,7 @@ function Answer({ conversation, widget, onBack }: { conversation: Conversation; 
         )}
       </header>
       <Thread
+        words={words}
         lines={lines}
         typing={typing ? visitorLabel(conversation) : false}
         seenAt={conversation.visitor_read_at}
@@ -304,6 +307,7 @@ function Answer({ conversation, widget, onBack }: { conversation: Conversation; 
       )}
       {canWrite && (
         <Composer
+          words={words}
           onSend={send}
           onAttach={attach}
           attached={attached.length ? (

@@ -3556,21 +3556,6 @@ export const en = {
   'widgets.agentsHint': 'Nobody ticked means the workspace’s owners and admins.',
   'widgets.enabled': 'Live',
   'widgets.enabledHint': 'Off hides the window on every site without deleting anything.',
-  'widget.welcome': 'Hi! How can we help?',
-  'widget.connecting': 'Connecting…',
-  'widget.unavailable': 'This chat is not available right now.',
-  'widget.notSignedIn': 'Sign in on the site to chat with us.',
-  'widget.ended': 'The chat session ended. Reopen the chat to continue.',
-  'widget.introduce': 'Tell us who you are — both optional — so we can answer by email if you leave.',
-  'widget.name': 'Name',
-  'widget.email': 'Email',
-  'widget.start': 'Start chatting',
-  'widget.replyByEmail': 'We answer here — and by email if you have left.',
-  'widget.sendFailed': 'Not sent.',
-  'widget.uploadFailed': 'The picture could not be sent.',
-  'widget.close': 'Close chat',
-  'widget.team': 'Team',
-  'widget.retry': 'Try again',
 } as const;
 
 /**

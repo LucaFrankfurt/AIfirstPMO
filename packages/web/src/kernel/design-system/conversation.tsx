@@ -20,9 +20,34 @@
  */
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type Ref } from 'react';
 import { cn } from './cn';
-import { clockTime, exactTime, longDate } from './format';
-import { Icon } from './ui';
-import { useT } from '../i18n/i18n';
+import { Icon } from './ui/icon';
+
+/**
+ * The words and clocks a thread speaks in, handed in rather than looked up.
+ *
+ * So that this file imports neither the app's catalogue nor its formatters:
+ * the support widget's page carries thirty words of its own instead of the
+ * app's three thousand. Inside the app, `useThreadWords` builds this from the
+ * catalogue.
+ */
+export interface ThreadWords {
+  today: string;
+  yesterday: string;
+  sending: string;
+  seen: string;
+  typing: string;
+  typingNamed: (name: string) => string;
+  actions: string;
+  attach: string;
+  placeholder: string;
+  send: string;
+  /** Just the clock, for the corner of a bubble. */
+  clock: (at: number) => string;
+  /** The whole moment, for a hover. */
+  exact: (at: number) => string;
+  /** A day named in full, for the line between days. */
+  day: (at: number) => string;
+}
 
 export interface ThreadFile {
   key: string;
@@ -65,12 +90,12 @@ export interface ThreadLine {
 /** Lines from one side within this long of each other read as one block. */
 const BLOCK_MS = 5 * 60_000;
 
-function dayOf(at: number, t: ReturnType<typeof useT>): string {
+function dayOf(at: number, words: ThreadWords): string {
   const now = new Date();
   const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  if (at >= midnight) return t('chat.today');
-  if (at >= midnight - 86_400_000) return t('chat.yesterday');
-  return longDate(at);
+  if (at >= midnight) return words.today;
+  if (at >= midnight - 86_400_000) return words.yesterday;
+  return words.day(at);
 }
 
 const sameDay = (a: number, b: number) => new Date(a).toDateString() === new Date(b).toDateString();
@@ -85,8 +110,9 @@ const sameDay = (a: number, b: number) => new Date(a).toDateString() === new Dat
  * turns that off with `follow={false}` and holds the box through `boxRef`.
  */
 export function Thread({
-  lines, typing, seenAt, empty, before, grouped = true, days = true, follow = true, boxRef, onScroll, className,
+  words, lines, typing, seenAt, empty, before, grouped = true, days = true, follow = true, boxRef, onScroll, className,
 }: {
+  words: ThreadWords;
   lines: ThreadLine[];
   /** The other side is typing: who, or `true` for "somebody". */
   typing?: string | boolean;
@@ -105,7 +131,6 @@ export function Thread({
   onScroll?: () => void;
   className?: string;
 }) {
-  const t = useT();
   const box = useRef<HTMLDivElement | null>(null);
   const atBottom = useRef(true);
   /** Which line has been asked for its actions, where there is no hover. */
@@ -149,16 +174,16 @@ export function Thread({
         const previous = lines[index - 1];
         const newDay = days && (!previous || !sameDay(previous.at, line.at));
         const first = newDay || !joins(previous, line);
-        const words = line.body !== null && line.body !== undefined && line.body !== false && line.body !== '';
+        const said = line.body !== null && line.body !== undefined && line.body !== false && line.body !== '';
         const time = (
           <span className="thread-meta">
             {line.meta}
-            <span className="tabular-nums">{line.pending ? t('thread.sending') : clockTime(line.at)}</span>
+            <span className="tabular-nums">{line.pending ? words.sending : words.clock(line.at)}</span>
           </span>
         );
         return (
           <Fragment key={line.id}>
-            {newDay && <div className="thread-day" role="separator"><span>{dayOf(line.at, t)}</span></div>}
+            {newDay && <div className="thread-day" role="separator"><span>{dayOf(line.at, words)}</span></div>}
             <div
               className={cn('thread-line', !first && 'grouped', line.mine && 'mine', tapped === line.id && 'tapped')}
               data-line={line.id}
@@ -168,8 +193,8 @@ export function Thread({
               {!line.mine && (first && line.avatar ? line.avatar : <span className="thread-gutter" />)}
               <div className="thread-body">
                 {!!line.files?.length && <Files files={line.files} mine={line.mine} />}
-                {words && (
-                  <div className="thread-bubble" title={exactTime(line.at)} style={line.pending ? { opacity: 0.65 } : undefined}>
+                {said && (
+                  <div className="thread-bubble" title={words.exact(line.at)} style={line.pending ? { opacity: 0.65 } : undefined}>
                     {first && !line.mine && line.author && <span className="thread-who">{line.author}</span>}
                     {line.quote}
                     {typeof line.body === 'string'
@@ -179,9 +204,9 @@ export function Thread({
                   </div>
                 )}
                 {/* A line that is only a picture still says when. */}
-                {!words && <span className="mt-0.5 flex gap-1.5 px-1 text-[11px] text-muted">{line.meta}{line.pending ? t('thread.sending') : clockTime(line.at)}</span>}
+                {!said && <span className="mt-0.5 flex gap-1.5 px-1 text-[11px] text-muted">{line.meta}{line.pending ? words.sending : words.clock(line.at)}</span>}
                 {line.failed && <div className="mt-1 px-1 text-[11.5px] text-danger">{line.failed}</div>}
-                {line.id === seen && <span className="mt-0.5 px-1 text-[11px] text-muted">{t('thread.seen')}</span>}
+                {line.id === seen && <span className="mt-0.5 px-1 text-[11px] text-muted">{words.seen}</span>}
                 {line.below}
                 {line.actions && (
                   <>
@@ -189,7 +214,7 @@ export function Thread({
                     <button
                       type="button"
                       className="thread-more"
-                      aria-label={t('chat.messageActions')}
+                      aria-label={words.actions}
                       aria-expanded={tapped === line.id}
                       onClick={() => setTapped(tapped === line.id ? null : line.id)}
                     >
@@ -204,7 +229,7 @@ export function Thread({
         );
       })}
       {typing && (
-        <div className="thread-line" aria-label={typeof typing === 'string' ? t('thread.typingNamed', { name: typing }) : t('thread.typing')}>
+        <div className="thread-line" aria-label={typeof typing === 'string' ? words.typingNamed(typing) : words.typing}>
           <span className="thread-gutter" />
           <TypingDots />
         </div>
@@ -281,8 +306,9 @@ const TYPING_EVERY_MS = 3000;
  * button is the same everywhere.
  */
 export function Composer({
-  onSend, onTyping, onAttach, attached, placeholder, disabled, autoFocus, className, status, field, canSend: allowed,
+  words, onSend, onTyping, onAttach, attached, placeholder, disabled, autoFocus, className, status, field, canSend: allowed,
 }: {
+  words: ThreadWords;
   /** With `field`, called with an empty string: the caller holds the text. */
   onSend: (text: string) => void | Promise<unknown>;
   onTyping?: (typing: boolean) => void;
@@ -301,7 +327,6 @@ export function Composer({
   /** With `field`: whether there is anything to send. */
   canSend?: boolean;
 }) {
-  const t = useT();
   const [text, setText] = useState('');
   const own = useRef<HTMLTextAreaElement>(null);
   const picker = useRef<HTMLInputElement>(null);
@@ -350,12 +375,15 @@ export function Composer({
     <button
       type="button"
       className="inline-flex size-9 flex-none items-center justify-center rounded-full bg-[var(--thread-accent,var(--accent))] text-[var(--thread-accent-fg,var(--accent-fg))] transition-opacity disabled:opacity-30"
-      title={t('thread.send')}
+      title={words.send}
+      aria-label={words.send}
       disabled={!canSend}
       onClick={send}
     >
       <Icon name="send" size={15} />
-      <span className="sr-only">{t('thread.send')}</span>
+      {/* The same word again as text, for whatever finds a button by what it
+          says — the walkthrough's `button:has-text(…)`, a user's own script. */}
+      <span className="sr-only">{words.send}</span>
     </button>
   );
 
@@ -373,8 +401,8 @@ export function Composer({
               <button
                 type="button"
                 className="inline-flex size-9 flex-none items-center justify-center rounded-full text-muted hover:bg-hover hover:text-fg disabled:opacity-50"
-                aria-label={t('thread.attach')}
-                title={t('thread.attach')}
+                aria-label={words.attach}
+                title={words.attach}
                 disabled={disabled}
                 onClick={() => picker.current?.click()}
               >
@@ -399,8 +427,8 @@ export function Composer({
             value={text}
             autoFocus={autoFocus}
             disabled={disabled}
-            placeholder={placeholder ?? t('thread.placeholder')}
-            aria-label={placeholder ?? t('thread.placeholder')}
+            placeholder={placeholder ?? words.placeholder}
+            aria-label={placeholder ?? words.placeholder}
             className={cn(
               'max-h-40 min-h-9 min-w-0 flex-1 resize-none rounded-[18px] border border-line-strong bg-raised px-3.5 py-2 text-[14px] leading-[1.4] text-fg placeholder:text-muted',
               'focus-visible:border-[var(--thread-accent,var(--accent))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--thread-accent,var(--accent))]',

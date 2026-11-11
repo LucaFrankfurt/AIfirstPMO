@@ -41,6 +41,7 @@ import { setTyping, useOnline, useOnlineIds, useTypists } from '../presence';
 import { useCanWrite, useMe, useMemberMap, usePeople, useSession } from '../../../kernel/identity/session';
 import { Markdown, MarkdownEditor } from '../../pages/Markdown';
 import { Composer, SEND_ON_ENTER, Thread, type ThreadLine } from '../../../kernel/design-system/conversation';
+import { useThreadWords } from '../../../kernel/design-system/thread-words';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { buttonVariants } from '../../../kernel/design-system/ui/button';
 import { cn } from '../../../kernel/design-system/cn';
@@ -385,6 +386,7 @@ function ConversationRow({ channel, last, me, active, title, onOpen }: {
 
 function Conversation({ channel, me, onBack }: { channel: Channel; me: string; onBack: () => void }) {
   const t = useT();
+  const words = useThreadWords();
   const members = usePeople();
   const { confirm, dialog } = useConfirm();
   const canWrite = useCanWrite();
@@ -680,6 +682,7 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
       {managing && <ChannelSettings channel={channel} me={me} onClose={() => setManaging(false)} onGone={onBack} />}
 
       <Thread
+        words={words}
         boxRef={stream}
         follow={false}
         grouped={!hunting}
@@ -824,6 +827,7 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
 
       {canWrite ? (
         <Composer
+          words={words}
           className="chat-composer"
           canSend={!!draft.trim()}
           onSend={send}

@@ -15,10 +15,10 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { SUPPORT_TYPING_MS, type ConversationFile, type WidgetIdentity } from '@kolibri/shared';
 import { Composer, Thread, type ThreadLine } from '../../kernel/design-system/conversation';
-import { Icon } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Input } from '../../kernel/design-system/ui/field';
-import { useT } from '../../kernel/i18n/i18n';
+import { widgetLocale, widgetWords } from './words';
 
 interface Config {
   id: string;
@@ -46,6 +46,8 @@ const widgetId = decodeURIComponent(window.location.pathname.split('/')[2] ?? ''
 const base = `/w/${encodeURIComponent(widgetId)}`;
 const STORE = `kolibri.chat.${widgetId}`;
 const framed = window.parent !== window;
+/** One language for the life of the page: the visitor's browser's. */
+const words = widgetWords(widgetLocale());
 
 /** To the host page. Nothing here is a secret, so any origin may hear it — the frame decides who may hold it. */
 const tell = (message: Record<string, unknown>) => {
@@ -109,7 +111,6 @@ const merge = (lines: Line[], line: Line): Line[] =>
   [...lines.filter((one) => one.id !== line.id), line].sort((a, b) => a.created_at - b.created_at);
 
 export function VisitorChat() {
-  const t = useT();
   const [config, setConfig] = useState<Config | null>(null);
   const [stage, setStage] = useState<Stage>('loading');
   const [session, setSession] = useState('');
@@ -286,7 +287,7 @@ export function VisitorChat() {
       const { file: stored } = await response.json() as { file: ConversationFile };
       setAttached((now) => [...now, stored]);
     } catch {
-      setNotice(t('widget.uploadFailed'));
+      setNotice(words.uploadFailed);
     }
   };
 
@@ -307,20 +308,20 @@ export function VisitorChat() {
       mine: false,
       author: config?.name,
       avatar: <TeamMark />,
-      body: config?.greeting || t('widget.welcome'),
+      body: config?.greeting || words.welcome,
       at: lines[0]?.created_at ?? Date.now(),
     }] : []),
     ...lines.map((line): ThreadLine => ({
       id: line.id,
       mine: line.author === 'visitor',
-      author: line.agent ?? t('widget.team'),
+      author: line.agent ?? words.team,
       avatar: <TeamMark />,
       body: line.body,
       at: line.created_at,
       pending: line.pending,
       failed: line.failed ? (
         <button type="button" className="underline" onClick={() => void send(line.body, line.files, line.id)}>
-          {t('widget.sendFailed')} {t('widget.retry')}
+          {words.sendFailed} {words.retry}
         </button>
       ) : undefined,
       files: line.files.map((file) => ({
@@ -340,8 +341,8 @@ export function VisitorChat() {
           <button
             type="button"
             className="inline-flex size-8 items-center justify-center rounded-full hover:bg-black/10"
-            aria-label={t('widget.close')}
-            title={t('widget.close')}
+            aria-label={words.close}
+            title={words.close}
             onClick={() => tell({ type: 'kolibri-chat:close' })}
           >
             <Icon name="close" size={16} />
@@ -350,13 +351,13 @@ export function VisitorChat() {
       </header>
 
       <main className="flex min-h-0 flex-1 flex-col">
-      {stage === 'loading' && <Middle>{t('widget.connecting')}</Middle>}
-      {stage === 'unavailable' && <Middle>{t('widget.unavailable')}</Middle>}
-      {stage === 'signin' && <Middle>{t('widget.notSignedIn')}</Middle>}
-      {stage === 'ended' && <Middle>{t('widget.ended')}</Middle>}
+      {stage === 'loading' && <Middle>{words.connecting}</Middle>}
+      {stage === 'unavailable' && <Middle>{words.unavailable}</Middle>}
+      {stage === 'signin' && <Middle>{words.notSignedIn}</Middle>}
+      {stage === 'ended' && <Middle>{words.ended}</Middle>}
       {stage === 'introduce' && config && (
         <Introduce
-          greeting={config.greeting || t('widget.welcome')}
+          greeting={config.greeting || words.welcome}
           onStart={async (values) => {
             const opened = await call<{ session: string; expiresAt: number }>('/session', '', { method: 'POST', body: JSON.stringify(values) });
             try { localStorage.setItem(STORE, JSON.stringify({ session: opened.session, expiresAt: opened.expiresAt })); } catch { /* storage refused */ }
@@ -367,9 +368,10 @@ export function VisitorChat() {
       )}
       {stage === 'ready' && (
         <>
-          <Thread lines={threadLines} typing={agentTyping ? t('widget.team') : false} seenAt={agentRead} />
+          <Thread words={words} lines={threadLines} typing={agentTyping ? words.team : false} seenAt={agentRead} />
           {notice && <p className="m-0 px-4 pb-1 text-[12px] text-danger">{notice}</p>}
           <Composer
+            words={words}
             autoFocus
             onSend={(body) => send(body)}
             onAttach={(file) => void attach(file)}
@@ -413,7 +415,6 @@ function TeamMark() {
  * it finds fills in that one too, and the server turns it away.
  */
 function Introduce({ greeting, onStart }: { greeting: string; onStart: (values: Record<string, string>) => Promise<void> }) {
-  const t = useT();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [website, setWebsite] = useState('');
@@ -436,9 +437,9 @@ function Introduce({ greeting, onStart }: { greeting: string; onStart: (values: 
       }}
     >
       <p className="m-0 rounded-2xl border border-line bg-raised px-3 py-2 text-[14px]">{greeting}</p>
-      <p className="m-0 text-[12.5px] text-muted">{t('widget.introduce')}</p>
-      <Input value={name} autoComplete="name" placeholder={t('widget.name')} aria-label={t('widget.name')} onChange={(event) => setName(event.target.value)} />
-      <Input type="email" value={email} autoComplete="email" placeholder={t('widget.email')} aria-label={t('widget.email')} onChange={(event) => setEmail(event.target.value)} />
+      <p className="m-0 text-[12.5px] text-muted">{words.introduce}</p>
+      <Input value={name} autoComplete="name" placeholder={words.name} aria-label={words.name} onChange={(event) => setName(event.target.value)} />
+      <Input type="email" value={email} autoComplete="email" placeholder={words.email} aria-label={words.email} onChange={(event) => setEmail(event.target.value)} />
       <input
         type="text"
         name="website"
@@ -449,16 +450,16 @@ function Introduce({ greeting, onStart }: { greeting: string; onStart: (values: 
         onChange={(event) => setWebsite(event.target.value)}
         style={{ position: 'absolute', left: '-10000px', width: 200 }}
       />
-      {failed && <p className="m-0 text-[12px] text-danger">{t('widget.unavailable')}</p>}
+      {failed && <p className="m-0 text-[12px] text-danger">{words.unavailable}</p>}
       <Button
         type="submit"
         variant="primary"
         disabled={busy}
         style={{ background: 'var(--thread-accent, var(--accent))', color: 'var(--thread-accent-fg, var(--accent-fg))' }}
       >
-        {t('widget.start')}
+        {words.start}
       </Button>
-      <p className="m-0 text-center text-[11.5px] text-muted">{t('widget.replyByEmail')}</p>
+      <p className="m-0 text-center text-[11.5px] text-muted">{words.replyByEmail}</p>
     </form>
   );
 }

@@ -354,9 +354,9 @@ footer {
 
   <div class="tally">
 <!-- generated: tally -->
-    <div><span class="v num">385</span><span class="k">source files</span></div>
+    <div><span class="v num">388</span><span class="k">source files</span></div>
     <div><span class="v num">50</span><span class="k">modules</span></div>
-    <div><span class="v num">123 383</span><span class="k">lines</span></div>
+    <div><span class="v num">123 564</span><span class="k">lines</span></div>
 <!-- end -->
     <div><span class="v num">64</span><span class="k">entities</span></div>
     <div><span class="v num">160</span><span class="k">endpoints</span></div>
@@ -428,7 +428,7 @@ footer {
 <!-- ══════════════════════════════════════════════ 02 inventory ══ -->
 <section id="inventory">
 <!-- generated: files -->
-  <span class="eyebrow">02 — All 385 files, sorted</span>
+  <span class="eyebrow">02 — All 388 files, sorted</span>
 <!-- end -->
   <h2>The inventory</h2>
   <div class="stack">
@@ -441,9 +441,9 @@ footer {
 
     <div class="legend" role="list">
 <!-- generated: legend -->
-      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 34 206 lines, 28%</span>
-      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 60 244 lines, 49%</span>
-      <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 26 236 lines, 21%</span>
+      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 34 234 lines, 28%</span>
+      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 60 252 lines, 49%</span>
+      <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 26 381 lines, 21%</span>
       <span role="listitem"><i style="background: var(--shell)"></i> Shell — 2 697 lines, 2%</span>
 <!-- end -->
     </div>
@@ -626,7 +626,7 @@ footer {
           <code>task-parts.tsx</code>, which both files already imported <code>GroupBy</code> from.
         </p>
         <p class="fix"><strong>Closed by step 10.</strong> The folder of 53 components is
-          <code>kernel/design-system</code> now — 31 files, the primitives under <code>ui/</code> —
+          <code>kernel/design-system</code> now — 33 files, the primitives under <code>ui/</code> —
           and the cross-capability imports it worried about are no longer invisible: a project page
           hosting the KPI and budget panels is a row in the table further down, kept acyclic by
           rule 6.</p>
@@ -1028,8 +1028,8 @@ footer {
       <code>architecture.md</code> accepts is still accepted.
     </li>
     <li>
-      <strong><code>i18n</code> stays the largest kernel module.</strong> 11 329 lines is three
-      catalogues of 3 410 keys. Step 2 stops shipping the two nobody asked for; it does not make the
+      <strong><code>i18n</code> stays the largest kernel module.</strong> 11 284 lines is three
+      catalogues of 3 395 keys. Step 2 stops shipping the two nobody asked for; it does not make the
       catalogues smaller, and it should not — a compile error on a missing key is worth more than the
       file size.
     </li>
@@ -1416,9 +1416,9 @@ footer {
 <script>
 /* generated: inventory */
 const MODULES = [
-{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":11329,"biggest":"kernel/i18n/locales/en.ts","biggestLines":3581},
+{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":11284,"biggest":"kernel/i18n/locales/en.ts","biggestLines":3566},
 {"ring":"kernel","name":"registry","flag":"","files":8,"lines":4224,"biggest":"kernel/registry/types.ts","biggestLines":2716},
-{"ring":"kernel","name":"design-system","flag":"","files":31,"lines":3318,"biggest":"kernel/design-system/ui.tsx","biggestLines":831},
+{"ring":"kernel","name":"design-system","flag":"","files":33,"lines":3391,"biggest":"kernel/design-system/ui.tsx","biggestLines":688},
 {"ring":"kernel","name":"write-path","flag":"","files":3,"lines":2770,"biggest":"kernel/write-path/repo.ts","biggestLines":1364},
 {"ring":"kernel","name":"sync","flag":"","files":8,"lines":2656,"biggest":"kernel/sync/sync.ts","biggestLines":696},
 {"ring":"kernel","name":"platform","flag":"","files":11,"lines":2430,"biggest":"kernel/platform/env.ts","biggestLines":650},
@@ -1434,7 +1434,7 @@ const MODULES = [
 {"ring":"capability","name":"operations","flag":"","files":11,"lines":4019,"biggest":"modules/operations/routes/settings.tsx","biggestLines":1178},
 {"ring":"capability","name":"budgets","flag":"budget","files":4,"lines":3261,"biggest":"modules/budgets/routes/budgets.tsx","biggestLines":1701},
 {"ring":"capability","name":"mail","flag":"mail","files":15,"lines":3246,"biggest":"modules/mail/settings.tsx","biggestLines":556},
-{"ring":"capability","name":"chat","flag":"","files":6,"lines":2342,"biggest":"modules/chat/routes/chat.tsx","biggestLines":1343},
+{"ring":"capability","name":"chat","flag":"","files":6,"lines":2346,"biggest":"modules/chat/routes/chat.tsx","biggestLines":1347},
 {"ring":"capability","name":"kpis","flag":"kpi","files":4,"lines":1872,"biggest":"modules/kpis/routes/kpis.tsx","biggestLines":972},
 {"ring":"capability","name":"infrastructure","flag":"infrastructure","files":4,"lines":1642,"biggest":"modules/infrastructure/landscape.tsx","biggestLines":582},
 {"ring":"capability","name":"guide","flag":"","files":6,"lines":1626,"biggest":"modules/guide/diagrams.tsx","biggestLines":628},
@@ -1442,7 +1442,7 @@ const MODULES = [
 {"ring":"capability","name":"automation","flag":"","files":3,"lines":1523,"biggest":"modules/automation/settings.tsx","biggestLines":738},
 {"ring":"capability","name":"time","flag":"time","files":6,"lines":1501,"biggest":"modules/time/rates.tsx","biggestLines":581},
 {"ring":"capability","name":"secrets","flag":"secrets","files":6,"lines":1412,"biggest":"modules/secrets/routes/secrets.tsx","biggestLines":496},
-{"ring":"capability","name":"support","flag":"support","files":6,"lines":1148,"biggest":"modules/support/routes/support.tsx","biggestLines":328},
+{"ring":"capability","name":"support","flag":"support","files":6,"lines":1152,"biggest":"modules/support/routes/support.tsx","biggestLines":332},
 {"ring":"capability","name":"decisions","flag":"decisions","files":5,"lines":1131,"biggest":"modules/decisions/decision-parts.tsx","biggestLines":282},
 {"ring":"capability","name":"ai-review","flag":"ai","files":7,"lines":818,"biggest":"modules/ai-review/review.ts","biggestLines":200},
 {"ring":"capability","name":"trash","flag":"","files":2,"lines":482,"biggest":"modules/trash/trash.ts","biggestLines":255},
@@ -1454,7 +1454,7 @@ const MODULES = [
 {"ring":"adapter","name":"webhooks","flag":"","files":7,"lines":2007,"biggest":"adapters/webhooks/foreign.ts","biggestLines":747},
 {"ring":"adapter","name":"mail","flag":"","files":8,"lines":1418,"biggest":"adapters/mail/mail.ts","biggestLines":400},
 {"ring":"adapter","name":"imap","flag":"","files":4,"lines":1194,"biggest":"adapters/imap/imap.ts","biggestLines":371},
-{"ring":"adapter","name":"widget","flag":"","files":5,"lines":1027,"biggest":"adapters/widget/visitor.tsx","biggestLines":465},
+{"ring":"adapter","name":"widget","flag":"","files":6,"lines":1172,"biggest":"adapters/widget/visitor.tsx","biggestLines":466},
 {"ring":"adapter","name":"oauth","flag":"","files":4,"lines":978,"biggest":"adapters/oauth/routes/oauth.ts","biggestLines":515},
 {"ring":"adapter","name":"kolibri","flag":"","files":3,"lines":905,"biggest":"feedback/src/adapters/kolibri/preflight.ts","biggestLines":598},
 {"ring":"adapter","name":"share","flag":"","files":3,"lines":802,"biggest":"adapters/share/routes/share.ts","biggestLines":642},

@@ -2,9 +2,8 @@
 
 Chat widgets on other websites, and an inbox inside Kolibri the team answers them from.
 
-**Status:** phase 1 and phase 2 are built, except moving the team chat onto the new conversation
-components. Phase 3 (the model) is not started. What is open, and why, is at the end and in
-`TODO.md`.
+**Status:** phases 1 and 2 are built, the team chat included. What is open, and why, is at the end
+and in `TODO.md`.
 
 ## The goal
 
@@ -87,9 +86,13 @@ conversation.
 **A conversation can become a task** in the widget's project, with its transcript as the
 description. Once; after that the button opens it.
 
-**New conversation components.** `Thread` and `Composer` in `kernel/design-system/conversation.tsx`,
-used by both the inbox and the visitor's window: grouped lines with squared-off corners inside a
-block, a line per day, a "seen" mark, typing dots, pictures, a field that grows and sends on Enter.
+**One conversation component for three places.** `Thread` and `Composer` in
+`kernel/design-system/conversation.tsx` draw the team chat, the support inbox and the visitor's
+window: grouped lines with the speaker's corner squared off, the time in the bubble's corner, a line
+per day, "seen", typing dots, pictures, the bar of actions on hover and behind a dot-button on a
+phone, and a field that grows and sends on Enter. The team chat hands in its own markdown editor,
+with its mention and reference menus, and its own scrolling; the visitor's lines take the site's
+colour. The words come in as a prop, so the visitor's page needs none of the app's catalogue.
 
 ## For the host site
 
@@ -171,14 +174,9 @@ owner were to answer their own end customers, that is a platform of its own, not
 
 ## Open
 
-- **The team chat is not on the new components yet.** It does a great deal the support thread does
-  not — replies, reactions, editing, search, mentions, paging back, drafts per channel — and the
-  smoke walkthrough leans on its markup in some eighty places. Moving it is its own step; doing half
-  of it would be worse than either.
-- **The visitor's window costs about 220 KB gzipped on the first click** — 171 KB of it the chunk
-  it shares with the app (the English catalogue, the design system), 26 KB the stylesheet — and a
-  German or French visitor fetches their catalogue on top. Measured from the build when this
-  landed, not tuned.
+- **The visitor's window costs about 125 KB gzipped on the first click**, measured from the build
+  when this changed: most of it React itself (about 55 KB) and the app's stylesheet (26 KB). It was
+  222 KB until the window stopped importing the app's catalogue and its menus and dialogs — it now
+  carries its own thirty words (`adapters/widget/words.ts`, held to the app's wording by a test) and
+  draws icons from `ui/icon.tsx` rather than through `ui.tsx`.
 - **Replying to the email** does not reach the conversation.
-- **A conversation the team deletes comes back** with its history when the same visitor writes
-  again, because there is one per visitor per widget. Resolve is the button for "done".

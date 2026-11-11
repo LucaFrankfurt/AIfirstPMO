@@ -1,14 +1,15 @@
 /**
  * The page inside a support widget's iframe — a second entry beside the app's.
  *
- * It shares the app's stylesheet, catalogues and conversation components and
- * nothing else: no sync, no session, no service worker. It runs on somebody
- * else's site, in a frame that site's visitors did not ask for, so it loads
- * only when they click and holds no more than one conversation.
+ * It shares the app's stylesheet and conversation components and nothing
+ * else: no catalogue (it carries thirty words of its own, see `words.ts`), no
+ * sync, no session, no service worker. It runs on somebody else's site, in a
+ * frame that site's visitors did not ask for, so it loads only when they click
+ * and holds no more than one conversation.
  */
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { I18nProvider, detectLocale, loadLocale } from '../../kernel/i18n/i18n';
+import { widgetLocale } from './words';
 import { VisitorChat } from './visitor';
 import '../../styles/app.css';
 
@@ -16,9 +17,9 @@ import '../../styles/app.css';
  * Storage that may be refused.
  *
  * A browser blocking third-party storage throws on the first touch of
- * `localStorage` inside this frame, and the catalogue loader reads it before
- * anything renders. A memory stand-in keeps the window working; it only means
- * an anonymous visitor starts afresh on their next page.
+ * `localStorage` inside this frame, and an anonymous visitor's session is kept
+ * there. A memory stand-in keeps the window working; it only means an
+ * anonymous visitor starts afresh on their next page.
  */
 function guardStorage(): void {
   try {
@@ -40,12 +41,10 @@ function guardStorage(): void {
 }
 
 guardStorage();
-await loadLocale(detectLocale());
+document.documentElement.lang = widgetLocale();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <I18nProvider>
-      <VisitorChat />
-    </I18nProvider>
+    <VisitorChat />
   </StrictMode>,
 );
