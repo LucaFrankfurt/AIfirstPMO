@@ -161,9 +161,12 @@ export function SupportChat({ widget }: { widget: string }) {
 }
 ```
 
-What was measured: a token from `jose`'s `SignJWT` verifies against the server's check, and the
-same two tags on a plain HTML page on another origin open the chat, send, and receive an answer
-live. The Next.js wrapper itself has not been run inside a Next.js app.
+What was measured, with exactly the two files above in a Next.js 15.5 app (App Router, `next build`
+and `next start`, `jose` 5.9) on another origin: before any click the page asks the instance for
+`widget.js` and nothing else; the click opens the chat, the token route is called then, and the
+conversation arrives signed in — the visitor id is the `sub` the route signed, the name and address
+are its claims. Add `color: '#rrggbb'` to `window.kolibriChat` for a button in the site's colour;
+the window itself takes the widget's.
 
 ## The model
 
