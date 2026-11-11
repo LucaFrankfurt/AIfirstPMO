@@ -52,6 +52,8 @@ import { secretRules } from './modules/secrets/rules/secrets.ts';
 import { environmentRules } from './modules/secrets/rules/environments.ts';
 import { shareRules } from './adapters/share/rules/share.ts';
 import { webhookRules } from './adapters/webhooks/rules/webhooks.ts';
+import { supportRules } from './modules/support/rules/support.ts';
+import { installSupportMail } from './adapters/widget/mail.ts';
 
 let installed = false;
 
@@ -78,6 +80,7 @@ export function installEffects(): void {
   installMailAuthProviders();
   installTelegramChores();
   installWebhookChores();
+  installSupportMail();
   // The two things started at boot on the strength of a setting, told when one
   // changes — a write in Settings → Server, or a restore replacing them all.
   onSettingsChange(() => { stopMailWorker(); startMailWorker(); });
@@ -88,7 +91,7 @@ export function installEffects(): void {
     workRules, pageRules, chatRules, planningRules,
     budgetRules, productRules, rateRules, kpiRules, landscapeRules,
     mailRules, secretRules, environmentRules, decisionRules, meetingRules, artboardRules,
-    shareRules, webhookRules,
+    shareRules, webhookRules, supportRules,
   ]) onEntity(rule);
 
   /*

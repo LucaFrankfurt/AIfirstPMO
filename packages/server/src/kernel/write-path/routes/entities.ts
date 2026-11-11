@@ -90,6 +90,11 @@ function visibleRow(userId: string, entity: EntityName, row: Row): boolean {
   }
   // A board on a canvas is its page's, all of it — read, change and delete.
   if (entity === 'artboard') return canSeePage(userId, String(row.page_id ?? ''));
+  // A support message carries no project; its conversation does.
+  if (entity === 'conversationMessage') {
+    const conversation = get<Row>(`SELECT project_id FROM conversations WHERE id = ?`, row.conversation_id);
+    return !!conversation && canSeeProject(userId, String(conversation.project_id));
+  }
   /*
    * A comment is its task's or its page's — both halves, the pull filter's two
    * clauses read the same way. Only the task half used to be asked here, so a

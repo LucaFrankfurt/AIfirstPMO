@@ -62,6 +62,7 @@ const REACHED_ELSEWHERE: Record<string, string> = {
  */
 const LEAVES_ELSEWHERE: Record<string, string> = {
   '/chat/:id': 'a back arrow in its own header, and from 900px the channel list is beside it',
+  '/support/:id': 'the chat\'s layout: a back arrow in its own header, and from 900px the conversation list is beside it',
   '/t/:id': 'a sheet over whatever you were reading, closed rather than navigated away from',
   '/pages/new': 'never rendered — it creates the page and redirects in an effect',
   '/invite/:code': 'signed out, where there is nowhere else to be',

@@ -34,6 +34,8 @@ import { registerInboundRoutes } from './adapters/webhooks/routes/inbound.ts';
 import { registerCalendarRoutes } from './adapters/calendar/routes/calendar.ts';
 import { registerShareRoutes } from './adapters/share/routes/share.ts';
 import { registerSyncRoutes } from './kernel/sync/routes/sync.ts';
+import { registerSupportRoutes } from './modules/support/routes/support.ts';
+import { registerWidgetRoutes } from './adapters/widget/routes/widget.ts';
 
 // Before any route reads a setting: what an admin stored in the database wins
 // over the environment, and `env` has been reading nothing until now.
@@ -79,9 +81,13 @@ registerSecretRoutes(router);
 registerExportRoutes(router);
 registerOAuthRoutes(router);
 registerMcpRoutes(router);
+// Before the generic routes: `/api/widgets/:id/secret` is something handed
+// over, not a row in a collection called `secret`.
+registerSupportRoutes(router);
 registerEntityRoutes(router);
 registerShareRoutes(router);
 registerInboundRoutes(router);
+registerWidgetRoutes(router);
 
 /**
  * `ready` turns true once provisioning finished (bucket reachable, owner

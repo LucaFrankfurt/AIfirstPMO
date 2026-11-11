@@ -2160,3 +2160,81 @@ CREATE VIRTUAL TABLE IF NOT EXISTS mail_index USING fts5 (
   filenames,
   tokenize = 'unicode61 remove_diacritics 2'
 );
+
+-- Support: a chat window on somebody else's site, the conversations it opens,
+-- and what is said in them. See `docs/support.md`.
+--
+-- `secret` signs the token a host site hands its visitors. It never syncs —
+-- the registry lists it as `secret`, the way a webhook's is.
+CREATE TABLE IF NOT EXISTS widgets (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  project_id   TEXT NOT NULL,
+  name         TEXT NOT NULL DEFAULT '',
+  -- JSON list of exact origins allowed to frame it.
+  origins      TEXT NOT NULL DEFAULT '[]',
+  identity     TEXT NOT NULL DEFAULT 'signed',
+  greeting     TEXT,
+  color        TEXT,
+  -- JSON list of members told about a new message; empty means the project's.
+  agents       TEXT NOT NULL DEFAULT '[]',
+  enabled      INTEGER NOT NULL DEFAULT 1,
+  secret       TEXT NOT NULL DEFAULT '',
+  created_by   TEXT,
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS widgets_seq ON widgets (workspace_id, seq);
+
+-- One per visitor per widget, so a returning visitor finds their history by
+-- the id their own site gave them. `project_id` is copied from the widget so a
+-- pull can scope it the way it scopes a task.
+CREATE TABLE IF NOT EXISTS conversations (
+  id              TEXT PRIMARY KEY,
+  workspace_id    TEXT NOT NULL,
+  project_id      TEXT NOT NULL,
+  widget_id       TEXT NOT NULL,
+  visitor_id      TEXT NOT NULL,
+  visitor_name    TEXT,
+  visitor_email   TEXT,
+  verified        INTEGER NOT NULL DEFAULT 0,
+  status          TEXT NOT NULL DEFAULT 'open',
+  assignee_id     TEXT,
+  task_id         TEXT,
+  last_message_at INTEGER,
+  last_author     TEXT,
+  agent_read_at   INTEGER,
+  visitor_read_at INTEGER,
+  -- The queued email a reply is waiting behind, withdrawn if the visitor reads
+  -- the reply first. Server-only.
+  pending_mail    TEXT,
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER NOT NULL,
+  deleted_at      INTEGER,
+  seq             INTEGER NOT NULL DEFAULT 0,
+  clocks          TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS conversations_seq ON conversations (workspace_id, seq);
+CREATE UNIQUE INDEX IF NOT EXISTS conversations_visitor ON conversations (widget_id, visitor_id);
+
+CREATE TABLE IF NOT EXISTS conversation_messages (
+  id              TEXT PRIMARY KEY,
+  workspace_id    TEXT NOT NULL,
+  conversation_id TEXT NOT NULL,
+  -- 'visitor' | 'agent'
+  author          TEXT NOT NULL DEFAULT 'agent',
+  author_id       TEXT,
+  body            TEXT NOT NULL DEFAULT '',
+  -- JSON list of { hash, name, type, size, width, height }.
+  files           TEXT NOT NULL DEFAULT '[]',
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER NOT NULL,
+  deleted_at      INTEGER,
+  seq             INTEGER NOT NULL DEFAULT 0,
+  clocks          TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS conversation_messages_seq ON conversation_messages (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS conversation_messages_thread ON conversation_messages (conversation_id, created_at);

@@ -354,12 +354,12 @@ footer {
 
   <div class="tally">
 <!-- generated: tally -->
-    <div><span class="v num">373</span><span class="k">source files</span></div>
-    <div><span class="v num">48</span><span class="k">modules</span></div>
-    <div><span class="v num">120 302</span><span class="k">lines</span></div>
+    <div><span class="v num">385</span><span class="k">source files</span></div>
+    <div><span class="v num">50</span><span class="k">modules</span></div>
+    <div><span class="v num">123 344</span><span class="k">lines</span></div>
 <!-- end -->
-    <div><span class="v num">61</span><span class="k">entities</span></div>
-    <div><span class="v num">145</span><span class="k">endpoints</span></div>
+    <div><span class="v num">64</span><span class="k">entities</span></div>
+    <div><span class="v num">160</span><span class="k">endpoints</span></div>
     <div><span class="v num">135</span><span class="k">MCP tools</span></div>
   </div>
 
@@ -428,7 +428,7 @@ footer {
 <!-- ══════════════════════════════════════════════ 02 inventory ══ -->
 <section id="inventory">
 <!-- generated: files -->
-  <span class="eyebrow">02 — All 373 files, sorted</span>
+  <span class="eyebrow">02 — All 385 files, sorted</span>
 <!-- end -->
   <h2>The inventory</h2>
   <div class="stack">
@@ -441,10 +441,10 @@ footer {
 
     <div class="legend" role="list">
 <!-- generated: legend -->
-      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 33 290 lines, 28%</span>
-      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 59 124 lines, 49%</span>
-      <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 25 209 lines, 21%</span>
-      <span role="listitem"><i style="background: var(--shell)"></i> Shell — 2 679 lines, 2%</span>
+      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 34 142 lines, 28%</span>
+      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 60 292 lines, 49%</span>
+      <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 26 213 lines, 21%</span>
+      <span role="listitem"><i style="background: var(--shell)"></i> Shell — 2 697 lines, 2%</span>
 <!-- end -->
     </div>
 
@@ -626,7 +626,7 @@ footer {
           <code>task-parts.tsx</code>, which both files already imported <code>GroupBy</code> from.
         </p>
         <p class="fix"><strong>Closed by step 10.</strong> The folder of 53 components is
-          <code>kernel/design-system</code> now — 30 files, the primitives under <code>ui/</code> —
+          <code>kernel/design-system</code> now — 31 files, the primitives under <code>ui/</code> —
           and the cross-capability imports it worried about are no longer invisible: a project page
           hosting the KPI and budget panels is a row in the table further down, kept acyclic by
           rule 6.</p>
@@ -1015,7 +1015,7 @@ footer {
   <h2>What this won't fix</h2>
   <ul class="plain">
     <li>
-      <strong><code>repo.ts</code> got smaller than this said it would.</strong> It is 1363 lines,
+      <strong><code>repo.ts</code> got smaller than this said it would.</strong> It is 1364 lines,
       from 2 370. This entry used to promise a floor around 1 300 — the merge, the transaction, the
       tombstones, the search index and the generic effects, said to belong together. Two of them did
       not: the notification copy and the webhook payloads were a capability and an adapter sitting in
@@ -1028,8 +1028,8 @@ footer {
       <code>architecture.md</code> accepts is still accepted.
     </li>
     <li>
-      <strong><code>i18n</code> stays the largest kernel module.</strong> 11 005 lines is three
-      catalogues of 3 308 keys. Step 2 stops shipping the two nobody asked for; it does not make the
+      <strong><code>i18n</code> stays the largest kernel module.</strong> 11 332 lines is three
+      catalogues of 3 411 keys. Step 2 stops shipping the two nobody asked for; it does not make the
       catalogues smaller, and it should not — a compile error on a missing key is worth more than the
       file size.
     </li>
@@ -1145,7 +1145,7 @@ footer {
           <tr><td>kernel → a capability</td><td class="n">5</td><td class="n"><b>0</b></td></tr>
           <tr><td>kernel → an adapter</td><td class="n">3</td><td class="n"><b>0</b></td></tr>
           <tr><td>capability → an adapter</td><td class="n">12</td><td class="n"><b>0</b></td></tr>
-          <tr><td>capability → another capability</td><td class="n">14</td><td class="n">23</td></tr>
+          <tr><td>capability → another capability</td><td class="n">14</td><td class="n">24</td></tr>
           <tr><td>adapter → a capability <span class="dim">(inward — allowed)</span></td><td class="n">1</td><td class="n">21</td></tr>
 <!-- end -->
         </tbody>
@@ -1172,7 +1172,7 @@ footer {
           <tr><td><code>kernel/platform</code></td><td>what has to follow a change of settings while the server runs <span class="dim"><code>onSettingsChange</code></span></td><td><code>shell/shell</code></td></tr>
           <tr><td><code>kernel/search</code></td><td>a corpus with an index and a visibility rule of its own <span class="dim"><code>registerCorpus</code></span></td><td><code>capability/mail</code></td></tr>
           <tr><td><code>kernel/sync</code></td><td>a handler for one kind of frame on the live connection <span class="dim"><code>onStream</code></span></td><td><code>capability/chat</code></td></tr>
-          <tr><td><code>kernel/write-path</code></td><td>a listener run once the write has committed <span class="dim"><code>onCommitted</code></span></td><td><code>adapter/webhooks</code>, <code>capability/notifications</code></td></tr>
+          <tr><td><code>kernel/write-path</code></td><td>a listener run once the write has committed <span class="dim"><code>onCommitted</code></span></td><td><code>adapter/webhooks</code>, <code>adapter/widget</code>, <code>capability/notifications</code></td></tr>
           <tr><td><code>kernel/write-path</code></td><td>a listener run inside the write's own transaction <span class="dim"><code>onWrite</code></span></td><td><code>capability/automation</code></td></tr>
           <tr><td><code>capability/ai-review</code></td><td>a model that can answer, under a configuration name <span class="dim"><code>provideModel</code></span></td><td><code>adapter/ai</code></td></tr>
           <tr><td><code>capability/automation</code></td><td>a chore for the periodic sweep to run <span class="dim"><code>onSweep</code></span></td><td><code>adapter/telegram</code>, <code>adapter/webhooks</code></td></tr>
@@ -1278,7 +1278,7 @@ footer {
       <code>work</code> imports <code>planning</code> because the timeline view of a task list is a
       Gantt chart; no inversion changes that, and a registry invented per one-off relationship would
       be the counted budget this document argues against, in a costume. What they can be is
-      <em>ordered</em>, and they already are — 23 imports across 20 module pairs, generated
+      <em>ordered</em>, and they already are — 24 imports across 21 module pairs, generated
       from the import graph rather than remembered:
     </p>
     <div class="scroller">
@@ -1288,6 +1288,7 @@ footer {
 <!-- generated: leans -->
           <tr><td><code>pages</code></td><td><span class="dim">—</span></td><td class="n">4 (<code>ai-review</code>, <code>automation</code>, <code>meetings</code>, <code>work</code>)</td></tr>
           <tr><td><code>budgets</code></td><td><span class="dim">—</span></td><td class="n">2 (<code>kpis</code>, <code>products</code>)</td></tr>
+          <tr><td><code>notifications</code></td><td><span class="dim">—</span></td><td class="n">2 (<code>automation</code>, <code>support</code>)</td></tr>
           <tr><td><code>share</code></td><td><span class="dim">—</span></td><td class="n">2 (<code>intake</code>, <code>work</code>)</td></tr>
           <tr><td><code>work</code></td><td><code>ai-review</code>, <code>decisions</code>, <code>meetings</code>, <code>pages</code>, <code>planning</code>, <code>share</code>, <code>time</code></td><td class="n">2 (<code>intake</code>, <code>kpis</code>)</td></tr>
           <tr><td><code>ai-review</code></td><td><code>pages</code></td><td class="n">1 (<code>work</code>)</td></tr>
@@ -1295,7 +1296,6 @@ footer {
           <tr><td><code>decisions</code></td><td><span class="dim">—</span></td><td class="n">1 (<code>work</code>)</td></tr>
           <tr><td><code>guide</code></td><td><span class="dim">—</span></td><td class="n">1 (<code>automation</code>)</td></tr>
           <tr><td><code>meetings</code></td><td><code>chat</code>, <code>pages</code></td><td class="n">1 (<code>work</code>)</td></tr>
-          <tr><td><code>notifications</code></td><td><span class="dim">—</span></td><td class="n">1 (<code>automation</code>)</td></tr>
           <tr><td><code>operations</code></td><td><span class="dim">—</span></td><td class="n">1 (<code>automation</code>)</td></tr>
           <tr><td><code>planning</code></td><td><span class="dim">—</span></td><td class="n">1 (<code>work</code>)</td></tr>
           <tr><td><code>time</code></td><td><span class="dim">—</span></td><td class="n">1 (<code>work</code>)</td></tr>
@@ -1307,6 +1307,7 @@ footer {
           <tr><td><code>mail</code></td><td><span class="dim">—</span></td><td class="n"><span class="dim">—</span></td></tr>
           <tr><td><code>products</code></td><td><code>budgets</code></td><td class="n"><span class="dim">—</span></td></tr>
           <tr><td><code>secrets</code></td><td><span class="dim">—</span></td><td class="n"><span class="dim">—</span></td></tr>
+          <tr><td><code>support</code></td><td><code>notifications</code></td><td class="n"><span class="dim">—</span></td></tr>
 <!-- end -->
         </tbody>
       </table>
@@ -1331,7 +1332,7 @@ footer {
         <div class="rank">1</div>
         <div class="body">
           <h3>There is no stratum</h3>
-          <div class="evidence"><b>21 capabilities</b><b>20 edges</b><b>most leaned-on: 4</b><b>7 leaned on by nobody</b></div>
+          <div class="evidence"><b>22 capabilities</b><b>21 edges</b><b>most leaned-on: 4</b><b>8 leaned on by nobody</b></div>
           <p>
             A ring is not "the important ones", it is a <em>set that depends on nothing above it and
             that the things above it depend on</em>. The most leaned-on capability is
@@ -1341,10 +1342,10 @@ footer {
             leaned on by nobody at all, and three of those lean on nothing either.
           </p>
           <p>
-            There are <strong>52 814</strong> ways to split this graph into a lower part that depends on
+            There are <strong>80 414</strong> ways to split this graph into a lower part that depends on
             nothing above it and an upper part. Every one of them was tried. The lower part that the
             most capabilities lean on is <code>budgets</code>, <code>pages</code> and
-            <code>share</code>: <strong>3 modules that 7 of the rest lean on</strong>. That is the strongest case
+            <code>share</code>: <strong>4 modules that 8 of the rest lean on</strong>. That is the strongest case
             available for a fifth ring, and it is a sparse graph with a few edges rather than a
             foundation with a product on top.
           </p>
@@ -1362,7 +1363,7 @@ footer {
             below capabilities and all seven of those imports point outward, which is what rule 5
             forbids: <strong>a ring that breaks the ring rule on the day it is drawn is not a
             ring</strong>. Move the seven down with it and the split is legal again — but it is then
-            one of the 52 814 counted above, and not the best of them.
+            one of the 80 414 counted above, and not the best of them.
           </p>
         </div>
       </article>
@@ -1379,8 +1380,8 @@ footer {
           </p>
           <div class="fix">
             <strong>What changes instead is the description.</strong> This analysis called
-            capabilities peers. They are not: they are a sparse partial order, 21 members and
-            20 edges, no cycles. Smaller and truer than a fifth ring, and it costs nothing to keep
+            capabilities peers. They are not: they are a sparse partial order, 22 members and
+            21 edges, no cycles. Smaller and truer than a fifth ring, and it costs nothing to keep
             honest.
           </div>
         </div>
@@ -1415,25 +1416,25 @@ footer {
 <script>
 /* generated: inventory */
 const MODULES = [
-{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":11005,"biggest":"kernel/i18n/locales/en.ts","biggestLines":3477},
-{"ring":"kernel","name":"registry","flag":"","files":8,"lines":4096,"biggest":"kernel/registry/types.ts","biggestLines":2626},
-{"ring":"kernel","name":"design-system","flag":"","files":30,"lines":2883,"biggest":"kernel/design-system/ui.tsx","biggestLines":828},
-{"ring":"kernel","name":"write-path","flag":"","files":3,"lines":2764,"biggest":"kernel/write-path/repo.ts","biggestLines":1363},
-{"ring":"kernel","name":"sync","flag":"","files":8,"lines":2645,"biggest":"kernel/sync/sync.ts","biggestLines":696},
+{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":11332,"biggest":"kernel/i18n/locales/en.ts","biggestLines":3582},
+{"ring":"kernel","name":"registry","flag":"","files":8,"lines":4224,"biggest":"kernel/registry/types.ts","biggestLines":2716},
+{"ring":"kernel","name":"design-system","flag":"","files":31,"lines":3251,"biggest":"kernel/design-system/ui.tsx","biggestLines":831},
+{"ring":"kernel","name":"write-path","flag":"","files":3,"lines":2770,"biggest":"kernel/write-path/repo.ts","biggestLines":1364},
+{"ring":"kernel","name":"sync","flag":"","files":8,"lines":2656,"biggest":"kernel/sync/sync.ts","biggestLines":696},
 {"ring":"kernel","name":"platform","flag":"","files":11,"lines":2430,"biggest":"kernel/platform/env.ts","biggestLines":650},
+{"ring":"kernel","name":"identity","flag":"","files":10,"lines":2380,"biggest":"kernel/identity/routes/auth.ts","biggestLines":579},
 {"ring":"kernel","name":"search","flag":"","files":9,"lines":2377,"biggest":"kernel/search/query.ts","biggestLines":489},
-{"ring":"kernel","name":"identity","flag":"","files":10,"lines":2368,"biggest":"kernel/identity/routes/auth.ts","biggestLines":579},
 {"ring":"kernel","name":"files","flag":"","files":9,"lines":1227,"biggest":"kernel/files/zip.ts","biggestLines":327},
 {"ring":"kernel","name":"feedback","flag":"","files":8,"lines":1171,"biggest":"feedback/src/kernel/feedback/input.ts","biggestLines":251},
 {"ring":"kernel","name":"mail","flag":"","files":3,"lines":324,"biggest":"kernel/mail/mailbox.ts","biggestLines":154},
 {"ring":"capability","name":"pages","flag":"","files":41,"lines":14776,"biggest":"modules/pages/routes/pages.tsx","biggestLines":1040},
-{"ring":"capability","name":"work","flag":"","files":24,"lines":6873,"biggest":"modules/work/views.tsx","biggestLines":1118},
+{"ring":"capability","name":"work","flag":"","files":24,"lines":6876,"biggest":"modules/work/views.tsx","biggestLines":1118},
 {"ring":"capability","name":"products","flag":"products","files":4,"lines":5338,"biggest":"modules/products/routes/products.tsx","biggestLines":2881},
 {"ring":"capability","name":"planning","flag":"","files":12,"lines":4787,"biggest":"modules/planning/routes/projects.tsx","biggestLines":1695},
-{"ring":"capability","name":"operations","flag":"","files":11,"lines":3995,"biggest":"modules/operations/routes/settings.tsx","biggestLines":1154},
+{"ring":"capability","name":"operations","flag":"","files":11,"lines":4019,"biggest":"modules/operations/routes/settings.tsx","biggestLines":1178},
 {"ring":"capability","name":"budgets","flag":"budget","files":4,"lines":3261,"biggest":"modules/budgets/routes/budgets.tsx","biggestLines":1701},
 {"ring":"capability","name":"mail","flag":"mail","files":15,"lines":3246,"biggest":"modules/mail/settings.tsx","biggestLines":556},
-{"ring":"capability","name":"chat","flag":"","files":6,"lines":2399,"biggest":"modules/chat/routes/chat.tsx","biggestLines":1403},
+{"ring":"capability","name":"chat","flag":"","files":6,"lines":2402,"biggest":"modules/chat/routes/chat.tsx","biggestLines":1403},
 {"ring":"capability","name":"kpis","flag":"kpi","files":4,"lines":1872,"biggest":"modules/kpis/routes/kpis.tsx","biggestLines":972},
 {"ring":"capability","name":"infrastructure","flag":"infrastructure","files":4,"lines":1642,"biggest":"modules/infrastructure/landscape.tsx","biggestLines":582},
 {"ring":"capability","name":"guide","flag":"","files":6,"lines":1626,"biggest":"modules/guide/diagrams.tsx","biggestLines":628},
@@ -1441,6 +1442,7 @@ const MODULES = [
 {"ring":"capability","name":"automation","flag":"","files":3,"lines":1523,"biggest":"modules/automation/settings.tsx","biggestLines":738},
 {"ring":"capability","name":"time","flag":"time","files":6,"lines":1501,"biggest":"modules/time/rates.tsx","biggestLines":581},
 {"ring":"capability","name":"secrets","flag":"secrets","files":6,"lines":1412,"biggest":"modules/secrets/routes/secrets.tsx","biggestLines":496},
+{"ring":"capability","name":"support","flag":"support","files":6,"lines":1138,"biggest":"modules/support/routes/support.tsx","biggestLines":329},
 {"ring":"capability","name":"decisions","flag":"decisions","files":5,"lines":1131,"biggest":"modules/decisions/decision-parts.tsx","biggestLines":282},
 {"ring":"capability","name":"ai-review","flag":"ai","files":7,"lines":818,"biggest":"modules/ai-review/review.ts","biggestLines":200},
 {"ring":"capability","name":"trash","flag":"","files":2,"lines":482,"biggest":"modules/trash/trash.ts","biggestLines":255},
@@ -1452,6 +1454,7 @@ const MODULES = [
 {"ring":"adapter","name":"webhooks","flag":"","files":7,"lines":2007,"biggest":"adapters/webhooks/foreign.ts","biggestLines":747},
 {"ring":"adapter","name":"mail","flag":"","files":8,"lines":1418,"biggest":"adapters/mail/mail.ts","biggestLines":400},
 {"ring":"adapter","name":"imap","flag":"","files":4,"lines":1194,"biggest":"adapters/imap/imap.ts","biggestLines":371},
+{"ring":"adapter","name":"widget","flag":"","files":5,"lines":1004,"biggest":"adapters/widget/visitor.tsx","biggestLines":442},
 {"ring":"adapter","name":"oauth","flag":"","files":4,"lines":978,"biggest":"adapters/oauth/routes/oauth.ts","biggestLines":515},
 {"ring":"adapter","name":"kolibri","flag":"","files":3,"lines":905,"biggest":"feedback/src/adapters/kolibri/preflight.ts","biggestLines":598},
 {"ring":"adapter","name":"share","flag":"","files":3,"lines":802,"biggest":"adapters/share/routes/share.ts","biggestLines":642},
@@ -1462,7 +1465,7 @@ const MODULES = [
 {"ring":"adapter","name":"calendar","flag":"","files":2,"lines":359,"biggest":"adapters/calendar/routes/calendar.ts","biggestLines":214},
 {"ring":"adapter","name":"ai","flag":"","files":5,"lines":345,"biggest":"adapters/ai/ai-gemini.ts","biggestLines":127},
 {"ring":"adapter","name":"react","flag":"","files":1,"lines":82,"biggest":"feedback/src/adapters/react/reporter.tsx","biggestLines":82},
-{"ring":"shell","name":"shell","flag":"","files":21,"lines":2679,"biggest":"AppShell.tsx","biggestLines":642}
+{"ring":"shell","name":"shell","flag":"","files":21,"lines":2697,"biggest":"AppShell.tsx","biggestLines":642}
 ];
 /* end */
 

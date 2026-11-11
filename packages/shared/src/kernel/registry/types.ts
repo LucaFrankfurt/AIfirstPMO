@@ -822,6 +822,15 @@ export interface WorkspaceFeatures {
    * disconnecting a mailbox is what removes the messages.
    */
   mail?: boolean;
+  /**
+   * Chat widgets on other websites, and the inbox the team answers them from.
+   *
+   * Off by default, and for a reason of its own: switching it on is the first
+   * time people outside the workspace can write to it live. Switching it off
+   * hides the screens and closes the widgets — an embedded button that opens
+   * onto nobody is worse than no button — and the conversations stay.
+   */
+  support?: boolean;
 }
 
 export interface Workspace {
@@ -2299,6 +2308,84 @@ export interface Purge extends Base {
   reason: 'manual' | 'retention';
 }
 
+/* ---------------------------------------------------------------- support */
+
+/**
+ * How a widget learns who is writing.
+ *
+ * `signed`: the host site signs a short-lived token on its own server, so the
+ * name and address are as true as that site's login. `anonymous`: whatever
+ * the visitor typed, shown as unverified wherever it appears.
+ */
+export type WidgetIdentity = 'signed' | 'anonymous';
+export type ConversationStatus = 'open' | 'resolved';
+export type ConversationAuthor = 'visitor' | 'agent';
+
+/**
+ * A chat window embedded on somebody else's site, for one audience.
+ *
+ * It belongs to a project because that is the visibility rule people already
+ * understand: whoever can see the project sees its conversations, and a
+ * conversation that turns into work becomes a task there.
+ */
+export interface Widget extends Base {
+  workspace_id: ID;
+  project_id: ID;
+  name: string;
+  /** Exact origins allowed to frame it, e.g. `https://example.com`. */
+  origins: string[];
+  identity: WidgetIdentity;
+  /** The first thing a visitor reads. */
+  greeting: string | null;
+  /** `#rrggbb`, or null for the app's accent. */
+  color: string | null;
+  /** Who is told about a new message. Empty means every member of the project. */
+  agents: ID[];
+  enabled: number;
+  created_by: ID | null;
+}
+
+/** One visitor's thread with one widget. A visitor has exactly one per widget. */
+export interface Conversation extends Base {
+  workspace_id: ID;
+  project_id: ID;
+  widget_id: ID;
+  /** The host site's user id when signed; a random id when anonymous. */
+  visitor_id: string;
+  visitor_name: string | null;
+  visitor_email: string | null;
+  /** Whether the name and address came from a signed token. */
+  verified: number;
+  status: ConversationStatus;
+  assignee_id: ID | null;
+  task_id: ID | null;
+  last_message_at: number | null;
+  last_author: ConversationAuthor | null;
+  /** The newest message the team has seen. Shared: one person reading is the team reading. */
+  agent_read_at: number | null;
+  visitor_read_at: number | null;
+}
+
+/** A picture or file sent in a conversation. */
+export interface ConversationFile {
+  hash: string;
+  name: string;
+  type: string;
+  size: number;
+  width?: number | null;
+  height?: number | null;
+}
+
+export interface ConversationMessage extends Base {
+  workspace_id: ID;
+  conversation_id: ID;
+  author: ConversationAuthor;
+  /** The member who wrote it; null for the visitor. */
+  author_id: ID | null;
+  body: string;
+  files: ConversationFile[];
+}
+
 export interface EntityMap {
   user: User;
   member: Member;
@@ -2361,6 +2448,9 @@ export interface EntityMap {
   secret: Secret;
   environment: EnvironmentRow;
   purge: Purge;
+  widget: Widget;
+  conversation: Conversation;
+  conversationMessage: ConversationMessage;
 }
 
 /* ------------------------------------------------------------------- chat */

@@ -69,6 +69,9 @@ const PATHS = {
   moon: 'M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z',
   logout: 'M15 12H4m0 0 4-4m-4 4 4 4M10 4h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-8',
   chat: 'M4 5h16v10H9l-4 4v-4H4z',
+  // A headset, for support: people outside answered by people inside. Not
+  // `chat`, which the team's own conversations already wear in the sidebar.
+  headset: 'M4 15v-3a8 8 0 0 1 16 0v3M4 15a2 2 0 0 0 2 2h1v-5H6a2 2 0 0 0-2 2v1zm16 0a2 2 0 0 1-2 2h-1v-5h1a2 2 0 0 1 2 2v1zM18 17v1a3 3 0 0 1-3 3h-3',
   hash: 'M9 4 7 20M17 4l-2 16M4 9h16M3 15h16',
   bell: 'M18 10a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6M10.5 20a2 2 0 0 0 3 0',
   menu: 'M4 7h16M4 12h16M4 17h16',

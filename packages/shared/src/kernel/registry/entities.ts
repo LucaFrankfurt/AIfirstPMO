@@ -66,7 +66,10 @@ export type EntityName =
   | 'mailbox'
   | 'secret'
   | 'environment'
-  | 'purge';
+  | 'purge'
+  | 'widget'
+  | 'conversation'
+  | 'conversationMessage';
 
 export interface EntityDef {
   /** SQL table name. */
@@ -819,6 +822,38 @@ export const ENTITIES = {
     fields: ['workspace_id', 'entity', 'row_id', 'reason'],
     readOnly: true,
   },
+  /**
+   * A chat window on somebody else's site. The signing secret is the host
+   * site's and this server's, so it never syncs — the webhook's rule.
+   */
+  widget: {
+    table: 'widgets',
+    fields: ['workspace_id', 'project_id', 'name', 'origins', 'identity', 'greeting', 'color', 'agents', 'enabled', 'created_by'],
+    secret: ['secret'],
+    json: ['origins', 'agents'],
+  },
+  /**
+   * Opened by a visitor, never by a client: the public routes create it as a
+   * system write. Members may only assign it, resolve it and mark it read.
+   * `pending_mail` is the queued email a reply waits behind, which is nobody's
+   * business on a device.
+   */
+  conversation: {
+    table: 'conversations',
+    fields: ['workspace_id', 'status', 'assignee_id', 'agent_read_at'],
+    serverOnly: [
+      'project_id', 'widget_id', 'visitor_id', 'visitor_name', 'visitor_email', 'verified',
+      'task_id', 'last_message_at', 'last_author', 'visitor_read_at',
+    ],
+    secret: ['pending_mail'],
+  },
+  /** Who wrote it is decided by the server: a member through sync, a visitor through the widget. */
+  conversationMessage: {
+    table: 'conversation_messages',
+    fields: ['workspace_id', 'conversation_id', 'body', 'files'],
+    serverOnly: ['author', 'author_id'],
+    json: ['files'],
+  },
 } as const satisfies Record<EntityName, EntityDef>;
 
 export const ENTITY_NAMES = Object.keys(ENTITIES) as EntityName[];
@@ -917,6 +952,9 @@ export const COLLECTIONS: Record<EntityName, string> = {
   activity: 'activities',
   intake: 'intakes',
   purge: 'purges',
+  widget: 'widgets',
+  conversation: 'conversations',
+  conversationMessage: 'conversation-messages',
 };
 
 /**
