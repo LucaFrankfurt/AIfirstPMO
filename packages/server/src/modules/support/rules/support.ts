@@ -10,7 +10,7 @@
 import {
   SUPPORT_MESSAGE_MAX, cleanOrigins, isWidgetAssistant, isWidgetColor, isWidgetIdentity, type ConversationFile,
 } from '@kolibri/shared';
-import { get, run, type Row } from '../../../kernel/platform/db/index.ts';
+import { all, get, run, type Row } from '../../../kernel/platform/db/index.ts';
 import { hasFeature } from '../../../kernel/platform/features.ts';
 import { badRequest, forbidden } from '../../../kernel/platform/http.ts';
 import { token } from '../../../kernel/platform/ids.ts';
@@ -174,6 +174,33 @@ export const supportRules = {
      */
     if (entity === 'conversation' && row.deleted_at && !before?.deleted_at) {
       run(`UPDATE conversations SET visitor_id = ? WHERE id = ?`, `${row.visitor_id}#deleted:${row.id}`, row.id);
+      /*
+       * And its lines go with it, as tombstones of their own.
+       *
+       * Hidden is not gone: the pull already stopped sending a deleted
+       * conversation's lines, but they stayed live rows — on every device that
+       * had them, and in the database after the trash was emptied, because
+       * emptying takes tombstones and these were never made into any. A
+       * customer's name and words outliving "delete" is the failure this is.
+       * Written through the write path so devices hear it and the trash finds
+       * them; `restore` below takes back exactly these and no others.
+       */
+      for (const line of all<Row>(
+        `SELECT id FROM conversation_messages WHERE conversation_id = ? AND deleted_at IS NULL`, row.id,
+      )) {
+        writeEntity('conversationMessage', String(line.id), {}, { ...opts, system: true, op: 'delete' });
+      }
+      return;
+    }
+    if (entity === 'conversation' && !row.deleted_at && before?.deleted_at) {
+      // Put back from the trash: the lines deleted with it come back with it.
+      // A line somebody deleted on its own before that stays deleted — its
+      // tombstone is older than the conversation's.
+      for (const line of all<Row>(
+        `SELECT id FROM conversation_messages WHERE conversation_id = ? AND deleted_at >= ?`, row.id, before.deleted_at,
+      )) {
+        writeEntity('conversationMessage', String(line.id), {}, { ...opts, system: true });
+      }
       return;
     }
     if (entity !== 'conversationMessage' || before || row.deleted_at) return;

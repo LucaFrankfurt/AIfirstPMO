@@ -148,13 +148,27 @@ const REFERENCES: [table: string, column: string][] = [
   ['artboard_versions', 'content'],
 ];
 
-/** Every `/files/<hash>` a row names, in any column. */
+/**
+ * Every file a row names, in any column.
+ *
+ * Two spellings. Text names a file by its URL, `/files/<hash>`. A support
+ * message names its pictures as a list of `{"hash": …}` — it serves them
+ * through the widget's own route, not `/files`, so there is no URL to write.
+ * Missing the second spelling meant a deleted conversation's pictures were
+ * never reclaimed, and were not counted as used while it was alive.
+ */
 function hashesIn(row: Row | undefined, into: Set<string>): void {
   for (const value of Object.values(row ?? {})) {
-    if (typeof value !== 'string' || !value.includes('/files/')) continue;
-    for (const match of value.matchAll(/\/files\/([0-9a-f]{64})/g)) into.add(match[1]);
+    if (typeof value !== 'string') continue;
+    if (value.includes('/files/')) for (const match of value.matchAll(/\/files\/([0-9a-f]{64})/g)) into.add(match[1]);
+    if (value.includes('"hash"')) for (const match of value.matchAll(/"hash":"([0-9a-f]{64})"/g)) into.add(match[1]);
   }
 }
+
+/** Columns that name a file as `{"hash": …}` in a JSON list rather than by URL. See `hashesIn`. */
+const LISTED: [table: string, column: string][] = [
+  ['conversation_messages', 'files'],
+];
 
 /**
  * Delete the bytes nothing points at any more.
@@ -174,8 +188,11 @@ export function reclaimFiles(workspaceId: string, hashes: Iterable<string>): { b
     const file = get<Row>(`SELECT hash, mime, size, storage FROM files WHERE workspace_id = ? AND hash = ?`, workspaceId, hash);
     if (!file) continue;
     const needle = `%/files/${file.hash}%`;
+    const listed = `%"hash":"${file.hash}"%`;
     const referenced = REFERENCES.some(([table, column]) =>
-      !!get<Row>(`SELECT 1 AS found FROM ${table} WHERE ${column} LIKE ? LIMIT 1`, needle));
+      !!get<Row>(`SELECT 1 AS found FROM ${table} WHERE ${column} LIKE ? LIMIT 1`, needle))
+      || LISTED.some(([table, column]) =>
+        !!get<Row>(`SELECT 1 AS found FROM ${table} WHERE ${column} LIKE ? LIMIT 1`, listed));
     if (referenced) continue;
 
     run(`DELETE FROM files WHERE hash = ? AND workspace_id = ?`, file.hash, workspaceId);

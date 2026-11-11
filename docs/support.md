@@ -69,6 +69,13 @@ browser refuses third-party storage the window still works and simply forgets th
 **One conversation per visitor per widget.** A returning visitor finds their history by widget and
 `sub`. A visitor writing into a resolved conversation reopens it. There is no contacts table.
 
+**Deleting means gone.** Deleting a conversation lets go of its visitor — the same visitor writing
+again starts a new one rather than bringing the old one back — and makes every line in it a
+tombstone, so devices drop them and the trash takes them. Restoring it from the trash brings back
+the lines deleted with it. Emptying the trash removes the conversation, its lines and the pictures
+nobody else shows; a picture another conversation still shows stays. Resolve, not delete, is the
+button for "done": delete is for what must not be kept.
+
 **Live both ways.** The visitor's window listens on `/w/:widget/stream` (server-sent events) and
 asks one indexed question per change on the workspace's feed, rather than trusting the event's
 `kind` — the bus coalesces a burst and keeps the first kind. The team needs nothing new: a

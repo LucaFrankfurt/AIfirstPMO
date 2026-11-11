@@ -24,6 +24,8 @@ const { server } = await import('../src/index.ts');
 const { all, get } = await import('../src/kernel/platform/db/index.ts');
 const { resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
 const { replyTag, replyText, takeReply } = await import('../src/adapters/widget/mail.ts');
+const { writeEntity } = await import('../src/kernel/write-path/repo.ts');
+const { serverClock } = await import('../src/kernel/write-path/bootstrap.ts');
 
 let base = '';
 let cookie = '';
@@ -338,5 +340,86 @@ describe('answering the email', () => {
     assert.equal(replyText('Merci\n-----Message d\'origine-----\nDe: x'), 'Merci');
     assert.equal(replyText('Fine.\r\n\r\nFrom: Kolibri\r\nSent: today'), 'Fine.');
     assert.equal(replyText('> only a quote'), '');
+  });
+});
+
+describe('deleting a conversation, and emptying the trash', () => {
+  /** A 1×1 PNG with a colour of its own, so every call is a different file. */
+  async function picture(seed: number): Promise<Buffer> {
+    const { deflateSync } = await import('node:zlib');
+    const table = Array.from({ length: 256 }, (_, n) => {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      return c >>> 0;
+    });
+    const crc = (buf: Buffer) => {
+      let x = 0xffffffff;
+      for (const b of buf) x = table[(x ^ b) & 0xff] ^ (x >>> 8);
+      return (x ^ 0xffffffff) >>> 0;
+    };
+    const chunk = (type: string, data: Buffer) => {
+      const length = Buffer.alloc(4); length.writeUInt32BE(data.length);
+      const typed = Buffer.concat([Buffer.from(type), data]);
+      const sum = Buffer.alloc(4); sum.writeUInt32BE(crc(typed));
+      return Buffer.concat([length, typed, sum]);
+    };
+    const header = Buffer.alloc(13); header.writeUInt32BE(1, 0); header.writeUInt32BE(1, 4); header[8] = 8; header[9] = 2;
+    return Buffer.concat([
+      Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', header),
+      chunk('IDAT', deflateSync(Buffer.from([0, seed & 255, 7, 9]))), chunk('IEND', Buffer.alloc(0)),
+    ]);
+  }
+
+  /** A signed visitor who sends one line and one picture. Returns the conversation and the picture's hash. */
+  async function visitorWithPicture(sub: string, bytes: Buffer): Promise<{ conversation: string; hash: string }> {
+    resetRateLimits();
+    const opened = await visit(`/w/${widget.id}/session`, { token: hostToken(secret, { sub, name: 'Ada', email: 'ada.v@example.com', exp: inAnHour() }) });
+    const uploaded = await fetch(`${base}/w/${widget.id}/files`, {
+      method: 'POST',
+      headers: { 'content-type': 'image/png', 'x-filename': 'screen.png', 'x-widget-session': opened.json.session },
+      body: bytes,
+    });
+    const { file } = await uploaded.json() as { file: { hash: string } };
+    await visit(`/w/${widget.id}/messages`, { body: 'Here is what I see.', files: [file] }, opened.json.session);
+    return { conversation: opened.json.conversation.id, hash: file.hash };
+  }
+
+  const liveLines = (conversation: string) =>
+    all(`SELECT id FROM conversation_messages WHERE conversation_id = ? AND deleted_at IS NULL`, conversation).length;
+
+  it('takes its lines with it, and gives them back when it is restored', async () => {
+    const { conversation } = await visitorWithPicture('trash-1', await picture(1));
+    const before = liveLines(conversation);
+    assert.ok(before > 0);
+    await ok(`/api/conversations/${conversation}`, undefined, 'DELETE');
+    assert.equal(liveLines(conversation), 0, 'every line is a tombstone now, which devices hear and the trash takes');
+
+    const userId = get<any>(`SELECT user_id FROM workspace_members WHERE workspace_id = ?`, workspaceId).user_id;
+    writeEntity('conversation', conversation, {}, { workspaceId, actorId: userId, hlc: serverClock.now() });
+    assert.equal(liveLines(conversation), before, 'restored from the trash, with what was deleted with it');
+  });
+
+  it('leaves nothing of a stranger behind once the trash is emptied — not the lines, not the picture', async () => {
+    const { conversation, hash } = await visitorWithPicture('trash-2', await picture(2));
+    const lines = all<any>(`SELECT id FROM conversation_messages WHERE conversation_id = ?`, conversation).map((row) => row.id);
+    await ok(`/api/conversations/${conversation}`, undefined, 'DELETE');
+    await ok(`/api/workspaces/${workspaceId}/trash/empty`, {});
+
+    assert.equal(get(`SELECT 1 FROM conversations WHERE id = ?`, conversation), undefined);
+    assert.equal(all(`SELECT 1 FROM conversation_messages WHERE conversation_id = ?`, conversation).length, 0);
+    for (const id of lines) {
+      assert.ok(get(`SELECT 1 FROM purges WHERE row_id = ?`, id), 'a marker, so every device forgets the line too');
+    }
+    assert.equal(get(`SELECT 1 FROM files WHERE hash = ?`, hash), undefined, 'the picture went with the last line naming it');
+  });
+
+  it('keeps a picture another conversation still shows', async () => {
+    const shared = await picture(3);
+    const live = await visitorWithPicture('trash-3', shared);
+    const gone = await visitorWithPicture('trash-4', shared);
+    assert.equal(live.hash, gone.hash, 'the same bytes are the same file');
+    await ok(`/api/conversations/${gone.conversation}`, undefined, 'DELETE');
+    await ok(`/api/workspaces/${workspaceId}/trash/empty`, {});
+    assert.ok(get(`SELECT 1 FROM files WHERE hash = ?`, live.hash), 'still in use, so it stays');
   });
 });

@@ -29,6 +29,11 @@
  *     about a workspace, not the workspace.
  *   - **Intake reports**, which carry the email addresses of people outside
  *     the workspace who filled in a form.
+ *   - **Support widgets and their conversations**, for the same reason and
+ *     one more: a conversation is a stranger's name, address and words, and a
+ *     widget's signing secret could not travel anyway — it never leaves this
+ *     server. On the far side the widgets are made again and the snippet on
+ *     each site is changed to the new instance.
  */
 import { all, get, run, tx, type Row } from '../../kernel/platform/db/index.ts';
 import { badRequest, notFound } from '../../kernel/platform/http.ts';
