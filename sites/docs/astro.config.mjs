@@ -174,6 +174,9 @@ export default defineConfig({
             { label: 'Notifications', slug: 'people/notifications' },
             { label: 'Intake forms', slug: 'people/intake' },
             { label: 'Members and roles', slug: 'people/members' },
+            { label: 'Support chat', slug: 'people/support' },
+            { label: 'Chat widgets', slug: 'people/support-widgets' },
+            { label: 'The support assistant', slug: 'people/support-assistant' },
           ],
         },
         {
