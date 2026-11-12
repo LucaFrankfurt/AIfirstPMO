@@ -85,6 +85,20 @@ Once. After that the button opens the task. Delete the task, and the button make
 | Signed-in visitor | their website signs them in again on each visit |
 | Anyone | 30 days, in that browser |
 
+## With an assistant
+
+Over MCP, with a token of a member who can see the widget's project:
+
+| tool | |
+|---|---|
+| `list_conversations` | the inbox — open or resolved, by widget, unread only |
+| `get_conversation` | one conversation and its thread |
+| `reply_to_conversation` | answer as yourself — the same as answering in the inbox |
+| `update_conversation` | resolve, reopen, assign |
+| `create_task_from_conversation` | the *Make a task* button |
+
+See [Connecting an assistant](/beyond/assistant/).
+
 ## Deleting
 
 *Resolve* is the button for "done". *Delete* is for what must not be kept:

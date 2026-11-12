@@ -177,6 +177,7 @@ export default defineConfig({
             { label: 'Support chat', slug: 'people/support' },
             { label: 'Chat widgets', slug: 'people/support-widgets' },
             { label: 'The support assistant', slug: 'people/support-assistant' },
+            { label: 'Meetings', slug: 'people/meetings' },
           ],
         },
         {

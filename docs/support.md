@@ -264,6 +264,12 @@ To try a real model:
 
 Not yet measured against a real model — `TODO.md`.
 
+## Over MCP
+
+`list_conversations`, `get_conversation`, `reply_to_conversation`, `update_conversation`,
+`create_task_from_conversation` — `adapters/mcp/tools/support.ts`, rules in
+[`mcp.md`](mcp.md#support-conversations).
+
 ## Not doing
 
 Other channels (WhatsApp, social, email as an inbox), SLA clocks, satisfaction ratings, routing

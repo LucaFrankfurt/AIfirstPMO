@@ -11,9 +11,9 @@ import { all, get, type Row } from '../../kernel/platform/db/index.ts';
 import { hasFeature } from '../../kernel/platform/features.ts';
 import { badRequest } from '../../kernel/platform/http.ts';
 import { uid } from '../../kernel/platform/ids.ts';
-import { translatorFor } from '../../kernel/i18n/i18n.ts';
+import { translate, translatorFor, type Locale } from '../../kernel/i18n/i18n.ts';
 import { serverClock } from '../../kernel/write-path/bootstrap.ts';
-import { canSeeProject, parseIds, writeEntity, type WriteOpts } from '../../kernel/write-path/repo.ts';
+import { canSeeProject, displayName, parseIds, writeEntity, type WriteOpts } from '../../kernel/write-path/repo.ts';
 import { createNotification } from '../notifications/notify.ts';
 
 /** The widget's maker acts for the visitor: a stranger is nobody's user id. */
@@ -311,4 +311,31 @@ export function taskTitle(conversation: Row): string {
   );
   const words = first ? excerpt(String(first.body), 80) : '';
   return words || `Support: ${visitorLabel(conversation as Conversation)}`;
+}
+
+/**
+ * The conversation as a task in the widget's project: the visitor's first
+ * words as its title, a link back and the transcript as its description.
+ *
+ * Once: a conversation that is already a task says so — unless that task has
+ * been deleted since, which leaves nothing to open. The inbox's button and the
+ * MCP tool both come here, so the two cannot drift apart.
+ */
+export function conversationAsTask(conversation: Row, opts: WriteOpts, locale: Locale, title?: string): { task: Row; conversation: Row } {
+  if (conversation.task_id && get(`SELECT 1 FROM tasks WHERE id = ? AND deleted_at IS NULL`, conversation.task_id)) {
+    throw badRequest('This conversation is already a task');
+  }
+  const widget = get<Row>(`SELECT name FROM widgets WHERE id = ?`, conversation.widget_id);
+  const { row: task } = writeEntity('task', uid(), {
+    workspace_id: conversation.workspace_id,
+    project_id: conversation.project_id,
+    title: String(title ?? '').trim() || taskTitle(conversation),
+    description: transcript(conversation, displayName, translate(locale, 'support.taskFrom', {
+      name: visitorLabel(conversation as Conversation),
+      widget: String(widget?.name ?? ''),
+    })),
+    created_by: opts.actorId,
+  }, opts);
+  writeEntity('conversation', String(conversation.id), { task_id: task.id }, { ...opts, system: true });
+  return { task, conversation: get<Row>(`SELECT * FROM conversations WHERE id = ?`, conversation.id)! };
 }

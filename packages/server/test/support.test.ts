@@ -511,6 +511,75 @@ describe('a conversation as a task', () => {
   });
 });
 
+describe('support over MCP', () => {
+  let token = '';
+  let rpc = 0;
+  async function tool(name: string, args: Record<string, unknown> = {}, as = token): Promise<any> {
+    const response = await fetch(`${base}/mcp`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${as}` },
+      body: JSON.stringify({ jsonrpc: '2.0', id: ++rpc, method: 'tools/call', params: { name, arguments: args } }),
+    });
+    const body = await response.json() as any;
+    if (body.error) throw new Error(`${name}: ${body.error.message}`);
+    if (body.result?.isError) throw new Error(`${name}: ${body.result.content?.[0]?.text ?? 'failed'}`);
+    return body.result.structuredContent;
+  }
+
+  before(async () => {
+    token = (await ok('/api/tokens', { name: 'mcp', workspaceId })).token;
+  });
+
+  it('lists the inbox and reads a thread, as the inbox shows them', async () => {
+    const { conversation } = await visitorWithPicture('mcp-1', await picture(41));
+    const listed = await tool('list_conversations', {});
+    const row = listed.conversations.find((one: any) => one.id === conversation);
+    assert.ok(row, 'the open conversation is listed');
+    assert.equal(row.unread, true);
+    assert.equal(row.awaiting_reply, true);
+    assert.equal(row.widget, 'Merchants');
+    const thread = await tool('get_conversation', { conversation });
+    assert.equal(thread.messages[0].from, 'visitor');
+    assert.equal(thread.messages[0].body, 'Here is what I see.');
+    assert.deepEqual(thread.messages[0].pictures, ['screen.png']);
+  });
+
+  it('answers as a member: the visitor hears it, and a resolved one reopens', async () => {
+    const { conversation, session } = await visitorWithPicture('mcp-2', await picture(42));
+    await tool('update_conversation', { conversation, status: 'resolved', assignee: 'Ada' });
+    const resolved = get<any>(`SELECT status, assignee_id FROM conversations WHERE id = ?`, conversation);
+    assert.equal(resolved.status, 'resolved');
+    assert.ok(resolved.assignee_id);
+    const answered = await tool('reply_to_conversation', { conversation, body: 'Sorted from an assistant.' });
+    assert.equal(answered.status, 'open', 'answering reopens it');
+    const thread = await visit(`/w/${widget.id}/messages`, undefined, session);
+    const last = thread.json.messages.at(-1);
+    assert.equal(last.body, 'Sorted from an assistant.');
+    assert.equal(last.author, 'agent');
+  });
+
+  it('makes a task once, with the link back', async () => {
+    const { conversation } = await visitorWithPicture('mcp-3', await picture(43));
+    const made = await tool('create_task_from_conversation', { conversation, locale: 'en' });
+    assert.ok(made.task.identifier);
+    const task = get<any>(`SELECT description FROM tasks WHERE id = ?`, made.task.id);
+    assert.match(task.description, new RegExp(`\\(/support/${conversation}\\)`));
+    await assert.rejects(tool('create_task_from_conversation', { conversation }), /already a task/);
+  });
+
+  it('refuses a read-only token a write, and a switched-off workspace everything', async () => {
+    const { conversation } = await visitorWithPicture('mcp-4', await picture(44));
+    const reader = (await ok('/api/tokens', { name: 'read', workspaceId, scopes: 'read' })).token;
+    await assert.rejects(tool('reply_to_conversation', { conversation, body: 'no' }, reader), /read-only/);
+    await ok(`/api/workspaces/${workspaceId}`, { features: { support: false } }, 'PATCH');
+    try {
+      await assert.rejects(tool('list_conversations'), /switched off/);
+    } finally {
+      await ok(`/api/workspaces/${workspaceId}`, { features: { support: true } }, 'PATCH');
+    }
+  });
+});
+
 describe('deleting a conversation, and emptying the trash', () => {
   const liveLines = (conversation: string) =>
     all(`SELECT id FROM conversation_messages WHERE conversation_id = ? AND deleted_at IS NULL`, conversation).length;
