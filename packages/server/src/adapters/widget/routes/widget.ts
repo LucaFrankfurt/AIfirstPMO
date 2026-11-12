@@ -327,6 +327,11 @@ export function registerWidgetRoutes(router: Router): void {
    * per change, rather than trusting the event's `kind`: the bus coalesces a
    * burst into one event and keeps the first kind, so a task written in the
    * same forty milliseconds as an answer would hide the answer.
+   *
+   * And one more: whether the team answered in another of this visitor's chats
+   * with the widget. That is only `elsewhere`, without the words — the window
+   * asks for its list again and shows the dot, so an answer in a chat the
+   * visitor moved on from is seen while they are still there, not only by email.
    */
   router.get('/w/:widget/stream', (ctx: Ctx) => {
     const { conversation } = visitorOf(ctx, true);
@@ -335,6 +340,14 @@ export function registerWidgetRoutes(router: Router): void {
     let read = Number(conversation.agent_read_at ?? 0);
     let handedOver = Number(conversation.handover_at ?? 0);
     let status = String(conversation.status);
+    const newestElsewhere = () => Number(get<Row>(
+      `SELECT MAX(m.seq) AS seq FROM conversations c
+         JOIN conversation_messages m ON m.conversation_id = c.id
+        WHERE c.widget_id = ? AND c.visitor_id = ? AND c.id <> ? AND c.deleted_at IS NULL
+          AND m.author <> 'visitor' AND m.deleted_at IS NULL`,
+      conversation.widget_id, conversation.visitor_id, id,
+    )?.seq ?? 0);
+    let elsewhere = newestElsewhere();
 
     ctx.res.writeHead(200, {
       'content-type': 'text/event-stream; charset=utf-8',
@@ -374,6 +387,11 @@ export function registerWidgetRoutes(router: Router): void {
       if (Number(now.handover_at ?? 0) !== handedOver) {
         handedOver = Number(now.handover_at ?? 0);
         send('handover', { handover_at: handedOver || null });
+      }
+      const newest = newestElsewhere();
+      if (newest > elsewhere) {
+        elsewhere = newest;
+        send('elsewhere', {});
       }
     };
 

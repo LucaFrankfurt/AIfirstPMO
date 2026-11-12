@@ -460,6 +460,23 @@ describe('a visitor\'s earlier chats', () => {
     assert.equal((await visit(`/w/${widget.id}/conversations/${theirs.conversation}/open`, {}, fresh.json.session)).status, 404);
   });
 
+  it('are reopened by a member\'s answer, which the window hears about while it is in another', async () => {
+    const { conversation: first, session } = await visitorWithPicture('earlier-5', await picture(35));
+    const fresh = await visit(`/w/${widget.id}/conversations`, {}, session);
+    assert.equal(get<any>(`SELECT status FROM conversations WHERE id = ?`, first).status, 'resolved');
+
+    const controller = new AbortController();
+    const stream = await fetch(`${base}/w/${widget.id}/stream?session=${encodeURIComponent(fresh.json.session)}`, { signal: controller.signal });
+    const reader = stream.body!.getReader();
+    await ok(`/api/workspaces/${workspaceId}/conversation-messages`, { conversation_id: first, body: 'One more thing from us.' });
+    let heard = '';
+    const decoder = new TextDecoder();
+    while (!heard.includes('event: elsewhere')) heard += decoder.decode((await reader.read()).value);
+    controller.abort();
+    assert.doesNotMatch(heard, /One more thing from us/, 'only that something happened there, not what');
+    assert.equal(get<any>(`SELECT status FROM conversations WHERE id = ?`, first).status, 'open', 'an answer reopens it');
+  });
+
   it('do not pile up empty ones when "new chat" is pressed twice', async () => {
     const { session } = await visitorWithPicture('earlier-4', await picture(34));
     const once = await visit(`/w/${widget.id}/conversations`, {}, session);

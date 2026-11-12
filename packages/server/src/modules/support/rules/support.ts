@@ -196,13 +196,15 @@ export const supportRules = {
     }
     if (entity !== 'conversationMessage' || before || row.deleted_at) return;
     // The conversation carries its latest message so the inbox can sort and
-    // badge without reading every thread. A visitor writing into a resolved
-    // conversation reopens it; a member answering has, by answering, read it.
+    // badge without reading every thread. Anybody writing into a resolved
+    // conversation reopens it — the visitor with a new question, or a member
+    // with an answer that is not finished business until somebody says so; a
+    // member answering has, by answering, read it.
     const conversation = get<Row>(`SELECT * FROM conversations WHERE id = ?`, row.conversation_id);
     if (!conversation) return;
     const at = Number(row.created_at);
     const patch: Record<string, unknown> = { last_message_at: at, last_author: row.author };
-    if (row.author === 'visitor' && conversation.status === 'resolved') patch.status = 'open';
+    if ((row.author === 'visitor' || row.author === 'agent') && conversation.status === 'resolved') patch.status = 'open';
     // A person answering takes the conversation over: the model goes quiet.
     if (row.author === 'agent') {
       patch.agent_read_at = at;

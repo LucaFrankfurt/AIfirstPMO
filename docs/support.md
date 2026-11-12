@@ -68,12 +68,14 @@ browser refuses third-party storage the window still works and simply forgets th
 
 **One conversation at a time per visitor and widget.** A returning visitor finds their newest
 conversation by widget and `sub`. Resolved is said, not left to be guessed: when the team resolves a
-conversation the window shows it, and writing on reopens it. The visitor can resolve it themselves
-(the tick in the window's header), and once it is resolved, **start a new chat** — which resolves the
-one they leave, because the window shows one conversation and an answer in the old one would reach
-them only by email. The team sees the old one in the resolved list. The window's clock button lists the
-visitor's earlier chats with this widget — theirs only, by widget and visitor id — with a dot where the
-team answered after they left, and opens one again. There is no contacts table.
+conversation the window shows it, and anybody writing on — the visitor or a member — reopens it. The
+visitor can resolve it themselves (the tick in the window's header), and once it is resolved, **start
+a new chat** — which resolves the one they leave, because the window shows one conversation and an
+answer in the old one would reach them only by email. The team sees the old one in the resolved list.
+The window's clock button lists the visitor's earlier chats with this widget — theirs only, by widget
+and visitor id — with a dot where the team answered after they left, and opens one again. The dot
+comes live: the stream also says `elsewhere` (that something was answered in another of their chats,
+not what) and the window asks for its list again. There is no contacts table.
 
 **Deleting means gone.** Deleting a conversation lets go of its visitor — the same visitor writing
 again starts a new one rather than bringing the old one back — and makes every line in it a

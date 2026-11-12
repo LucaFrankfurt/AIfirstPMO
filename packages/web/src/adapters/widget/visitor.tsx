@@ -237,6 +237,8 @@ export function VisitorChat() {
         source.addEventListener('read', (event) => setAgentRead(JSON.parse((event as MessageEvent).data).agent_read_at));
         source.addEventListener('handover', (event) => setHandedOver(JSON.parse((event as MessageEvent).data).handover_at ?? null));
         source.addEventListener('status', (event) => setResolved(JSON.parse((event as MessageEvent).data).status === 'resolved'));
+        // The team answered in another of their chats: the list is asked again, and the dot shows.
+        source.addEventListener('elsewhere', () => listChats());
         source.addEventListener('typing', (event) => {
           const typing = !!JSON.parse((event as MessageEvent).data).agent;
           setAgentTyping(typing);
