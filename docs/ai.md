@@ -108,6 +108,10 @@ is reported on `/api/health` as `ai` beside `mail`.
 then neither button exists, on an instance with a key and everything. When no key is configured the
 row says so instead of offering a switch that would do nothing.
 
+- The key can also be typed into Settings → Server → Model, which wins over the environment.
+- The same key and the same switch power the support chat's assistant — set up per widget, see
+  [`support.md`](support.md#setup).
+
 Then: members and above, with a writing token. Guests are refused — they could not apply a word of
 it, and this is the only click in the app that spends money. A board is drawn only for somebody who
 can see its canvas; anybody else is told there is no such page, and the model is never asked.

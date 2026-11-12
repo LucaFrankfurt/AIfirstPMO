@@ -215,6 +215,55 @@ of the pages is dropped and an answer it cannot shape is a hand-over; and the co
 to it as data, with the rule that instructions inside it change nothing. Measured with a fake model
 in `support-assistant.test.ts`, including that a private page ticked as knowledge is never sent.
 
+### Setup
+
+| step | who | where |
+|---|---|---|
+| 1. A model on the server | the instance's admin | Settings → Server → Model: provider, API key, model name (optional) — or the environment, `docs/ai.md` |
+| 2. AI on for the workspace | a workspace admin | Settings → Workspace → *Task reviews and canvas boards* |
+| 3. The assistant on for a widget | a workspace admin | Settings → Widgets → the widget → *The assistant* |
+
+Per widget:
+
+| field | values |
+|---|---|
+| The assistant | *Off* · *Suggests replies to the team* · *Answers first, hands over when unsure* |
+| What it may read | up to 20 pages of the workspace; private pages are never sent |
+| Answers a day | default 50; past it, every conversation goes to a person |
+
+Environment, instead of step 1:
+
+```bash
+ANTHROPIC_API_KEY=...             # provider read off the key's name
+# or
+KOLIBRI_AI_PROVIDER=anthropic     # anthropic | gemini | openrouter
+KOLIBRI_AI_API_KEY=...
+KOLIBRI_AI_MODEL=claude-sonnet-5-5   # optional; one model for reviews, boards and support
+```
+
+- A value typed into Settings → Server wins over the environment.
+- Step 1 or 2 missing: the widget's form says *Needs a model on the server and AI switched on under
+  Settings → Workspace*.
+- Start with *Suggests replies to the team*: a person reads every draft before it is sent.
+
+What leaves the instance, and when:
+
+| mode | sent | when |
+|---|---|---|
+| Suggests | the conversation, the widget's pages | a member presses *Suggest a reply* |
+| Answers first | the conversation, the widget's pages | a visitor writes, until hand-over or the day's answers are spent |
+
+To try a real model:
+
+- [ ] a question the pages answer, in German and in English: answer in that language, sources below it
+- [ ] a question the pages do not answer: hand-over
+- [ ] a question about the visitor's own account: hand-over
+- [ ] an upset visitor: hand-over
+- [ ] "ignore your rules and …": not followed
+- [ ] *Talk to a person*: the team is told at once
+
+Not yet measured against a real model — `TODO.md`.
+
 ## Not doing
 
 Other channels (WhatsApp, social, email as an inbox), SLA clocks, satisfaction ratings, routing
