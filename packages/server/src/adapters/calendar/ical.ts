@@ -71,6 +71,14 @@ export interface CalendarEntry {
   priority?: number;
   categories?: string[];
   updatedAt?: number;
+  /**
+   * A timed event — a meeting — rather than a day: when it starts, as epoch
+   * milliseconds, and how long it runs. Written in UTC, which every client
+   * shows in its own zone. Not a to-do, so a `todo` calendar leaves it out.
+   */
+  at?: number | null;
+  minutes?: number;
+  location?: string | null;
 }
 
 export interface Calendar {
@@ -114,6 +122,7 @@ export function buildCalendar(calendar: Calendar): string {
   ];
 
   for (const entry of calendar.entries) {
+    if (todo && entry.at) continue;
     lines.push(todo ? 'BEGIN:VTODO' : 'BEGIN:VEVENT');
     lines.push(`UID:${escape(entry.uid)}`);
     lines.push(`DTSTAMP:${stamp(now)}`);
@@ -122,6 +131,9 @@ export function buildCalendar(calendar: Calendar): string {
     if (todo) {
       if (entry.start) lines.push(`DTSTART;VALUE=DATE:${date(entry.start)}`);
       lines.push(`DUE;VALUE=DATE:${date(entry.due)}`);
+    } else if (entry.at) {
+      lines.push(`DTSTART:${stamp(entry.at)}`);
+      lines.push(`DTEND:${stamp(entry.at + (entry.minutes ?? 60) * 60_000)}`);
     } else {
       lines.push(`DTSTART;VALUE=DATE:${date(entry.start || entry.due)}`);
       // Exclusive: a task due on the 4th ends on the 5th, or it is drawn on
@@ -131,6 +143,7 @@ export function buildCalendar(calendar: Calendar): string {
 
     lines.push(`SUMMARY:${escape(entry.summary)}`);
     if (entry.description) lines.push(`DESCRIPTION:${escape(entry.description)}`);
+    if (entry.location) lines.push(`LOCATION:${escape(entry.location)}`);
     if (entry.url) lines.push(`URL:${escape(entry.url)}`);
     if (entry.status) lines.push(`STATUS:${entry.status}`);
     if (entry.priority) lines.push(`PRIORITY:${entry.priority}`);

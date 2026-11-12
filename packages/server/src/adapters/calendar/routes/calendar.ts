@@ -27,6 +27,7 @@ import { publicOrigin } from '../../../kernel/platform/origin.ts';
 import { contentDisposition } from '../../../kernel/files/mime.ts';
 import { byAddress, enforce, LIMITS } from '../../../kernel/identity/ratelimit.ts';
 import { readFilters, tasksMatching } from '../../../modules/work/viewquery.ts';
+import { hasFeature } from '../../../kernel/platform/features.ts';
 
 /** What a state group means to a calendar client. */
 const STATUS: Record<string, CalendarEntry['status']> = {
@@ -62,6 +63,42 @@ const memberships = (userId: string): string[] =>
     `SELECT workspace_id FROM workspace_members WHERE user_id = ? AND deleted_at IS NULL`,
     userId,
   ).map((row) => String(row.workspace_id));
+
+/** How long a meeting is drawn: it has a start and no end, and an hour is what most of them are. */
+const MEETING_MINUTES = 60;
+
+/** How far back the feed reaches for meetings: a quarter is enough to look one up, and keeps the file small. */
+const MEETINGS_SINCE_MS = 90 * 86_400_000;
+
+/**
+ * The meetings this person is expected at, as timed events.
+ *
+ * Only in workspaces that have meetings switched on and where they are a
+ * member — never a guest, for the reason a guest is not sent meetings at all.
+ * The feed is the invitation: there is no email and no reply, so moving a
+ * meeting moves it in everybody's calendar on the next refresh.
+ */
+function meetingsFor(userId: string, origin: string, now = Date.now()): CalendarEntry[] {
+  const rooms = all<Row>(
+    `SELECT workspace_id FROM workspace_members WHERE user_id = ? AND deleted_at IS NULL AND role <> 'guest'`, userId,
+  ).map((row) => String(row.workspace_id)).filter((workspaceId) => hasFeature(workspaceId, 'meetings'));
+  return rooms.flatMap((workspaceId) => all<Row>(
+    `SELECT m.* FROM meetings m
+      WHERE m.workspace_id = ? AND m.deleted_at IS NULL AND m.starts_at IS NOT NULL AND m.starts_at >= ?
+        AND EXISTS (SELECT 1 FROM json_each(m.attendees) WHERE json_each.value = ?)`,
+    workspaceId, now - MEETINGS_SINCE_MS, userId,
+  )).map((meeting) => ({
+    uid: `${meeting.id}@kolibri-meeting`,
+    summary: String(meeting.title ?? ''),
+    description: [String(meeting.description ?? '').slice(0, 900), `${origin}/meetings/${meeting.id}`].filter(Boolean).join('\n\n'),
+    url: `${origin}/meetings/${meeting.id}`,
+    due: new Date(Number(meeting.starts_at)).toISOString().slice(0, 10),
+    at: Number(meeting.starts_at),
+    minutes: MEETING_MINUTES,
+    location: meeting.location ? String(meeting.location) : null,
+    updatedAt: Number(meeting.updated_at) || undefined,
+  }));
+}
 
 function entriesFor(tasks: Row[], origin: string): CalendarEntry[] {
   return tasks
@@ -170,7 +207,7 @@ export function registerCalendarRoutes(router: Router): void {
     return ics(ctx, buildCalendar({
       name: `Kolibri — ${user.name}`,
       kind: ctx.query.get('kind') === 'todo' ? 'todo' : 'event',
-      entries: entriesFor(tasks, origin),
+      entries: [...entriesFor(tasks, origin), ...meetingsFor(String(user.id), origin)],
     }), 'kolibri.ics');
   });
 

@@ -953,6 +953,7 @@ CREATE TABLE IF NOT EXISTS meetings (
   location        TEXT,
   attendees       TEXT NOT NULL DEFAULT '[]',
   status          TEXT NOT NULL DEFAULT 'planned',
+  repeats         TEXT,
   minutes_page_id TEXT,
   created_by      TEXT,
   created_at      INTEGER NOT NULL,

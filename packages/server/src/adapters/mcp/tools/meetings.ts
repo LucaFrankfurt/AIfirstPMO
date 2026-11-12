@@ -18,7 +18,8 @@
  * ids included, so doing both is not doing it twice.
  */
 import {
-  AGENDA_STATUS, MEETING_STATUS, agendaOf, agendaTally, carryOver, followUp, isOverdue, meetingsInOrder,
+  AGENDA_STATUS, MEETING_REPEATS, MEETING_STATUS, agendaOf, agendaTally, carryOver, followUp, isMeetingRepeat, isOverdue,
+  meetingsInOrder,
   minutesMarkdown, nextAgendaKey, nextMeeting,
   type AgendaItem, type AgendaStatus, type Meeting, type MinutesTask,
 } from '@kolibri/shared';
@@ -163,6 +164,7 @@ function meetingSummary(meeting: Meeting) {
     starts_at: meeting.starts_at === null ? null : new Date(meeting.starts_at).toISOString(),
     location: meeting.location,
     status: meeting.status,
+    repeats: meeting.repeats ?? null,
     // The case worth naming: it happened, and nobody wrote down what came of it.
     unclosed: isOverdue(meeting),
     attendees: meeting.attendees.map((id) => names[id] ?? id),
@@ -277,6 +279,7 @@ export const meetingTools: ToolDef[] = [
         description: { type: 'string', description: 'What it is for' },
         attendees: { type: 'array', items: { type: 'string' } },
         topics: { type: 'array', items: { type: 'string' }, description: 'Agenda points to start with, in order' },
+        repeats: { type: 'string', enum: [...MEETING_REPEATS], description: 'A series: closing it calls the next one' },
         workspace_id: { type: 'string' },
       },
       required: ['title'],
@@ -294,6 +297,7 @@ export const meetingTools: ToolDef[] = [
           location: str(args.location) ?? null,
           attendees: people.length ? resolveUsers(workspaceId, people) : [ctx.auth.userId],
           status: 'planned',
+          repeats: isMeetingRepeat(args.repeats) ? args.repeats : null,
         }, opts);
         const added: AgendaItem[] = [];
         for (const topic of Array.isArray(args.topics) ? args.topics : []) {
@@ -312,7 +316,8 @@ export const meetingTools: ToolDef[] = [
     name: 'update_meeting',
     title: 'Change or close a meeting',
     description:
-      'Move a meeting, rename it, change who is expected, or close it with `status: "done"`. '
+      'Move a meeting, rename it, change who is expected, make it a series, or close it with `status: "done"` — '
+      + 'which, for a meeting in a series, calls the next one. '
       + 'Closing is what turns an agenda into a record; reopening is offered because closing the '
       + 'wrong week is the ordinary mistake.',
     schema: {
@@ -325,6 +330,7 @@ export const meetingTools: ToolDef[] = [
         description: { type: 'string' },
         attendees: { type: 'array', items: { type: 'string' }, description: 'The whole list, replacing the one there' },
         status: { type: 'string', enum: [...MEETING_STATUS] },
+        repeats: { type: 'string', enum: [...MEETING_REPEATS, 'none'], description: '"none" ends the series' },
         workspace_id: { type: 'string' },
       },
       required: ['meeting'],
@@ -339,6 +345,7 @@ export const meetingTools: ToolDef[] = [
       if (args.description !== undefined) patch.description = str(args.description) ?? null;
       if (Array.isArray(args.attendees)) patch.attendees = resolveUsers(workspaceId, args.attendees);
       if (str(args.status)) patch.status = str(args.status);
+      if (args.repeats !== undefined) patch.repeats = isMeetingRepeat(args.repeats) ? args.repeats : null;
       writeEntity('meeting', meeting.id, patch, writeOpts(workspaceId, ctx));
       return meetingReport(findMeeting(meeting.id, workspaceId), ctx);
     },

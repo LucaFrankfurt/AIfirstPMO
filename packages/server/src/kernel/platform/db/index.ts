@@ -193,6 +193,8 @@ for (const [table, column, definition] of [
   ['conversations', 'handover_at', 'INTEGER'],
   // The knowledge pages a model's answer rests on, by title.
   ['conversation_messages', 'sources', `TEXT NOT NULL DEFAULT '[]'`],
+  // How often a meeting comes round; null, as every meeting before it was, is once.
+  ['meetings', 'repeats', 'TEXT'],
 ] as const) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!columns.some((c) => c.name === column)) {

@@ -33,6 +33,7 @@ import { infrastructureTools } from './tools/infrastructure.ts';
 import { reportTools } from './tools/reports.ts';
 import { secretTools } from './tools/secrets.ts';
 import { mailTools } from './tools/mail.ts';
+import { supportTools } from './tools/support.ts';
 
 /** The route and the stdio bridge both hand one of these to `handleRpc`. */
 export type { McpCtx };
@@ -76,6 +77,7 @@ const TOOLS: ToolDef[] = [
   ...rateTools,
   ...infrastructureTools,
   ...mailTools,
+  ...supportTools,
   ...reportTools,
   ...secretTools,
 ];

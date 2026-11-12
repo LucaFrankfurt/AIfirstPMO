@@ -20,12 +20,34 @@
  * rather than an agenda with every topic on it twice.
  */
 import { compareOrder, orderKey } from '../../kernel/registry/order.ts';
-import type {
-  AgendaItem, AgendaStatus, ID, Meeting,
+import {
+  MEETING_REPEATS, type AgendaItem, type AgendaStatus, type ID, type Meeting, type MeetingRepeat,
 } from '../../kernel/registry/types.ts';
 
 /** What a new meeting is made of, before the write path adds who and when. */
-export type MeetingDraft = Pick<Meeting, 'title' | 'description' | 'location' | 'attendees' | 'starts_at' | 'status' | 'minutes_page_id'>;
+export type MeetingDraft = Pick<Meeting, 'title' | 'description' | 'location' | 'attendees' | 'starts_at' | 'status' | 'repeats' | 'minutes_page_id'>;
+
+export const isMeetingRepeat = (value: unknown): value is MeetingRepeat =>
+  typeof value === 'string' && (MEETING_REPEATS as readonly string[]).includes(value);
+
+/**
+ * When the next meeting of a series starts.
+ *
+ * A month is the same day of the next month at the same time, not thirty
+ * days: a monthly on the 3rd stays on the 3rd. The 31st of a short month falls
+ * back to its last day rather than spilling into the one after.
+ */
+export function nextStart(at: number, repeats: MeetingRepeat | null | undefined): number {
+  if (repeats === 'fortnightly') return at + 2 * FOLLOW_UP_MS;
+  if (repeats !== 'monthly') return at + FOLLOW_UP_MS;
+  const date = new Date(at);
+  const day = date.getUTCDate();
+  date.setUTCDate(1);
+  date.setUTCMonth(date.getUTCMonth() + 1);
+  const last = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate();
+  date.setUTCDate(Math.min(day, last));
+  return date.getTime();
+}
 
 /**
  * The order the points are read out in.
@@ -131,21 +153,24 @@ export const FOLLOW_UP_MS = 7 * 86_400_000;
 /**
  * The next meeting of the same kind, when there is not one yet.
  *
- * Same title, place and people, a week later. The description goes too — it
- * says what the meeting is *for*, which a follow-up shares. The minutes do
- * not: they belong to the meeting that had them.
+ * Same title, place and people, a week later — or a series' own step, which it
+ * also carries on, so the series does not stop at its second meeting. The
+ * description goes too — it says what the meeting is *for*, which a follow-up
+ * shares. The minutes do not: they belong to the meeting that had them.
  */
 export function followUp(
-  meeting: Pick<Meeting, 'title' | 'description' | 'location' | 'attendees' | 'starts_at'>,
+  meeting: Pick<Meeting, 'title' | 'description' | 'location' | 'attendees' | 'starts_at'> & { repeats?: MeetingRepeat | null },
   now: number = Date.now(),
 ): MeetingDraft {
+  const repeats = isMeetingRepeat(meeting.repeats) ? meeting.repeats : null;
   return {
     title: meeting.title,
     description: meeting.description ?? null,
     location: meeting.location ?? null,
     attendees: [...(meeting.attendees ?? [])],
-    starts_at: (meeting.starts_at ?? now) + FOLLOW_UP_MS,
+    starts_at: nextStart(meeting.starts_at ?? now, repeats),
     status: 'planned',
+    repeats,
     minutes_page_id: null,
   };
 }

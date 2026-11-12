@@ -515,3 +515,117 @@ describe('what an assistant does with a meeting afterwards', () => {
     assert.deepEqual(closed.meetings.map((one: any) => one.id), [meeting.id]);
   });
 });
+
+describe('a meeting in a series', () => {
+  let owner: Person;
+  let workspace = '';
+  before(async () => {
+    const made = await register('meet-series@example.com');
+    owner = made.person;
+    workspace = made.workspace;
+    await switchOn(workspace, owner);
+  });
+
+  it('calls the next one when it is closed — once, a week on, still a series', async () => {
+    const start = Date.UTC(2027, 0, 5, 9, 0);
+    const meeting = await newMeeting(workspace, owner, { title: 'Weekly sync', starts_at: start, repeats: 'weekly', location: 'Room 2' });
+    await ok(`/api/meetings/${meeting.id}`, { cookie: owner.cookie, method: 'PATCH', body: { status: 'done' } });
+    await ok(`/api/meetings/${meeting.id}`, { cookie: owner.cookie, method: 'PATCH', body: { status: 'planned' } });
+    await ok(`/api/meetings/${meeting.id}`, { cookie: owner.cookie, method: 'PATCH', body: { status: 'done' } });
+    const next = all<any>(`SELECT * FROM meetings WHERE workspace_id = ? AND title = 'Weekly sync' AND id <> ?`, workspace, meeting.id);
+    assert.equal(next.length, 1, 'closed twice, called once');
+    assert.equal(next[0].starts_at, start + 7 * 86_400_000);
+    assert.equal(next[0].repeats, 'weekly');
+    assert.equal(next[0].location, 'Room 2');
+    assert.equal(next[0].status, 'planned');
+  });
+
+  it('calls nothing when the next one is already there, or the meeting is a one-off', async () => {
+    const start = Date.UTC(2027, 1, 1, 9, 0);
+    const series = await newMeeting(workspace, owner, { title: 'Planning', starts_at: start, repeats: 'monthly' });
+    await newMeeting(workspace, owner, { title: 'Planning', starts_at: start + 20 * 86_400_000 });
+    await ok(`/api/meetings/${series.id}`, { cookie: owner.cookie, method: 'PATCH', body: { status: 'done' } });
+    assert.equal(all(`SELECT 1 FROM meetings WHERE workspace_id = ? AND title = 'Planning'`, workspace).length, 2);
+    const once = await newMeeting(workspace, owner, { title: 'Offsite', starts_at: start });
+    await ok(`/api/meetings/${once.id}`, { cookie: owner.cookie, method: 'PATCH', body: { status: 'done' } });
+    assert.equal(all(`SELECT 1 FROM meetings WHERE workspace_id = ? AND title = 'Offsite'`, workspace).length, 1);
+  });
+
+  it('refuses a step it does not know', async () => {
+    const odd = await newMeeting(workspace, owner, { title: 'Odd', repeats: 'hourly' });
+    assert.equal(get<any>(`SELECT repeats FROM meetings WHERE id = ?`, odd.id).repeats, null);
+  });
+});
+
+describe('a meeting in a calendar', () => {
+  it('is in the feed of everybody expected at it, as a timed event, and nobody else\'s', async () => {
+    const made = await register('meet-cal@example.com');
+    const owner = made.person;
+    const workspace = made.workspace;
+    await switchOn(workspace, owner);
+    const lin = await join('meet-cal-lin@example.com', workspace, owner);
+    const start = Date.now() + 2 * 86_400_000;
+    await newMeeting(workspace, owner, { title: 'Roadmap, with Lin', starts_at: start, location: 'Call', attendees: [owner.id, lin.id] });
+    await newMeeting(workspace, owner, { title: 'Without Lin', starts_at: start, attendees: [owner.id] });
+
+    const { url } = await ok('/api/me/calendar', { cookie: lin.cookie, body: {} });
+    const feed = await (await fetch(`${base}${new URL(url).pathname}`)).text();
+    assert.match(feed, /SUMMARY:Roadmap\\, with Lin/);
+    assert.match(feed, /DTSTART:\d{8}T\d{6}Z/);
+    assert.match(feed, /LOCATION:Call/);
+    assert.doesNotMatch(feed, /Without Lin/);
+    const todos = await (await fetch(`${base}${new URL(url).pathname}?kind=todo`)).text();
+    assert.doesNotMatch(todos, /Roadmap/, 'a meeting is not a to-do');
+  });
+});
+
+describe('a meeting topic in search', () => {
+  it('is found by a member and not by a guest', async () => {
+    const made = await register('meet-search@example.com');
+    const owner = made.person;
+    const workspace = made.workspace;
+    await switchOn(workspace, owner);
+    const guest = await join('meet-search-guest@example.com', workspace, owner, 'guest');
+    const meeting = await newMeeting(workspace, owner, { title: 'Quarterly' });
+    await newItem(workspace, owner, meeting.id, { title: 'Zeppelin hangar lease', description: 'Renewal terms' });
+    const found = await ok(`/api/workspaces/${workspace}/search?q=zeppelin`, { cookie: owner.cookie });
+    assert.ok(found.results.some((hit: any) => hit.kind === 'agendaItem'));
+    const theirs = await ok(`/api/workspaces/${workspace}/search?q=zeppelin`, { cookie: guest.cookie });
+    assert.equal(theirs.results.filter((hit: any) => hit.kind === 'agendaItem').length, 0);
+  });
+});
+
+describe('meetings in a workspace export', () => {
+  it('travel, with their agenda, its notes and the tasks filed from it', async () => {
+    const made = await register('meet-export@example.com');
+    const owner = made.person;
+    const workspace = made.workspace;
+    await switchOn(workspace, owner);
+    const project = await ok(`/api/workspaces/${workspace}/projects`, { cookie: owner.cookie, body: { name: 'Ops', key: 'OPS' } });
+    const meeting = await newMeeting(workspace, owner, { title: 'Ops review', repeats: 'fortnightly', attendees: [owner.id] });
+    const point = await newItem(workspace, owner, meeting.id, { title: 'Backups', notes: 'Restore drill on Friday.', projects: [project.id] });
+    const task = await ok(`/api/workspaces/${workspace}/tasks`, {
+      cookie: owner.cookie, body: { project_id: project.id, title: 'Run the drill', agenda_item_id: point.id },
+    });
+
+    const doc = await ok(`/api/workspaces/${workspace}/export`, { cookie: owner.cookie });
+    assert.equal(doc.meetings.length, 1);
+    assert.equal(doc.agenda_items.length, 1);
+    assert.equal('notes_body' in doc.agenda_items[0], false, 'the merge state stays behind');
+
+    const imported = await ok('/api/import/workspace', { cookie: owner.cookie, body: { document: doc, name: 'Copy' } });
+    const copy = imported.workspace.id;
+    const meetings = all<any>(`SELECT * FROM meetings WHERE workspace_id = ? AND deleted_at IS NULL`, copy);
+    assert.equal(meetings.length, 1);
+    assert.equal(meetings[0].repeats, 'fortnightly');
+    assert.deepEqual(JSON.parse(meetings[0].attendees), [owner.id]);
+    const topics = all<any>(`SELECT * FROM agenda_items WHERE workspace_id = ? AND deleted_at IS NULL`, copy);
+    assert.equal(topics.length, 1);
+    assert.equal(topics[0].meeting_id, meetings[0].id);
+    assert.equal(topics[0].notes, 'Restore drill on Friday.');
+    assert.notEqual(topics[0].id, point.id);
+    const copiedTask = get<any>(`SELECT agenda_item_id FROM tasks WHERE workspace_id = ? AND title = 'Run the drill'`, copy);
+    assert.equal(copiedTask.agenda_item_id, topics[0].id, 'the task still knows where it came from');
+    assert.notEqual(copiedTask.agenda_item_id, task.agenda_item_id);
+  });
+});

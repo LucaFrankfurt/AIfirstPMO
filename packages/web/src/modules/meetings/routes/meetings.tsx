@@ -60,7 +60,7 @@ export function MeetingIndex() {
       </Header>
 
       {!open.length && !done.length ? (
-        <Empty emoji="🗓️" title={t('meeting.emptyTitle')} hint={t('meeting.emptyHint')} />
+        <Empty emoji="🗓️" title={t('meeting.emptyTitle')} hint={t('meeting.emptyHint')} guide="meetings" />
       ) : (
         <div className="mx-auto flex max-w-[760px] flex-col gap-3 px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
           {open.length > 0 && <SectionHeading tight>{t('meeting.upcoming')}</SectionHeading>}

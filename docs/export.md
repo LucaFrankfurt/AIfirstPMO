@@ -23,7 +23,8 @@ about the uploaded files:
   and their answers, templates, rules and logged time; plus what sits above the
   projects — the teams, who is in them, the saved views, the pages that belong to
   no project — and what runs *between* them: the project tree, a cycle three
-  projects share, a task in one blocking a task in another.
+  projects share, a task in one blocking a task in another. Meetings travel too, with
+  their agenda, the notes as text, and the link from each task to the topic it came from.
 - **`.zip`** — the same document, plus the files it refers to. Attachments, the
   pictures pasted into descriptions, the images dropped into pages, the covers.
   Named by the SHA-256 of their own contents, which is also how the document

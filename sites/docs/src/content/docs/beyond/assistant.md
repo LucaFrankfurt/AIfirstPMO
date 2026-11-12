@@ -45,15 +45,17 @@ is an ordinary token you can revoke in Settings like any other.
 
 ## What it can do
 
-Forty-odd tools, covering the same ground as the interface:
+Over a hundred tools, covering the same ground as the interface — the core of them:
 
 | | |
 |---|---|
 | **Read** | `list_workspaces` `list_projects` `list_tasks` `get_task` `search` `list_pages` `get_page` `list_members` `list_states` `list_labels` `list_cycles` `list_templates` `list_attachments` `get_attachment` `list_time` `project_status` `my_work` |
 | **Reports** | `changes_since` `deadlines_at_risk` `workload` `blocked_tasks` `stale_tasks` `cycle_review` |
 | **Write** | `create_task` `create_tasks_batch` `update_task` `delete_task` `comment_task` `create_task_relation` `create_project` `update_project` `create_page` `update_page` `create_cycle` `update_cycle` `delete_cycle` `create_state` `update_state` `create_label` `update_label` `apply_template` `upload_attachment` `delete_attachment` `log_time` |
+| **Meetings** | `list_meetings` `get_meeting` `create_meeting` `update_meeting` `add_agenda_item` `update_agenda_item` `create_task_from_agenda_item` `carry_over_agenda` `file_meeting_minutes` `prepare_meeting` — see [Meetings](/people/meetings/) |
+| **Support** | `list_conversations` `get_conversation` `reply_to_conversation` `update_conversation` `create_task_from_conversation` — see [Support chat](/people/support/) |
 
-Plus three prompts — `standup`, `sprint_planning` and `triage` — which are the three questions
+Plus prompts — `standup`, `sprint_planning` and `triage` among them — which are the questions
 people actually ask, written out so the assistant does not have to invent the shape.
 
 A batch is **one transaction**: `create_tasks_batch` either lands entirely or not at all, so a

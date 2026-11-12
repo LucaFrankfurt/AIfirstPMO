@@ -74,6 +74,21 @@ function Feature({
   );
 }
 
+/** A card's parts side by side, a name and a line each — for a feature with no animation of its own. */
+function Tiles({ items }: { items: (readonly [string, string])[] }) {
+  const t = useT();
+  return (
+    <div className="guide-roles">
+      {items.map(([name, body]) => (
+        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 guide-role" key={name}>
+          <strong>{t(name as TranslationKey)}</strong>
+          <span className="soft">{t(body as TranslationKey)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const Principle = ({ icon, title, body }: { icon: string; title: TranslationKey; body: TranslationKey }) => {
   const t = useT();
   return (
@@ -237,6 +252,30 @@ function Features() {
         steps={['guide.chat.h1', 'guide.chat.h2', 'guide.chat.h3', 'guide.chat.h4']}
       >
         <ChatDiagram />
+      </Feature>
+
+      <Feature
+        id="support"
+        icon="headset"
+        title="guide.support.title"
+        lead="guide.support.lead"
+        to="/support"
+        linkLabel="guide.support.cta"
+        steps={['guide.support.h1', 'guide.support.h2', 'guide.support.h3', 'guide.support.h4']}
+      >
+        <Tiles items={['widget', 'inbox', 'task', 'assistant'].map((part) => [`guide.support.${part}`, `guide.support.${part}Body`] as const)} />
+      </Feature>
+
+      <Feature
+        id="meetings"
+        icon="agenda"
+        title="guide.meetings.title"
+        lead="guide.meetings.lead"
+        to="/meetings"
+        linkLabel="guide.meetings.cta"
+        steps={['guide.meetings.h1', 'guide.meetings.h2', 'guide.meetings.h3', 'guide.meetings.h4']}
+      >
+        <Tiles items={['agenda', 'notes', 'tasks', 'minutes'].map((part) => [`guide.meetings.${part}`, `guide.meetings.${part}Body`] as const)} />
       </Feature>
 
       <Feature

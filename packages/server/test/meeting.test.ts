@@ -10,7 +10,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  agendaTally, byAgendaOrder, carriedItemId, carryOver, followUp, isOverdue, meetingsInOrder,
+  agendaTally, byAgendaOrder, carriedItemId, carryOver, followUp, isOverdue, meetingsInOrder, nextStart,
   compareOrder, minutesMarkdown, nextAgendaKey, nextMeeting, orderKey, originOf, setOrderTail,
   type AgendaItem, type Meeting, type MinutesWords,
 } from '@kolibri/shared';
@@ -204,5 +204,26 @@ describe('the minutes', () => {
 
   it('says so when nothing was on the agenda', () => {
     assert.match(minutesMarkdown({ meeting: meeting('m'), items: [], tasks: [], people, projects, words }), /_Nothing was on the agenda\._/);
+  });
+});
+
+describe('the next meeting of a series', () => {
+  it('steps a week, two weeks, or to the same day of the next month', () => {
+    const at = Date.UTC(2027, 0, 12, 9, 30);
+    assert.equal(nextStart(at, 'weekly'), at + 7 * 86_400_000);
+    assert.equal(nextStart(at, 'fortnightly'), at + 14 * 86_400_000);
+    assert.equal(nextStart(at, 'monthly'), Date.UTC(2027, 1, 12, 9, 30));
+    assert.equal(nextStart(at, null), at + 7 * 86_400_000, 'a one-off\'s follow-up is a week on, as it always was');
+  });
+
+  it('falls back to the last day of a short month', () => {
+    assert.equal(nextStart(Date.UTC(2027, 0, 31, 9), 'monthly'), Date.UTC(2027, 1, 28, 9));
+    assert.equal(nextStart(Date.UTC(2027, 11, 15, 9), 'monthly'), Date.UTC(2028, 0, 15, 9));
+  });
+
+  it('carries the series on in the follow-up', () => {
+    const next = followUp({ ...meeting('m', { starts_at: Date.UTC(2027, 0, 12, 9) }), repeats: 'monthly' });
+    assert.equal(next.repeats, 'monthly');
+    assert.equal(next.starts_at, Date.UTC(2027, 1, 12, 9));
   });
 });

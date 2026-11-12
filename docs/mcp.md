@@ -312,6 +312,8 @@ always called it. `billing` still works and is documented as the older spelling.
 | `decision_result` | one decision in full: counts, shares of the people who voted, and who is leading. `voters` on an option is `null` rather than empty on a secret ballot — a fact you may not have, not an option nobody wanted |
 | `list_meetings` | still open first, soonest first, then the closed ones. `unclosed` is a meeting whose day is over and that nobody closed — it happened, and nobody wrote down what came of it |
 | `get_meeting` | the agenda in order: each point's state, projects, who is responsible, who brought it, its notes and the tasks filed from it. A title several meetings share — a weekly — means the next one still open. A task or a project the caller cannot see is left out, not shown as an id |
+| `list_conversations` | the support inbox, newest first: `unread` (the team has not seen the newest line), `awaiting_reply` (the visitor wrote last), by status or widget |
+| `get_conversation` | one support conversation and its thread, oldest first: `visitor`, `member` or `assistant` per line, pictures by name, and whether the model is still answering |
 | `project_costs` | one project's share of every budget that charges it — the other direction from `budget_status` |
 | `list_rates` | every hourly rate, newest first — and the history behind each, since a rate is never edited in place |
 | `time_cost` | cost, revenue and margin over logged time, by project and by person, with the hours no rate covered reported separately |
@@ -593,13 +595,16 @@ is inclusive to the end of the day it names.
 | `create_decision` | a question with at least two options. `visibility: anonymous` is a promise about where the rows go and cannot be taken back once anybody has voted |
 | `cast_vote` | vote, or withdraw by voting for what you already hold. A closed or expired ballot refuses rather than quietly dropping it — including a withdrawal |
 | `close_decision` | turn a ballot into a record, or take it up again. Reopening one the clock closed clears the deadline, or it reopens for as long as it takes to read the answer back |
-| `create_meeting` | a time, a place, who is expected and optionally the first topics. `starts_at` is an ISO date-time with its offset; an attendee who matches nobody is left off rather than invented |
-| `update_meeting` | move, rename, change who is expected, or close it with `status: "done"` |
+| `create_meeting` | a time, a place, who is expected and optionally the first topics. `starts_at` is an ISO date-time with its offset; an attendee who matches nobody is left off rather than invented. `repeats` makes it a series |
+| `update_meeting` | move, rename, change who is expected, make it a series (`repeats`, `"none"` to end one), or close it with `status: "done"` — which, in a series, calls the next one |
 | `add_agenda_item` | a topic at the end of the agenda, filed under whoever the token belongs to. `projects` takes keys, ids or names — a project that is not there is refused, not dropped. `assignees` names who is responsible, by id, email or name; somebody who matches nobody, or a guest, is refused by name rather than left off |
 | `update_agenda_item` | a point's state, title, description, projects, who is responsible, or its notes. `assignees` replaces the list, and an empty one clears it. `append_notes` adds a paragraph and is the one to use while people may be typing in the same point — see below |
 | `create_task_from_agenda_item` | a task that remembers the point it came out of. `project` defaults to the point's first; otherwise it takes what `create_task` takes, in one write |
 | `carry_over_agenda` | what was not discussed goes onto the next meeting, open, and what was still open is marked deferred. No next meeting calls a follow-up a week later. The ids are derived, so running it twice — or after somebody pressed the button — carries nothing twice |
 | `file_meeting_minutes` | the meeting as a wiki page, linked from the meeting; filed again, the same page is rewritten and the previous text stays in its history. Names only the tasks and projects everybody who reads the wiki may see |
+| `reply_to_conversation` | a line to a support visitor, as the token's owner — live in the widget, by email if they have left; reopens a resolved conversation and takes over from the model |
+| `update_conversation` | resolve or reopen a support conversation, or assign it to a member who can see its project; `""` unassigns |
+| `create_task_from_conversation` | a support conversation as a task in the widget's project, as the inbox's button makes it. Once, unless that task has been deleted since |
 | `set_rate` | what an hour is worth from a date. Adds a rate rather than editing one, so what last quarter cost stays what last quarter cost |
 | `record_component` | add a server, an instance, a subscription. `parent` puts it on a machine; `line` charges it to a budget |
 | `sync_mailbox` | fetch new mail for one mailbox now. Writes nothing; needs a write scope because it reaches out |
@@ -623,6 +628,15 @@ is in.
 Meetings are for members. A guest's token is refused by every tool here, read-only ones included,
 for the reason the sync filter keeps the agenda off a guest's device: a guest is on a project, not
 in the room where the projects are compared. See [`meetings.md`](meetings.md).
+
+### Support conversations
+
+- Needs *Support chat* switched on for the workspace.
+- A conversation is visible to whoever can see its widget's project — the inbox's rule.
+- `reply_to_conversation` is the same write as the inbox's: told to the visitor live, emailed after a
+  few minutes unread, reopens, takes over from the model.
+- Plain text: the widget renders no markdown.
+- See [`support.md`](support.md).
 
 ### The landscape, and the question it will not answer
 

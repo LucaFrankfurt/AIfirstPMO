@@ -71,6 +71,9 @@ export interface WorkspaceDoc {
   /** Workspace-wide open conversations. */
   channels: Record<string, unknown>[];
   messages: Record<string, unknown>[];
+  /** Optional: an archive made before meetings travelled has none. */
+  meetings?: Record<string, unknown>[];
+  agenda_items?: Record<string, unknown>[];
   projects: ProjectDoc[];
   /** What is true of no single project, and so is in no project's document. */
   links: {
@@ -208,6 +211,14 @@ export function exportWorkspace(workspaceId: string, options: WorkspaceExportOpt
     views: live('views', 'workspace_id = ?', workspaceId).map(clean),
     channels: channels.map(clean),
     messages: messages.map(clean),
+    // Meetings are the workspace's, not a project's: one agenda gathers topics
+    // from several. The notes go as text; their merge state is this
+    // instance's and is rebuilt from the text on the way in.
+    meetings: live('meetings', 'workspace_id = ?', workspaceId).map(clean),
+    agenda_items: live('agenda_items', 'workspace_id = ?', workspaceId).map((row) => {
+      const { notes_body: _state, ...rest } = clean(row);
+      return rest;
+    }),
     // `shared: false` — the cycles and modules several projects run are above,
     // carried once. Left true, every project that runs the same fortnight
     // would bring its own copy of it.
@@ -490,6 +501,43 @@ function writeWorkspace(actorId: string, doc: WorkspaceDoc, options: WorkspaceIm
     });
     bump('messages');
   }
+  /* ------------------------------------------------------------- meetings */
+
+  for (const row of doc.meetings ?? []) {
+    write('meeting', row, {
+      attendees: jsonList(row.attendees).map(who).filter(Boolean),
+      minutes_page_id: to(row.minutes_page_id),
+      created_by: who(row.created_by) ?? actorId,
+    });
+    bump('meetings');
+  }
+  const topics = (doc.agenda_items ?? []).filter((row) => to(row.meeting_id));
+  for (const row of topics) {
+    write('agendaItem', row, {
+      meeting_id: to(row.meeting_id),
+      projects: jsonList(row.projects).map(to).filter(Boolean),
+      assignees: jsonList(row.assignees).map(who).filter(Boolean),
+      created_by: who(row.created_by) ?? actorId,
+      // Pointed at once every topic exists: the one it continues may come later in the file.
+      carried_from: null,
+    });
+    bump('agenda-items');
+  }
+  for (const row of topics) {
+    const continues = to(row.carried_from);
+    const id = to(row.id);
+    if (id && continues) writeEntity('agendaItem', id, { carried_from: continues }, opts());
+  }
+  // A task filed from a topic, now that both exist here. `importProject` leaves
+  // the link out because a project document alone has no meeting to point at.
+  for (const project of doc.projects ?? []) {
+    for (const task of project.tasks ?? []) {
+      const id = to(task.id);
+      const topic = to(task.agenda_item_id);
+      if (id && topic) writeEntity('task', id, { agenda_item_id: topic }, opts());
+    }
+  }
+
   /* The blobs the workspace's own pages and their comments point at. The
      projects' own were adopted by each project's import; this is what is left,
      and it is also what gives the *workspace* a row for a picture that arrived

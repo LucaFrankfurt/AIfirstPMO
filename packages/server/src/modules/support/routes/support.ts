@@ -6,19 +6,18 @@
  * conversation, which creates and numbers one; and "typing", which is not
  * stored at all.
  */
-import { visitorLabel, type Conversation } from '@kolibri/shared';
 import { get, run, type Row } from '../../../kernel/platform/db/index.ts';
-import { HttpError, badRequest, forbidden, notFound, readJson, type Ctx, type Router } from '../../../kernel/platform/http.ts';
-import { token, uid } from '../../../kernel/platform/ids.ts';
+import { HttpError, forbidden, notFound, readJson, type Ctx, type Router } from '../../../kernel/platform/http.ts';
+import { token } from '../../../kernel/platform/ids.ts';
 import { requireAuth, requireWorkspace } from '../../../kernel/identity/auth.ts';
 import { serverClock } from '../../../kernel/write-path/bootstrap.ts';
-import { isLocale, localeOf, translate } from '../../../kernel/i18n/i18n.ts';
-import { canSeeProject, displayName, serialize, writeEntity } from '../../../kernel/write-path/repo.ts';
+import { isLocale, localeOf } from '../../../kernel/i18n/i18n.ts';
+import { canSeeProject, serialize } from '../../../kernel/write-path/repo.ts';
 import { env } from '../../../kernel/platform/env.ts';
 import { byValue, enforce } from '../../../kernel/identity/ratelimit.ts';
 import { AiError } from '../../ai-review/model.ts';
 import { draftReply } from '../assistant.ts';
-import { setTyping, taskTitle, transcript, typingIn } from '../support.ts';
+import { conversationAsTask, setTyping, typingIn } from '../support.ts';
 
 /** The same allowance a task review has: a person clicking, paced like one. */
 const SUGGEST_LIMIT = { burst: env.ai.burst, everySeconds: env.ai.everySeconds, deepens: false };
@@ -66,29 +65,13 @@ export function registerSupportRoutes(router: Router): void {
     const conversation = conversationForMember(ctx);
     const auth = ctx.auth!;
     if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
-    if (conversation.task_id && get(`SELECT 1 FROM tasks WHERE id = ? AND deleted_at IS NULL`, conversation.task_id)) {
-      throw badRequest('This conversation is already a task');
-    }
     const body = await readJson<{ title?: string; locale?: string }>(ctx).catch(() => ({}) as { title?: string; locale?: string });
     // The language the member is looking at, which is not always the one their
     // account has stored: a browser in German on an account never told is.
     const locale = isLocale(body.locale) ? body.locale : localeOf(auth.userId);
     const opts = { workspaceId: String(conversation.workspace_id), actorId: auth.userId, hlc: serverClock.now() };
-    const { row: task } = writeEntity('task', uid(), {
-      workspace_id: conversation.workspace_id,
-      project_id: conversation.project_id,
-      title: String(body.title ?? '').trim() || taskTitle(conversation),
-      description: transcript(conversation, displayName, translate(locale, 'support.taskFrom', {
-        name: visitorLabel(conversation as Conversation),
-        widget: String(get<Row>(`SELECT name FROM widgets WHERE id = ?`, conversation.widget_id)?.name ?? ''),
-      })),
-      created_by: auth.userId,
-    }, opts);
-    writeEntity('conversation', String(conversation.id), { task_id: task.id }, { ...opts, system: true });
-    return {
-      task: serialize('task', task),
-      conversation: serialize('conversation', get<Row>(`SELECT * FROM conversations WHERE id = ?`, conversation.id)),
-    };
+    const made = conversationAsTask(conversation, opts, locale, body.title);
+    return { task: serialize('task', made.task), conversation: serialize('conversation', made.conversation) };
   });
 
   /**

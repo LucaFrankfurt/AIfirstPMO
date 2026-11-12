@@ -104,9 +104,13 @@ Two switches, because two different people are deciding.
 **The operator** puts a key in the environment. That is what makes a model reachable at all, and it
 is reported on `/api/health` as `ai` beside `mail`.
 
-**A workspace admin** turns on *Task reviews and canvas boards* under Settings → Workspace. Until
+**A workspace admin** turns on *AI assistance* under Settings → Workspace. Until
 then neither button exists, on an instance with a key and everything. When no key is configured the
 row says so instead of offering a switch that would do nothing.
+
+- The key can also be typed into Settings → Server → Model, which wins over the environment.
+- The same key and the same switch power the support chat's assistant — set up per widget, see
+  [`support.md`](support.md#setup).
 
 Then: members and above, with a writing token. Guests are refused — they could not apply a word of
 it, and this is the only click in the app that spends money. A board is drawn only for somebody who

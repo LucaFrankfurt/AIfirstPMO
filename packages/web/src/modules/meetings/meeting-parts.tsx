@@ -19,7 +19,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  AGENDA_STATUS, agendaOf, agendaTally, isOverdue, nextAgendaKey, orderKey,
+  AGENDA_STATUS, MEETING_REPEATS, agendaOf, agendaTally, isMeetingRepeat, isOverdue, nextAgendaKey, orderKey,
   type AgendaItem, type AgendaStatus, type Meeting, type MinutesWords, type Task, type User,
 } from '@kolibri/shared';
 import { AvatarStack, Icon, MenuButton, Sheet, StateDot, useConfirm, useToast } from '../../kernel/design-system/ui';
@@ -110,6 +110,7 @@ export function MeetingCard({ meeting }: { meeting: Meeting }) {
         <span className="row-sub">
           {meetingWhen(meeting) || t('meeting.noTime')}
           {meeting.location && ` · ${meeting.location}`}
+          {meeting.repeats && ` · ${t(`meeting.repeats.${meeting.repeats}`)}`}
           {` · ${t('meeting.points', { count: tally.total })}`}
           {tally.open > 0 && meeting.status !== 'done' && ` · ${t('meeting.openPoints', { count: tally.open })}`}
         </span>
@@ -267,6 +268,16 @@ export function MeetingFields({
             onChange={(event) => onChange({ location: event.target.value || null })}
           />
         </Label>
+        <Label label={t('meeting.repeats')} hint={meeting.repeats ? t('meeting.repeatsHint') : undefined}>
+          <Select
+            value={meeting.repeats ?? ''}
+            disabled={disabled}
+            onChange={(event) => onChange({ repeats: isMeetingRepeat(event.target.value) ? event.target.value : null })}
+          >
+            <option value="">{t('meeting.repeatsNone')}</option>
+            {MEETING_REPEATS.map((every) => <option key={every} value={every}>{t(`meeting.repeats.${every}`)}</option>)}
+          </Select>
+        </Label>
       </div>
       <div className="flex flex-col gap-1.5">
         <span className="text-[12.5px] font-medium text-soft">{t('meeting.attendees')}</span>
@@ -312,6 +323,7 @@ export function MeetingForm({ onClose, onSaved }: { onClose: () => void; onSaved
               location: draft.location ?? null,
               attendees: draft.attendees ?? [],
               starts_at: draft.starts_at ?? null,
+              repeats: draft.repeats ?? null,
               status: 'planned',
               minutes_page_id: null,
               created_by: me,
