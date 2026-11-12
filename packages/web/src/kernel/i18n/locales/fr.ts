@@ -3480,6 +3480,8 @@ export const fr: Catalogue = {
   'support.noneResolved': 'Rien de résolu pour l’instant.',
   'support.pick': 'Choisissez une conversation',
   'support.pickHint': 'Les visiteurs qui écrivent via un widget apparaissent à gauche, les plus récents en haut.',
+  'support.find': 'Trouver une conversation',
+  'support.noneFound': 'Aucune conversation ne correspond.',
   'support.you': 'Vous :',
   'support.unread': 'Non lu',
   'support.back': 'Retour à la liste',
