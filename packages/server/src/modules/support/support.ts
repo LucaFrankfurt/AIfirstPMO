@@ -83,8 +83,23 @@ export function conversationFor(widget: Row, visitor: Visitor): Row {
   return get<Row>(`SELECT * FROM conversations WHERE id = ?`, found.id)!;
 }
 
-/** "Start a new chat": a fresh conversation for the same visitor, who they are taken from the one they are in. */
+/**
+ * "Start a new chat": a fresh conversation for the same visitor, who they are
+ * taken from the one they are in.
+ *
+ * An open chat of theirs with nothing in it yet is that fresh conversation
+ * already — a second click, or "new chat" pressed again from an older one —
+ * so it is handed back rather than joined by another empty one.
+ */
 export function newConversation(widget: Row, from: Row): Row {
+  const empty = get<Row>(
+    `SELECT * FROM conversations c
+      WHERE c.widget_id = ? AND c.visitor_id = ? AND c.id <> ? AND c.status = 'open' AND c.deleted_at IS NULL
+        AND NOT EXISTS (SELECT 1 FROM conversation_messages m WHERE m.conversation_id = c.id)
+      ORDER BY c.created_at DESC LIMIT 1`,
+    widget.id, from.visitor_id, from.id,
+  );
+  if (empty) return empty;
   return openConversation(widget, {
     id: String(from.visitor_id),
     name: from.visitor_name ?? null,
@@ -92,6 +107,29 @@ export function newConversation(widget: Row, from: Row): Row {
     verified: !!Number(from.verified),
   });
 }
+
+/** The visitor's chats with this widget, newest first: what the window lists as earlier chats. */
+export const conversationsOfVisitor = (conversation: Row, limit = 20): Row[] =>
+  all<Row>(
+    `SELECT * FROM conversations WHERE widget_id = ? AND visitor_id = ? AND deleted_at IS NULL
+      ORDER BY created_at DESC LIMIT ?`,
+    conversation.widget_id, conversation.visitor_id, limit,
+  );
+
+/** One of the visitor's own chats with this widget, by id: never somebody else's, never a deleted one. */
+export const visitorsOwn = (conversation: Row, id: string): Row | undefined =>
+  get<Row>(
+    `SELECT * FROM conversations WHERE id = ? AND widget_id = ? AND visitor_id = ? AND deleted_at IS NULL`,
+    id, conversation.widget_id, conversation.visitor_id,
+  );
+
+/** How many lines the team (or the model) wrote in a conversation since its visitor last looked. */
+export const unreadByVisitor = (conversation: Row): number =>
+  Number(get<Row>(
+    `SELECT COUNT(*) AS n FROM conversation_messages
+      WHERE conversation_id = ? AND author <> 'visitor' AND deleted_at IS NULL AND created_at > ?`,
+    conversation.id, Number(conversation.visitor_read_at ?? 0),
+  )?.n ?? 0);
 
 /** The visitor says it is done. The team is not woken for it: nothing is waiting on them. */
 export function resolveByVisitor(widget: Row, conversation: Row): void {

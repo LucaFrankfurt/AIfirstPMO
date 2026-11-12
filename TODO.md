@@ -1965,17 +1965,21 @@ See [`docs/support.md`](docs/support.md) for what is built and why it is shaped 
       answers or when the day's budget is spent.
 - [ ] **The assistant has not met a real model here.** Every behaviour is measured against a fake
       provider; what a real one answers to the prompt — how often it hands over, whether it keeps to
-      the visitor's language — has not been looked at. **P2**
+      the visitor's language — has not been looked at. Not for lack of trying: the development
+      sandbox refuses a key for the model provider, so it has to be looked at on an instance that
+      has one. **P2**
 - [x] **Replying to the support email reaches the conversation**, when the widget names a reply
       address that is a connected inbox: a signed tag in the subject, the sender checked against the
       conversation's address, the quoted email cut off.
-- [x] **The visitor's window was heavy for what it is.** 222 KB gzipped on the first click, now
-      125 KB: it carries thirty words of its own instead of the app's catalogue, and its icons no
-      longer pull in every dialog and menu. Most of what is left is React.
+- [x] **The visitor's window was heavy for what it is.** 222 KB gzipped on the first click, then
+      125 KB, 127 KB with the list of earlier chats: it carries its own words instead of the app's
+      catalogue, and its icons no longer pull in every dialog and menu. Most of what is left is React.
 - [x] **A deleted conversation came back** when its visitor wrote again, history and all. Deleting
       now lets go of the visitor, who starts a new one.
-- [ ] **No wildcard sites.** A widget lists exact origins; a platform whose customers each have a
-      subdomain would need `https://*.example.com`, which `frame-ancestors` can carry. **P3**
+- [x] **Wildcard sites**, as `*.example.com` and nothing broader: every subdomain of one domain,
+      `https` only, never `*.com` or `*.localhost`. The domain itself is listed on its own if meant.
+- [x] **A visitor's earlier chats**, listed in the window with a dot where the team answered after
+      they left, so an answer in a chat they moved on from is not left to email alone.
 
 ## The UI port, and what is left of it
 

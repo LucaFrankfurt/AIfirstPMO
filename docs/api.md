@@ -397,6 +397,8 @@ POST /w/:widget/read                      the visitor has seen it; withdraws a p
 POST /w/:widget/handover                  "talk to a person": the assistant goes quiet, the team is told
 POST /w/:widget/resolve                   the visitor is done; writing again reopens it
 POST /w/:widget/conversations             a new chat: resolves this one → { session, expiresAt, conversation }
+GET  /w/:widget/conversations             the visitor's own chats with this widget, newest first, with unread
+POST /w/:widget/conversations/:id/open    back into one of those → { session, expiresAt, conversation }
 POST /w/:widget/typing                    { typing }
 GET  /w/:widget/stream                    server-sent events: message, gone, read, status, typing, handover, end
 POST /w/:widget/files                     a picture, raw body, as the app's own uploads

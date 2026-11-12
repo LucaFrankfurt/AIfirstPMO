@@ -44,6 +44,17 @@ interface Line {
 
 type Stage = 'loading' | 'unavailable' | 'signin' | 'introduce' | 'ready' | 'ended';
 
+/** One of the visitor's own chats, as the list of earlier ones shows it. */
+interface Summary {
+  id: string;
+  status: 'open' | 'resolved';
+  created_at: number;
+  last_message_at: number | null;
+  said: string;
+  unread: number;
+  current: boolean;
+}
+
 const widgetId = decodeURIComponent(window.location.pathname.split('/')[2] ?? '');
 const base = `/w/${encodeURIComponent(widgetId)}`;
 const STORE = `kolibri.chat.${widgetId}`;
@@ -137,6 +148,9 @@ export function VisitorChat() {
   const [handedOver, setHandedOver] = useState<number | null>(null);
   /** Resolved by the team or by the visitor; writing on reopens it. */
   const [resolved, setResolved] = useState(false);
+  /** The visitor's chats with this widget, this one among them; the list shows when `browsing`. */
+  const [earlier, setEarlier] = useState<Summary[]>([]);
+  const [browsing, setBrowsing] = useState(false);
   const retried = useRef(0);
   const readUpTo = useRef(0);
   const unread = useRef(0);
@@ -252,6 +266,22 @@ export function VisitorChat() {
     };
   }, [stage, session, attempt]);
 
+  // Which chats this visitor has had here, so the header can offer the earlier ones.
+  const listChats = () => {
+    if (!session) return;
+    call<{ conversations: Summary[] }>('/conversations', session)
+      .then((answer) => setEarlier(answer.conversations))
+      .catch(() => undefined);
+  };
+  useEffect(() => {
+    if (stage === 'ready' && session) listChats();
+    else setEarlier([]);
+  }, [stage, session]);
+  // Asked again whenever the panel opens: an answer may have come into an earlier chat meanwhile.
+  useEffect(() => {
+    if (open && stage === 'ready') listChats();
+  }, [open]);
+
   // Read while it is on screen; counted as unread for the host's badge while it is not.
   useEffect(() => {
     const newest = lines.filter((line) => line.author !== 'visitor').reduce((at, line) => Math.max(at, line.created_at), 0);
@@ -325,22 +355,29 @@ export function VisitorChat() {
     });
   };
 
-  /** A fresh conversation, under a session of its own; the stream follows the new session. */
-  const startOver = async () => {
+  /**
+   * Into another of the visitor's chats — a fresh one, or an earlier one —
+   * under a session of its own. The stream and the thread follow the session;
+   * an anonymous visitor's next page opens this one.
+   */
+  const switchTo = async (path: string) => {
     setNotice('');
     try {
-      const opened = await call<{ session: string; expiresAt: number }>('/conversations', session, { method: 'POST', body: '{}' });
+      const opened = await call<{ session: string; expiresAt: number }>(path, session, { method: 'POST', body: '{}' });
       if (config?.identity === 'anonymous') keep(opened);
       setLines([]);
       setAgentRead(null);
       setHandedOver(null);
       setResolved(false);
+      setBrowsing(false);
       setSession(opened.session);
     } catch (error) {
       if (error instanceof Ended) ended();
       else setNotice(words.unavailable);
     }
   };
+  const startOver = () => switchTo('/conversations');
+  const others = earlier.filter((chat) => !chat.current);
 
   const accent = config?.color ?? null;
   // The site's colour on the send button, the header and the visitor's own lines.
@@ -391,7 +428,22 @@ export function VisitorChat() {
         style={{ background: 'var(--thread-accent, var(--accent))', color: 'var(--thread-accent-fg, var(--accent-fg))' }}
       >
         <strong className="min-w-0 flex-1 truncate text-[15px]">{config?.name ?? ''}</strong>
-        {stage === 'ready' && !resolved && lines.length > 0 && (
+        {stage === 'ready' && others.length > 0 && !browsing && (
+          <button
+            type="button"
+            className="relative inline-flex size-8 items-center justify-center rounded-full hover:bg-black/10"
+            aria-label={words.earlier}
+            title={words.earlier}
+            onClick={() => { listChats(); setBrowsing(true); }}
+          >
+            <Icon name="clock" size={16} />
+            {/* An answer in an earlier chat would otherwise reach them only by email. */}
+            {others.some((chat) => chat.unread > 0) && (
+              <span className="absolute right-1 top-1 size-2 rounded-full bg-danger ring-2 ring-white" />
+            )}
+          </button>
+        )}
+        {stage === 'ready' && !browsing && !resolved && lines.length > 0 && (
           <button
             type="button"
             className="inline-flex h-8 items-center gap-1 rounded-full px-2.5 text-[12.5px] font-medium hover:bg-black/10"
@@ -430,7 +482,10 @@ export function VisitorChat() {
           }}
         />
       )}
-      {stage === 'ready' && (
+      {stage === 'ready' && browsing && (
+        <Chats chats={earlier} onBack={() => setBrowsing(false)} onOpen={(chat) => void (chat.current ? setBrowsing(false) : switchTo(`/conversations/${encodeURIComponent(chat.id)}/open`))} />
+      )}
+      {stage === 'ready' && !browsing && (
         <>
           <Thread words={words} lines={threadLines} typing={agentTyping ? words.team : false} seenAt={agentRead} />
           {/* While the model is answering, a person is one click away; once one
@@ -487,6 +542,42 @@ export function VisitorChat() {
         </>
       )}
       </main>
+    </div>
+  );
+}
+
+/** The visitor's chats with this widget, newest first: when, the last thing said, done or open, unread. */
+function Chats({ chats, onBack, onOpen }: { chats: Summary[]; onBack: () => void; onOpen: (chat: Summary) => void }) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <button type="button" className="flex flex-none items-center gap-1.5 border-b border-line px-4 py-2.5 text-left text-[13px] text-soft hover:bg-hover" onClick={onBack}>
+        <Icon name="chevronLeft" size={14} /> {words.back}
+      </button>
+      <ul className="m-0 flex-1 list-none overflow-y-auto p-2">
+        {chats.map((chat) => (
+          <li key={chat.id}>
+            <button
+              type="button"
+              aria-current={chat.current ? 'true' : undefined}
+              className="flex w-full items-start gap-2 rounded-lg px-2.5 py-2 text-left hover:bg-hover aria-[current=true]:bg-active"
+              onClick={() => onOpen(chat)}
+            >
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="flex items-center gap-2 text-[12px] text-muted">
+                  <span className="min-w-0 flex-1 truncate">{chat.current ? words.thisChat : words.exact(chat.last_message_at ?? chat.created_at)}</span>
+                  <span className="flex-none">{chat.status === 'resolved' ? words.done : words.stillOpen}</span>
+                </span>
+                <span className={chat.unread ? 'truncate text-[13.5px] font-semibold text-fg' : 'truncate text-[13.5px] text-soft'}>
+                  {chat.said || words.noMessages}
+                </span>
+              </span>
+              {chat.unread > 0 && (
+                <span className="mt-1.5 size-2 flex-none rounded-full bg-danger"><span className="sr-only">{words.unread}</span></span>
+              )}
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

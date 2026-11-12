@@ -13,6 +13,7 @@
  */
 import { createHash } from 'node:crypto';
 import { chromium } from 'playwright';
+import { switchOnSupport } from './support-fixture.mjs';
 /**
  * The two figures TODO.md quotes about the guide.
  *
@@ -63,6 +64,7 @@ const LABELS = {
     bulkOrganise: 'Organise', unarchive: 'Unarchive', filterPages: 'Filter by label', statusDrawer: 'Status', bulkStatusDrawer: 'Set the status',
     edit: 'Edit', deleteTask: 'Delete task', confirmDelete: 'Delete',
     assigneeDrawer: 'Assignee', unassigned: 'Unassigned', clearFilters: 'Clear all filters',
+    supportResolve: 'Resolve', supportMakeTask: 'Make a task', earlierChats: 'Earlier chats', visitorDone: 'Done',
   },
   de: {
     board: 'Board', newTask: 'Neue Aufgabe', createTask: 'Aufgabe anlegen', pages: 'Seiten',
@@ -88,6 +90,7 @@ const LABELS = {
     bulkOrganise: 'Einordnen', unarchive: 'Aus dem Archiv holen', filterPages: 'Nach Label filtern', statusDrawer: 'Status', bulkStatusDrawer: 'Status setzen',
     edit: 'Bearbeiten', deleteTask: 'Aufgabe löschen', confirmDelete: 'Löschen',
     assigneeDrawer: 'Zuständigkeit', unassigned: 'Niemand zuständig', clearFilters: 'Alle Filter zurücksetzen',
+    supportResolve: 'Erledigen', supportMakeTask: 'Aufgabe erstellen', earlierChats: 'Frühere Chats', visitorDone: 'Erledigt',
   },
   fr: {
     board: 'Tableau', newTask: 'Nouvelle tâche', createTask: 'Créer la tâche', pages: 'Pages',
@@ -113,6 +116,7 @@ const LABELS = {
     bulkOrganise: 'Ranger', unarchive: 'Désarchiver', filterPages: 'Filtrer par étiquette', statusDrawer: 'Statut', bulkStatusDrawer: 'Définir le statut',
     edit: 'Modifier', deleteTask: 'Supprimer la tâche', confirmDelete: 'Supprimer',
     assigneeDrawer: 'Assigné', unassigned: 'Non assignée', clearFilters: 'Effacer tous les filtres',
+    supportResolve: 'Résoudre', supportMakeTask: 'Créer une tâche', earlierChats: 'Conversations précédentes', visitorDone: 'Terminé',
   },
 }[locale];
 
@@ -2329,6 +2333,99 @@ await step('chat: history, drafts, order and Enter — the four that were broken
     throw new Error('Enter sent the message and left it in the box');
   }
   console.log('     40 lines in order, history reachable, draft kept, Enter sends');
+});
+
+/**
+ * Support from both sides, as people use it: the team resolves and the
+ * visitor is told; the visitor marks a chat done and starts a new one, and
+ * still finds the earlier one — with the answer that came into it afterwards;
+ * a conversation becomes a task that links back to it, and can become one
+ * again once that task is deleted.
+ *
+ * Each of these has a server test, and each was still something nobody could
+ * do from a screen until the screen had it. The visitor is a stranger here: a
+ * browser context of their own, sharing nothing with the member's.
+ */
+await step('support: resolved is heard, a new chat keeps the old one, a task links back', async () => {
+  await closeSheets(page);
+  const { widgetId } = await switchOnSupport(page);
+  const opened = await page.evaluate(async (widget) => {
+    const json = { 'content-type': 'application/json' };
+    const session = await (await fetch(`/w/${widget}/session`, {
+      method: 'POST', headers: json, body: JSON.stringify({ name: 'Smoke Visitor' }),
+    })).json();
+    await fetch(`/w/${widget}/messages`, {
+      method: 'POST', headers: { ...json, 'x-widget-session': session.session }, body: JSON.stringify({ body: 'Where is my invoice?' }),
+    });
+    return session;
+  }, widgetId);
+  const conversation = opened.conversation.id;
+  const say = (id, body) => page.evaluate(async ({ id, body }) => {
+    const workspace = (await (await fetch('/api/session')).json()).workspaces[0].id;
+    await fetch(`/api/workspaces/${workspace}/conversation-messages`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ conversation_id: id, body }),
+    });
+  }, { id, body });
+
+  const stranger = await browser.newContext({ viewport: { width: 400, height: 640 }, locale });
+  try {
+    const visitor = await stranger.newPage();
+    await visitor.goto(`${base}/w/${widgetId}`, { waitUntil: 'domcontentloaded' });
+    await visitor.evaluate(({ key, value }) => localStorage.setItem(key, value), {
+      key: `kolibri.chat.${widgetId}`, value: JSON.stringify({ session: opened.session, expiresAt: opened.expiresAt }),
+    });
+    await visitor.reload({ waitUntil: 'networkidle' });
+    await visitor.locator('.thread [data-line]', { hasText: 'Where is my invoice?' }).waitFor({ timeout: 10000 });
+
+    // Resolved in the inbox, and the visitor's window says so without a reload.
+    await page.goto(`${base}/support/${conversation}`, { waitUntil: 'networkidle' });
+    await page.locator(`.chat-header button[aria-label="${LABELS.supportResolve}"]`).click();
+    await visitor.waitForSelector('[role=status]', { timeout: 10000 });
+
+    // A new chat starts clean; the old one is a click away.
+    await visitor.locator('[role=status] button').click();
+    await visitor.waitForSelector('[role=status]', { state: 'detached', timeout: 10000 });
+    const earlier = visitor.locator(`header button[aria-label="${LABELS.earlierChats}"]`);
+    await earlier.waitFor({ timeout: 10000 });
+    if (await visitor.locator('.thread [data-line]', { hasText: 'Where is my invoice?' }).count()) {
+      throw new Error('the new chat still shows the old one');
+    }
+
+    // The visitor can call it done themselves.
+    await visitor.locator('textarea').fill('And one more question.');
+    await visitor.keyboard.press('Enter');
+    await visitor.locator('.thread [data-line]', { hasText: 'And one more question.' }).waitFor({ timeout: 10000 });
+    await visitor.locator('header button', { hasText: LABELS.visitorDone }).click();
+    await visitor.waitForSelector('[role=status]', { timeout: 10000 });
+
+    // An answer that lands in the old chat afterwards is found there, not only by email.
+    await say(conversation, 'It is attached to your account now.');
+    await earlier.click();
+    const old = visitor.locator('ul button:not([aria-current])').first();
+    await old.locator('.sr-only').waitFor({ timeout: 10000 });
+    await old.click();
+    await visitor.locator('.thread [data-line]', { hasText: 'It is attached to your account now.' }).waitFor({ timeout: 10000 });
+  } finally {
+    await stranger.close();
+  }
+
+  // The conversation as a task: a link back to it, and once that task is gone, a task again.
+  await page.goto(`${base}/support/${conversation}`, { waitUntil: 'networkidle' });
+  await page.locator('.chat-header button', { hasText: LABELS.supportMakeTask }).click();
+  await page.waitForSelector(`.sheet a[href="/support/${conversation}"]`, { timeout: 10000 });
+  await closeSheets(page);
+  const task = await page.evaluate(async (id) => {
+    const workspace = (await (await fetch('/api/session')).json()).workspaces[0].id;
+    const rows = await (await fetch(`/api/workspaces/${workspace}/conversations`)).json();
+    return rows.find((row) => row.id === id)?.task_id;
+  }, conversation);
+  if (!task) throw new Error('the conversation does not name the task it became');
+  if (await page.locator('.chat-header button', { hasText: LABELS.supportMakeTask }).count()) {
+    throw new Error('the inbox still offers to make the task it has just made');
+  }
+  await page.evaluate((id) => fetch(`/api/tasks/${id}`, { method: 'DELETE' }), task);
+  await page.locator('.chat-header button', { hasText: LABELS.supportMakeTask }).waitFor({ timeout: 10000 });
+  console.log('     resolved heard, done by the visitor, new chat, earlier chat with its answer, task links back and comes again');
 });
 
 /**

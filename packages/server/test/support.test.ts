@@ -101,11 +101,15 @@ describe('a widget', () => {
     widget = await ok(`/api/workspaces/${workspaceId}/widgets`, {
       project_id: projectId,
       name: 'Merchants',
-      origins: ['example.com', 'https://dev.example.com/shop?x=1', 'http://evil.example', '*.example.com'],
+      origins: ['example.com', 'https://dev.example.com/shop?x=1', 'http://evil.example', '*.shops.example.com', '*.com', 'http://*.example.com'],
       secret: 'chosen-by-the-client',
     });
     assert.equal('secret' in widget, false, 'the secret is not in the row a client is sent');
-    assert.deepEqual(widget.origins, ['https://example.com', 'https://dev.example.com'], 'origins, not URLs; no http, no wildcards');
+    assert.deepEqual(
+      widget.origins,
+      ['https://example.com', 'https://dev.example.com', 'https://*.shops.example.com'],
+      'origins, not URLs; no http; a pattern only as every subdomain of a domain',
+    );
     assert.equal(widget.identity, 'signed');
     secret = (await ok(`/api/widgets/${widget.id}/secret`)).secret;
     assert.ok(secret.length >= 32);
@@ -116,7 +120,7 @@ describe('a widget', () => {
     const response = await fetch(`${base}/w/${widget.id}`);
     assert.equal(response.status, 200);
     const csp = response.headers.get('content-security-policy') ?? '';
-    assert.match(csp, /frame-ancestors 'self' https:\/\/example\.com https:\/\/dev\.example\.com/);
+    assert.match(csp, /frame-ancestors 'self' https:\/\/example\.com https:\/\/dev\.example\.com https:\/\/\*\.shops\.example\.com;/);
     assert.equal(response.headers.get('x-frame-options'), null);
     const config = await visit(`/w/${widget.id}/config`);
     assert.equal(config.json.widget.name, 'Merchants');
@@ -429,6 +433,41 @@ describe('a visitor done with a chat', () => {
   });
 });
 
+describe('a visitor\'s earlier chats', () => {
+  it('are listed for them, newest first, with what they have not read', async () => {
+    const { conversation: first, session } = await visitorWithPicture('earlier-1', await picture(31));
+    await ok(`/api/workspaces/${workspaceId}/conversation-messages`, { conversation_id: first, body: 'Answered while you were away.' });
+    const fresh = await visit(`/w/${widget.id}/conversations`, {}, session);
+    const listed = await visit(`/w/${widget.id}/conversations`, undefined, fresh.json.session);
+    assert.equal(listed.status, 200);
+    assert.deepEqual(listed.json.conversations.map((row: any) => row.id), [fresh.json.conversation.id, first]);
+    assert.equal(listed.json.conversations[0].current, true);
+    const old = listed.json.conversations[1];
+    assert.equal(old.status, 'resolved');
+    assert.equal(old.unread, 1);
+    assert.equal(old.said, 'Answered while you were away.');
+  });
+
+  it('can be gone back to — their own, and nobody else\'s', async () => {
+    const mine = await visitorWithPicture('earlier-2', await picture(32));
+    const theirs = await visitorWithPicture('earlier-3', await picture(33));
+    const fresh = await visit(`/w/${widget.id}/conversations`, {}, mine.session);
+    const back = await visit(`/w/${widget.id}/conversations/${mine.conversation}/open`, {}, fresh.json.session);
+    assert.equal(back.status, 200);
+    assert.equal(back.json.conversation.id, mine.conversation);
+    const thread = await visit(`/w/${widget.id}/messages`, undefined, back.json.session);
+    assert.equal(thread.json.messages[0].body, 'Here is what I see.');
+    assert.equal((await visit(`/w/${widget.id}/conversations/${theirs.conversation}/open`, {}, fresh.json.session)).status, 404);
+  });
+
+  it('do not pile up empty ones when "new chat" is pressed twice', async () => {
+    const { session } = await visitorWithPicture('earlier-4', await picture(34));
+    const once = await visit(`/w/${widget.id}/conversations`, {}, session);
+    const twice = await visit(`/w/${widget.id}/conversations`, {}, session);
+    assert.equal(twice.json.conversation.id, once.json.conversation.id);
+  });
+});
+
 describe('a conversation as a task', () => {
   it('links back to the chat and shows its pictures as pictures', async () => {
     const { conversation, hash } = await visitorWithPicture('task-1', await picture(21));
@@ -436,6 +475,12 @@ describe('a conversation as a task', () => {
     const [link] = task.description.split('\n');
     assert.equal(link, `[From the support chat with Ada via Merchants](/support/${conversation})`);
     assert.match(task.description, new RegExp(`!\\[screen\\.png\\]\\(/files/${hash}/screen\\.png\\)`));
+  });
+
+  it('words the link in the language the member is looking at', async () => {
+    const { conversation } = await visitorWithPicture('task-3', await picture(23));
+    const { task } = await ok(`/api/conversations/${conversation}/task`, { locale: 'de' });
+    assert.equal(task.description.split('\n')[0], `[Aus dem Support-Chat mit Ada über Merchants](/support/${conversation})`);
   });
 
   it('can be made again once the task it became is deleted', async () => {

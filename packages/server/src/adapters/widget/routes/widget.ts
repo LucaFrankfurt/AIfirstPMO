@@ -12,7 +12,7 @@
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { ConversationFile } from '@kolibri/shared';
+import { excerpt, type ConversationFile } from '@kolibri/shared';
 import { all, get, type Row } from '../../../kernel/platform/db/index.ts';
 import { env } from '../../../kernel/platform/env.ts';
 import { buildCsp } from '../../../kernel/platform/csp.ts';
@@ -27,8 +27,8 @@ import * as storage from '../../../kernel/files/storage.ts';
 import { storeFile } from '../../../kernel/files/uploads.ts';
 import { displayName } from '../../../kernel/write-path/repo.ts';
 import {
-  conversationFor, liveWidget, markVisitorRead, messagesOf, newConversation, onTyping, parseFiles, postVisitorMessage,
-  resolveByVisitor, setTyping, typingIn, type Visitor,
+  conversationFor, conversationsOfVisitor, liveWidget, markVisitorRead, messagesOf, newConversation, onTyping, parseFiles,
+  postVisitorMessage, resolveByVisitor, setTyping, typingIn, unreadByVisitor, visitorsOwn, type Visitor,
 } from '../../../modules/support/support.ts';
 import { handOver, respondTo } from '../../../modules/support/assistant.ts';
 import { readSession, signSession, verifyHostToken } from '../token.ts';
@@ -89,6 +89,24 @@ const listOf = (value: unknown): string[] => {
     return [];
   }
 };
+
+/** A chat in the visitor's list of their own: when, how it ended, the last thing said, and what they have not read. */
+function summaryView(conversation: Row) {
+  const last = get<Row>(
+    `SELECT body, files FROM conversation_messages WHERE conversation_id = ? AND deleted_at IS NULL
+      ORDER BY created_at DESC LIMIT 1`,
+    conversation.id,
+  );
+  const said = last ? String(last.body ?? '') || parseFiles(last.files).map((file) => file.name).join(', ') : '';
+  return {
+    id: conversation.id,
+    status: conversation.status,
+    created_at: conversation.created_at,
+    last_message_at: conversation.last_message_at ?? null,
+    said: said ? excerpt(said, 90) : '',
+    unread: unreadByVisitor(conversation),
+  };
+}
 
 /** A message as the visitor sees it: who answered is a name, not a user id; the model is the model. */
 const messageView = (message: Row) => ({
@@ -249,6 +267,32 @@ export function registerWidgetRoutes(router: Router): void {
       session: signSession({ w: String(widget.id), c: String(fresh.id), exp: expiresAt }),
       expiresAt,
       conversation: conversationView(fresh),
+    };
+  });
+
+  /**
+   * The visitor's own chats with this widget, newest first — the same widget
+   * and the same visitor id as the session, so a signed visitor sees what
+   * their own site's id has said and nobody else's.
+   */
+  router.get('/w/:widget/conversations', (ctx: Ctx) => {
+    const { conversation } = visitorOf(ctx);
+    return {
+      conversations: conversationsOfVisitor(conversation)
+        .map((row) => ({ ...summaryView(row), current: row.id === conversation.id })),
+    };
+  });
+
+  /** Go back to one of those: a session for it, ending when this one would have. */
+  router.post('/w/:widget/conversations/:id/open', (ctx: Ctx) => {
+    enforce(ctx, byAddress(ctx, LIMITS.widgetSession, 'widget-session'));
+    const { widget, conversation, expiresAt } = visitorOf(ctx);
+    const other = visitorsOwn(conversation, ctx.params.id);
+    if (!other) throw notFound('No such chat');
+    return {
+      session: signSession({ w: String(widget.id), c: String(other.id), exp: expiresAt }),
+      expiresAt,
+      conversation: conversationView(other),
     };
   });
 

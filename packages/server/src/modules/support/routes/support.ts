@@ -12,7 +12,7 @@ import { HttpError, badRequest, forbidden, notFound, readJson, type Ctx, type Ro
 import { token, uid } from '../../../kernel/platform/ids.ts';
 import { requireAuth, requireWorkspace } from '../../../kernel/identity/auth.ts';
 import { serverClock } from '../../../kernel/write-path/bootstrap.ts';
-import { translatorFor } from '../../../kernel/i18n/i18n.ts';
+import { isLocale, localeOf, translate } from '../../../kernel/i18n/i18n.ts';
 import { canSeeProject, displayName, serialize, writeEntity } from '../../../kernel/write-path/repo.ts';
 import { env } from '../../../kernel/platform/env.ts';
 import { byValue, enforce } from '../../../kernel/identity/ratelimit.ts';
@@ -69,13 +69,16 @@ export function registerSupportRoutes(router: Router): void {
     if (conversation.task_id && get(`SELECT 1 FROM tasks WHERE id = ? AND deleted_at IS NULL`, conversation.task_id)) {
       throw badRequest('This conversation is already a task');
     }
-    const body = await readJson<{ title?: string }>(ctx).catch(() => ({}) as { title?: string });
+    const body = await readJson<{ title?: string; locale?: string }>(ctx).catch(() => ({}) as { title?: string; locale?: string });
+    // The language the member is looking at, which is not always the one their
+    // account has stored: a browser in German on an account never told is.
+    const locale = isLocale(body.locale) ? body.locale : localeOf(auth.userId);
     const opts = { workspaceId: String(conversation.workspace_id), actorId: auth.userId, hlc: serverClock.now() };
     const { row: task } = writeEntity('task', uid(), {
       workspace_id: conversation.workspace_id,
       project_id: conversation.project_id,
       title: String(body.title ?? '').trim() || taskTitle(conversation),
-      description: transcript(conversation, displayName, translatorFor(auth.userId)('support.taskFrom', {
+      description: transcript(conversation, displayName, translate(locale, 'support.taskFrom', {
         name: visitorLabel(conversation as Conversation),
         widget: String(get<Row>(`SELECT name FROM widgets WHERE id = ?`, conversation.widget_id)?.name ?? ''),
       })),
