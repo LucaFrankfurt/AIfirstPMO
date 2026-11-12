@@ -10,9 +10,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
-  awaitsReply, unreadByTeam, visitorLabel,
+  awaitsReply, matchesTerms, parseTerms, unreadByTeam, visitorLabel,
   type Conversation, type ConversationFile, type ConversationMessage, type Widget,
 } from '@kolibri/shared';
+import { Header } from '../../../kernel/design-system/chrome';
 import { Composer, Thread, type ThreadLine } from '../../../kernel/design-system/conversation';
 import { useThreadWords } from '../../../kernel/design-system/thread-words';
 import { cn } from '../../../kernel/design-system/cn';
@@ -22,7 +23,7 @@ import { useOpenTask } from '../../../kernel/design-system/navigation';
 import { Avatar, Empty, Icon, MenuButton, useAction, useToast } from '../../../kernel/design-system/ui';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { Chip } from '../../../kernel/design-system/ui/chip';
-import { Select } from '../../../kernel/design-system/ui/field';
+import { Input, Select } from '../../../kernel/design-system/ui/field';
 import { navItem } from '../../../kernel/design-system/ui/nav';
 import { useI18n, useT } from '../../../kernel/i18n/i18n';
 import { useCanWrite, useFeature, useMe, useMemberMap, useMembers, useSession } from '../../../kernel/identity/session';
@@ -51,38 +52,56 @@ export function SupportInbox() {
   const enabled = useFeature('support');
   const [filter, setFilter] = useState<Filter>('open');
   const [widgetId, setWidgetId] = useState('');
+  const [hunt, setHunt] = useState('');
 
   const widgets = useQuery(() => list('widget').sort((a, b) => a.name.localeCompare(b.name)), []);
+  const widgetName = useMemo(() => new Map(widgets.map((widget) => [widget.id, widget.name])), [widgets]);
+  const terms = useMemo(() => parseTerms(hunt), [hunt]);
   const conversations = useQuery(
-    () => list('conversation', (row) => row.status === filter && (!widgetId || row.widget_id === widgetId))
+    () => list('conversation', (row) => row.status === filter && (!widgetId || row.widget_id === widgetId)
+      // Who it is and where they wrote from: what somebody types to find a conversation.
+      && (!terms.length || matchesTerms(`${visitorLabel(row)} ${row.visitor_email ?? ''} ${widgetName.get(row.widget_id) ?? ''}`, terms)))
       .sort((a, b) => (b.last_message_at ?? b.created_at) - (a.last_message_at ?? a.created_at)),
-    [filter, widgetId],
+    [filter, widgetId, terms, widgetName],
   );
   const current = useQuery(() => (id ? list('conversation', (row) => row.id === id)[0] : undefined), [id]);
-  const widgetName = useMemo(() => new Map(widgets.map((widget) => [widget.id, widget.name])), [widgets]);
 
   if (!enabled) return <Empty emoji="💬" title={t('support.off')} hint={t('support.offHint')} />;
 
   return (
-    // The chat's own layout classes: one column on a phone, list beside the
-    // conversation from 900px, and the page itself never scrolls.
-    <div className="mx-auto max-w-[1180px] px-3 pb-2.5 pt-4 sm:px-6 sm:pt-5 chat">
+    <>
+      {/* The screen's header and a list at the left edge, as the pages have:
+          the filters are the header's, the list is a column of rows with a
+          box to find one, and the conversation takes the rest. */}
+      <Header title={t('support.title')}>
+        {/* Two buttons rather than a tab strip: it filters one list, it does
+            not switch between screens. */}
+        <div className="flex gap-1" role="group" aria-label={t('support.title')}>
+          {(['open', 'resolved'] as const).map((name) => (
+            <Button key={name} size="sm" variant={filter === name ? 'secondary' : 'ghost'} aria-pressed={filter === name} onClick={() => setFilter(name)}>
+              {t(name === 'open' ? 'support.open' : 'support.resolved')}
+            </Button>
+          ))}
+        </div>
+        {widgets.length > 1 && (
+          <Select inputSize="sm" className="w-auto max-w-[180px]" value={widgetId} aria-label={t('support.widget')} onChange={(event) => setWidgetId(event.target.value)}>
+            <option value="">{t('support.allWidgets')}</option>
+            {widgets.map((widget) => <option key={widget.id} value={widget.id}>{widget.name}</option>)}
+          </Select>
+        )}
+      </Header>
+      {/* The chat's own layout classes: one column on a phone, list beside the
+          conversation from 900px, and the page itself never scrolls. */}
+      <div className="px-3 pb-2.5 pt-4 sm:px-6 chat">
         <aside className="chat-list" aria-label={t('support.title')}>
-          <h1 className="m-0 mb-2" style={{ fontSize: 17 }}>{t('support.title')}</h1>
-          {/* Two buttons rather than a tab strip: it filters one list, it does
-              not switch between screens. */}
-          <div className="mb-2 flex gap-1" role="group" aria-label={t('support.title')}>
-            {(['open', 'resolved'] as const).map((name) => (
-              <Button key={name} size="sm" variant={filter === name ? 'secondary' : 'ghost'} aria-pressed={filter === name} onClick={() => setFilter(name)}>
-                {t(name === 'open' ? 'support.open' : 'support.resolved')}
-              </Button>
-            ))}
-          </div>
-          {widgets.length > 1 && (
-            <Select inputSize="sm" className="mb-2 w-full" value={widgetId} aria-label={t('support.widget')} onChange={(event) => setWidgetId(event.target.value)}>
-              <option value="">{t('support.allWidgets')}</option>
-              {widgets.map((widget) => <option key={widget.id} value={widget.id}>{widget.name}</option>)}
-            </Select>
+          {widgets.length > 0 && (
+            <Input
+              className="mb-1.5 w-full"
+              placeholder={t('support.find')}
+              aria-label={t('support.find')}
+              value={hunt}
+              onChange={(event) => setHunt(event.target.value)}
+            />
           )}
           {!widgets.length && (
             <p className="text-[12.5px] text-muted">
@@ -90,7 +109,9 @@ export function SupportInbox() {
             </p>
           )}
           {widgets.length > 0 && !conversations.length && (
-            <p className="text-[12.5px] text-muted">{t(filter === 'open' ? 'support.noneOpen' : 'support.noneResolved')}</p>
+            <p className="text-[12.5px] text-muted">
+              {terms.length ? t('support.noneFound') : t(filter === 'open' ? 'support.noneOpen' : 'support.noneResolved')}
+            </p>
           )}
           <ul className="m-0 flex list-none flex-col p-0">
             {conversations.map((conversation) => (
@@ -110,7 +131,8 @@ export function SupportInbox() {
             ? <Answer key={current.id} conversation={current} widget={widgets.find((widget) => widget.id === current.widget_id)} onBack={() => navigate('/support')} />
             : <Empty emoji="💬" title={t('support.pick')} hint={t('support.pickHint')} />}
         </section>
-    </div>
+      </div>
+    </>
   );
 }
 

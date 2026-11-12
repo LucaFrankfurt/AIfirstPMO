@@ -227,7 +227,13 @@ export function VisitorChat() {
         source = new EventSource(`${base}/stream?session=${encodeURIComponent(session)}&after=${after}`);
         source.addEventListener('message', (event) => {
           const line = JSON.parse((event as MessageEvent).data) as Line;
-          setLines((now) => merge(now, line));
+          // The visitor's own line can come back on the stream before the post
+          // that sent it has answered. It replaces the pending copy here, or the
+          // window shows it twice until the answer arrives.
+          setLines((now) => merge(
+            line.author === 'visitor' ? now.filter((one) => !(one.pending && one.body === line.body)) : now,
+            line,
+          ));
           if (line.author !== 'visitor') setAgentTyping(false);
         });
         source.addEventListener('gone', (event) => {
@@ -237,6 +243,8 @@ export function VisitorChat() {
         source.addEventListener('read', (event) => setAgentRead(JSON.parse((event as MessageEvent).data).agent_read_at));
         source.addEventListener('handover', (event) => setHandedOver(JSON.parse((event as MessageEvent).data).handover_at ?? null));
         source.addEventListener('status', (event) => setResolved(JSON.parse((event as MessageEvent).data).status === 'resolved'));
+        // The team answered in another of their chats: the list is asked again, and the dot shows.
+        source.addEventListener('elsewhere', () => listChats());
         source.addEventListener('typing', (event) => {
           const typing = !!JSON.parse((event as MessageEvent).data).agent;
           setAgentTyping(typing);

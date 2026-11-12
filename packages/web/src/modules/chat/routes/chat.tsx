@@ -46,6 +46,7 @@ import { Button } from '../../../kernel/design-system/ui/button';
 import { buttonVariants } from '../../../kernel/design-system/ui/button';
 import { cn } from '../../../kernel/design-system/cn';
 import { Input } from '../../../kernel/design-system/ui/field';
+import { Header } from '../../../kernel/design-system/chrome';
 import { navCount, navItem } from '../../../kernel/design-system/ui/nav';
 import { Chip } from '../../../kernel/design-system/ui/chip';
 import { Avatar, Empty, Icon, MenuButton, Sheet, useConfirm, useToast } from '../../../kernel/design-system/ui';
@@ -225,16 +226,19 @@ export function Chat() {
        content and takes its own height out of the column. So all that padding
        ever did was hold the composer eighty pixels off the bar with nothing in
        between — on the screen with the least room to spare. */
-    <div className="mx-auto max-w-[1180px] px-3 pb-2.5 pt-4 sm:px-6 sm:pt-5 chat">
+    <>
+    {/* The screen's header and a list at the left edge, as the pages have —
+        the list used to sit in a centred 1180px column, which on a wide
+        window left a gutter between the sidebar and the conversations. */}
+    <Header title={t('chat.title')}>
+      {canWrite && (
+        <Button size="sm" onClick={() => setCreating(true)}>
+          <Icon name="plus" size={13} /> {t('chat.new')}
+        </Button>
+      )}
+    </Header>
+    <div className="px-3 pb-2.5 pt-4 sm:px-6 chat">
       <aside className="chat-list" aria-label={t('chat.title')}>
-        <div className="flex items-center gap-2 mb-2">
-          <h1 className="flex-1 min-w-0 m-0" style={{ fontSize: 17 }}>{t('chat.title')}</h1>
-          {canWrite && (
-            <Button size="sm" onClick={() => setCreating(true)}>
-              <Icon name="plus" size={13} /> {t('chat.new')}
-            </Button>
-          )}
-        </div>
 
         {/* "Start a channel, or write to somebody below" is only useful advice
             while there is somebody below. Alone, the hint further down says the
@@ -316,6 +320,7 @@ export function Chat() {
         />
       )}
     </div>
+    </>
   );
 }
 

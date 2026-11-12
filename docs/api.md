@@ -400,7 +400,7 @@ POST /w/:widget/conversations             a new chat: resolves this one → { se
 GET  /w/:widget/conversations             the visitor's own chats with this widget, newest first, with unread
 POST /w/:widget/conversations/:id/open    back into one of those → { session, expiresAt, conversation }
 POST /w/:widget/typing                    { typing }
-GET  /w/:widget/stream                    server-sent events: message, gone, read, status, typing, handover, end
+GET  /w/:widget/stream                    server-sent events: message, gone, read, status, typing, handover, elsewhere, end
 POST /w/:widget/files                     a picture, raw body, as the app's own uploads
 GET  /w/:widget/files/:hash               a file used in this conversation, and no other
 ```

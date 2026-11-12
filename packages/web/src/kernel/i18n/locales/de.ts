@@ -3486,6 +3486,8 @@ export const de: Catalogue = {
   'support.noneResolved': 'Noch nichts erledigt.',
   'support.pick': 'Unterhaltung auswählen',
   'support.pickHint': 'Besucher, die über ein Widget schreiben, erscheinen links, die neuesten oben.',
+  'support.find': 'Unterhaltung finden',
+  'support.noneFound': 'Keine Unterhaltung passt.',
   'support.you': 'Du:',
   'support.unread': 'Ungelesen',
   'support.back': 'Zurück zur Liste',

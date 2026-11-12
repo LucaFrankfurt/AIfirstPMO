@@ -2398,8 +2398,10 @@ await step('support: resolved is heard, a new chat keeps the old one, a task lin
     await visitor.locator('header button', { hasText: LABELS.visitorDone }).click();
     await visitor.waitForSelector('[role=status]', { timeout: 10000 });
 
-    // An answer that lands in the old chat afterwards is found there, not only by email.
+    // An answer that lands in the old chat afterwards is shown while they are
+    // still here — a dot on the button, without a reload — and found there.
     await say(conversation, 'It is attached to your account now.');
+    await earlier.locator('span').waitFor({ timeout: 10000 });
     await earlier.click();
     const old = visitor.locator('ul button:not([aria-current])').first();
     await old.locator('.sr-only').waitFor({ timeout: 10000 });

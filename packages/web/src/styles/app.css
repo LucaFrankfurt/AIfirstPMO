@@ -2856,6 +2856,9 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
  * column is the thing that makes a chat feel wrong before anybody can say why.
  */
 .content:has(.chat) { overflow: hidden; }
+/* Under the screen's header the chat takes what is left of the height, not all
+   of it — or the composer sits a header's height below the bottom edge. */
+.content:has(> .header) > .chat { height: calc(100% - var(--header-height)); }
 .content:has(> .header) { --sticky-top: var(--header-height); }
 
 .chat { display: grid; grid-template-columns: 1fr; min-height: 0; height: 100%; }

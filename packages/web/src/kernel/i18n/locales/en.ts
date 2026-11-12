@@ -3492,6 +3492,8 @@ export const en = {
   'support.noneResolved': 'Nothing resolved yet.',
   'support.pick': 'Pick a conversation',
   'support.pickHint': 'Visitors who write through a widget appear on the left, newest first.',
+  'support.find': 'Find a conversation',
+  'support.noneFound': 'No conversation matches.',
   'support.you': 'You:',
   'support.unread': 'Unread',
   'support.back': 'Back to the list',

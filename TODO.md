@@ -1979,7 +1979,8 @@ See [`docs/support.md`](docs/support.md) for what is built and why it is shaped 
 - [x] **Wildcard sites**, as `*.example.com` and nothing broader: every subdomain of one domain,
       `https` only, never `*.com` or `*.localhost`. The domain itself is listed on its own if meant.
 - [x] **A visitor's earlier chats**, listed in the window with a dot where the team answered after
-      they left, so an answer in a chat they moved on from is not left to email alone.
+      they left — live, while the window is open — so an answer in a chat they moved on from is not
+      left to email alone. A member's answer reopens a resolved conversation.
 
 ## The UI port, and what is left of it
 
