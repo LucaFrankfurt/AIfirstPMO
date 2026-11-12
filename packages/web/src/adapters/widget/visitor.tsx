@@ -227,7 +227,13 @@ export function VisitorChat() {
         source = new EventSource(`${base}/stream?session=${encodeURIComponent(session)}&after=${after}`);
         source.addEventListener('message', (event) => {
           const line = JSON.parse((event as MessageEvent).data) as Line;
-          setLines((now) => merge(now, line));
+          // The visitor's own line can come back on the stream before the post
+          // that sent it has answered. It replaces the pending copy here, or the
+          // window shows it twice until the answer arrives.
+          setLines((now) => merge(
+            line.author === 'visitor' ? now.filter((one) => !(one.pending && one.body === line.body)) : now,
+            line,
+          ));
           if (line.author !== 'visitor') setAgentTyping(false);
         });
         source.addEventListener('gone', (event) => {
