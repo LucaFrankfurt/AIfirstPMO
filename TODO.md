@@ -1733,7 +1733,7 @@ follows is what was deliberately *not* built, and why, so that none of it is re-
       that one column and can never invent one — and both the terminal and a comment above the table
       say so rather than leaving it to be inferred. Doing it properly means rebuilding the table
       instead of altering it, in a generator that so far only ever adds. It is one column out of the
-      **76** the list carries; the other undroppable-looking eight turned out to be something else
+      **77** the list carries; the other undroppable-looking eight turned out to be something else
       entirely, list entries for columns `CREATE TABLE` never creates at all, which is the shape
       everything here is trying to reach. The shape comparison inherits the same blind spot: the
       recorded table carries the `UNIQUE`, so the check believes an upgraded instance has it, while
@@ -1821,6 +1821,10 @@ two screens, a line on the task detail, and nine MCP tools. See [`docs/meetings.
       and kept saying it on every other screen until a reload, because nothing ever reset it. Fixed in
       three places: the points are read through `withLists`; the boundary tells a missing chunk from
       a broken screen; and it resets when the route changes.
+- [x] **In a calendar, a series, findable, exported.** An attendee's calendar feed carries the
+      meetings they are expected at, as timed events; `meetings.repeats` makes a series whose closed
+      meeting calls the next; agenda points are in the full-text index for members; the workspace
+      export carries meetings, agenda and notes, and the task–topic link survives the import.
 - [ ] **The class of that bug, rather than the instance.** Any column added to a table that devices
       already hold behaves the same way, and defensive reads only cover the screens that remember to
       make them. The thorough answer is in the upgrade loop: when it adds a column to a table that has

@@ -24,12 +24,27 @@ sidebar:
 | Place | a room, or the link to a call |
 | What it is for | optional |
 | Attendees | members only |
+| Repeats | *Once* · *Every week* · *Every two weeks* · *Every month* |
 
 | state | |
 |---|---|
 | Planned | still ahead |
 | Closed | somebody pressed *Close the meeting* |
 | Nobody closed it | its day is over and it is still planned — nothing closes a meeting on a clock |
+
+## A series
+
+Set *Repeats*. Closing the meeting calls the next one — same title, place and people — unless one
+is already planned.
+
+- Closing twice, or on two devices, calls it once.
+- The topics do not move by themselves: that is *Carry open topics forward*.
+- *Every month* keeps the day of the month; the 31st falls back to a short month's last day.
+
+## In your calendar
+
+Every attendee's [calendar feed](/beyond/calendar/) shows the meeting at its time, an hour long, with
+its place. No email is sent: moving the meeting moves it in everybody's calendar on the next refresh.
 
 ## The agenda
 
@@ -69,7 +84,7 @@ Reorder with *Move up* / *Move down*; *Remove the topic* takes its notes, never 
 | | |
 |---|---|
 | Where to | the earliest planned meeting after this one |
-| No such meeting | a follow-up a week later, same title, place and people — the sheet says so first |
+| No such meeting | a follow-up a week later — or at the series' step — same title, place and people; the sheet says so first |
 | Here | what was *Open* becomes *Deferred* |
 | There | the topic, at the end, *Open*, same people responsible, *Continued from …* |
 | The notes | stay where they were written |
@@ -102,9 +117,15 @@ Over MCP: `list_meetings`, `get_meeting`, `create_meeting`, `update_meeting`, `a
 and `prepare_meeting` for an agenda drawn from the workspace's reports. See
 [Connecting an assistant](/beyond/assistant/).
 
+## Search and export
+
+- **Search** finds topics by title, description and notes — for members, never guests. A hit opens
+  the meeting.
+- **The workspace export** carries meetings, their agenda and notes; a task filed from a topic still
+  points at it after the import.
+
 ## Not yet
 
-- No calendar invitation; a meeting is not in the calendar feed.
-- No series — a weekly is a meeting and its follow-ups.
+- No email invitation and no replies — the calendar feed is the invitation.
+- No end time: a meeting is drawn an hour long.
 - No notification when a topic is added or somebody is put on a meeting.
-- Agenda topics are not in search, and not in the workspace export.

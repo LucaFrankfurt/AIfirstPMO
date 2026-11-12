@@ -2900,6 +2900,19 @@
             ],
             "description": "The wiki page the minutes were filed as, once they have been. A pointer and not a copy: the minutes are an ordinary page with an ordinary history, so filing them again replaces the text and keeps the previous version where every other page keeps one."
           },
+          "repeats": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "monthly",
+              "weekly",
+              "fortnightly",
+              null
+            ],
+            "description": "How often it comes round, or null for once. A meeting in a series that is closed calls the next one, and carrying its topics forward uses the same step. Added after meetings synced, so a device that had a meeting before may have it without this field: read it with `?? null`."
+          },
           "seq": {
             "type": "number",
             "description": "Server-assigned, workspace-monotonic sync cursor.",

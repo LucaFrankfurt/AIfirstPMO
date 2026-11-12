@@ -30,10 +30,11 @@
  * promised.
  */
 
-import { AGENDA_STATUS, MEETING_STATUS } from '@kolibri/shared';
+import { createHash } from 'node:crypto';
+import { AGENDA_STATUS, MEETING_STATUS, followUp, isMeetingRepeat, type Meeting } from '@kolibri/shared';
 import { all, get, type Row } from '../../../kernel/platform/db/index.ts';
 import { badRequest } from '../../../kernel/platform/http.ts';
-import { type EntityRule, writeEntity, type WriteOpts } from '../../../kernel/write-path/repo.ts';
+import { type EntityRule, serialize, writeEntity, type WriteOpts } from '../../../kernel/write-path/repo.ts';
 import { settleCrdtText } from '../../pages/rules/pages.ts';
 
 const NOTES = { state: 'notes_body', text: 'notes' } as const;
@@ -95,6 +96,7 @@ function applyMeetingInvariants(
 
   if (entity === 'meeting') {
     oneOf('status', MEETING_STATUS, 'planned');
+    if (values.repeats !== undefined && values.repeats !== null && !isMeetingRepeat(values.repeats)) settle('repeats', null);
     if (values.starts_at !== undefined && values.starts_at !== null) {
       const at = Math.round(Number(values.starts_at));
       // Null rather than zero for a time that is not a number: zero is a real
@@ -122,6 +124,29 @@ function guardAgendaItem(values: Record<string, unknown>, existing: Row | undefi
 }
 
 const system = (opts: WriteOpts): WriteOpts => ({ ...opts, op: undefined, system: true, silent: true });
+
+/**
+ * A meeting in a series, closed: the next one is called, if nobody has yet.
+ *
+ * "Nobody has yet" is a planned meeting of the same title after this one —
+ * carrying the topics forward first, or calling it by hand, both count. The
+ * id is derived from this meeting's, so closing it on two devices, or closing,
+ * reopening and closing again, calls it once; and one somebody deleted stays
+ * deleted rather than coming back on the next close. Its topics are not moved:
+ * that is still the carry-over button, which finds this meeting as "the next".
+ */
+function callNext(row: Row, opts: WriteOpts): void {
+  if (!isMeetingRepeat(row.repeats) || !row.starts_at) return;
+  const later = get<Row>(
+    `SELECT 1 FROM meetings WHERE workspace_id = ? AND id <> ? AND deleted_at IS NULL AND status = 'planned'
+        AND title = ? AND starts_at > ?`,
+    row.workspace_id, row.id, row.title, row.starts_at,
+  );
+  const id = createHash('sha256').update(`${row.id}:next`).digest('hex').slice(0, 32);
+  if (later || get(`SELECT 1 FROM meetings WHERE id = ?`, id)) return;
+  const draft = followUp(serialize('meeting', row) as unknown as Meeting);
+  writeEntity('meeting', id, { ...draft, created_by: row.created_by ?? null }, { ...opts, op: undefined, system: true });
+}
 
 /** Deleting a meeting takes every point on its agenda. */
 function tombstoneAgenda(meeting: Row, opts: WriteOpts): void {
@@ -180,5 +205,6 @@ export const meetingRules = {
     if (entity !== 'meeting') return;
     if (row.deleted_at && !before?.deleted_at) tombstoneAgenda(row, opts);
     if (!row.deleted_at && before?.deleted_at) restoreAgenda(row, Number(before.deleted_at), opts);
+    if (!row.deleted_at && row.status === 'done' && before && before.status !== 'done') callNext(row, opts);
   },
 } satisfies EntityRule;

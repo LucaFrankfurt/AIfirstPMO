@@ -12,7 +12,7 @@ Two kinds of feed:
 
 | | |
 |---|---|
-| **Yours** | Everything with a due date that is **on you**, across every workspace you are a member of |
+| **Yours** | Everything with a due date that is **on you**, across every workspace you are a member of — and the [meetings](/people/meetings/) you are expected at |
 | **A saved view** | One [saved view](/views/saved/), resolved the way its share link resolves it |
 
 A task with no due date is not in the feed at all — there is nothing for a calendar to draw.
@@ -63,7 +63,8 @@ nothing.
 
 - **No writing back.** Ticking a task off in a calendar client changes nothing here. This is a
   read-only feed, not CalDAV.
-- **No times.** Due dates in Kolibri are days, so every entry is all-day.
+- **No times on tasks.** Due dates in Kolibri are days, so every task is all-day. Meetings come with
+  their time, drawn an hour long.
 - **No alarms.** A `VALARM` would fire on your device on a schedule Kolibri did not choose;
   reminders live in [notifications](/people/notifications/), where you can turn them off.
 - **No per-project feed.** A saved view scoped to a project is the same thing with a name on it.

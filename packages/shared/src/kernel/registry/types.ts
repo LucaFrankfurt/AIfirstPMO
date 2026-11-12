@@ -504,6 +504,10 @@ export interface DecisionVote extends Base {
 export const MEETING_STATUS = ['planned', 'done'] as const;
 export type MeetingStatus = (typeof MEETING_STATUS)[number];
 
+/** How often a meeting comes round. Null is once. */
+export const MEETING_REPEATS = ['weekly', 'fortnightly', 'monthly'] as const;
+export type MeetingRepeat = (typeof MEETING_REPEATS)[number];
+
 /**
  * Where a point on the agenda got to.
  *
@@ -534,6 +538,13 @@ export interface Meeting extends Base {
   /** Who is expected, by user id. */
   attendees: ID[];
   status: MeetingStatus;
+  /**
+   * How often it comes round, or null for once. A meeting in a series that is
+   * closed calls the next one, and carrying its topics forward uses the same
+   * step. Added after meetings synced, so a device that had a meeting before
+   * may have it without this field: read it with `?? null`.
+   */
+  repeats: MeetingRepeat | null;
   /**
    * The wiki page the minutes were filed as, once they have been.
    *

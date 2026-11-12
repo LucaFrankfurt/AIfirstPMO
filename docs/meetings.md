@@ -10,7 +10,7 @@ what was said is filed as a page. Off by default; switched on per workspace unde
 
 | | |
 |---|---|
-| **Meeting** | When, where, who is expected, what it is for, and whether it is still ahead or closed |
+| **Meeting** | When, where, who is expected, what it is for, how often it comes round, and whether it is still ahead or closed |
 | **Agenda point** | One topic: a title, an optional description, the projects it is about, who is responsible for it, where it got to — *open*, *discussed* or *deferred* — and its notes. Its own row, so two people adding topics at once from two devices both end up on the agenda |
 | **Task** | An ordinary task that knows the point it came out of (`tasks.agenda_item_id`). On the task, not as a list on the point, so two tasks filed from one point at once are both kept |
 
@@ -94,6 +94,41 @@ topic was *first* raised, so a topic deferred five weeks running has an id one m
 
 A carried point keeps who brought it. Whoever pressed the button at the end of the meeting did not.
 
+## A series
+
+`repeats`: *weekly*, *fortnightly*, *monthly*, or nothing for once.
+
+| | |
+|---|---|
+| Closing a meeting in a series | calls the next one — same title, place, people, description and step — unless a planned meeting of the same title after it exists |
+| Closing it twice, on two devices, or close → reopen → close | one next meeting: its id is derived from this one's |
+| A next meeting somebody deleted | stays deleted |
+| Its topics | not moved — that is still *Carry open topics forward*, which finds the new meeting as "the next" |
+| Carrying forward with no next meeting | the follow-up is called at the series' step, not a week, and continues the series |
+| Monthly | the same day of the next month at the same time; the 31st falls back to a short month's last day |
+
+`repeats` was added after meetings synced: read it as `meeting.repeats ?? null`.
+
+## In a calendar
+
+Every attendee's [calendar feed](calendar.md) carries the meetings they are expected at, as timed
+events of an hour. The feed is the invitation — there is no email and no reply.
+
+## Found by search
+
+Agenda points are in the full-text index: title, description and notes. The index's project
+column is empty for them — a point names several projects or none — so `searchWorkspace` asks the
+question every meeting route asks instead: a member, not a guest, of a workspace with meetings on.
+A hit opens the meeting. Points written before this was added are found after `kolibri reindex`
+(or once they are next edited).
+
+## In an export
+
+The workspace export carries the meetings, their agenda and the notes as text; the merge state
+stays behind and is rebuilt on import. People are matched by email, projects and the minutes page by
+their new ids, and a task filed from a point points at the imported point. A project export still
+carries no link to a meeting — see `TODO.md`.
+
 ## The minutes are a page
 
 **File the minutes as a page** writes the meeting up as markdown: the time and place, who was
@@ -124,8 +159,8 @@ are work, and the work is still owed.
 |---|---|
 | `list_meetings` | still open first, soonest first, then the closed ones; `unclosed` names the meeting nobody closed |
 | `get_meeting` | the agenda in order, with each point's notes, projects, author and tasks. A title several meetings share — a weekly — means the next one still open |
-| `create_meeting` | a time, a place, who is expected, and optionally the first topics |
-| `update_meeting` | move it, rename it, change who is expected, or close it |
+| `create_meeting` | a time, a place, who is expected, optionally the first topics, and `repeats` for a series |
+| `update_meeting` | move it, rename it, change who is expected, make it a series, or close it — which calls the next one in a series |
 | `add_agenda_item` | a topic at the end of the agenda, as whoever the token belongs to, optionally with who is responsible |
 | `update_agenda_item` | state, title, description, projects, who is responsible, and the notes — `append_notes` while people may be typing |
 | `create_task_from_agenda_item` | a task that remembers the point; the project defaults to the point's first |
@@ -134,19 +169,13 @@ are work, and the work is still owed.
 
 ## What it does not do, yet
 
-- **No calendar invitation.** A meeting is not in the `.ics` feed and sends nobody an email. The feed
-  carries what is *due*; a meeting is something people attend, and an invitation is a promise about
-  somebody else's calendar that this instance cannot keep in sync.
-- **No series.** A weekly is a meeting and its follow-ups, each called by carrying the agenda forward.
-  A recurrence rule would need an answer to "what happens to next week's agenda when this week's
-  moves", and that answer is a design, not a column.
+- **No email invitation.** The calendar feed carries the meeting; nobody is sent an email and
+  nobody can answer yes or no. A reply is a promise about somebody else's calendar this instance
+  cannot keep in sync.
 - **No notification** when somebody adds a topic or is put on a meeting. Being made responsible for
   a point does notify — see above. Asked for the first time
   somebody misses a meeting because of it, not before.
-- **Not searchable.** Agenda points are not in the full-text index. The index carries one project per
-  row and a point carries several, which is the budget's problem and wants the budget's answer.
-- **Not in the workspace export.** Like decisions and KPIs, meetings stay behind in a workspace
-  document; see [`export.md`](export.md).
+- **No end time.** A meeting has a start; the calendar draws an hour.
 - **Tombstones in the notes accumulate.** `kolibri doctor --fix` compacts page bodies and not yet
   agenda notes. A point's notes are a few hundred characters, so this is a note rather than a
   problem.

@@ -13,7 +13,7 @@ is a separate feature and is not built.
 
 | URL | What it holds |
 |---|---|
-| `/calendar/<token>.ics` | Everything with a due date that is **on you**, across every workspace you are a member of |
+| `/calendar/<token>.ics` | Everything with a due date that is **on you**, across every workspace you are a member of — and the meetings you are expected at, in workspaces where you are a member and meetings are on |
 | `/calendar/<token>/<view-id>.ics` | One saved view, resolved the same way a shared link resolves it |
 
 | Query | Effect |
@@ -23,6 +23,15 @@ is a separate feature and is not built.
 
 A task with no due date is not in the feed at all — there is nothing for a
 calendar to draw.
+
+Meetings:
+
+- timed `VEVENT`s, in UTC, an hour long — a meeting has a start and no end;
+- with `LOCATION` and a link back; `uid` is `<meeting id>@kolibri-meeting`;
+- from 90 days back onward; undated meetings are left out;
+- never in `?kind=todo`, and never in a saved view's feed;
+- the feed is the invitation: no email, no reply — moving a meeting moves it in every
+  attendee's calendar on the next refresh.
 
 ## VEVENT or VTODO
 
@@ -98,7 +107,8 @@ Every line ends `CRLF`, including the last one.
 
 - **No writing back.** Ticking a task off in a calendar client changes nothing
   here.
-- **No times.** Due dates in Kolibri are days, so every entry is all-day.
+- **No times on tasks.** Due dates in Kolibri are days, so every task is all-day. Meetings are
+  timed.
 - **No alarms.** `VALARM` would fire on the reader's device on a schedule
   Kolibri did not choose; reminders live in
   [`notifications.md`](notifications.md), where they can be turned off.

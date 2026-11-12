@@ -220,7 +220,7 @@ in `support-assistant.test.ts`, including that a private page ticked as knowledg
 | step | who | where |
 |---|---|---|
 | 1. A model on the server | the instance's admin | Settings → Server → Model: provider, API key, model name (optional) — or the environment, `docs/ai.md` |
-| 2. AI on for the workspace | a workspace admin | Settings → Workspace → *Task reviews and canvas boards* |
+| 2. AI on for the workspace | a workspace admin | Settings → Workspace → *AI assistance* |
 | 3. The assistant on for a widget | a workspace admin | Settings → Widgets → the widget → *The assistant* |
 
 Per widget:

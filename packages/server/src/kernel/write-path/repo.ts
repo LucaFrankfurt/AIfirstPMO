@@ -647,6 +647,17 @@ export const SEARCHABLE: Partial<Record<EntityName, (row: Row) => { title: strin
    * `canSeeBoard` about each hit, as it asks about a page.
    */
   artboard: (row) => ({ title: row.title ?? '', body: artboard.text(String(row.content ?? '')) }),
+  /*
+   * A topic on a meeting's agenda: its title, and what was written about it.
+   * Meetings are not scoped by project — a point names several or none — so
+   * the index's `project_id` is empty and `searchWorkspace` asks instead the
+   * question every meeting route asks: a member, not a guest, of a workspace
+   * that has meetings switched on.
+   */
+  agendaItem: (row) => ({
+    title: row.title ?? '',
+    body: [String(row.description ?? ''), String(row.notes ?? '')].filter(Boolean).join('\n\n'),
+  }),
 };
 
 /**

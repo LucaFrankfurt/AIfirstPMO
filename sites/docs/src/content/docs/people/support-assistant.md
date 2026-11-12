@@ -10,7 +10,7 @@ Off unless three people say otherwise.
 | step | who | where |
 |---|---|---|
 | 1. A model on the server | whoever runs the instance | *Settings → Server → Model* — provider, API key, model name — or the environment, see [Asking a model to read a task](/beyond/task-reviews/) |
-| 2. AI on for the workspace | an owner or admin | *Settings → Workspace → Task reviews and canvas boards* |
+| 2. AI on for the workspace | an owner or admin | *Settings → Workspace → AI assistance* |
 | 3. The assistant on for a widget | an owner or admin | *Settings → Widgets → the widget → The assistant* |
 
 Step 1 or 2 missing: the widget's form says so.

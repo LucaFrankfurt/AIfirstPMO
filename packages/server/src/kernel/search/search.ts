@@ -21,7 +21,8 @@
  * below, filled by `capability/mail` through `wiring.ts`.
  */
 import { identifiersIn, parseTerms, type SearchTerm } from '@kolibri/shared';
-import { all, type Row } from '../platform/db/index.ts';
+import { all, get, type Row } from '../platform/db/index.ts';
+import { hasFeature } from '../platform/features.ts';
 import { canSeeBoard, canSeeBudget, canSeePage, canSeeProject, canSeeSubject } from '../write-path/repo.ts';
 
 export interface SearchHit {
@@ -175,6 +176,11 @@ export function searchWorkspace(workspaceId: string, userId: string, query: stri
   // per row — and *before* the slice, so a private conversation cannot push a
   // readable result off the end of the list either.
   const readable = visibleMessages(userId, rows.filter((row) => row.kind === 'message').map((row) => String(row.ref_id)));
+  // Meetings are for members of a workspace that has them on — never a guest.
+  const role = rows.some((row) => row.kind === 'agendaItem') && hasFeature(workspaceId, 'meetings')
+    ? get<Row>(`SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ? AND deleted_at IS NULL`, workspaceId, userId)?.role
+    : undefined;
+  const meetings = !!role && role !== 'guest';
 
   const indexed = rows
     .filter((row) => canSeeProject(userId, row.project_id)
@@ -191,7 +197,8 @@ export function searchWorkspace(workspaceId: string, userId: string, query: stri
       // away for every member of the workspace.
       && (row.kind !== 'page' || canSeePage(userId, String(row.ref_id)))
       && (row.kind !== 'comment' || canSeeSubject(userId, 'comment', String(row.ref_id)))
-      && (row.kind !== 'artboard' || canSeeBoard(userId, String(row.ref_id))))
+      && (row.kind !== 'artboard' || canSeeBoard(userId, String(row.ref_id)))
+      && (row.kind !== 'agendaItem' || meetings))
     .map((row) => ({
       kind: row.kind,
       id: row.ref_id,

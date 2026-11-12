@@ -595,8 +595,8 @@ is inclusive to the end of the day it names.
 | `create_decision` | a question with at least two options. `visibility: anonymous` is a promise about where the rows go and cannot be taken back once anybody has voted |
 | `cast_vote` | vote, or withdraw by voting for what you already hold. A closed or expired ballot refuses rather than quietly dropping it — including a withdrawal |
 | `close_decision` | turn a ballot into a record, or take it up again. Reopening one the clock closed clears the deadline, or it reopens for as long as it takes to read the answer back |
-| `create_meeting` | a time, a place, who is expected and optionally the first topics. `starts_at` is an ISO date-time with its offset; an attendee who matches nobody is left off rather than invented |
-| `update_meeting` | move, rename, change who is expected, or close it with `status: "done"` |
+| `create_meeting` | a time, a place, who is expected and optionally the first topics. `starts_at` is an ISO date-time with its offset; an attendee who matches nobody is left off rather than invented. `repeats` makes it a series |
+| `update_meeting` | move, rename, change who is expected, make it a series (`repeats`, `"none"` to end one), or close it with `status: "done"` — which, in a series, calls the next one |
 | `add_agenda_item` | a topic at the end of the agenda, filed under whoever the token belongs to. `projects` takes keys, ids or names — a project that is not there is refused, not dropped. `assignees` names who is responsible, by id, email or name; somebody who matches nobody, or a guest, is refused by name rather than left off |
 | `update_agenda_item` | a point's state, title, description, projects, who is responsible, or its notes. `assignees` replaces the list, and an empty one clears it. `append_notes` adds a paragraph and is the one to use while people may be typing in the same point — see below |
 | `create_task_from_agenda_item` | a task that remembers the point it came out of. `project` defaults to the point's first; otherwise it takes what `create_task` takes, in one write |

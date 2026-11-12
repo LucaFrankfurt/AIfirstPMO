@@ -440,7 +440,7 @@ export const ENTITIES = {
     table: 'meetings',
     fields: [
       'workspace_id', 'title', 'description', 'starts_at', 'location', 'attendees',
-      'status', 'minutes_page_id',
+      'status', 'repeats', 'minutes_page_id',
     ],
     serverOnly: ['created_by'],
     json: ['attendees'],

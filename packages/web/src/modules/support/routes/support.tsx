@@ -129,7 +129,7 @@ export function SupportInbox() {
         <section className="chat-main">
           {current
             ? <Answer key={current.id} conversation={current} widget={widgets.find((widget) => widget.id === current.widget_id)} onBack={() => navigate('/support')} />
-            : <Empty emoji="💬" title={t('support.pick')} hint={t('support.pickHint')} />}
+            : <Empty emoji="💬" title={t('support.pick')} hint={t('support.pickHint')} guide="support" />}
         </section>
       </div>
     </>
