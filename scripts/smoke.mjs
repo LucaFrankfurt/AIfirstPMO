@@ -3387,11 +3387,14 @@ await step('setup checklist reflects the workspace, empty screens offer help', a
   await page.waitForSelector('.guide-hint', { timeout: 5000 });
   await page.click('.guide-hint');
   await page.waitForSelector('#guide-assistant');
-  await page.waitForTimeout(1100);
-  const placed = await page.evaluate(() => {
+  // Waited for, not slept on: the guide scrolls smoothly, and how long that
+  // takes grows with every card above this one. A fixed 1.1s passed until the
+  // support and meetings cards made the way longer, then failed on a slow
+  // machine in German, whose cards are the tallest.
+  const placed = await page.waitForFunction(() => {
     const box = document.getElementById('guide-assistant')?.getBoundingClientRect();
     return box ? box.top > -60 && box.top < 420 : false;
-  });
+  }, null, { timeout: 5000 }).then(() => true, () => false);
   if (!placed) throw new Error('the linked card was not scrolled into view');
 
   // The empty screens that do have something to explain carry one too. The
