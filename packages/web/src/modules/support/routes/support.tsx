@@ -24,7 +24,7 @@ import { Button } from '../../../kernel/design-system/ui/button';
 import { Chip } from '../../../kernel/design-system/ui/chip';
 import { Select } from '../../../kernel/design-system/ui/field';
 import { navItem } from '../../../kernel/design-system/ui/nav';
-import { useT } from '../../../kernel/i18n/i18n';
+import { useI18n, useT } from '../../../kernel/i18n/i18n';
 import { useCanWrite, useFeature, useMe, useMemberMap, useMembers, useSession } from '../../../kernel/identity/session';
 import { api } from '../../../kernel/sync/api';
 import { now } from '../../../kernel/sync/clock';
@@ -171,6 +171,7 @@ const TYPING_POLL_MS = 3000;
 
 function Answer({ conversation, widget, onBack }: { conversation: Conversation; widget?: Widget; onBack: () => void }) {
   const t = useT();
+  const { locale } = useI18n();
   const words = useThreadWords();
   const me = useMe();
   const toast = useToast();
@@ -325,7 +326,7 @@ function Answer({ conversation, widget, onBack }: { conversation: Conversation; 
                 disabled={action.busy}
                 title={t('support.makeTaskHint')}
                 onClick={() => action.run(async () => {
-                  const made = await api.post<{ task: { id: string } }>(`/api/conversations/${conversation.id}/task`, {});
+                  const made = await api.post<{ task: { id: string } }>(`/api/conversations/${conversation.id}/task`, { locale });
                   toast(t('support.taskMade'));
                   openTask({ id: made.task.id });
                 })}

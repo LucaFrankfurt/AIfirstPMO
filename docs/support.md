@@ -30,7 +30,7 @@ outside the workspace may write in:
 | name | the window's title, and the name in the inbox and in notifications |
 | project | who sees the conversations (whoever can see the project), and where tasks made from them land |
 | who may write | **signed-in visitors** (the host site vouches for them) or **anyone** (a typed name and email, unverified) |
-| allowed sites | exact origins allowed to frame the widget; `https` only, `http` only for `localhost`; no wildcards |
+| allowed sites | origins allowed to frame the widget: exact ones, or `*.example.com` for every subdomain of a domain (not the domain itself); `https` only, `http` only for `localhost` |
 | greeting | the first line a visitor reads |
 | colour | the button, the window's header and the visitor's own messages |
 | who is told | members notified of a new message; nobody ticked means the workspace's owners and admins |
@@ -71,7 +71,9 @@ conversation by widget and `sub`. Resolved is said, not left to be guessed: when
 conversation the window shows it, and writing on reopens it. The visitor can resolve it themselves
 (the tick in the window's header), and once it is resolved, **start a new chat** — which resolves the
 one they leave, because the window shows one conversation and an answer in the old one would reach
-them only by email. The team sees the old one in the resolved list. There is no contacts table.
+them only by email. The team sees the old one in the resolved list. The window's clock button lists the
+visitor's earlier chats with this widget — theirs only, by widget and visitor id — with a dot where the
+team answered after they left, and opens one again. There is no contacts table.
 
 **Deleting means gone.** Deleting a conversation lets go of its visitor — the same visitor writing
 again starts a new one rather than bringing the old one back — and makes every line in it a
@@ -105,7 +107,7 @@ Message-ID chain, because the transports write their own Message-ID and keep no 
 
 **A conversation can become a task** in the widget's project, with its transcript as the
 description: a first line linking back to the conversation, so whoever works the task can answer the
-person who asked, and the pictures as pictures. Once; after that the button opens it — unless the
+person who asked, in the language the member is looking at, and the pictures as pictures. Once; after that the button opens it — unless the
 task has been deleted since, in which case the button makes a new one.
 
 **One conversation component for three places.** `Thread` and `Composer` in
@@ -219,8 +221,9 @@ owner were to answer their own end customers, that is a platform of its own, not
 
 ## Open
 
-- **The visitor's window costs about 125 KB gzipped on the first click**, measured from the build
-  when this changed: most of it React itself (about 55 KB) and the app's stylesheet (26 KB). It was
-  222 KB until the window stopped importing the app's catalogue and its menus and dialogs — it now
-  carries its own thirty words (`adapters/widget/words.ts`, held to the app's wording by a test) and
-  draws icons from `ui/icon.tsx` rather than through `ui.tsx`.
+- **The visitor's window costs about 127 KB gzipped on the first click**, measured from the build
+  when the list of earlier chats was added (`gzip -9` of the five files `widget.html` loads): most
+  of it React and the app's shared chunk, and the app's stylesheet (26 KB). It was 125 KB before
+  that list, and 222 KB until the window stopped importing the app's catalogue and its menus and
+  dialogs — it now carries its own forty words (`adapters/widget/words.ts`, held to the app's
+  wording by a test) and draws icons from `ui/icon.tsx` rather than through `ui.tsx`.

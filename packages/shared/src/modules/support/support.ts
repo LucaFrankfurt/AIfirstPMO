@@ -22,28 +22,37 @@ export const SUPPORT_MESSAGE_MAX = 4000;
 /** How long a "typing" signal lasts without being repeated. */
 export const SUPPORT_TYPING_MS = 6000;
 
-/** A site as people type it: an optional scheme, a host, an optional port, and anything after. */
-const SITE = /^(?:(https?):\/\/)?([a-z0-9.-]+)(?::(\d{1,5}))?(?:[/?#].*)?$/;
+/** A site as people type it: an optional scheme, a host (perhaps `*.` and a domain), an optional port, and anything after. */
+const SITE = /^(?:(https?):\/\/)?((?:\*\.)?[a-z0-9.-]+)(?::(\d{1,5}))?(?:[/?#].*)?$/;
 
 /**
  * The origin a typed site means, or null when it means none.
  *
  * People paste `example.com`, `https://example.com/` and
  * `https://example.com/shop?x=1` for the same thing; `frame-ancestors` wants
- * the origin. No wildcards: a pattern is a decision about sites nobody has
- * looked at yet, and the first audience here is a handful of exact domains.
- * `http` only for a machine on the desk, because a widget on a plain-http
- * production site would send its visitors' session over the wire in the clear.
+ * the origin. `http` only for a machine on the desk, because a widget on a
+ * plain-http production site would send its visitors' session over the wire in
+ * the clear.
+ *
+ * One kind of pattern: `*.example.com`, every subdomain of a domain, for a
+ * platform whose customers each have one. `frame-ancestors` reads it the same
+ * way — any depth of subdomain, never the domain itself, so `example.com` is
+ * listed on its own if it is meant too. `https` only, and never `*.localhost`
+ * or a bare `*.com`: a pattern is a decision about sites nobody has looked at
+ * yet, and the narrowest one that says what is meant is the one to keep.
  */
 export function siteOrigin(typed: string): string | null {
   const raw = typed.trim().toLowerCase();
-  if (!raw || raw.includes('*')) return null;
+  if (!raw) return null;
   const match = SITE.exec(raw);
   if (!match) return null;
   const [, scheme = 'https', host, port] = match;
-  const local = host === 'localhost' || host === '127.0.0.1';
-  if (scheme === 'http' && !local) return null;
-  if (!local && !/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host)) return null;
+  const wild = host.startsWith('*.');
+  const name = wild ? host.slice(2) : host;
+  const local = name === 'localhost' || name === '127.0.0.1';
+  if (scheme === 'http' && (!local || wild)) return null;
+  if (wild && local) return null;
+  if (!local && !/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(name)) return null;
   const usual = scheme === 'https' ? '443' : '80';
   return `${scheme}://${host}${port && port !== usual ? `:${port}` : ''}`;
 }

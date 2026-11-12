@@ -143,7 +143,7 @@ Content-Security-Policy (`lib/csp.ts`) is the second lock rather than the first:
 no inline or `eval`'d script, `frame-ancestors 'none'`. It is computed rather than constant, because
 a pre-signed download redirects the browser to the object store and that origin has to be named.
 One page is framed on purpose: a support widget's `/w/:widget`, served with the same policy except
-`frame-ancestors 'self'` and the exact origins the widget lists — see [`support.md`](support.md).
+`frame-ancestors 'self'` and the origins the widget lists (exact, or every subdomain of one domain as `*.example.com`) — see [`support.md`](support.md).
 
 **Artboards — somebody's code, on purpose.** A board on a canvas page is a whole HTML document with
 its scripts, so it is the one place this app runs code it did not write. It never runs in the app: it

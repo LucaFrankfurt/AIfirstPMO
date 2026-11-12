@@ -1,5 +1,5 @@
 /**
- * The visitor's words: thirty of them, in the three languages the app speaks.
+ * The visitor's words: about forty of them, in the three languages the app speaks.
  *
  * Not the app's catalogue, on purpose. That is three thousand strings for
  * screens a visitor will never see, and it was most of what this page
@@ -20,6 +20,12 @@ const CATALOGUE = {
     done: 'Done',
     resolvedNotice: 'This chat is resolved. Write again to reopen it.',
     newChat: 'Start a new chat',
+    earlier: 'Earlier chats',
+    back: 'Back to the chat',
+    stillOpen: 'Open',
+    thisChat: 'This chat',
+    noMessages: 'No messages yet',
+    unread: 'Unread',
     welcome: 'Hi! How can we help?',
     connecting: 'Connecting…',
     unavailable: 'This chat is not available right now.',
@@ -55,6 +61,12 @@ const CATALOGUE = {
     done: 'Erledigt',
     resolvedNotice: 'Dieser Chat ist erledigt. Schreib einfach weiter, um ihn wieder zu öffnen.',
     newChat: 'Neuen Chat starten',
+    earlier: 'Frühere Chats',
+    back: 'Zurück zum Chat',
+    stillOpen: 'Offen',
+    thisChat: 'Dieser Chat',
+    noMessages: 'Noch keine Nachrichten',
+    unread: 'Ungelesen',
     welcome: 'Hallo! Wie können wir helfen?',
     connecting: 'Verbinde…',
     unavailable: 'Dieser Chat ist gerade nicht verfügbar.',
@@ -90,6 +102,12 @@ const CATALOGUE = {
     done: 'Terminé',
     resolvedNotice: 'Cette conversation est résolue. Écrivez à nouveau pour la rouvrir.',
     newChat: 'Nouvelle conversation',
+    earlier: 'Conversations précédentes',
+    back: 'Retour à la conversation',
+    stillOpen: 'Ouverte',
+    thisChat: 'Cette conversation',
+    noMessages: 'Pas encore de message',
+    unread: 'Non lu',
     welcome: 'Bonjour ! Comment pouvons-nous aider ?',
     connecting: 'Connexion…',
     unavailable: 'Ce chat n’est pas disponible pour le moment.',
