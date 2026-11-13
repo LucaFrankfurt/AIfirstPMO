@@ -1099,6 +1099,9 @@ CREATE TABLE IF NOT EXISTS pages (
   -- only way somebody can follow one they did not write.
   watchers     TEXT NOT NULL DEFAULT '[]',
   is_template  INTEGER NOT NULL DEFAULT 0,
+  -- Written for people outside the workspace. Only a page marked so can be a
+  -- support assistant's knowledge.
+  public_knowledge INTEGER NOT NULL DEFAULT 0,
   created_by   TEXT,
   cover_url    TEXT,
   -- How finished the page is: a row in `page_statuses`. NULL on every page

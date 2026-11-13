@@ -195,6 +195,10 @@ for (const [table, column, definition] of [
   ['conversation_messages', 'sources', `TEXT NOT NULL DEFAULT '[]'`],
   // How often a meeting comes round; null, as every meeting before it was, is once.
   ['meetings', 'repeats', 'TEXT'],
+  // A page written for people outside the workspace. Nothing is marked on the
+  // way in: a page a widget already reads stops being read until somebody says
+  // it is fit for a visitor, which is the question the mark exists to ask.
+  ['pages', 'public_knowledge', 'INTEGER NOT NULL DEFAULT 0'],
 ] as const) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!columns.some((c) => c.name === column)) {

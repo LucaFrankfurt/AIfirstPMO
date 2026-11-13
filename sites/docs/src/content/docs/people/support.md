@@ -96,6 +96,9 @@ Over MCP, with a token of a member who can see the widget's project:
 | `reply_to_conversation` | answer as yourself — the same as answering in the inbox |
 | `update_conversation` | resolve, reopen, assign |
 | `create_task_from_conversation` | the *Make a task* button |
+| `list_widgets` | each widget, and which of its pages the model reads and how much |
+| `update_widget` | name, greeting, the assistant, its pages — owners and admins |
+| `try_assistant` | a test question to a widget's model; nothing written — owners and admins |
 
 See [Connecting an assistant](/beyond/assistant/).
 

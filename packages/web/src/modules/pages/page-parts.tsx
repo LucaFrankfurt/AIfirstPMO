@@ -433,6 +433,7 @@ export function PageHistory({ page, onClose, onCompare }: {
     if (entry.verb === 'restored') return t('page.changeRestored');
     if (entry.field === 'archived') return entry.to === '1' ? t('page.changeArchived') : t('page.changeRestored');
     if (entry.field === 'is_template') return entry.to === '1' ? t('page.changeTemplated') : t('page.changeUntemplated');
+    if (entry.field === 'public_knowledge') return entry.to === '1' ? t('page.changePublicKnowledge') : t('page.changeNotPublicKnowledge');
     const key = entry.field ? CHANGE_KEY[entry.field] : undefined;
     return key ? t(key) : null;
   };

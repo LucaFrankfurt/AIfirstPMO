@@ -140,11 +140,14 @@ export function resolveByVisitor(widget: Row, conversation: Row): void {
 /** The thread, oldest first. Deleted messages are left out; the visitor never saw a tombstone. */
 export const messagesOf = (conversationId: string, limit = 200): Row[] =>
   all<Row>(
+    // The order they were written in when the clock cannot tell: a question
+    // and the model's answer to it land in one millisecond on a fast machine,
+    // and sorted by time alone the answer came back first.
     `SELECT * FROM (
-       SELECT * FROM conversation_messages
+       SELECT *, rowid AS written FROM conversation_messages
         WHERE conversation_id = ? AND deleted_at IS NULL
-        ORDER BY created_at DESC LIMIT ?
-     ) ORDER BY created_at ASC`,
+        ORDER BY created_at DESC, rowid DESC LIMIT ?
+     ) ORDER BY created_at ASC, written ASC`,
     conversationId, limit,
   );
 
