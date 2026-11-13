@@ -215,8 +215,10 @@ function Answer({ conversation, widget, onBack }: { conversation: Conversation; 
   const canSuggest = canWrite && assistant !== 'off' && modelOn && aiSwitch;
 
   const messages = useQuery(
+    // Written order where the clock ties: a question and the model's answer
+    // can share a millisecond.
     () => list('conversationMessage', (row) => row.conversation_id === conversation.id)
-      .sort((a, b) => a.created_at - b.created_at),
+      .sort((a, b) => a.created_at - b.created_at || a.seq - b.seq),
     [conversation.id],
   );
 

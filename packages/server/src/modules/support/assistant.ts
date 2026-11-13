@@ -126,9 +126,9 @@ function knowledgeText(pages: KnowledgePage[]): string {
 function transcriptText(conversation: Row): string {
   const lines = all<Row>(
     `SELECT author, body FROM (
-       SELECT author, body, created_at FROM conversation_messages
-        WHERE conversation_id = ? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT ?
-     ) ORDER BY created_at ASC`,
+       SELECT author, body, created_at, rowid AS written FROM conversation_messages
+        WHERE conversation_id = ? AND deleted_at IS NULL ORDER BY created_at DESC, rowid DESC LIMIT ?
+     ) ORDER BY created_at ASC, written ASC`,
     conversation.id, HISTORY,
   );
   const who = { visitor: 'Visitor', agent: 'Team', bot: 'Assistant' } as Record<string, string>;

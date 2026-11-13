@@ -129,7 +129,7 @@ function inkFor(hex: string): string {
 }
 
 const merge = (lines: Line[], line: Line): Line[] =>
-  [...lines.filter((one) => one.id !== line.id), line].sort((a, b) => a.created_at - b.created_at);
+  [...lines.filter((one) => one.id !== line.id), line].sort((a, b) => a.created_at - b.created_at || a.seq - b.seq);
 
 export function VisitorChat() {
   const [config, setConfig] = useState<Config | null>(null);

@@ -17,7 +17,7 @@ import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
 
 const { server } = await import('../src/index.ts');
-const { all, get } = await import('../src/kernel/platform/db/index.ts');
+const { all, get, run } = await import('../src/kernel/platform/db/index.ts');
 const { resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
 const { provideModel, AiError } = await import('../src/modules/ai-review/model.ts');
 const { knowledgeOf, parseAnswer, settled } = await import('../src/modules/support/assistant.ts');
@@ -296,10 +296,14 @@ describe('the assistant over MCP', () => {
   it('names the sources of an assistant\'s line in a thread', async () => {
     reply = () => '{"answer":"The shop plan is 29 EUR a month.","sources":["Prices"],"handover":false}';
     const { conversation } = await visitorSays('Price please');
+    // The question and its answer in one millisecond, as they were on CI: the
+    // thread still reads in the order the lines were written.
+    const asked = linesOf(conversation.id)[0].created_at;
+    run(`UPDATE conversation_messages SET created_at = ? WHERE conversation_id = ?`, asked, conversation.id);
     const thread = await tool('get_conversation', { conversation: conversation.id });
-    const answer = thread.messages.find((line: any) => line.from === 'assistant');
-    assert.deepEqual(answer.sources, ['Prices']);
+    assert.deepEqual(thread.messages.map((line: any) => line.from), ['visitor', 'assistant']);
     assert.equal(thread.messages[0].sources, undefined, 'a visitor\'s line has none');
+    assert.deepEqual(thread.messages[1].sources, ['Prices']);
   });
 
   it('reads a page without its CRDT, and lists the public knowledge base', async () => {
