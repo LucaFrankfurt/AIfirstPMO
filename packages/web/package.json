@@ -31,7 +31,7 @@
     "lucide-react": "^1.33.0",
     "mermaid": "^11.17.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0",
+    "react-dom": "^19.3.1",
     "react-router-dom": "^7.9.1",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4.3.3"
@@ -39,7 +39,7 @@
   "devDependencies": {
     "@capacitor/cli": "^8.5.0",
     "@types/react": "^19.2.0",
-    "@types/react-dom": "^19.2.0",
+    "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^5.0.0",
     "typescript": "^5.9.2",
     "vite": "^7.1.0"
