@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
-    "@capacitor/core": "^8.5.0",
+    "@capacitor/core": "^8.6.0",
     "@capacitor/ios": "^8.5.0",
     "@kolibri/shared": "*",
     "@radix-ui/react-avatar": "^1.2.6",
