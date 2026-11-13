@@ -37,6 +37,24 @@ const linkablePages = (workspaceId: string, userId: string): LinkablePage[] =>
   }));
 
 /**
+ * A page as an assistant reads it: everything but `body`.
+ *
+ * `body` is the text again as a CRDT — every character with its id and its
+ * author — and it was most of every answer: a 20,000-character page came back
+ * as 112,000, and past the client's limit the page was not read at all.
+ * `content` is the same text, as it reads.
+ */
+const pageView = (row: Row): Record<string, unknown> => {
+  const { body: _crdt, ...rest } = serialize('page', row) ?? {};
+  return rest;
+};
+
+/** `public_knowledge` as the write path stores it. */
+const marked = (value: unknown): number => (value === true || Number(value) === 1 ? 1 : 0);
+
+const PUBLIC_KNOWLEDGE = 'Written for people outside the workspace: everything on it may be told to a visitor. Only a page marked so can be a support widget\'s knowledge (see `update_widget`).';
+
+/**
  * Where a page lands when it is moved under another one.
  *
  * Both halves at once — the parent and a `sort_order` at the end of its new
@@ -173,6 +191,7 @@ export const pageTools: ToolDef[] = [
           description: "One page's id or exact title, for its children only. `root` for the pages with no parent.",
         },
         include_templates: { type: 'boolean', description: 'Include the pages marked as templates, flagged with `is_template`.' },
+        public_knowledge: { type: 'boolean', description: `Only the pages marked as public knowledge. ${PUBLIC_KNOWLEDGE}` },
         workspace_id: { type: 'string' },
       },
     },
@@ -193,10 +212,10 @@ export const pageTools: ToolDef[] = [
       const under = parent && parent !== 'root' ? findPage(parent, workspaceId, ctx).id : null;
       const level = parent ? (under ? 'AND parent_id = ?' : 'AND parent_id IS NULL') : '';
       return all<Row>(
-        `SELECT id, title, icon, project_id, parent_id, sort_order, updated_at, created_by, is_template, format,
-            (SELECT name FROM page_statuses WHERE id = pages.status_id) AS status FROM pages
+        `SELECT id, title, icon, project_id, parent_id, sort_order, updated_at, created_by, is_template, public_knowledge,
+            format, (SELECT name FROM page_statuses WHERE id = pages.status_id) AS status FROM pages
           WHERE workspace_id = ? ${project ? 'AND project_id = ?' : ''} ${level} AND deleted_at IS NULL AND archived = 0
-            ${templates ? '' : 'AND is_template = 0'}
+            ${templates ? '' : 'AND is_template = 0'} ${args.public_knowledge === true ? 'AND public_knowledge = 1' : ''}
             ${visiblePagesSql()}
           ORDER BY ${parent ? 'sort_order' : 'updated_at DESC'} LIMIT 200`,
         workspaceId,
@@ -227,7 +246,7 @@ export const pageTools: ToolDef[] = [
       const titles = (ids: string[] | undefined) =>
         (ids ?? []).map((id) => byId.get(id)?.title).filter((title): title is string => !!title);
       return {
-        ...serialize('page', page),
+        ...pageView(page),
         // A canvas is its boards, and a board page is its one: listed here
         // without their HTML, which `get_artboard` reads one at a time.
         ...(isBoardFormat(page.format as PageFormat) ? {
@@ -268,6 +287,7 @@ export const pageTools: ToolDef[] = [
           type: 'string',
           description: "How finished it is — a rung's name, its id, or one of `draft`, `review`, `final`. Left out, it starts on the workspace's draft.",
         },
+        public_knowledge: { type: 'boolean', description: PUBLIC_KNOWLEDGE },
       },
     },
     run: (args, ctx) => {
@@ -289,14 +309,15 @@ export const pageTools: ToolDef[] = [
         // Only when asked for. Left undefined, the write path's own default
         // puts it on the workspace's draft — one answer, not two.
         ...(args.status === undefined ? {} : { status_id: findStatus(String(args.status), workspaceId).id }),
+        ...(args.public_knowledge === undefined ? {} : { public_knowledge: marked(args.public_knowledge) }),
       }, writeOpts(workspaceId, ctx));
-      if (!board) return serialize('page', row);
+      if (!board) return pageView(row);
       const made = writeEntity('artboard', uid(), {
         workspace_id: workspaceId, page_id: row.id, title: String(args.title), kind: 'html',
         content: String(args.content ?? ''), x: 0, y: 0, w: finite(args.w) ?? 1280, h: finite(args.h) ?? 800,
         sort_order: orderKey(null, null),
       }, writeOpts(workspaceId, ctx));
-      return { ...serialize('page', row), artboard: boardSummary(made.row), url: `${env.publicUrl}/pages/${row.id}` };
+      return { ...pageView(row), artboard: boardSummary(made.row), url: `${env.publicUrl}/pages/${row.id}` };
     },
   },
   {
@@ -322,6 +343,7 @@ export const pageTools: ToolDef[] = [
           type: 'string',
           description: "Move it to this rung — a name, an id, or one of `draft`, `review`, `final`.",
         },
+        public_knowledge: { type: 'boolean', description: `Mark or unmark it. ${PUBLIC_KNOWLEDGE}` },
         workspace_id: { type: 'string' },
       },
     },
@@ -348,10 +370,11 @@ export const pageTools: ToolDef[] = [
       if (args.icon !== undefined) patch.icon = str(args.icon) ?? null;
       if (args.format !== undefined) patch.format = asFormat(args.format);
       if (args.parent !== undefined) Object.assign(patch, reparent(page, String(args.parent), workspaceId, ctx));
+      if (args.public_knowledge !== undefined) patch.public_knowledge = marked(args.public_knowledge);
       const { row } = writeEntity('page', page.id, patch, writeOpts(workspaceId, ctx));
       // Said in the answer, because rewriting other people's pages is a real
       // thing to have done and the caller is the only one who can mention it.
-      return { ...serialize('page', row), ...(following ? { links_followed: following } : {}) };
+      return { ...pageView(row), ...(following ? { links_followed: following } : {}) };
     },
   },
   {

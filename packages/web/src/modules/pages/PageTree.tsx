@@ -41,6 +41,7 @@ import { byId } from '../../kernel/sync/store';
 import { familyOf, type DropZone } from './pagetree';
 import { movePage } from './page-parts';
 import { PageStatusChip } from './status';
+import { PublicKnowledgeMark } from './public-knowledge';
 
 /** Which branches this device has folded. Never synced — see the note above. */
 const FOLDED_KEY = 'kolibri.folded-pages';
@@ -202,6 +203,7 @@ function TreeRow({ page, depth, shared }: { page: Page; depth: number; shared: S
         >
           <span style={{ width: 16 }}>{page.icon ?? '📄'}</span>
           <span className="flex-1 min-w-0 truncate">{page.title || t('common.untitled')}</span>
+          <PublicKnowledgeMark page={page} />
           {/* The rung, as a dot. On every row and not only under `marks`: how
               finished a page is answers the question somebody has while looking
               at a tree, where the labels answer one they have while tidying. */}

@@ -707,14 +707,15 @@ const stripMarkdown = (text: string): string =>
  * The fields whose change is worth a line in the activity trail.
  *
  * `access`, `project_id` and `is_template` were added when pages got a history
- * screen. A page's text is deliberately *not* here and never will be: every
+ * screen, `public_knowledge` when a page could be told to visitors — who said
+ * so is the first question once a model has. A page's text is deliberately *not* here and never will be: every
  * body edit already writes a `page_versions` row, which carries the text itself
  * and can be compared and restored — an "updated content" line beside it would
  * be the same event said twice, worse.
  */
 const TRACKED_FIELDS = new Set([
   'title', 'state_id', 'priority', 'assignees', 'due_date', 'cycle_id', 'module_id', 'estimate',
-  'parent_id', 'archived', 'labels', 'access', 'project_id', 'is_template',
+  'parent_id', 'archived', 'labels', 'access', 'project_id', 'is_template', 'public_knowledge',
 ]);
 
 function recordActivity(entity: EntityName, row: Row, before: Row | undefined, changed: Record<string, unknown>, opts: WriteOpts): void {

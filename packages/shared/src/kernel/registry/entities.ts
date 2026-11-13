@@ -489,7 +489,7 @@ export const ENTITIES = {
     table: 'pages',
     fields: [
       'workspace_id', 'project_id', 'parent_id', 'title', 'icon', 'content', 'format', 'body',
-      'sort_order', 'archived', 'access', 'labels', 'watchers', 'is_template',
+      'sort_order', 'archived', 'access', 'labels', 'watchers', 'is_template', 'public_knowledge',
       'created_by', 'cover_url', 'status_id',
     ],
     json: ['labels', 'watchers', 'body'],

@@ -12,6 +12,7 @@ import {
 } from '../page-parts';
 import { pagesMatching } from '../pagetree';
 import { PageStatusChip, statusItems, usePageStatuses } from '../status';
+import { PublicKnowledgeChip, PublicKnowledgeNotice, isPublicKnowledge } from '../public-knowledge';
 import { PageTree, foldableIds, usePageFolds } from '../PageTree';
 import { PageBulkBar } from '../page-bulk';
 import { HEADING_PREFIX, useBacklinks, usePageGraph, useRenamePage, useTrail, useUnwritten } from '../page-links';
@@ -747,6 +748,10 @@ export function PageDetail() {
             { id: 'template', label: page.is_template ? t('page.unmarkTemplate') : t('page.markTemplate'),
               icon: <Icon name="copy" size={14} />, hint: page.is_template ? '✓' : undefined,
               onSelect: () => update('page', id, { is_template: page.is_template ? 0 : 1 }) },
+            { id: 'public-knowledge',
+              label: isPublicKnowledge(page) ? t('page.unmarkPublicKnowledge') : t('page.markPublicKnowledge'),
+              icon: <Icon name="globe" size={14} />, hint: isPublicKnowledge(page) ? '✓' : undefined,
+              onSelect: () => update('page', id, { public_knowledge: isPublicKnowledge(page) ? 0 : 1 }) },
             ...cover.items(t('page.cover')),
             ...moveItems(page, workspaceId, t('page.move')),
             labelItems(page, labels, t('page.labels')),
@@ -890,6 +895,7 @@ export function PageDetail() {
                 onBlur={commitTitle}
               />
             </div>
+            <PublicKnowledgeNotice page={page} />
             {page.format === 'html'
               ? <HtmlEditor value={content} onChange={setContent} minHeight={420} attachTo={{ kind: 'page', id }} />
               : <MarkdownEditor value={content} onChange={setContent} minHeight={420} attachTo={{ kind: 'page', id }} fieldRef={fieldRef} label={t('page.contentLabel')} />}
@@ -914,6 +920,7 @@ export function PageDetail() {
                 things somebody sets already live. */}
             <div className="flex items-center flex-wrap gap-1.5 mb-3.5">
               <PageStatusChip page={page} />
+              <PublicKnowledgeChip page={page} />
               <PageLabelChips page={page} />
             </div>
             <PageOutline source={page.content ?? ''} format={page.format} />

@@ -1230,6 +1230,17 @@ export interface Page extends Base {
   watchers: ID[];
   /** A page kept as a starting point rather than as content. */
   is_template: number;
+  /**
+   * Written for people outside the workspace: everything on it may be told to
+   * a visitor. Only a page marked so can be a support assistant's knowledge.
+   *
+   * A mark rather than a separate kind of page, because the risk it answers is
+   * a sentence, not a format: a planning page with a margin calculation in it
+   * was given to a widget, and the model quoted its proposals to a customer as
+   * prices. The mark is what the person editing the page sees. Read it
+   * defensively — a page synced before the column existed has none.
+   */
+  public_knowledge?: number;
   created_by: ID;
   cover_url: string | null;
   /**

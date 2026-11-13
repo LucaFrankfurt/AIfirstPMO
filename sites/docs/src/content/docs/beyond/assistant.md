@@ -53,7 +53,7 @@ Over a hundred tools, covering the same ground as the interface — the core of 
 | **Reports** | `changes_since` `deadlines_at_risk` `workload` `blocked_tasks` `stale_tasks` `cycle_review` |
 | **Write** | `create_task` `create_tasks_batch` `update_task` `delete_task` `comment_task` `create_task_relation` `create_project` `update_project` `create_page` `update_page` `create_cycle` `update_cycle` `delete_cycle` `create_state` `update_state` `create_label` `update_label` `apply_template` `upload_attachment` `delete_attachment` `log_time` |
 | **Meetings** | `list_meetings` `get_meeting` `create_meeting` `update_meeting` `add_agenda_item` `update_agenda_item` `create_task_from_agenda_item` `carry_over_agenda` `file_meeting_minutes` `prepare_meeting` — see [Meetings](/people/meetings/) |
-| **Support** | `list_conversations` `get_conversation` `reply_to_conversation` `update_conversation` `create_task_from_conversation` — see [Support chat](/people/support/) |
+| **Support** | `list_conversations` `get_conversation` `reply_to_conversation` `update_conversation` `create_task_from_conversation` `list_widgets` `update_widget` `try_assistant` — see [Support chat](/people/support/) |
 
 Plus prompts — `standup`, `sprint_planning` and `triage` among them — which are the questions
 people actually ask, written out so the assistant does not have to invent the shape.

@@ -67,6 +67,15 @@ function applyPageInvariants(values: Record<string, unknown>, existing: Row | un
     values.format = format;
     forced.format = format;
   }
+  // A yes or a no, whatever arrived: the assistant asks `= 1`, and a `true`
+  // or a `"1"` stored as written would be a page marked in one place only.
+  if (values.public_knowledge !== undefined) {
+    const marked = values.public_knowledge === true || Number(values.public_knowledge) === 1 ? 1 : 0;
+    if (marked !== values.public_knowledge) {
+      values.public_knowledge = marked;
+      forced.public_knowledge = marked;
+    }
+  }
   settleCrdtText(values, existing, forced, PAGE_TEXT);
 }
 

@@ -49,6 +49,8 @@ const PATHS = {
   // A headset, for support: people outside answered by people inside. Not
   // `chat`, which the team's own conversations already wear in the sidebar.
   headset: 'M4 15v-3a8 8 0 0 1 16 0v3M4 15a2 2 0 0 0 2 2h1v-5H6a2 2 0 0 0-2 2v1zm16 0a2 2 0 0 1-2 2h-1v-5h1a2 2 0 0 1 2 2v1zM18 17v1a3 3 0 0 1-3 3h-3',
+  // A globe, for a page written for people outside the workspace.
+  globe: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM3 12h18M12 3c2.5 2.5 3.8 5.5 3.8 9s-1.3 6.5-3.8 9c-2.5-2.5-3.8-5.5-3.8-9S9.5 5.5 12 3Z',
   hash: 'M9 4 7 20M17 4l-2 16M4 9h16M3 15h16',
   bell: 'M18 10a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6M10.5 20a2 2 0 0 0 3 0',
   menu: 'M4 7h16M4 12h16M4 17h16',

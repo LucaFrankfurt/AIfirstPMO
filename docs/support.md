@@ -208,12 +208,36 @@ is told at once — when:
 - the widget's **answers a day** are spent;
 - the model does not answer, or answers something that cannot be read.
 
-The fences, which are the point: it reads **only the pages the widget names** — never the
-workspace's search, never a private page, never a task; it has no tools and writes one line of text
+The fences, which are the point: it reads **only the pages the widget names, and of those only the
+ones in the public knowledge base** — never the workspace's search, never a private page, never a
+task; it has no tools and writes one line of text
 as itself; it is asked for JSON and argued with (`parseAnswer`), so a source it names that is not one
 of the pages is dropped and an answer it cannot shape is a hand-over; and the conversation is given
 to it as data, with the rule that instructions inside it change nothing. Measured with a fake model
 in `support-assistant.test.ts`, including that a private page ticked as knowledge is never sent.
+
+### The public knowledge base
+
+A mark on a page: *⋯ → Add to the public knowledge base* (`pages.public_knowledge`). The model reads
+no other page.
+
+| where | what shows it |
+|---|---|
+| the page | a chip: *Public knowledge base · the widgets that read it* |
+| the editor | a line above the text: a visitor may be told anything written here |
+| the tree | a globe beside the title |
+| the history | who added it, who removed it |
+| a widget's form | only these pages are offered; one chosen and no longer marked is struck through, *not read* |
+
+- Reading order: the widget's list, top first. The first 8,000 characters of a page, 24,000 in all;
+  the rest is not read.
+- A private page is never read, marked or not.
+- A new page, and a page made from a template, starts unmarked.
+- The upgrade marks nothing: a widget whose pages are unmarked hands every question over until
+  somebody marks them.
+- Why a mark on the page and not only a choice in the widget: a planning page chosen as knowledge
+  had its proposed prices quoted to a visitor as prices, and nothing on the page said a visitor
+  would read it.
 
 ### Setup
 
@@ -228,7 +252,7 @@ Per widget:
 | field | values |
 |---|---|
 | The assistant | *Off* · *Suggests replies to the team* · *Answers first, hands over when unsure* |
-| What it may read | up to 20 pages of the workspace; private pages are never sent |
+| What it may read | up to 20 pages from the public knowledge base, in reading order; private pages are never sent |
 | Answers a day | default 50; past it, every conversation goes to a person |
 
 Environment, instead of step 1:
@@ -266,9 +290,19 @@ Not yet measured against a real model — `TODO.md`.
 
 ## Over MCP
 
-`list_conversations`, `get_conversation`, `reply_to_conversation`, `update_conversation`,
-`create_task_from_conversation` — `adapters/mcp/tools/support.ts`, rules in
-[`mcp.md`](mcp.md#support-conversations).
+`adapters/mcp/tools/support.ts`, rules in [`mcp.md`](mcp.md#support-conversations).
+
+| tool | |
+|---|---|
+| `list_conversations`, `get_conversation` | the inbox; an assistant's line carries its `sources` |
+| `reply_to_conversation`, `update_conversation`, `create_task_from_conversation` | the inbox's buttons |
+| `list_widgets` | each widget's model setting, and per knowledge page: `read`, `chars`, `chars_read`, `skipped` (`deleted`, `private`, `not_public_knowledge`, `over_budget`) |
+| `update_widget` | name, greeting, model setting, answers a day, knowledge pages in order — owners and admins; an unmarked page is refused by name |
+| `try_assistant` | a test question, answered from the pages as a visitor would get it; nothing written, nothing counted — owners and admins |
+| `create_page`, `update_page`, `list_pages` | `public_knowledge` marks, unmarks, filters |
+
+Writing knowledge pages with an assistant: `list_widgets` → write or fix a page → `update_page` with
+`public_knowledge: true` → `update_widget` → `try_assistant` with the questions visitors ask.
 
 ## Not doing
 

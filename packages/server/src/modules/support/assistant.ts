@@ -9,8 +9,9 @@
  * conversation takes it over too (see the rules); after that the model is quiet.
  *
  * The fences, which are the point:
- * - It reads only the pages the widget names as its knowledge — never the
- *   workspace's search, never a private page, never a task.
+ * - It reads only the pages the widget names as its knowledge, and of those
+ *   only the ones marked as public knowledge — never the workspace's search,
+ *   never a private page, never a task.
  * - It has no tools and writes nothing but one line of text, as itself.
  * - It is asked for JSON and argued with (`parseAnswer`): a source it names that
  *   is not one of the pages is dropped, an answer it cannot shape is a hand-over.
@@ -48,26 +49,58 @@ export function assistantReady(widget: Row | undefined): boolean {
     && hasFeature(String(widget.workspace_id), 'ai');
 }
 
-/** The pages the widget names, as the model reads them: titled, trimmed, nothing private. */
-export function knowledgeOf(widget: Row): { title: string; text: string }[] {
+/** Why a page a widget names is not read: gone, private, not marked, or past the budget. */
+export type KnowledgeSkip = 'deleted' | 'private' | 'not_public_knowledge' | 'over_budget';
+
+/** One page a widget names, and how much of it the model reads. */
+export interface KnowledgePage {
+  id: string;
+  title: string;
+  /** What it reads — the start of the page, up to what is left of the budget. */
+  text: string;
+  /** How long the page is; more than `text` means the end is never read. */
+  chars: number;
+  skipped: KnowledgeSkip | null;
+}
+
+/**
+ * Every page the widget names, in the order it names them, with what the model
+ * reads of each. The order is the admin's: past the budget, the last pages are
+ * the ones left out, and that has to be a choice rather than the database's.
+ *
+ * A page is read only when it is marked as public knowledge. The mark is the
+ * one place somebody says "a visitor may be told this", and it sits on the page
+ * where the next person editing it sees it — a choice in a widget's settings
+ * is invisible from the page, which is how an internal proposal was quoted to
+ * a customer as a price.
+ */
+export function knowledgeOf(widget: Row): KnowledgePage[] {
   const ids = parseIds(widget.knowledge);
   if (!ids.length) return [];
-  const pages = all<Row>(
-    `SELECT id, title, content FROM pages
-      WHERE id IN (${ids.map(() => '?').join(',')}) AND workspace_id = ?
-        AND deleted_at IS NULL AND access <> 'private'`,
+  const rows = new Map(all<Row>(
+    `SELECT id, title, content, access, public_knowledge, deleted_at FROM pages
+      WHERE id IN (${ids.map(() => '?').join(',')}) AND workspace_id = ?`,
     ...ids, widget.workspace_id,
-  );
+  ).map((row) => [String(row.id), row]));
   let budget = KNOWLEDGE_CHARS;
-  const out: { title: string; text: string }[] = [];
-  for (const page of pages) {
-    if (budget <= 0) break;
-    const text = String(page.content ?? '').slice(0, Math.min(PAGE_CHARS, budget));
+  return ids.map((id) => {
+    const row = rows.get(id);
+    const content = String(row?.content ?? '');
+    const page = { id, title: String(row?.title ?? ''), text: '', chars: content.length };
+    const skipped: KnowledgeSkip | null = !row || row.deleted_at ? 'deleted'
+      : row.access === 'private' ? 'private'
+        : Number(row.public_knowledge) !== 1 ? 'not_public_knowledge'
+          : budget <= 0 ? 'over_budget'
+            : null;
+    if (skipped) return { ...page, skipped };
+    const text = content.slice(0, Math.min(PAGE_CHARS, budget));
     budget -= text.length;
-    out.push({ title: String(page.title ?? ''), text });
-  }
-  return out;
+    return { ...page, text, skipped };
+  });
 }
+
+/** The pages the model is actually given. */
+const readable = (widget: Row): KnowledgePage[] => knowledgeOf(widget).filter((page) => !page.skipped);
 
 const SYSTEM = (widget: string, forTeam: boolean) => `You ${forTeam ? 'draft replies for the support team of' : 'answer the customers of'} "${widget}" in a support chat on their website.
 
@@ -85,7 +118,7 @@ ${forTeam
     ? 'When the knowledge does not cover it, set "handover" to true and "answer" to an empty string.'
     : 'When "handover" is true, "answer" is one short sentence telling the visitor that a person from the team will reply here.'}`;
 
-function knowledgeText(pages: { title: string; text: string }[]): string {
+function knowledgeText(pages: KnowledgePage[]): string {
   if (!pages.length) return 'KNOWLEDGE: (none)';
   return `KNOWLEDGE:\n${pages.map((page) => `### ${page.title}\n${page.text}`).join('\n\n')}`;
 }
@@ -129,16 +162,32 @@ export function parseAnswer(text: string, titles: string[]): Answer {
   }
 }
 
-async function ask(widget: Row, conversation: Row, forTeam: boolean): Promise<Answer> {
+async function ask(widget: Row, transcript: string, forTeam: boolean): Promise<Answer> {
   const model = modelFor(env.aiProvider);
   if (!model) throw new AiError('No model is configured', true);
-  const pages = knowledgeOf(widget);
+  const pages = readable(widget);
   const reply = await model.ask({
     system: SYSTEM(String(widget.name), forTeam),
-    user: `${knowledgeText(pages)}\n\n${transcriptText(conversation)}`,
+    user: `${knowledgeText(pages)}\n\n${transcript}`,
     maxTokens: MAX_TOKENS,
   });
   return parseAnswer(reply, pages.map((page) => page.title));
+}
+
+/**
+ * What the model would answer a visitor who asked this, with nothing written:
+ * no conversation, no line, nothing counted against the day's answers.
+ *
+ * For whoever is writing the knowledge pages — the only way to see what a page
+ * does to an answer is to ask, and asking through the widget leaves a stranger's
+ * conversation in the inbox every time. It works whatever the widget's own
+ * setting, so the pages can be tried before a visitor ever meets the model.
+ */
+export async function tryAssistant(widget: Row, question: string): Promise<Answer> {
+  if (!env.aiEnabled || !hasFeature(String(widget.workspace_id), 'ai')) {
+    throw new AiError('A model has to be configured and AI assistance switched on for the workspace', true);
+  }
+  return ask(widget, `CONVERSATION with a visitor:\nVisitor: ${question.slice(0, 1500)}`, false);
 }
 
 /**
@@ -150,7 +199,7 @@ async function ask(widget: Row, conversation: Row, forTeam: boolean): Promise<An
 export async function draftReply(conversation: Row): Promise<Answer> {
   const widget = get<Row>(`SELECT * FROM widgets WHERE id = ?`, conversation.widget_id);
   if (!widget || !assistantReady(widget)) throw new AiError('The assistant is not switched on for this widget', true);
-  const answer = await ask(widget, conversation, true);
+  const answer = await ask(widget, transcriptText(conversation), true);
   return answer.handover ? { ...answer, answer: '' } : answer;
 }
 
@@ -226,7 +275,7 @@ async function answerFirst(widget: Row, conversation: Row): Promise<void> {
   setTyping(id, 'agent', true);
   let answer: Answer;
   try {
-    answer = await ask(widget, conversation, false);
+    answer = await ask(widget, transcriptText(conversation), false);
   } finally {
     setTyping(id, 'agent', false);
   }

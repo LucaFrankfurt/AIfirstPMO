@@ -10,7 +10,7 @@ import {
   WIDGET_ASSISTANTS, WIDGET_IDENTITIES, cleanOrigins, isWidgetColor, widgetSnippet,
   type Widget, type WidgetAssistant, type WidgetIdentity,
 } from '@kolibri/shared';
-import { Empty, Sheet, useAction, useConfirm, useToast } from '../../kernel/design-system/ui';
+import { Empty, Icon, Sheet, useAction, useConfirm, useToast } from '../../kernel/design-system/ui';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Chip } from '../../kernel/design-system/ui/chip';
 import { Input, Label, Select, Textarea } from '../../kernel/design-system/ui/field';
@@ -137,12 +137,18 @@ function WidgetSheet({ widget, onClose }: { widget: Widget | null; onClose: () =
   const aiSwitch = useFeature('ai');
   const [modelOn, setModelOn] = useState(true);
   useEffect(() => { api.config().then((config) => setModelOn(!!config.ai)).catch(() => setModelOn(false)); }, []);
-  // Only pages the workspace can read are offered: the server leaves a private one out anyway.
+  // Only pages in the public knowledge base are offered: the model reads no
+  // other, and offering one would be offering a page it then quietly skips.
   const pages = useQuery(
-    () => list('page', (page) => !page.archived && page.access !== 'private').sort((a, b) => (a.title ?? '').localeCompare(b.title ?? '')),
+    () => list('page', (page) => !page.archived && page.access !== 'private')
+      .sort((a, b) => (a.title ?? '').localeCompare(b.title ?? '')),
     [],
   );
+  const offered = pages.filter((page) => Number(page.public_knowledge) === 1);
   const titleOf = new Map(pages.map((page) => [page.id, page.title || t('widgets.untitledPage')]));
+  // Chosen before the mark existed, or unmarked since: kept in the list, and
+  // said to be unread, so removing the mark never silently empties a widget.
+  const unread = new Set(knowledge.filter((id) => !offered.some((page) => page.id === id)));
 
   const origins = cleanOrigins(sites);
   const typed = sites.split(/[\s,]+/).filter(Boolean);
@@ -245,23 +251,26 @@ function WidgetSheet({ widget, onClose }: { widget: Widget | null; onClose: () =
         {assistant !== 'off' && (
           <>
             <Label label={t('widgets.knowledge')} hint={t('widgets.knowledgeHint')}>
-              <Select value="" onChange={(event) => event.target.value && setKnowledge((now) => [...now, event.target.value])}>
+              <Select value="" disabled={!offered.length} onChange={(event) => event.target.value && setKnowledge((now) => [...now, event.target.value])}>
                 <option value="">{t('widgets.knowledgeAdd')}</option>
-                {pages.filter((page) => !knowledge.includes(page.id)).map((page) => (
+                {offered.filter((page) => !knowledge.includes(page.id)).map((page) => (
                   <option key={page.id} value={page.id}>{page.title || t('widgets.untitledPage')}</option>
                 ))}
               </Select>
             </Label>
+            {!offered.length && <p className="m-0 text-[12px] text-muted">{t('widgets.knowledgeNone')}</p>}
             {knowledge.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {knowledge.map((id) => (
-                  <Chip key={id} className="h-7 leading-7">
-                    <span className="max-w-[200px] truncate">{titleOf.get(id) ?? t('widgets.untitledPage')}</span>
+                  <Chip key={id} className="h-7 leading-7" title={unread.has(id) ? t('widgets.notPublic') : undefined}>
+                    {unread.has(id) && <Icon name="alert" size={12} className="text-warn" />}
+                    <span className={`max-w-[200px] truncate${unread.has(id) ? ' line-through text-muted' : ''}`}>{titleOf.get(id) ?? t('widgets.untitledPage')}</span>
                     <button type="button" aria-label={t('action.remove')} onClick={() => setKnowledge((now) => now.filter((one) => one !== id))}>×</button>
                   </Chip>
                 ))}
               </div>
             )}
+            {unread.size > 0 && <p className="m-0 text-[12px] text-warn">{t('widgets.notPublic')}</p>}
             {assistant === 'answer' && (
               <Label label={t('widgets.budget')} hint={t('widgets.budgetHint')}>
                 <Input type="number" min={0} max={10000} value={budget} onChange={(event) => setBudget(event.target.value)} />
