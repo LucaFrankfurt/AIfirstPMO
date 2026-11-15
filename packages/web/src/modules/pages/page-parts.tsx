@@ -24,6 +24,7 @@ import { chipDot, chipVariants } from '../../kernel/design-system/ui/chip';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Avatar, Icon, Sheet, useConfirm, useToast, type MenuGroup, type MenuItem } from '../../kernel/design-system/ui';
 import { downscale, uploadLink } from '../../kernel/files/uploads';
+import { fileSrc } from '../../kernel/sync/server';
 import { useMinute } from '../../kernel/design-system/minute';
 
 /* -------------------------------------------------------------- labels */
@@ -353,7 +354,7 @@ export function useCover(page: Page): { input: React.ReactNode; items: (section:
 /** The cover itself. Decorative: the page's title is right underneath it. */
 export function PageCover({ page }: { page: Page }) {
   if (!page.cover_url) return null;
-  return <img className="page-cover" src={page.cover_url} alt="" />;
+  return <img className="page-cover" src={fileSrc(page.cover_url)} alt="" />;
 }
 
 /* ------------------------------------------------------------- history */

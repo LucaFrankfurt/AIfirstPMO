@@ -31,6 +31,7 @@ import { api } from '../../../kernel/sync/api';
 import { now } from '../../../kernel/sync/clock';
 import { create, update } from '../../../kernel/sync/mutations';
 import { byId, list, useQuery } from '../../../kernel/sync/store';
+import { fileSrc } from '../../../kernel/sync/server';
 
 type Filter = 'open' | 'resolved';
 
@@ -261,7 +262,7 @@ function Answer({ conversation, widget, onBack }: { conversation: Conversation; 
       at: message.created_at,
       meta: bot ? <span>{t('support.assistantLabel')}</span> : undefined,
       below: sources.length ? <span className="mt-0.5 px-1 text-[11px] text-muted">{t('support.sources')}: {sources.join(', ')}</span> : undefined,
-      files: filesOf(message).map((file) => ({ key: file.hash, name: file.name, type: file.type, src: fileUrl(file), width: file.width, height: file.height })),
+      files: filesOf(message).map((file) => ({ key: file.hash, name: file.name, type: file.type, src: fileSrc(fileUrl(file)), width: file.width, height: file.height })),
     };
   });
 

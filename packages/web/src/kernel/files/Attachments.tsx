@@ -31,6 +31,7 @@ import { useT } from '../i18n/i18n';
 import { useCanWrite } from '../identity/session';
 import { remove } from '../sync/mutations';
 import { list, useQuery } from '../sync/store';
+import { fileSrc } from '../sync/server';
 import { useUploads, type AttachTo } from './uploads';
 
 /** Rounded up, because a 300-byte file is not "0 KB". */
@@ -140,7 +141,7 @@ export function Attachments({ on, heading, empty, className }: {
                   {/* `alt` carries the name because `useLightbox` reads the
                       clicked `img` and labels the overlay with it — an empty
                       alt here would open an unnamed picture. */}
-                  <img src={file.url} alt={file.name} />
+                  <img src={fileSrc(file.url)} alt={file.name} />
                 </button>
               )
               : <Icon name="page" />}

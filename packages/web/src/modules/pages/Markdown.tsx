@@ -7,6 +7,7 @@ import {
 } from '@kolibri/shared';
 
 import { useUploads, type AttachTo } from '../../kernel/files/uploads';
+import { filePath, withFileSources } from '../../kernel/sync/server';
 import { list, useQuery } from '../../kernel/sync/store';
 import { useMermaid } from './mermaid';
 import { DiagramViewer } from './diagram';
@@ -78,6 +79,10 @@ export function useInAppLinks(): (event: React.MouseEvent<HTMLElement>) => void 
     const anchor = (event.target as HTMLElement).closest?.('a');
     const href = anchor?.getAttribute('href');
     if (!anchor || !href?.startsWith('/') || anchor.target === '_blank') return;
+    // An upload is not a screen. Routed in-app, `[report](/files/…/report.pdf)`
+    // drew "page not found"; the browser fetches it with its cookie, and the
+    // packaged app has already taken the click — see `adapters/native/files.ts`.
+    if (filePath(href)) return;
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
     event.preventDefault();
     // A task opens as a sheet over what you were reading, the way every other
@@ -114,7 +119,10 @@ export function Markdown({ source, className = '', onChange, asPage }: {
   const t = useT();
   const refs = useMarkdownRefs(asPage);
   const options = useMemo(() => ({ ...refs, interactiveTasks: !!onChange }), [refs, onChange]);
-  const html = useMemo(() => renderMarkdown(source ?? '', options), [source, options]);
+  // Uploaded images pointed where this client can load them — a no-op in a
+  // browser, the server's origin and the session in the packaged app. See
+  // `withFileSources` in `kernel/sync/server.ts`.
+  const html = useMemo(() => withFileSources(renderMarkdown(source ?? '', options)), [source, options]);
   /**
    * The prop object, kept alive between renders — and it has to be.
    *

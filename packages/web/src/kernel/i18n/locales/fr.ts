@@ -185,6 +185,7 @@ export const fr: Catalogue = {
   'attachment.remove': 'Retirer',
   'attachment.removeConfirm': 'Retirer {name} ? Le fichier part à la corbeille et peut être restauré. Les octets stockés sont partagés et ne sont pas supprimés.',
   'attachment.kb': '{size} Ko',
+  'attachment.openFailed': 'Impossible d’ouvrir ce fichier.',
   'attachment.files': 'Fichiers',
   'task.comments': 'Commentaires',
   'task.activity': 'Activité',

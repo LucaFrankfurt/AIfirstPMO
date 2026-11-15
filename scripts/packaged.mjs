@@ -19,7 +19,7 @@
  * it cannot be is a phone: the WebView here is Chromium's, and nothing about
  * signing, push or a launcher is reached from a browser.
  *
- * Six claims:
+ * Eight claims:
  *
  *  - **A fresh install opens on the picker**, not on the error screen.
  *  - **A 200 is not a Kolibri.** The app's own origin answers `/api/config`
@@ -31,6 +31,12 @@
  *    meant for the server.
  *  - **A cold start stays signed in**, because a phone kills a backgrounded app
  *    whenever it likes.
+ *  - **An uploaded image draws**, from the server's origin with the session in
+ *    its URL — an `<img>` cannot send a header, and `/files/…` on the bundle is
+ *    a 404.
+ *  - **A link to an upload is fetched with the header and the app stays put.**
+ *    It is not routed as a screen, not navigated to on the bundle, and not
+ *    handed to a browser with a token in it.
  *  - **Signing out forgets the token, and the server can be changed** — which
  *    the picker promises and the sign-in screen once had no way to keep.
  *
@@ -81,7 +87,14 @@ const browser = await chromium.launch({
 const context = await browser.newContext({
   viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, serviceWorkers: 'block',
 });
+/* What the Android shell injects before the bundle: a bridge object, and the
+   global the native bridge script defines. `@capacitor/core` reads the first to
+   decide it is native — without it, the core that every plugin import brings in
+   would report "web", and the app would be walked as a browser. Nothing answers
+   on the bridge, so a plugin call here waits or fails; this walk asks none that
+   it depends on. */
 await context.addInitScript(() => {
+  globalThis.androidBridge = { postMessage() {} };
   globalThis.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'android' };
 });
 
@@ -109,6 +122,24 @@ page.on('console', (message) => {
   if (message.type() === 'error' && /TypeError|ReferenceError/.test(message.text())) crashes.push(message.text().split('\n')[0]);
 });
 const stored = (key) => page.evaluate((k) => localStorage.getItem(k), key);
+
+/**
+ * Close the first-run guide, if it is open, and wait until it is gone.
+ *
+ * It opens over everything for a new device a moment after the screen does, and
+ * while it is open the screen behind it is hidden from the accessibility tree
+ * and its clicks land on the overlay. Not what this walk is about. `until` is
+ * what the screen behind it should show once it is closed, so the wait is for
+ * whichever of the two turns up rather than a glance that races the dialog.
+ */
+async function dismissGuide(until) {
+  const skip = page.getByRole('button', { name: 'Skip' }).first();
+  await skip.or(until).first().waitFor({ timeout: 15000 }).catch(() => undefined);
+  if (await skip.isVisible()) {
+    await skip.click().catch(() => undefined);
+    await skip.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => undefined);
+  }
+}
 const picker = () => page.getByRole('heading', { name: 'Which Kolibri?' });
 const signInForm = () => page.locator('#email');
 
@@ -188,21 +219,64 @@ check(
   'the app asked again after a reload — the token or the address did not survive',
 );
 
+/* ---------------------------------------------------------- uploaded files */
+
+// An image and a link to it, on a page, the way a person would write them.
+const token = await stored('kolibri.token');
+const workspace = await stored('kolibri.workspace');
+const asApp = { authorization: `Bearer ${token}` };
+const png = readFileSync(join(DIST, 'icon-192.png'));
+const upload = await fetch(`${base}/api/workspaces/${workspace}/files`, {
+  method: 'POST', headers: { ...asApp, 'content-type': 'image/png', 'x-filename': 'walk.png' }, body: png,
+}).then((response) => response.json()).catch(() => ({}));
+const made = await fetch(`${base}/api/workspaces/${workspace}/pages`, {
+  method: 'POST', headers: { ...asApp, 'content-type': 'application/json' },
+  body: JSON.stringify({ title: 'Packaged walk', content: `![walk](${upload.url})\n\n[the original](${upload.url})\n` }),
+}).then((response) => response.json()).catch(() => ({}));
+
+misdirected.length = 0;
+await page.goto(`${APP}/pages/${made.id}`);
+const image = page.locator('.md img').first();
+await dismissGuide(image);
+await image.waitFor({ timeout: 15000 }).catch(() => undefined);
+await page.waitForTimeout(1000);
+const drawn = await image.evaluate((element) => ({ src: element.currentSrc, width: element.naturalWidth }))
+  .catch(() => ({ src: '(no image on the page)', width: 0 }));
+check(
+  !!upload.url && drawn.width > 0 && drawn.src.startsWith(`${new URL(base).origin}/files/`) && !misdirected.length,
+  'an uploaded image draws, from the server',
+  !upload.url ? `the upload itself failed: ${JSON.stringify(upload).slice(0, 160)}`
+    : `the image is ${drawn.width ? 'drawn' : 'not drawn'} from ${drawn.src}`
+      + (misdirected.length ? `; asked of the bundle: ${[...new Set(misdirected)].join(', ')}` : ''),
+);
+
+const fetched = [];
+// `allHeaders`, because `headers()` leaves out the security-related ones —
+// `authorization` among them — and would report every fetch as anonymous.
+page.on('request', (request) => {
+  if (request.url().startsWith(`${base}/files/`)) void request.allHeaders().then((headers) => fetched.push(headers));
+});
+const opened = [];
+context.on('page', (other) => opened.push(other.url()));
+const before = page.url();
+misdirected.length = 0;
+await page.getByRole('link', { name: 'the original' }).click({ timeout: 5000 }).catch(() => undefined);
+await page.waitForTimeout(1500);
+const withHeader = fetched.some((headers) => headers.authorization === `Bearer ${token}`);
+check(
+  withHeader && page.url() === before && !opened.length && !misdirected.length,
+  'a link to an upload is fetched with the header, and the app stays where it was',
+  !withHeader ? 'the file was not fetched with the session header'
+    : page.url() !== before ? `the app navigated to ${page.url()}`
+      : opened.length ? `a window opened at ${opened[0]}`
+        : `asked of the bundle: ${[...new Set(misdirected)].join(', ')}`,
+);
+
 /* ------------------------------------------ signing out, and moving server */
 
 await page.goto(`${APP}/more`);
-// The first-run guide opens over everything for a new device; it is not what
-// this walk is about.
-// It arrives a moment after the screen does, and while it is open the screen
-// behind it is hidden from the accessibility tree — so wait for whichever of
-// the two turns up, rather than glance once and click into a modal.
-const skip = page.getByRole('button', { name: 'Skip' }).first();
 const signOut = page.getByRole('button', { name: 'Sign out' }).last();
-await skip.or(signOut).first().waitFor({ timeout: 15000 }).catch(() => undefined);
-if (await skip.isVisible()) {
-  await skip.click().catch(() => undefined);
-  await skip.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => undefined);
-}
+await dismissGuide(signOut);
 await signOut.click({ timeout: 10000 }).catch(() => undefined);
 await signInForm().waitFor({ timeout: 15000 }).catch(() => undefined);
 const tokenAfter = await stored('kolibri.token');
@@ -218,6 +292,6 @@ check(
 
 await browser.close();
 console.log(failures.length
-  ? `\n${failures.length} of 6 claims failed`
+  ? `\n${failures.length} of 8 claims failed`
   : '\nthe packaged app finds its server, signs in, survives a cold start and lets go');
 process.exit(failures.length ? 1 : 0);

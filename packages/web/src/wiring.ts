@@ -10,6 +10,7 @@
  * because a build that renders the app without installing these would look
  * perfectly fine and quietly show nobody as online.
  */
+import { installNativeFiles } from './adapters/native/files';
 import { installPresence } from './modules/chat/presence';
 import { installGuideHint } from './modules/guide/hint';
 
@@ -20,4 +21,5 @@ export function installEffects(): void {
   installed = true;
   installPresence();
   installGuideHint();
+  installNativeFiles();
 }

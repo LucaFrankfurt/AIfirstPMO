@@ -127,6 +127,7 @@ const ABOUT = {
   'adapter/share': ['A read-only link to one page or board, rendered for whoever holds it.'],
   'capability/share': ['Making, listing and revoking those links, from the screen the thing is on.'],
   'push': ['Web push, sent with no payload.'],
+  'native': ['The packaged app\'s own edges: an uploaded file handed to the phone\'s share sheet.'],
   'ai': ['Three providers behind one call.'],
   'calendar': ['An iCal feed of what is due.'],
   's3': ['Object storage, signed by hand.'],
