@@ -881,19 +881,23 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       so it asks once which Kolibri it belongs to and carries a bearer token where a browser carries
       its cookie. Nobody has compiled either project or seen the app on a phone; what is open is
       below and in [`docs/mobile.md`](docs/mobile.md).
-- [ ] **Uploaded files do not load in the packaged app**, and the fix is a decision rather than a
-      repair. The server returns root-relative `/files/<hash>/<name>` URLs, which address the app's
-      own bundle; and that route requires authentication, which an `<img>`, a CSS `url()` and a
-      `<link>` cannot supply. Measured: a bare GET is 401, `Authorization` is 200, `?access_token`
-      is 200. So a query token is the only thing that makes an image load — and it puts the session
-      token in the DOM, in the referrer and in the access log, and the "open original" link would
-      hand it to the system browser. The three ways out and the one that looks right are laid out
-      in [`docs/mobile.md`](docs/mobile.md#the-open-question-uploaded-files-do-not-load). Nothing
-      here affects a browser, where every one of these URLs is same-origin and carries the cookie.
-- [ ] **Native push.** The port is already there — `notify.onNotification` — and the web fills it
-      with a service worker. Neither web push in an Android WebView nor a service worker under
-      `capacitor://` delivers anything, so the app needs an FCM and an APNs adapter filling that
-      same port. Credentials this repository does not have, and a device to prove it on.
+- [x] **Uploaded files load in the packaged app.** Images drawn inside the WebView carry the
+      server's origin and the session token in the query; the stored markup keeps `/files/…`, and
+      the HTML editor strips the rewrite before it saves. A link to an upload is never handed to the
+      system browser: the app fetches it with the header and gives it to the share sheet. The costs
+      — a token in a reverse proxy's access log, and in rich text copied out of the app — are in
+      [`docs/mobile.md`](docs/mobile.md#uploaded-files). Walked by `check:packaged`.
+- [x] **Push to the packaged app**, option A: the phone is told *that* something happened and
+      nothing about what, through a relay holding the publisher's Apple and Google credentials
+      (`src/relay.ts`, `docker-compose.relay.yml`). Tokens are tied to the session that registered
+      them. See [`docs/mobile.md`](docs/mobile.md#push).
+- [ ] **Push has not reached a phone.** Needs a Firebase project and its `google-services.json`, an
+      APNs key, the relay deployed at `push.kolibri.day`, and a device. Everything that would leave
+      the relay is checked against stand-ins; whether Apple and Google accept it is not.
+- [ ] **A banner that says what happened.** Option A says only "New activity". Saying more without
+      putting workspace content on a third party's disk means native code on both platforms — an
+      iOS notification service extension and an Android messaging service — that fetches the text
+      from the user's own server after the wake.
 - [ ] **SSO does not work in the app.** `ssoHref` is root-relative and the provider redirects back
       to the *server's* origin, which the app is not. Needs a registered deep link and a redirect
       target that reaches it. The app ID already claims a URL scheme; nothing listens on it.

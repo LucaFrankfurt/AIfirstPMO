@@ -3,7 +3,8 @@
 Kolibri ships to the App Store and Google Play as a [Capacitor](https://capacitorjs.com) shell
 around the same bundle a browser gets. There is no second client: `capacitor.config.ts` points
 `webDir` at `packages/web/dist`, so a screen fixed once is fixed everywhere, and what the shell adds
-is a store listing, an icon on a home screen and — later — a push token the web has no way to hold.
+is a store listing, an icon on a home screen and a push token the web has no way to hold — see
+[Push](#push).
 
 The native projects are in the tree, beside the client they wrap:
 
@@ -121,61 +122,99 @@ The Android `debug` variant is `day.kolibri.client.dev`, labelled "Kolibri dev" 
 URL scheme. An installed Android app is keyed by its `applicationId` and nothing else, so without the
 suffix a debug build would replace a store build on the same phone and take its database with it.
 
-## The open question: uploaded files do not load
+## Uploaded files
 
-**This is the one thing that stops the app being usable, and it is a decision rather than a
-repair.** No attachment, avatar, page cover or pasted screenshot renders in a packaged app.
+Every upload is stored and returned as a root-relative `/files/<hash>/<name>`, behind
+authentication. In a browser that is fine — same origin, the cookie goes with it. In the app it
+addressed the app's own bundle, and an `<img>`, a CSS `url()` and an anchor cannot carry the bearer
+the app signs in with. Measured against a seeded server: a bare GET is 401, `Authorization` is 200,
+`?access_token=` is 200. No attachment, avatar, cover or pasted screenshot rendered.
 
-Measured against a seeded server, uploading a file the way the client does:
+There are now two answers, chosen by what the URL is for (`kernel/sync/server.ts`):
+
+- **Drawn inside the WebView** — images in markdown and HTML pages, avatars, covers, attachment
+  thumbnails, conversation pictures — the URL gets the server's origin and the session token in its
+  query, the precedent SSE already set. `withFileSources` rewrites rendered markup on its way into
+  the DOM; `fileSrc` does the same for the components. The markup that is *stored* keeps saying
+  `/files/…`, and the HTML editor strips the rewrite on the way back out
+  (`withoutFileSources`), so saving a page never writes a token into it.
+- **Opened** — an attachment link, "open the original", a `[report](/files/…)` in a comment — is
+  never handed to the system browser. `adapters/native/files.ts` takes the click for the whole
+  document, fetches the file with the token in a header, writes it to the app's cache directory and
+  hands it to the phone's share sheet, which is where a phone opens a PDF, saves to Files or sends a
+  photo on.
+
+`npm run check:packaged` walks both: an uploaded image on a page draws from the server, and tapping
+a link to it fetches it with the header while the app stays where it was.
+
+What this costs, said where an operator will look:
+
+- **The token can reach a reverse proxy's access log.** The image URLs carry it in the query, and a
+  proxy in front of Kolibri usually logs full URLs. Kolibri's own logs do not. Strip `access_token`
+  from the proxy's log format if that matters for your instance.
+- **Copying rendered content that contains an image** out of the app into another app's rich-text
+  field carries the image's URL, token included.
+- **A file being opened is held in memory twice for a moment**, because it crosses the bridge as
+  base64. Unmeasured for large files on a real phone.
+
+Nothing here changes a browser: there, every one of these helpers returns its input.
+
+## Push
+
+Option A of the three that were on the table, chosen for a first release: **the phone is told that
+something happened, and nothing about what.** Tapping the banner opens the app on its inbox, which
+reads the real notifications from the user's own server with their own session.
+
+Why there is a relay at all: the app in the stores can only be pushed to with its publisher's
+credentials — an APNs key from the Apple developer account, a Firebase service account from Google.
+Those cannot be given to every server somebody installs. So a server asks a relay that holds them,
+the way Nextcloud, Mattermost and Rocket.Chat do it:
 
 ```
-server returns:  /files/<hash>/px.png     ← root-relative
-  bare GET         401     ← what an <img> sends: no cookie (cross-origin), no header (an image
-                              cannot set one)
-  Authorization    200     ← what an <img> cannot send
-  ?access_token    200
+your Kolibri ──{ phone token, platform, language }──▶ relay ──▶ APNs / FCM ──▶ phone
 ```
 
-Two things go wrong at once. The URL the server stores and returns is root-relative, so in a
-packaged app it addresses the app's own bundle rather than a Kolibri; and `/files/:hash` requires
-authentication, which an `<img>`, a CSS `url()` and a `<link>` have no way to supply. Six places
-render one: `TaskDetail`, `page-parts`, `Avatar` in `ui.tsx`, and the markdown renderer in
-`@kolibri/shared`, which is what comments, chat and page bodies all go through.
+| piece | where | what it does |
+|---|---|---|
+| server | `adapters/push/app.ts` | keeps each phone's token **tied to the session that registered it** — signing out, or revoking that session from another device, stops the waking; gathers a burst for two seconds into one wake; deletes tokens Apple or Google call gone. `KOLIBRI_PUSH_RELAY`, default `https://push.kolibri.day`; empty turns it off |
+| relay | `src/relay.ts`, `adapters/relay/` | zero dependencies; FCM HTTP v1 with a service-account JWT, APNs over HTTP/2 with an ES256 provider token, production first and the sandbox on `BadDeviceToken`. Says one fixed sentence — "New activity" in English, German or French — whatever it is sent. Six wakes per phone per minute. Keeps nothing |
+| client | `adapters/push/app.tsx` | the switch in Settings, per device and opt-in; refreshes the token on start; forgets it if the phone was signed out since; routes a tap to the inbox |
+| Android | `AppPushPlugin.java`, manifest, `drawable-*/ic_stat_kolibri.png` | answers whether this build has Firebase in it — the push plugin's `register()` ends the app when it does not; the status-bar icon; the default channel |
+| iOS | `AppDelegate.swift`, `App.entitlements` | hands the device token to the plugin; the push entitlement |
 
-`authenticate` accepts `?access_token=` on every route, not only on SSE — so a query token is the
-only mechanism that makes an `<img>` load, and that is the whole difficulty:
+**What the publisher has to do once**, none of which this repository can:
 
-| | |
-|---|---|
-| **Token in the query** | Works everywhere with one helper. But the session token then sits in the DOM, in `document.referrer`, and in the server's access log — and the "open original" link carries `target="_blank"`, which on a phone hands that token to the system browser. |
-| **`fetch` + a `blob:` URL** | Nothing leaves the WebView. But an image is no longer a URL, so the markdown renderer's raw HTML needs a pass over the rendered subtree, and the bytes sit in memory. |
-| **A short-lived file ticket** | A second token, read-only and expiring in a minute. Still a token in a URL, but a narrow one — and it is a new endpoint, a new table and a new thing to revoke. |
+1. A Firebase project with an Android app `day.kolibri.client` (and `day.kolibri.client.dev` for the
+   debug build). Put its `google-services.json` in `packages/web/android/app/`. Without it the
+   Android build has no push, and the switch is not offered.
+2. In the Apple developer account: the Push Notifications capability on `day.kolibri.client`, and an
+   APNs authentication key (`.p8`). Xcode's automatic signing picks the capability up from the
+   entitlement.
+3. Run the relay — `docker compose -f docker-compose.relay.yml up -d` — with the service account
+   and the key, behind TLS at `push.kolibri.day` (or set `KOLIBRI_PUSH_RELAY` on the servers to
+   wherever it is).
 
-The shape that seems right, and is not yet agreed: a query token for `<img>` and CSS `url()`, where
-the URL never leaves the WebView and SSE already set the precedent — and `fetch` + `blob:` for the
-anchors that open a file, so nothing ever hands a session token to an external browser. Whichever
-way it goes, it is one helper in `kernel/sync/server.ts` plus an option on `MarkdownOptions`, so
-`@kolibri/shared` keeps knowing nothing about origins.
+**What is measured and what is not.** `relay.test.ts` checks everything that would leave the relay
+against stand-ins for Google and Apple: both JWTs verify with the matching public keys, the request
+shapes are the documented ones, and each documented answer is handled. `app-push.test.ts` checks
+that what leaves a server carries no title, body, workspace or user id. Neither shows that Apple and
+Google accept a real key, that a banner appears, or that a tap on a closed app lands on the inbox.
+That needs the credentials and a phone.
 
 ## What is not done
 
-- **Push.** The server already has the port (`notify.onNotification`) and the web has a service
-  worker behind it, but neither web push in an Android WebView nor a service worker under
-  `capacitor://` delivers anything. Native push means an FCM and an APNs adapter filling that same
-  port, and credentials this repository does not have.
 - **SSO.** `ssoHref` is root-relative, and the provider redirects back to the *server's* origin —
   which the app is not. Making OIDC work in the shell means a registered deep link and a redirect
   target that reaches it; the app ID already claims a URL scheme, and nothing listens on it yet.
 - **Store listings.** No screenshots, no privacy manifest, no `PrivacyInfo.xcprivacy`, no App Store
   or Play Console entry. `TARGETED_DEVICE_FAMILY` is `1,2`, so App Store Connect will want iPad
   screenshots as well as iPhone ones.
-- **Downloads and exports.** Every export and backup button addresses a relative `/api/…` path, by
-  navigation (`projects.tsx`), by a hidden iframe (`streamDownload` in `adapters/transfer/data.tsx`)
-  or by an `<a download>` on a `blob:` URL (`saveJson`). In the app the first two reach the bundle and
-  get `index.html` — the project export buttons navigate the whole app to an `/api/…` route — and the
-  third depends on the WebView handing a `blob:` download to the system, which neither shell is set
-  up to do. A phone needs a native save or share sheet here, which is a plugin this project does not
-  have.
+- **Downloads and exports.** Every export and backup button still addresses a relative `/api/…`
+  path, by navigation (`projects.tsx`), by a hidden iframe (`streamDownload` in
+  `adapters/transfer/data.tsx`) or by an `<a download>` on a `blob:` URL (`saveJson`), and in the app
+  the first two reach the bundle. The share sheet that now opens an uploaded file is the way out for
+  these too; it is not wired to them yet, and a backup is large enough that holding it in memory to
+  share it wants measuring first.
 - **Anything measured on a device.** Every claim here about how a WebView behaves was reasoned from
   the platform's documentation and the client's own code. The client half is walked across a real
   origin boundary by `check:packaged` — the bundle answered as Capacitor answers it, the API on
@@ -196,7 +235,9 @@ way it goes, it is one helper in `kernel/sync/server.ts` plus an option on `Mark
     web manifest are all `#0b0d12`, so a dark-mode start should be one colour throughout and a
     light-mode one should change once at the end — but nobody has watched it happen.
 
-- **`npm audit` reports three moderate advisories**, all one thing: `uuid` below 11.1.1, reached
-  through `xcode`, reached through `@capacitor/cli`. A build-time devDependency that writes the
-  `.pbxproj`; nothing in it ships. The offered fix downgrades the CLI, which costs more than the
-  advisory does.
+- **`npm audit`, as of this writing:** six moderate advisories, every one reached through
+  `@capacitor/cli` — `uuid` through `xcode`, and `glob` and `minimatch` through `rimraf`. A
+  build-time devDependency that writes the native projects; nothing in it ships, and the offered
+  fix downgrades the CLI. Two low ones, `katex` through `mermaid`, are the web client's own and not
+  the app's. The three plugins the app added (`filesystem`, `share`, `push-notifications`) bring
+  none.

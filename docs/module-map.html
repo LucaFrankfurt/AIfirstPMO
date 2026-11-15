@@ -354,12 +354,12 @@ footer {
 
   <div class="tally">
 <!-- generated: tally -->
-    <div><span class="v num">392</span><span class="k">source files</span></div>
-    <div><span class="v num">51</span><span class="k">modules</span></div>
-    <div><span class="v num">126 140</span><span class="k">lines</span></div>
+    <div><span class="v num">400</span><span class="k">source files</span></div>
+    <div><span class="v num">52</span><span class="k">modules</span></div>
+    <div><span class="v num">127 207</span><span class="k">lines</span></div>
 <!-- end -->
     <div><span class="v num">64</span><span class="k">entities</span></div>
-    <div><span class="v num">166</span><span class="k">endpoints</span></div>
+    <div><span class="v num">168</span><span class="k">endpoints</span></div>
     <div><span class="v num">143</span><span class="k">MCP tools</span></div>
   </div>
 
@@ -428,7 +428,7 @@ footer {
 <!-- ══════════════════════════════════════════════ 02 inventory ══ -->
 <section id="inventory">
 <!-- generated: files -->
-  <span class="eyebrow">02 — All 392 files, sorted</span>
+  <span class="eyebrow">02 — All 400 files, sorted</span>
 <!-- end -->
   <h2>The inventory</h2>
   <div class="stack">
@@ -441,10 +441,10 @@ footer {
 
     <div class="legend" role="list">
 <!-- generated: legend -->
-      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 34 775 lines, 28%</span>
-      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 61 136 lines, 48%</span>
-      <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 27 530 lines, 22%</span>
-      <span role="listitem"><i style="background: var(--shell)"></i> Shell — 2 699 lines, 2%</span>
+      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 34 811 lines, 27%</span>
+      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 61 139 lines, 48%</span>
+      <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 28 492 lines, 22%</span>
+      <span role="listitem"><i style="background: var(--shell)"></i> Shell — 2 765 lines, 2%</span>
 <!-- end -->
     </div>
 
@@ -1028,8 +1028,8 @@ footer {
       <code>architecture.md</code> accepts is still accepted.
     </li>
     <li>
-      <strong><code>i18n</code> stays the largest kernel module.</strong> 11 512 lines is three
-      catalogues of 3 469 keys. Step 2 stops shipping the two nobody asked for; it does not make the
+      <strong><code>i18n</code> stays the largest kernel module.</strong> 11 521 lines is three
+      catalogues of 3 472 keys. Step 2 stops shipping the two nobody asked for; it does not make the
       catalogues smaller, and it should not — a compile error on a missing key is worth more than the
       file size.
     </li>
@@ -1417,13 +1417,13 @@ footer {
 <script>
 /* generated: inventory */
 const MODULES = [
-{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":11512,"biggest":"kernel/i18n/locales/en.ts","biggestLines":3640},
+{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":11521,"biggest":"kernel/i18n/locales/en.ts","biggestLines":3643},
 {"ring":"kernel","name":"registry","flag":"","files":8,"lines":4265,"biggest":"kernel/registry/types.ts","biggestLines":2754},
 {"ring":"kernel","name":"design-system","flag":"","files":33,"lines":3421,"biggest":"kernel/design-system/ui.tsx","biggestLines":710},
 {"ring":"kernel","name":"sync","flag":"","files":8,"lines":2800,"biggest":"kernel/sync/sync.ts","biggestLines":696},
 {"ring":"kernel","name":"write-path","flag":"","files":3,"lines":2782,"biggest":"kernel/write-path/repo.ts","biggestLines":1376},
-{"ring":"kernel","name":"platform","flag":"","files":11,"lines":2455,"biggest":"kernel/platform/env.ts","biggestLines":650},
-{"ring":"kernel","name":"identity","flag":"","files":10,"lines":2427,"biggest":"kernel/identity/routes/auth.ts","biggestLines":579},
+{"ring":"kernel","name":"platform","flag":"","files":11,"lines":2464,"biggest":"kernel/platform/env.ts","biggestLines":659},
+{"ring":"kernel","name":"identity","flag":"","files":10,"lines":2445,"biggest":"kernel/identity/routes/auth.ts","biggestLines":586},
 {"ring":"kernel","name":"search","flag":"","files":9,"lines":2390,"biggest":"kernel/search/routes/search.tsx","biggestLines":494},
 {"ring":"kernel","name":"files","flag":"","files":9,"lines":1228,"biggest":"kernel/files/zip.ts","biggestLines":327},
 {"ring":"kernel","name":"feedback","flag":"","files":8,"lines":1171,"biggest":"feedback/src/kernel/feedback/input.ts","biggestLines":251},
@@ -1442,7 +1442,7 @@ const MODULES = [
 {"ring":"capability","name":"meetings","flag":"meetings","files":4,"lines":1665,"biggest":"modules/meetings/meeting-parts.tsx","biggestLines":788},
 {"ring":"capability","name":"infrastructure","flag":"infrastructure","files":4,"lines":1642,"biggest":"modules/infrastructure/landscape.tsx","biggestLines":582},
 {"ring":"capability","name":"automation","flag":"","files":3,"lines":1523,"biggest":"modules/automation/settings.tsx","biggestLines":738},
-{"ring":"capability","name":"time","flag":"time","files":6,"lines":1501,"biggest":"modules/time/rates.tsx","biggestLines":581},
+{"ring":"capability","name":"time","flag":"time","files":6,"lines":1504,"biggest":"modules/time/rates.tsx","biggestLines":581},
 {"ring":"capability","name":"secrets","flag":"secrets","files":6,"lines":1412,"biggest":"modules/secrets/routes/secrets.tsx","biggestLines":496},
 {"ring":"capability","name":"decisions","flag":"decisions","files":5,"lines":1131,"biggest":"modules/decisions/decision-parts.tsx","biggestLines":282},
 {"ring":"capability","name":"ai-review","flag":"ai","files":7,"lines":818,"biggest":"modules/ai-review/review.ts","biggestLines":200},
@@ -1458,16 +1458,17 @@ const MODULES = [
 {"ring":"adapter","name":"imap","flag":"","files":4,"lines":1194,"biggest":"adapters/imap/imap.ts","biggestLines":371},
 {"ring":"adapter","name":"oauth","flag":"","files":4,"lines":978,"biggest":"adapters/oauth/routes/oauth.ts","biggestLines":515},
 {"ring":"adapter","name":"kolibri","flag":"","files":3,"lines":905,"biggest":"feedback/src/adapters/kolibri/preflight.ts","biggestLines":598},
+{"ring":"adapter","name":"push","flag":"","files":6,"lines":864,"biggest":"adapters/push/app.tsx","biggestLines":270},
 {"ring":"adapter","name":"share","flag":"","files":3,"lines":802,"biggest":"adapters/share/routes/share.ts","biggestLines":642},
 {"ring":"adapter","name":"telegram","flag":"","files":5,"lines":763,"biggest":"adapters/telegram/telegram.ts","biggestLines":465},
 {"ring":"adapter","name":"s3","flag":"","files":3,"lines":649,"biggest":"adapters/s3/s3.ts","biggestLines":347},
 {"ring":"adapter","name":"capture","flag":"","files":4,"lines":622,"biggest":"feedback/src/adapters/capture/capture.ts","biggestLines":385},
+{"ring":"adapter","name":"relay","flag":"","files":5,"lines":483,"biggest":"adapters/relay/relay.ts","biggestLines":156},
 {"ring":"adapter","name":"calendar","flag":"","files":2,"lines":409,"biggest":"adapters/calendar/routes/calendar.ts","biggestLines":251},
-{"ring":"adapter","name":"push","flag":"","files":4,"lines":385,"biggest":"adapters/push/push.ts","biggestLines":211},
 {"ring":"adapter","name":"ai","flag":"","files":5,"lines":345,"biggest":"adapters/ai/ai-gemini.ts","biggestLines":127},
 {"ring":"adapter","name":"native","flag":"","files":1,"lines":108,"biggest":"adapters/native/files.ts","biggestLines":108},
 {"ring":"adapter","name":"react","flag":"","files":1,"lines":82,"biggest":"feedback/src/adapters/react/reporter.tsx","biggestLines":82},
-{"ring":"shell","name":"shell","flag":"","files":21,"lines":2699,"biggest":"AppShell.tsx","biggestLines":642}
+{"ring":"shell","name":"shell","flag":"","files":22,"lines":2765,"biggest":"AppShell.tsx","biggestLines":642}
 ];
 /* end */
 
