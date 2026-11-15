@@ -47,6 +47,15 @@ const EXEMPT = new Map([
   ['SCW_EMAIL_API_URL', 'vendor alias, reached via KOLIBRI_SCALEWAY_EMAIL_URL'],
   ['EMAIL_FROM_INFO', 'vendor alias, reached via KOLIBRI_MAIL_FROM'],
   ['EMAIL_FROM_NAME', 'vendor alias, reached via KOLIBRI_MAIL_FROM_NAME'],
+  // The push relay is a separate process that only the app's publisher runs
+  // (src/relay.ts), with its own compose file. A Kolibri server never reads these.
+  ['KOLIBRI_RELAY_PORT', 'the push relay only — docker-compose.relay.yml'],
+  ['KOLIBRI_RELAY_FCM_SERVICE_ACCOUNT', 'the push relay only — docker-compose.relay.yml'],
+  ['KOLIBRI_RELAY_APNS_KEY', 'the push relay only — docker-compose.relay.yml'],
+  ['KOLIBRI_RELAY_APNS_KEY_ID', 'the push relay only — docker-compose.relay.yml'],
+  ['KOLIBRI_RELAY_APNS_TEAM_ID', 'the push relay only — docker-compose.relay.yml'],
+  ['KOLIBRI_RELAY_APNS_TOPIC', 'the push relay only — docker-compose.relay.yml'],
+  ['KOLIBRI_RELAY_TRUST_PROXY', 'the push relay only — docker-compose.relay.yml'],
 ]);
 
 /** Compose files a person actually deploys, as opposed to overlays. */

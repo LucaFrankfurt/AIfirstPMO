@@ -127,6 +127,7 @@ const ABOUT = {
   'adapter/share': ['A read-only link to one page or board, rendered for whoever holds it.'],
   'capability/share': ['Making, listing and revoking those links, from the screen the thing is on.'],
   'push': ['Web push, sent with no payload.'],
+  'relay': ['The publisher\'s push relay, run on its own: a phone\'s token in, a fixed sentence to Apple or Google out.'],
   'native': ['The packaged app\'s own edges: an uploaded file handed to the phone\'s share sheet.'],
   'ai': ['Three providers behind one call.'],
   'calendar': ['An iCal feed of what is due.'],
@@ -302,6 +303,8 @@ const SHELL = new Set([
   'shared/src/index.ts',
   'server/src/index.ts', 'server/src/seed.ts', 'server/src/cli.ts', 'server/src/wiring.ts',
   'server/src/backends.ts',
+  // The push relay's own process: run by the app's publisher, never by a server.
+  'server/src/relay.ts',
   'web/src/main.tsx', 'web/src/App.tsx', 'web/src/AppShell.tsx',
   'web/src/CommandPalette.tsx', 'web/src/wiring.ts',
   'web/vite.config.ts', 'web/capacitor.config.ts',
