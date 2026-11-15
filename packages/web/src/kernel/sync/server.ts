@@ -79,6 +79,47 @@ export function useServer(next: string): void {
   remember(ORIGIN_KEY, origin || null);
 }
 
+/**
+ * What somebody typed into the picker, as the origin it means — or null.
+ *
+ * Phones are where addresses get typed by thumb and pasted out of a browser.
+ * Two of those used to fail in a way that looked like success: a bare
+ * `kolibri.example.com` stayed relative, so the check went to the app's own
+ * bundle, which answers every path with `index.html` and a 200; and a pasted
+ * `https://kolibri.example.com/inbox` became `…/inbox/api/session`, which is
+ * the web build's fallback page rather than an API. A scheme is assumed when
+ * none is given — https, because the address is where a bearer token goes —
+ * and only the origin is kept, because Kolibri is served from the root of its
+ * host: every route it has is written as an absolute path.
+ */
+export function serverAddress(typed: string): string | null {
+  const trimmed = typed.trim();
+  if (!trimmed) return null;
+  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    const url = new URL(withScheme);
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+    if (!url.hostname) return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Did a Kolibri answer `/api/config`, or merely something?
+ *
+ * A 200 is not an answer to "is this a Kolibri". The app's own bundle gives
+ * one for every path, and so do a captive portal, a parked domain and any
+ * other single-page app behind the same proxy — and the client's `request`
+ * turns a body it cannot parse into `{ message }` rather than an error. So the
+ * picker asks for the two fields every version of the config has carried.
+ */
+export const isKolibriConfig = (answer: unknown): boolean =>
+  !!answer && typeof answer === 'object'
+  && typeof (answer as { version?: unknown }).version === 'string'
+  && typeof (answer as { hasUsers?: unknown }).hasUsers === 'boolean';
+
 /** The bearer, if this client holds one. */
 export const sessionToken = (): string | null => token;
 

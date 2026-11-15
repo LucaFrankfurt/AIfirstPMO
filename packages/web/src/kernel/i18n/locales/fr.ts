@@ -2535,6 +2535,8 @@ export const fr: Catalogue = {
   'server.connect': 'Se connecter',
   'server.checking': 'Vérification…',
   'server.unreachable': 'Aucun Kolibri n’a répondu à cette adresse. Vérifiez l’adresse et que le serveur est joignable depuis cet appareil.',
+  'server.signingInTo': 'Connexion à {host}',
+  'server.change': 'Changer de serveur',
   'auth.headline': 'Votre travail vit sur votre serveur.',
   'auth.blurb': 'Projets, tâches et pages — hors ligne d’abord, avec un assistant autorisé à lire par-dessus votre épaule.',
   'auth.factOffline': 'Continue de fonctionner quand le réseau s’arrête',

@@ -25,8 +25,12 @@ npm run mobile:ios        # open Xcode
 npm run mobile:android    # open Android Studio
 ```
 
-`npm run mobile` is `vite build && cap sync`. Run it after **every** change to the client — the
-native projects hold a *copy* of `dist`, and a build that skips it ships the previous one.
+`npm run mobile` is `vite build --sourcemap false && cap sync`. Run it after **every** change to the
+client — the native projects hold a *copy* of `dist`, and a build that skips it ships the previous
+one. The source maps are left out because they were three quarters of that copy — measured, 19 MB
+of the 25 MB that went into each project — and a phone has no devtools to read them with. The
+browser build keeps them. The one consequence: `dist` after `npm run mobile` has no maps, so a
+server started from it serves none until the next `npm run build`.
 
 From there it is each platform's own workflow: a signing team and a device in Xcode, a run
 configuration in Android Studio. Neither is scriptable from this repository, and neither is checked
@@ -47,6 +51,30 @@ back the session token in the response body instead of only setting the cookie. 
 that carries it as `Authorization: Bearer`. A browser does none of this: its origin *is* the server,
 its cookie stays `HttpOnly`, and the header is never sent. See [`security.md`](security.md) for what
 that second credential path costs and why it is narrow.
+
+### The bundle answers every path
+
+Neither shell returns a 404. Capacitor's asset handler — `WebViewLocalServer` on Android, the router
+behind `WebViewAssetHandler` on iOS — serves `index.html` with a **200** for any path without an
+extension, because that is what a single-page app wants for its own routes. It also means any
+request that forgot to go through `serverUrl` does not fail; it succeeds, with HTML.
+
+That shipped as a crash on every fresh install. The session lookup ran before anybody had named a
+server, came back from the bundle as a "session" made of HTML, and `session.workspaces.find` put the
+app on its error screen before the picker could draw. The picker had the same blind spot: it took
+any 200 from `/api/config` as a Kolibri, so the app's own origin, a captive portal or a bare host
+typed without `https://` (which stays relative, and so reaches the bundle) were all accepted.
+
+What holds it now:
+
+- the session provider does not ask until there is a server to ask;
+- the picker keeps only the origin of what was typed, assumes `https://` when no scheme was given,
+  and asks `/api/config` for the two fields every version has sent rather than for a 200;
+- `npm run check:packaged` walks the app with the bundle answered exactly that way — the check that
+  missed this before served the bundle from a static server that said 404.
+
+Signing out leaves the address; the sign-in screen names the host and has **Change server**, which
+forgets the token before the address so it is never sent to the next one.
 
 ## HTTPS, and the one exception
 
@@ -139,13 +167,28 @@ way it goes, it is one helper in `kernel/sync/server.ts` plus an option on `Mark
   which the app is not. Making OIDC work in the shell means a registered deep link and a redirect
   target that reaches it; the app ID already claims a URL scheme, and nothing listens on it yet.
 - **Store listings.** No screenshots, no privacy manifest, no `PrivacyInfo.xcprivacy`, no App Store
-  or Play Console entry.
+  or Play Console entry. `TARGETED_DEVICE_FAMILY` is `1,2`, so App Store Connect will want iPad
+  screenshots as well as iPhone ones.
+- **Downloads and exports.** Every export and backup button addresses a relative `/api/…` path, by
+  navigation (`projects.tsx`), by a hidden iframe (`streamDownload` in `adapters/transfer/data.tsx`)
+  or by an `<a download>` on a `blob:` URL (`saveJson`). In the app the first two reach the bundle and
+  get `index.html` — the project export buttons navigate the whole app to an `/api/…` route — and the
+  third depends on the WebView handing a `blob:` download to the system, which neither shell is set
+  up to do. A phone needs a native save or share sheet here, which is a plugin this project does not
+  have.
 - **Anything measured on a device.** Every claim here about how a WebView behaves was reasoned from
-  the platform's documentation and the client's own code. The client half was verified across a real
-  origin boundary — the bundle on one port, the API on another, `window.Capacitor` present, at a
-  phone's viewport — and that is not the same as a phone. Specifically unmeasured:
+  the platform's documentation and the client's own code. The client half is walked across a real
+  origin boundary by `check:packaged` — the bundle answered as Capacitor answers it, the API on
+  another origin, `window.Capacitor` present, at a phone's viewport — and that is not the same as a
+  phone. Neither native project has been compiled: Xcode does not run where this repository is built,
+  and the Android SDK was not installed there because doing so means accepting Google's licence on
+  somebody's behalf. Specifically unmeasured:
 
   - Whether `NSAllowsLocalNetworking` reaches a numeric `http://192.168.x.x` address on iOS.
+  - Whether a WebView applies Chromium's Local Network Access rules to the app. Desktop Chromium
+    does: a page it considers public reaching a loopback or private address is refused unless the
+    user allows it, and `check:packaged` has to switch that off to walk at all. Irrelevant for a
+    server on a public address; possibly not for a development server on the same wifi.
   - How large the adaptive icon looks in a launcher. Its fill is derived conservatively, from the
     circle Android *guarantees* rather than the one a launcher usually shows, so it may read small
     beside other apps. One number in `brand.py`, with the trade-off written beside it.

@@ -899,6 +899,18 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       target that reaches it. The app ID already claims a URL scheme; nothing listens on it.
 - [ ] **Nothing has been submitted to either store.** No screenshots, no privacy manifest, no
       `PrivacyInfo.xcprivacy`, no App Store Connect or Play Console entry, no signing identity.
+- [x] **Every fresh install of the app crashed before its first screen.** Capacitor answers every
+      extensionless path with `index.html` and a 200, so the session lookup that ran before a server
+      was named came back as HTML and `session.workspaces.find` threw. The picker took any 200 as a
+      Kolibri for the same reason. Fixed in the session provider and the picker, and walked by
+      `check:packaged`, which serves the bundle the way Capacitor does — the earlier check of the
+      same split used a static server that said 404, and passed. The sign-in screen in the app now
+      names its host and can change server, which the picker had promised and nothing offered.
+- [ ] **Downloads and exports do not work in the app.** Project export, workspace export, the tasks
+      CSV, the personal export and backup downloads all address a relative `/api/…` path, and the
+      bundle answers it with `index.html`; the JSON export builds a `blob:` download that neither
+      shell hands to the system. Needs a native save or share sheet — see
+      [`docs/mobile.md`](docs/mobile.md#what-is-not-done).
 
 ---
 

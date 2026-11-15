@@ -2534,6 +2534,8 @@ export const de: Catalogue = {
   'server.connect': 'Verbinden',
   'server.checking': 'Wird geprüft…',
   'server.unreachable': 'Unter dieser Adresse hat kein Kolibri geantwortet. Prüfe die Adresse und ob der Server von diesem Gerät aus erreichbar ist.',
+  'server.signingInTo': 'Anmeldung bei {host}',
+  'server.change': 'Server ändern',
   'auth.headline': 'Die Arbeit liegt auf deinem Server.',
   'auth.blurb': 'Projekte, Aufgaben und Seiten — offline zuerst, mit einem Assistenten, der mitlesen darf.',
   'auth.factOffline': 'Arbeitet weiter, wenn das Netz nicht will',

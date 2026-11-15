@@ -14,8 +14,10 @@ import { installBrowser } from './browser.ts';
 
 installBrowser();
 
-const { authHeaders, clientHeaders, isPackaged, needsServer, serverOrigin, serverUrl, sessionToken, useServer, useSessionToken } =
-  await import('../src/kernel/sync/server');
+const {
+  authHeaders, clientHeaders, isKolibriConfig, isPackaged, needsServer, serverAddress, serverOrigin, serverUrl, sessionToken,
+  useServer, useSessionToken,
+} = await import('../src/kernel/sync/server');
 
 beforeEach(() => {
   useServer('');
@@ -121,5 +123,49 @@ describe('who has to be asked where the server is', () => {
       useServer('https://kolibri.example');
       assert.equal(needsServer(), false);
     });
+  });
+});
+
+describe('what the picker makes of an address typed on a phone', () => {
+  /*
+   * A bare host used to stay relative, so the check went to the app's own
+   * bundle — which answers every path with `index.html` and a 200 — and the
+   * picker kept an address that was not one.
+   */
+  it('assumes https when no scheme was typed', () => {
+    assert.equal(serverAddress('kolibri.example.com'), 'https://kolibri.example.com');
+    assert.equal(serverAddress('  kolibri.example.com:8443 '), 'https://kolibri.example.com:8443');
+  });
+
+  it('keeps plain http when somebody asked for it, for the laptop on the same wifi', () => {
+    assert.equal(serverAddress('http://192.168.1.20:4000'), 'http://192.168.1.20:4000');
+  });
+
+  /* Pasted out of a browser tab: Kolibri is served from the root of its host. */
+  it('keeps only the origin of an address pasted with a path', () => {
+    assert.equal(serverAddress('https://kolibri.example.com/inbox?x=1#y'), 'https://kolibri.example.com');
+  });
+
+  it('refuses what cannot be a server', () => {
+    for (const typed of ['', '   ', 'https://', 'ftp://kolibri.example.com', 'javascript://alert(1)', 'http://']) {
+      assert.equal(serverAddress(typed), null, typed);
+    }
+  });
+});
+
+describe('whether a Kolibri answered, or merely something', () => {
+  it('accepts the config every version has sent', () => {
+    assert.equal(isKolibriConfig({ version: '0.1.0', hasUsers: true, allowSignup: false }), true);
+  });
+
+  /*
+   * What `request` makes of an HTML page that came back 200 — the app's own
+   * bundle, a captive portal, a parked domain.
+   */
+  it('refuses a page that only said 200', () => {
+    assert.equal(isKolibriConfig({ message: '<!doctype html><html>' }), false);
+    assert.equal(isKolibriConfig(null), false);
+    assert.equal(isKolibriConfig('ok'), false);
+    assert.equal(isKolibriConfig({ version: 1, hasUsers: true }), false);
   });
 });

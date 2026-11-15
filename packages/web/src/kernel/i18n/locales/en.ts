@@ -2540,6 +2540,8 @@ export const en = {
   'server.connect': 'Connect',
   'server.checking': 'Checking…',
   'server.unreachable': 'No Kolibri answered at that address. Check the address, and that the server is reachable from this device.',
+  'server.signingInTo': 'Signing in to {host}',
+  'server.change': 'Change server',
   'auth.headline': 'Your work lives on your server.',
   'auth.blurb': 'Projects, tasks and pages — offline first, with an assistant allowed to read along.',
   'auth.factOffline': 'Keeps working when the network does not',
