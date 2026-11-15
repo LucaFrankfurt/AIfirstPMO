@@ -11,7 +11,7 @@
  * this is for will check.
  */
 import { command } from '../../product';
-import type { Carousel } from '../slide';
+import type { Carousel } from '../slide-types';
 
 export const selfhost: Carousel = {
   id: 'SocialSelfHost',

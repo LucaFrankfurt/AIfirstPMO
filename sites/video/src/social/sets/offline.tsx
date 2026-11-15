@@ -15,7 +15,7 @@
 import { screen } from '../../assets';
 import { Screenshot } from '../../components/Screenshot';
 import { Outbox } from '../../components/Outbox';
-import type { Carousel } from '../slide';
+import type { Carousel } from '../slide-types';
 
 const W = 912;
 

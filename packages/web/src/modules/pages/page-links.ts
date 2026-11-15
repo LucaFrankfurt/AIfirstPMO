@@ -18,7 +18,7 @@ import {
   type Page,
 } from '@kolibri/shared';
 import { list, useQuery } from '../../kernel/sync/store';
-import type { GraphEdge, GraphNode } from './pagegraph';
+import type { GraphEdge, GraphNode } from './page-graph';
 import { update } from '../../kernel/sync/mutations';
 import { useCanWrite, useSession } from '../../kernel/identity/session';
 

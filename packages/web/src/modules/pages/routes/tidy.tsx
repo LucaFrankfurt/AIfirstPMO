@@ -39,7 +39,7 @@ import { Empty, Icon, useToast } from '../../../kernel/design-system/ui';
 import { useMinute } from '../../../kernel/design-system/minute';
 import { STALE_DAYS, tidyPages, type Problem } from '../tidy';
 import { usePageStatuses } from '../status';
-import { trailsOf } from '../pagetree';
+import { trailsOf } from '../page-tree';
 import { PageBulkBar } from '../page-bulk';
 
 /** What each finding is called, and the consequence that makes it one. */

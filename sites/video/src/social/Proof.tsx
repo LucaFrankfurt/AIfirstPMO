@@ -16,9 +16,9 @@
 import React from 'react';
 import { AbsoluteFill } from 'remotion';
 import { colour, font } from '../theme';
-import { POST } from './sheet';
+import { POST } from './formats';
 import { SlideView } from './Slide';
-import type { Slide } from './slide';
+import type { Slide } from './slide-types';
 
 /** Four across, because five is where a 1080-wide slide stops being readable. */
 export const COLUMNS = 4;

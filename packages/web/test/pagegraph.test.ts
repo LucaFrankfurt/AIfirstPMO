@@ -11,7 +11,7 @@
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { layout, type GraphEdge, type GraphNode } from '../src/modules/pages/pagegraph.ts';
+import { layout, type GraphEdge, type GraphNode } from '../src/modules/pages/page-graph.ts';
 
 const page = (id: string): GraphNode => ({ id, label: id, kind: 'page' });
 

@@ -23,7 +23,7 @@ import { QuickAddField } from '../../components/QuickAddField';
 import { Gantt } from '../../components/Gantt';
 import { TaskCard } from '../../components/ui';
 import { ToolCall } from '../../components/ToolCall';
-import type { Carousel } from '../slide';
+import type { Carousel } from '../slide-types';
 
 /** The band a still may use: the sheet's width less its two margins. */
 const W = 912;

@@ -1,7 +1,7 @@
 /**
  * The link graph, given somewhere to be.
  *
- * Apart from the component for the reason `pagetree.ts` is: this is arithmetic
+ * Apart from the component for the reason `page-tree.ts` is: this is arithmetic
  * with edge cases — a wiki with one page, a wiki with two pages nothing joins,
  * a page linked to by everything — and arithmetic is worth proving without a
  * browser. The component reads the pages out of the store and draws what comes

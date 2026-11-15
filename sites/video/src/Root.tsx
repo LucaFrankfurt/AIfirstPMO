@@ -20,7 +20,7 @@ import { HierarchyWide, HierarchyTall, HierarchyFeed } from './spots/hierarchy/S
 import { carousel } from './social/Carousel';
 import { proof, proofSize } from './social/Proof';
 import { carousels } from './social/sets';
-import { POST } from './social/sheet';
+import { POST } from './social/formats';
 
 /**
  * The carousels, built once here rather than inside the JSX below.

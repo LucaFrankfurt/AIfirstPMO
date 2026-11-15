@@ -266,7 +266,7 @@ studio scrubs it, which is the same gesture the reader's thumb will make.
 - **The cover is composed inside the square.** Instagram shows a post whole in the feed and
   centre-cropped to 1:1 on the profile grid, so 135 pixels come off the top and bottom of the
   thumbnail — and the thumbnail is the cover. The inner slides spend the full height; `SQUARE` in
-  `social/sheet.ts` is the budget the cover keeps to.
+  `social/formats.ts` is the budget the cover keeps to.
 - **Basic latin only, in anything that has to line up.** `@fontsource` splits JetBrains Mono by
   unicode range, and the box-drawing characters are in no subset this build loads. The clock slide's
   first diagram used `└──┘`, got them from whatever mono the renderer had, and did not line up.
