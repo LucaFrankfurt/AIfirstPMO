@@ -180,6 +180,8 @@ export const en = {
   'attachment.removeConfirm': 'Remove {name}? It goes to the trash and can be restored. The stored file itself is shared and is not deleted.',
   'attachment.kb': '{size} KB',
   'attachment.openFailed': 'This file could not be opened.',
+  'attachment.preparing': 'Preparing the file…',
+  'attachment.saveFailed': 'This file could not be saved.',
   'attachment.files': 'Files',
   'task.comments': 'Comments',
   'task.activity': 'Activity',

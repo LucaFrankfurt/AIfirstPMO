@@ -19,7 +19,7 @@
  * it cannot be is a phone: the WebView here is Chromium's, and nothing about
  * signing, push or a launcher is reached from a browser.
  *
- * Eight claims:
+ * Nine claims:
  *
  *  - **A fresh install opens on the picker**, not on the error screen.
  *  - **A 200 is not a Kolibri.** The app's own origin answers `/api/config`
@@ -37,6 +37,10 @@
  *  - **A link to an upload is fetched with the header and the app stays put.**
  *    It is not routed as a screen, not navigated to on the bundle, and not
  *    handed to a browser with a token in it.
+ *  - **An export is downloaded by the phone and handed to the share sheet** —
+ *    with the session in a header, from the server rather than the bundle,
+ *    under the name the server gives it, and with the app left where it was.
+ *    It used to be a navigation, which took the whole app to `/api/…`.
  *  - **Signing out forgets the token, and the server can be changed** — which
  *    the picker promises and the sign-in screen once had no way to keep.
  *
@@ -91,11 +95,38 @@ const context = await browser.newContext({
    global the native bridge script defines. `@capacitor/core` reads the first to
    decide it is native — without it, the core that every plugin import brings in
    would report "web", and the app would be walked as a browser. Nothing answers
-   on the bridge, so a plugin call here waits or fails; this walk asks none that
-   it depends on. */
+   on the bridge itself; the three plugins below answer through a recorder, and
+   any other plugin call fails, which nothing this walk depends on makes. */
 await context.addInitScript(() => {
   globalThis.androidBridge = { postMessage() {} };
-  globalThis.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'android' };
+  /*
+   * The three plugins a file leaves the app through, answered by a recorder
+   * standing where the native bridge would: `@capacitor/core` sends a plugin
+   * call to `nativePromise` for any plugin the bridge lists in `PluginHeaders`.
+   * Nothing is written and no sheet opens; what the walk gets is the exact
+   * sequence of calls the app would have asked the phone to make, which is the
+   * part of this that is ours. Every other plugin stays absent, as before.
+   */
+  const promised = (...names) => names.map((name) => ({ name, rtype: 'promise' }));
+  globalThis.__native = [];
+  globalThis.Capacitor = {
+    isNativePlatform: () => true,
+    getPlatform: () => 'android',
+    PluginHeaders: [
+      { name: 'Filesystem', methods: promised('getUri', 'mkdir', 'rmdir', 'writeFile') },
+      { name: 'FileTransfer', methods: promised('downloadFile') },
+      { name: 'Share', methods: promised('share') },
+    ],
+    nativePromise: (plugin, method, options = {}) => {
+      const seen = method === 'writeFile' ? { ...options, data: `${String(options.data ?? '').length} chars` } : options;
+      globalThis.__native.push({ plugin, method, options: JSON.parse(JSON.stringify(seen)) });
+      if (plugin === 'Filesystem' && (method === 'getUri' || method === 'writeFile')) {
+        return Promise.resolve({ uri: `file:///cache/${options.path}` });
+      }
+      if (plugin === 'FileTransfer') return Promise.resolve({ path: options.path });
+      return Promise.resolve({});
+    },
+  };
 });
 
 /** Paths under `/api/` or `/files/` that reached the bundle instead of the server. */
@@ -272,6 +303,39 @@ check(
         : `asked of the bundle: ${[...new Set(misdirected)].join(', ')}`,
 );
 
+/* ----------------------------------------------------------------- exports */
+
+// The personal export: on every account, and streamed by the server like the
+// archives and the backups, so it takes the same road they do.
+misdirected.length = 0;
+const exportButton = page.getByRole('button', { name: 'Download my data' });
+await page.goto(`${APP}/settings?tab=data`);
+await dismissGuide(exportButton);
+const exportFrom = page.url();
+const openedBefore = opened.length;
+await page.evaluate(() => { globalThis.__native.length = 0; });
+await exportButton.click({ timeout: 10000 }).catch(() => undefined);
+await page.waitForTimeout(1500);
+const calls = await page.evaluate(() => globalThis.__native);
+const download = calls.find((call) => call.plugin === 'FileTransfer' && call.method === 'downloadFile');
+const shared = calls.find((call) => call.plugin === 'Share' && call.method === 'share');
+const exportName = `my-kolibri-data-${new Date().toISOString().slice(0, 10)}.json`;
+check(
+  download?.options.url === `${base}/api/me/export?download=1`
+    && download.options.headers?.authorization === `Bearer ${token}`
+    && download.options.path?.endsWith(`/${exportName}`)
+    && shared?.options.files?.[0] === download.options.path
+    && page.url() === exportFrom && opened.length === openedBefore && !misdirected.length,
+  'an export is downloaded by the phone, with the session, and handed to the share sheet',
+  !download ? `the phone was never asked to download it — the app asked for: ${calls.map((c) => `${c.plugin}.${c.method}`).join(', ') || 'nothing'}`
+    : download.options.url !== `${base}/api/me/export?download=1` ? `it was asked to download ${download.options.url}`
+      : download.options.headers?.authorization !== `Bearer ${token}` ? 'the download carries no session'
+        : !download.options.path?.endsWith(`/${exportName}`) ? `it would be saved as ${download.options.path}`
+          : !shared ? 'the file never reached the share sheet'
+            : page.url() !== exportFrom ? `the app navigated to ${page.url()}`
+              : `asked of the bundle: ${[...new Set(misdirected)].join(', ')}`,
+);
+
 /* ------------------------------------------ signing out, and moving server */
 
 await page.goto(`${APP}/more`);
@@ -292,6 +356,6 @@ check(
 
 await browser.close();
 console.log(failures.length
-  ? `\n${failures.length} of 8 claims failed`
+  ? `\n${failures.length} of 9 claims failed`
   : '\nthe packaged app finds its server, signs in, survives a cold start and lets go');
 process.exit(failures.length ? 1 : 0);

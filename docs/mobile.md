@@ -159,6 +159,32 @@ What this costs, said where an operator will look:
 
 Nothing here changes a browser: there, every one of these helpers returns its input.
 
+## Exports, backups and saved pages
+
+Every download in the client goes through `kernel/files/save.ts`: `saveFromServer` for what the
+server streams (the workspace and project archives, the tasks CSV, the personal export, an instance
+backup) and `saveBlob` for what the page builds (a JSON export, a page saved as HTML or markdown).
+In a browser they do what the client always did — a hidden frame, so a large archive streams to
+disk, and a link with `download`. In the app both used to fail: the frame and the project export's
+navigation reached the bundle, which answers `/api/…` with itself, and a `blob:` download is
+something neither WebView hands to the system.
+
+The kernel cannot reach the phone, so it declares a port and `adapters/native/files.ts` fills it:
+
+- **From the server**, `@capacitor/file-transfer` downloads natively, straight to a file in the
+  app's cache, with the session in a header. Natively because these are the large ones — a backup
+  through the page would be held as a blob and then again as base64 to cross the bridge.
+- **From the page**, the blob is written to the cache.
+- Either way the file goes to the share sheet: "Save to Files", or straight into another app. One
+  file is kept at a time; the next download empties the directory first, so a backup does not sit
+  in the cache until the operating system gets round to it.
+
+The app names each file itself, the way the server does, because a native download does not hand
+back the reply's `Content-Disposition`. `check:packaged` walks the personal export with a recorder
+standing where the native bridge would, and checks the calls the app makes: a download of the right
+path from the server, with the session, saved under the right name, handed to the share sheet — and
+the app left where it was. Whether a real phone's share sheet does the rest is unmeasured.
+
 ## Push
 
 Option A of the three that were on the table, chosen for a first release: **the phone is told that
@@ -209,12 +235,6 @@ That needs the credentials and a phone.
 - **Store listings.** No screenshots, no privacy manifest, no `PrivacyInfo.xcprivacy`, no App Store
   or Play Console entry. `TARGETED_DEVICE_FAMILY` is `1,2`, so App Store Connect will want iPad
   screenshots as well as iPhone ones.
-- **Downloads and exports.** Every export and backup button still addresses a relative `/api/…`
-  path, by navigation (`projects.tsx`), by a hidden iframe (`streamDownload` in
-  `adapters/transfer/data.tsx`) or by an `<a download>` on a `blob:` URL (`saveJson`), and in the app
-  the first two reach the bundle. The share sheet that now opens an uploaded file is the way out for
-  these too; it is not wired to them yet, and a backup is large enough that holding it in memory to
-  share it wants measuring first.
 - **Anything measured on a device.** Every claim here about how a WebView behaves was reasoned from
   the platform's documentation and the client's own code. The client half is walked across a real
   origin boundary by `check:packaged` — the bundle answered as Capacitor answers it, the API on
@@ -239,5 +259,5 @@ That needs the credentials and a phone.
   `@capacitor/cli` — `uuid` through `xcode`, and `glob` and `minimatch` through `rimraf`. A
   build-time devDependency that writes the native projects; nothing in it ships, and the offered
   fix downgrades the CLI. Two low ones, `katex` through `mermaid`, are the web client's own and not
-  the app's. The three plugins the app added (`filesystem`, `share`, `push-notifications`) bring
-  none.
+  the app's. The four plugins the app added (`filesystem`, `share`, `file-transfer`,
+  `push-notifications`) bring none.

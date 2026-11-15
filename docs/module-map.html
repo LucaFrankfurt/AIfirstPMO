@@ -354,9 +354,9 @@ footer {
 
   <div class="tally">
 <!-- generated: tally -->
-    <div><span class="v num">400</span><span class="k">source files</span></div>
+    <div><span class="v num">401</span><span class="k">source files</span></div>
     <div><span class="v num">52</span><span class="k">modules</span></div>
-    <div><span class="v num">127 207</span><span class="k">lines</span></div>
+    <div><span class="v num">127 320</span><span class="k">lines</span></div>
 <!-- end -->
     <div><span class="v num">64</span><span class="k">entities</span></div>
     <div><span class="v num">168</span><span class="k">endpoints</span></div>
@@ -428,7 +428,7 @@ footer {
 <!-- ══════════════════════════════════════════════ 02 inventory ══ -->
 <section id="inventory">
 <!-- generated: files -->
-  <span class="eyebrow">02 — All 400 files, sorted</span>
+  <span class="eyebrow">02 — All 401 files, sorted</span>
 <!-- end -->
   <h2>The inventory</h2>
   <div class="stack">
@@ -441,9 +441,9 @@ footer {
 
     <div class="legend" role="list">
 <!-- generated: legend -->
-      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 34 811 lines, 27%</span>
-      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 61 139 lines, 48%</span>
-      <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 28 492 lines, 22%</span>
+      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 34 890 lines, 27%</span>
+      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 61 128 lines, 48%</span>
+      <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 28 537 lines, 22%</span>
       <span role="listitem"><i style="background: var(--shell)"></i> Shell — 2 765 lines, 2%</span>
 <!-- end -->
     </div>
@@ -1028,8 +1028,8 @@ footer {
       <code>architecture.md</code> accepts is still accepted.
     </li>
     <li>
-      <strong><code>i18n</code> stays the largest kernel module.</strong> 11 521 lines is three
-      catalogues of 3 472 keys. Step 2 stops shipping the two nobody asked for; it does not make the
+      <strong><code>i18n</code> stays the largest kernel module.</strong> 11 527 lines is three
+      catalogues of 3 474 keys. Step 2 stops shipping the two nobody asked for; it does not make the
       catalogues smaller, and it should not — a compile error on a missing key is worth more than the
       file size.
     </li>
@@ -1158,8 +1158,8 @@ footer {
       capability, and it does so 26 times now precisely because the outward edges were turned
       round.
       The way out was the same every time — the inner ring says what it needs, the outer one
-      registers. There are <strong>14 ports</strong> across <strong>11 modules</strong> now, and
-      all 14 are filled. Four of the fixes were not inversions at all but things filed in the wrong
+      registers. There are <strong>15 ports</strong> across <strong>11 modules</strong> now, and
+      all 15 are filled. Four of the fixes were not inversions at all but things filed in the wrong
       place, and those four are the interesting ones.
     </p>
     <div class="scroller">
@@ -1168,6 +1168,7 @@ footer {
         <tbody>
 <!-- generated: ports -->
           <tr><td><code>kernel/design-system</code></td><td>the link into the guide that <code>Empty</code> offers <span class="dim"><code>provideGuideHint</code></span></td><td><code>capability/guide</code></td></tr>
+          <tr><td><code>kernel/files</code></td><td>where a finished file is handed over, when it is not to the browser <span class="dim"><code>onSave</code></span></td><td><code>adapter/native</code></td></tr>
           <tr><td><code>kernel/files</code></td><td>a place to put bytes <span class="dim"><code>registerBackend</code></span></td><td><code>adapter/s3</code></td></tr>
           <tr><td><code>kernel/platform</code></td><td>what has to follow a change of settings while the server runs <span class="dim"><code>onSettingsChange</code></span></td><td><code>shell/shell</code></td></tr>
           <tr><td><code>kernel/search</code></td><td>a corpus with an index and a visibility rule of its own <span class="dim"><code>registerCorpus</code></span></td><td><code>capability/mail</code></td></tr>
@@ -1417,7 +1418,7 @@ footer {
 <script>
 /* generated: inventory */
 const MODULES = [
-{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":11521,"biggest":"kernel/i18n/locales/en.ts","biggestLines":3643},
+{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":11527,"biggest":"kernel/i18n/locales/en.ts","biggestLines":3645},
 {"ring":"kernel","name":"registry","flag":"","files":8,"lines":4265,"biggest":"kernel/registry/types.ts","biggestLines":2754},
 {"ring":"kernel","name":"design-system","flag":"","files":33,"lines":3421,"biggest":"kernel/design-system/ui.tsx","biggestLines":710},
 {"ring":"kernel","name":"sync","flag":"","files":8,"lines":2800,"biggest":"kernel/sync/sync.ts","biggestLines":696},
@@ -1425,13 +1426,13 @@ const MODULES = [
 {"ring":"kernel","name":"platform","flag":"","files":11,"lines":2464,"biggest":"kernel/platform/env.ts","biggestLines":659},
 {"ring":"kernel","name":"identity","flag":"","files":10,"lines":2445,"biggest":"kernel/identity/routes/auth.ts","biggestLines":586},
 {"ring":"kernel","name":"search","flag":"","files":9,"lines":2390,"biggest":"kernel/search/routes/search.tsx","biggestLines":494},
-{"ring":"kernel","name":"files","flag":"","files":9,"lines":1228,"biggest":"kernel/files/zip.ts","biggestLines":327},
+{"ring":"kernel","name":"files","flag":"","files":10,"lines":1301,"biggest":"kernel/files/zip.ts","biggestLines":327},
 {"ring":"kernel","name":"feedback","flag":"","files":8,"lines":1171,"biggest":"feedback/src/kernel/feedback/input.ts","biggestLines":251},
 {"ring":"kernel","name":"mail","flag":"","files":3,"lines":324,"biggest":"kernel/mail/mailbox.ts","biggestLines":154},
-{"ring":"capability","name":"pages","flag":"","files":42,"lines":14875,"biggest":"modules/pages/routes/pages.tsx","biggestLines":1047},
+{"ring":"capability","name":"pages","flag":"","files":42,"lines":14867,"biggest":"modules/pages/routes/pages.tsx","biggestLines":1047},
 {"ring":"capability","name":"work","flag":"","files":24,"lines":6878,"biggest":"modules/work/views.tsx","biggestLines":1118},
 {"ring":"capability","name":"products","flag":"products","files":4,"lines":5338,"biggest":"modules/products/routes/products.tsx","biggestLines":2881},
-{"ring":"capability","name":"planning","flag":"","files":12,"lines":4787,"biggest":"modules/planning/routes/projects.tsx","biggestLines":1695},
+{"ring":"capability","name":"planning","flag":"","files":12,"lines":4784,"biggest":"modules/planning/routes/projects.tsx","biggestLines":1692},
 {"ring":"capability","name":"operations","flag":"","files":11,"lines":4019,"biggest":"modules/operations/routes/settings.tsx","biggestLines":1178},
 {"ring":"capability","name":"mail","flag":"mail","files":15,"lines":3272,"biggest":"modules/mail/settings.tsx","biggestLines":556},
 {"ring":"capability","name":"budgets","flag":"budget","files":4,"lines":3261,"biggest":"modules/budgets/routes/budgets.tsx","biggestLines":1701},
@@ -1451,7 +1452,7 @@ const MODULES = [
 {"ring":"capability","name":"intake","flag":"","files":1,"lines":229,"biggest":"modules/intake/intake.tsx","biggestLines":229},
 {"ring":"capability","name":"share","flag":"","files":1,"lines":158,"biggest":"modules/share/share.tsx","biggestLines":158},
 {"ring":"adapter","name":"mcp","flag":"","files":20,"lines":11490,"biggest":"adapters/mcp/tools/products.ts","biggestLines":2160},
-{"ring":"adapter","name":"transfer","flag":"","files":8,"lines":3746,"biggest":"adapters/transfer/transfer.ts","biggestLines":873},
+{"ring":"adapter","name":"transfer","flag":"","files":8,"lines":3730,"biggest":"adapters/transfer/transfer.ts","biggestLines":873},
 {"ring":"adapter","name":"webhooks","flag":"","files":7,"lines":2007,"biggest":"adapters/webhooks/foreign.ts","biggestLines":747},
 {"ring":"adapter","name":"widget","flag":"","files":6,"lines":1615,"biggest":"adapters/widget/visitor.tsx","biggestLines":663},
 {"ring":"adapter","name":"mail","flag":"","files":8,"lines":1430,"biggest":"adapters/mail/mail.ts","biggestLines":412},
@@ -1466,7 +1467,7 @@ const MODULES = [
 {"ring":"adapter","name":"relay","flag":"","files":5,"lines":483,"biggest":"adapters/relay/relay.ts","biggestLines":156},
 {"ring":"adapter","name":"calendar","flag":"","files":2,"lines":409,"biggest":"adapters/calendar/routes/calendar.ts","biggestLines":251},
 {"ring":"adapter","name":"ai","flag":"","files":5,"lines":345,"biggest":"adapters/ai/ai-gemini.ts","biggestLines":127},
-{"ring":"adapter","name":"native","flag":"","files":1,"lines":108,"biggest":"adapters/native/files.ts","biggestLines":108},
+{"ring":"adapter","name":"native","flag":"","files":1,"lines":169,"biggest":"adapters/native/files.ts","biggestLines":169},
 {"ring":"adapter","name":"react","flag":"","files":1,"lines":82,"biggest":"feedback/src/adapters/react/reporter.tsx","biggestLines":82},
 {"ring":"shell","name":"shell","flag":"","files":22,"lines":2765,"biggest":"AppShell.tsx","biggestLines":642}
 ];

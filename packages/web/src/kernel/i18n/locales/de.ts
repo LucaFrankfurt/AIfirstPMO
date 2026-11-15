@@ -179,6 +179,8 @@ export const de: Catalogue = {
   'attachment.removeConfirm': '{name} entfernen? Die Datei landet im Papierkorb und lässt sich wiederherstellen. Die gespeicherten Bytes werden geteilt und nicht gelöscht.',
   'attachment.kb': '{size} KB',
   'attachment.openFailed': 'Diese Datei konnte nicht geöffnet werden.',
+  'attachment.preparing': 'Die Datei wird vorbereitet…',
+  'attachment.saveFailed': 'Diese Datei konnte nicht gespeichert werden.',
   'attachment.files': 'Dateien',
   'task.comments': 'Kommentare',
   'task.activity': 'Verlauf',

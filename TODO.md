@@ -910,20 +910,11 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       `check:packaged`, which serves the bundle the way Capacitor does — the earlier check of the
       same split used a static server that said 404, and passed. The sign-in screen in the app now
       names its host and can change server, which the picker had promised and nothing offered.
-- [ ] **Downloads and exports do not work in the app.** Project export, workspace export, the tasks
-      CSV, the personal export and backup downloads all address a relative `/api/…` path, and the
-      bundle answers it with `index.html`; the JSON export builds a `blob:` download that neither
-      shell hands to the system. Needs a native save or share sheet — see
-      [`docs/mobile.md`](docs/mobile.md#what-is-not-done).
-
----
-
-## The product catalogue, and what it deliberately does not hold
-
-The catalogue answers what is sold, what it costs and whether selling it is worth doing. Several
-things a reader might reasonably expect from that sentence are **not** built, and each is left
-out for a reason rather than forgotten. See [`docs/products.md`](docs/products.md).
-
+- [x] **Downloads and exports in the app** go to the phone's share sheet: what the server streams
+      is downloaded natively with the session in a header, what the page builds is written to the
+      cache, and both are shared. One port in `kernel/files/save.ts`, filled by the native adapter;
+      a browser keeps its own downloads. Walked by `check:packaged` against a recorded bridge — see
+      [`docs/mobile.md`](docs/mobile.md#exports-backups-and-saved-pages).
 - [ ] **No customer register, and therefore no real retention.** `churn_bps` is a number somebody
       types in from the system that counts customers; nothing here counts them. That makes every
       retention figure an assumption, which the screens say in as many words, and it makes the
