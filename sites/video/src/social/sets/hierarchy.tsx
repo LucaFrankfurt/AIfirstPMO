@@ -17,7 +17,7 @@ import { Identifier } from '../../components/Identifier';
 import { Nesting } from '../../components/Nesting';
 import { Spanning } from '../../components/Spanning';
 import { SubTasks } from '../../components/SubTasks';
-import type { Carousel } from '../slide';
+import type { Carousel } from '../slide-types';
 
 const W = 912;
 

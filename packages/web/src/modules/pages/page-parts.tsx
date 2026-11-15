@@ -17,7 +17,7 @@ import { relativeTime, shortDate } from '../../kernel/design-system/format';
 import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
 import { byOrder, update } from '../../kernel/sync/mutations';
 import { byId, list, useQuery } from '../../kernel/sync/store';
-import { moveTargets, plotMove, plotToTop, type DropZone } from './pagetree';
+import { moveTargets, plotMove, plotToTop, type DropZone } from './page-tree';
 import { pull } from '../../kernel/sync/sync';
 import { useMe, useMemberMap, useSession } from '../../kernel/identity/session';
 import { chipDot, chipVariants } from '../../kernel/design-system/ui/chip';
@@ -220,7 +220,7 @@ const movable = (workspaceId: string): Page[] =>
 /**
  * Move a page in the tree, and say whether it went.
  *
- * The arithmetic is `plotMove` in `lib/pagetree.ts`; this is the half that
+ * The arithmetic is `plotMove` in `lib/page-tree.ts`; this is the half that
  * needs the store. `false` means the move was refused — dropping a page into
  * its own subtree is the only one somebody reaches by accident.
  */

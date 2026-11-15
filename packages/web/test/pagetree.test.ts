@@ -18,7 +18,7 @@ import { compareOrder } from '@kolibri/shared';
 import {
   ancestorsOf, childrenOf, descendantsOf, moveTargets, pagesMatching, plotMove, plotToTop, trailsOf,
   withAncestors, type PageNode,
-} from '../src/modules/pages/pagetree.ts';
+} from '../src/modules/pages/page-tree.ts';
 
 /**
  * A handbook three levels deep.

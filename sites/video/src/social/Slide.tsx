@@ -18,9 +18,9 @@ import { colour, font } from '../theme';
 import { Headline, Kicker, Sub, Chip } from '../components/Type';
 import { Wordmark } from '../components/Wordmark';
 import { url } from '../product';
-import { POST, SQUARE } from './sheet';
+import { POST, SQUARE } from './formats';
 import { Sheet } from './Sheet';
-import type { Slide } from './slide';
+import type { Slide } from './slide-types';
 
 const Words: React.FC<{
   kicker: string;

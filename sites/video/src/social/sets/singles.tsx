@@ -27,7 +27,7 @@ import { QueryBox } from '../../components/QueryBox';
 import { StateFlow } from '../../components/StateFlow';
 import { ToolCall } from '../../components/ToolCall';
 import { TaskCard } from '../../components/ui';
-import type { Carousel } from '../slide';
+import type { Carousel } from '../slide-types';
 
 const W = 912;
 

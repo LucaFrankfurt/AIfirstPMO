@@ -17,7 +17,7 @@ import { quickAdd } from '../../product';
 import { QuickAddField } from '../../components/QuickAddField';
 import { TaskCard } from '../../components/ui';
 import { Sigil } from '../Sigil';
-import type { Carousel } from '../slide';
+import type { Carousel } from '../slide-types';
 
 const W = 912;
 

@@ -16,7 +16,7 @@
  */
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { layout, type GraphEdge, type GraphNode } from './pagegraph';
+import { layout, type GraphEdge, type GraphNode } from './page-graph';
 import { useT } from '../../kernel/i18n/i18n';
 
 /** The side of the square the layout works in; the SVG scales from there. */

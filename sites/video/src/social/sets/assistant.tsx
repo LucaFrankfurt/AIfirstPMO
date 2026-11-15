@@ -17,7 +17,7 @@
  */
 import { tools } from '../../product';
 import { ToolCall } from '../../components/ToolCall';
-import type { Carousel } from '../slide';
+import type { Carousel } from '../slide-types';
 
 const W = 912;
 

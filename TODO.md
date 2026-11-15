@@ -369,7 +369,7 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       page started and never filled; a page nothing points at; and one nobody has touched in six
       months, which is often simply true of a finished document and is therefore reported rather
       than acted on. The arithmetic is `web/modules/pages/tidy.ts`, pure and tested without a
-      browser like `pagetree.ts` beside it, and the screen is a list with an offer next to it rather
+      browser like `page-tree.ts` beside it, and the screen is a list with an offer next to it rather
       than a Fix button: a wiki that tidies itself is a wiki that loses a draft.
       **The archive and the trash moved onto that screen.** They answer the same question — what is
       not in the tree, and what of it do I still want — and three screens each answering a third of
@@ -427,7 +427,7 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       happened to be made and a top-level page could never become a child. Drag a page onto another
       to nest it or between two to reorder; the same four moves — up, down, in, out — are in the
       menu, because drag is the one way somebody on a keyboard cannot take. The arithmetic is
-      `lib/pagetree.ts`, apart from the store like `family.ts` and for the same reason: the edge
+      `lib/page-tree.ts`, apart from the store like `family.ts` and for the same reason: the edge
       cases are a page dropped on itself and a page dropped inside its own subtree.
       **A page's history is one list**: `recordActivity` has named `page` alongside `task` since
       pages existed and there was no route to read the rows, so every rename, move, archive and
@@ -442,7 +442,7 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       by title — not by id, because a link somebody types has to be readable in the source and
       survive being pasted into a chat line — and `[[Onboarding|how we start]]` keeps the words the
       author chose about the page rather than a copy of its name. The arithmetic is
-      `shared/modules/pages/links.ts`, pure and apart from the store like `pagetree.ts`: parsing,
+      `shared/modules/pages/links.ts`, pure and apart from the store like `page-tree.ts`: parsing,
       resolving, the graph both ways, and the rewrite a rename needs.
       **A link to a page nobody has written is the point, not a bug.** It renders faintly with a
       `+` and following it creates that page, titled what was typed — which is how a wiki gets
@@ -503,7 +503,7 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       makes it worth a screen is the hollow node: a title somebody linked to and nobody has written,
       so the picture says where the holes are — which the tree and the backlink list genuinely
       cannot at a glance. Only pages a link touches are in it; the rest are dots the tree already
-      lists. The layout is a spring simulation in `pagegraph.ts` with no library and no randomness:
+      lists. The layout is a spring simulation in `page-graph.ts` with no library and no randomness:
       positions are seeded from the node's own id, so the same wiki draws the same picture and a
       test can assert about it. Its work is budgeted as `nodes² × rounds`, and the budget is on the
       time rather than on how many pages somebody is allowed to have.
