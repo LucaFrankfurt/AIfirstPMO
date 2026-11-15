@@ -28,6 +28,7 @@ import { useNarrow } from './narrow';
 import { buttonVariants, hasText } from './ui/button';
 import { Input } from './ui/field';
 import { cn } from './cn';
+import { fileSrc } from '../sync/server';
 
 /* ------------------------------------------------------------------- icons */
 
@@ -53,7 +54,9 @@ export function Avatar({ user, size = 22 }: { user?: { id: string; name?: string
         width: size,
         height: size,
         fontSize: Math.round(size * 0.42),
-        background: user.avatar_url ? `center/cover url(${user.avatar_url})` : colorFor(user.id),
+        // Quoted: an upload's name is encoded with `encodeURIComponent`, which
+        // leaves parentheses alone, and one of those ends an unquoted `url()`.
+        background: user.avatar_url ? `center/cover url("${fileSrc(user.avatar_url)}")` : colorFor(user.id),
       }}
     >
       {user.avatar_url ? '' : initials(user.name)}
@@ -528,6 +531,16 @@ interface Toast {
 const ToastContext = createContext<(message: string, action?: Toast['action']) => void>(() => {});
 export const useToast = () => useContext(ToastContext);
 
+/**
+ * A toast from code that is not a component.
+ *
+ * `useToast` needs a render to be called from, and an adapter answering a click
+ * on the document — the packaged app opening a file — has none. It says what
+ * went wrong through the window instead, already in the reader's words, and the
+ * host that is mounted shows it.
+ */
+export const TOAST_EVENT = 'kolibri:toast';
+
 export function ToastHost({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
@@ -536,6 +549,15 @@ export function ToastHost({ children }: { children: ReactNode }) {
     setToasts((current) => [...current.slice(-2), { id, message, action }]);
     setTimeout(() => setToasts((current) => current.filter((t) => t.id !== id)), action ? 7000 : 3200);
   }, []);
+
+  useEffect(() => {
+    const onToast = (event: Event) => {
+      const message = (event as CustomEvent<unknown>).detail;
+      if (typeof message === 'string' && message) push(message);
+    };
+    window.addEventListener(TOAST_EVENT, onToast);
+    return () => window.removeEventListener(TOAST_EVENT, onToast);
+  }, [push]);
 
   return (
     <ToastContext.Provider value={push}>

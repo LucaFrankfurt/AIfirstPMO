@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../sync/api';
+import { isPackaged, serverOrigin, useServer, useSessionToken } from '../../sync/server';
 import { useSession } from '../session';
 import { useI18n } from '../../i18n/i18n';
 import { AuthLayout } from '../AuthLayout';
@@ -84,6 +85,19 @@ export function Login() {
       setBusy(false);
     }
   }
+
+  /*
+   * Forget the server and start the app again rather than swap it in place:
+   * whatever this screen, the session provider and the sync engine already
+   * hold was read from the old one, and a cold start is the one path that is
+   * known to begin from nothing. The token goes first — it was issued by the
+   * old server, and sending it to the new one would hand it to a stranger.
+   */
+  const changeServer = (): void => {
+    useSessionToken(null);
+    useServer('');
+    window.location.replace('/');
+  };
 
   const first = config && !config.hasUsers;
   const sso = config?.sso ?? null;
@@ -180,6 +194,19 @@ export function Login() {
               </>
             )}
           </>
+        )}
+
+        {/* The packaged app only. The picker promises the address can be
+            changed by signing out, and signing out lands here — which until
+            this line offered no way back to the picker at all: a server typed
+            wrong but answering, or a test instance swapped for the real one,
+            meant reinstalling the app. Naming the host also answers the first
+            question a wrong password raises on a phone, which is "wrong where?". */}
+        {isPackaged() && serverOrigin() && (
+          <p className="text-muted text-[12.5px]" style={{ margin: '16px 0 0' }}>
+            {t('server.signingInTo', { host: new URL(serverOrigin()).host })}{' · '}
+            <button type="button" className="auth-switch" onClick={changeServer}>{t('server.change')}</button>
+          </p>
         )}
       </form>
     </AuthLayout>

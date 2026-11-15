@@ -89,6 +89,23 @@ describe('a client that asks for a token', () => {
   });
 });
 
+describe('signing out, as the app does', () => {
+  /*
+   * The app sends no cookie, so a sign-out that read only the cookie ended
+   * nothing: the phone forgot its token and the server kept the session valid
+   * until it expired. Found by the push relay's test, which still woke a phone
+   * that had signed out.
+   */
+  it('ends the session the bearer names', async () => {
+    const made = await post('/api/auth/register', { ...account(5), workspace: 'Native' }, NATIVE);
+    const token = made.body.token;
+    const out = await post('/api/auth/logout', {}, { authorization: `Bearer ${token}` });
+    assert.equal(out.status, 200);
+    const after = await fetch(`${base}/api/session`, { headers: { authorization: `Bearer ${token}` } });
+    assert.equal(after.status, 401, 'the session outlived the sign-out');
+  });
+});
+
 describe('a browser, which did not ask', () => {
   it('gets a cookie and no token, so script has nothing to steal', async () => {
     const made = await post('/api/auth/register', { ...account(4), workspace: 'Native' });

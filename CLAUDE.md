@@ -82,9 +82,11 @@ npm run build
 ```
 
 CI runs all of those plus a browser job: both smoke walkthroughs (English and German) against a
-seeded server, then `check:responsive`, `check:contrast`, `check:a11y` and `check:clocks` — the last
-one opens a second browser whose system clock is five minutes fast, because that is the one question
-a single process cannot be asked. Those walk Chromium; `check:engines` walks boards — the sandboxed
+seeded server, then `check:responsive`, `check:contrast`, `check:a11y`, `check:clocks` — which opens
+a second browser whose system clock is five minutes fast, because that is the one question a single
+process cannot be asked — and `check:packaged`, which loads the bundle the way the iOS and Android
+shells do: from its own origin, with Capacitor's rule that every extensionless path answers
+`index.html` with a 200. Those walk Chromium; `check:engines` walks boards — the sandboxed
 frame, board pages, phones, shared links — in Firefox and WebKit, inside Playwright's own image,
 because a board is the part of the app whose behaviour belongs to the engine. Locally, where only
 Chromium exists, `KOLIBRI_ENGINES=chromium` checks the script itself.

@@ -24,6 +24,8 @@ import { chipDot, chipVariants } from '../../kernel/design-system/ui/chip';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Avatar, Icon, Sheet, useConfirm, useToast, type MenuGroup, type MenuItem } from '../../kernel/design-system/ui';
 import { downscale, uploadLink } from '../../kernel/files/uploads';
+import { fileSrc } from '../../kernel/sync/server';
+import { saveBlob } from '../../kernel/files/save';
 import { useMinute } from '../../kernel/design-system/minute';
 
 /* -------------------------------------------------------------- labels */
@@ -353,7 +355,7 @@ export function useCover(page: Page): { input: React.ReactNode; items: (section:
 /** The cover itself. Decorative: the page's title is right underneath it. */
 export function PageCover({ page }: { page: Page }) {
   if (!page.cover_url) return null;
-  return <img className="page-cover" src={page.cover_url} alt="" />;
+  return <img className="page-cover" src={fileSrc(page.cover_url)} alt="" />;
 }
 
 /* ------------------------------------------------------------- history */
@@ -559,18 +561,9 @@ function subtree(page: Page): Page[] {
   return out;
 }
 
-/** Hand a blob to the browser as a file. */
+/** Hand text to whoever asked for it as a file — the browser's downloads, or a phone's share sheet. */
 export function download(text: string, mime: string, name: string): void {
-  const url = URL.createObjectURL(new Blob([text], { type: `${mime};charset=utf-8` }));
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = name;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  // Revoked on the next tick: revoking immediately can beat the download in
-  // some browsers and produce an empty file.
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  void saveBlob(new Blob([text], { type: `${mime};charset=utf-8` }), name);
 }
 
 export const fileName = (page: Page, extension: string): string =>

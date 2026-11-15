@@ -27,37 +27,21 @@ import { Input } from '../../kernel/design-system/ui/field';
 import { SectionHeading } from '../../kernel/design-system/ui/section';
 import { cn } from '../../kernel/design-system/cn';
 import { useMinute } from '../../kernel/design-system/minute';
+import { fileDate, saveBlob, saveFromServer } from '../../kernel/files/save';
 
-/**
- * A download the browser streams straight to disk.
- *
- * Not `fetch` and a blob, which is how the smaller downloads here work: an
- * archive of a workspace with its files in it can be hundreds of megabytes,
- * and holding that in a tab to hand it to the tab is a way to run out of
- * memory in front of somebody. A same-origin navigation carries the session
- * cookie, so this is authenticated exactly as everything else is.
+/*
+ * The archives, the CSV, the personal export and the backups are streamed by
+ * the server rather than fetched into a blob: an archive of a workspace with
+ * its files in it can be hundreds of megabytes, and holding that in a tab to
+ * hand it to the tab is a way to run out of memory in front of somebody. Where
+ * it goes from there — the browser's downloads, or a phone's share sheet — is
+ * `saveFromServer`'s business, in `kernel/files/save.ts`.
  */
-function streamDownload(path: string): void {
-  const frame = document.createElement('iframe');
-  frame.style.display = 'none';
-  frame.src = path;
-  document.body.appendChild(frame);
-  // Long enough for the response headers to arrive and the download to be
-  // handed to the browser; the transfer itself carries on without the frame.
-  setTimeout(() => frame.remove(), 60_000);
-}
 
 /** A download small enough to build in the tab, so an error is still visible. */
 async function saveJson(path: string, filename: string): Promise<void> {
   const doc = await api.get<unknown>(path);
-  const url = URL.createObjectURL(new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' }));
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  await saveBlob(new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' }), filename);
 }
 
 const oneDecimal = (value: number): string => value.toLocaleString(currentLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -172,16 +156,16 @@ export function WorkspaceTransfer() {
           <div className="flex items-center gap-2 flex-wrap">
             <Button
               onClick={() => {
-                void saveJson(`/api/workspaces/${workspaceId}/export`, `workspace-${new Date().toISOString().slice(0, 10)}.kolibri.json`)
+                void saveJson(`/api/workspaces/${workspaceId}/export`, `workspace-${fileDate()}.kolibri.json`)
                   .catch((problem) => toast(problem instanceof Error ? problem.message : t('transfer.failed')));
               }}
             >
               <Icon name="page" size={14} /> {t('data.exportJson')}
             </Button>
-            <Button onClick={() => streamDownload(`/api/workspaces/${workspaceId}/export?format=zip`)}>
+            <Button onClick={() => void saveFromServer(`/api/workspaces/${workspaceId}/export?format=zip`, `workspace-${fileDate()}.kolibri.zip`)}>
               <Icon name="archive" size={14} /> {t('data.exportZip')}
             </Button>
-            <Button onClick={() => streamDownload(`/api/workspaces/${workspaceId}/export/tasks.csv`)}>
+            <Button onClick={() => void saveFromServer(`/api/workspaces/${workspaceId}/export/tasks.csv`, `tasks-${fileDate()}.csv`)}>
               <Icon name="table" size={14} /> {t('data.exportCsv')}
             </Button>
           </div>
@@ -233,7 +217,7 @@ export function PersonalExport() {
     <>
       <SectionHeading>{t('data.mine')}</SectionHeading>
       <p className="text-muted text-[13.5px]">{t('data.mineHint')}</p>
-      <Button onClick={() => streamDownload('/api/me/export?download=1')}>
+      <Button onClick={() => void saveFromServer('/api/me/export?download=1', `my-kolibri-data-${fileDate()}.json`)}>
         <Icon name="page" size={14} /> {t('data.mineDownload')}
       </Button>
     </>
@@ -508,7 +492,7 @@ export function Backups() {
                   >
                     <Icon name="shield" size={13} /> {t('backup.verify')}
                   </Button>
-                  <Button size="sm" onClick={() => streamDownload(`/api/admin/backups/${snapshot.name}/download`)}>
+                  <Button size="sm" onClick={() => void saveFromServer(`/api/admin/backups/${snapshot.name}/download`, `kolibri-${snapshot.name}.zip`)}>
                     <Icon name="archive" size={13} /> {t('backup.download')}
                   </Button>
                   <Button

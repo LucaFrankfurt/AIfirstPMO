@@ -179,6 +179,9 @@ export const en = {
   'attachment.remove': 'Remove',
   'attachment.removeConfirm': 'Remove {name}? It goes to the trash and can be restored. The stored file itself is shared and is not deleted.',
   'attachment.kb': '{size} KB',
+  'attachment.openFailed': 'This file could not be opened.',
+  'attachment.preparing': 'Preparing the file…',
+  'attachment.saveFailed': 'This file could not be saved.',
   'attachment.files': 'Files',
   'task.comments': 'Comments',
   'task.activity': 'Activity',
@@ -1727,6 +1730,9 @@ export const en = {
   'push.on': 'This device will be notified',
   'push.denied': 'This browser has blocked notifications for Kolibri. It has to be undone in the browser’s own site settings — a site cannot ask twice.',
   'push.failed': 'Could not turn notifications on',
+  'push.appHint': 'A banner when something needs you, even with the app closed. It only ever says that something is new — what it is stays on your server until you open the app.',
+  'push.appDenied': 'Notifications for Kolibri are turned off in this phone’s settings. Turn them on there, then come back.',
+  'push.channel': 'Activity',
 
   /* ---------------------------------------------------------------- chat */
   'chat.title': 'Chat',
@@ -2540,6 +2546,8 @@ export const en = {
   'server.connect': 'Connect',
   'server.checking': 'Checking…',
   'server.unreachable': 'No Kolibri answered at that address. Check the address, and that the server is reachable from this device.',
+  'server.signingInTo': 'Signing in to {host}',
+  'server.change': 'Change server',
   'auth.headline': 'Your work lives on your server.',
   'auth.blurb': 'Projects, tasks and pages — offline first, with an assistant allowed to read along.',
   'auth.factOffline': 'Keeps working when the network does not',

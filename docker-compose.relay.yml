@@ -1,0 +1,30 @@
+# The push relay for the iOS and Android app — run by whoever publishes the app,
+# not by somebody running a Kolibri. It holds the publisher's Apple key and
+# Firebase service account; every Kolibri server wakes its users' phones through
+# it, sending a phone's token, its platform and a language, and nothing else.
+# See docs/mobile.md#push.
+#
+# The same image as the server, started with a different command: it opens no
+# database and needs no volume.
+#
+#   docker compose -f docker-compose.relay.yml up -d
+#
+# Behind a proxy that terminates TLS for push.kolibri.day (or whatever
+# KOLIBRI_PUSH_RELAY names in the servers' configuration) and forwards to :4010.
+services:
+  relay:
+    build: .
+    command: ["node", "/app/packages/server/src/relay.ts"]
+    restart: unless-stopped
+    ports:
+      - "${KOLIBRI_RELAY_HOST_PORT:-4010}:4010"
+    environment:
+      KOLIBRI_RELAY_PORT: "4010"
+      # The JSON Firebase gives for a service account, on one line.
+      KOLIBRI_RELAY_FCM_SERVICE_ACCOUNT: "${KOLIBRI_RELAY_FCM_SERVICE_ACCOUNT:-}"
+      # The .p8 key from developer.apple.com, newlines written as \n.
+      KOLIBRI_RELAY_APNS_KEY: "${KOLIBRI_RELAY_APNS_KEY:-}"
+      KOLIBRI_RELAY_APNS_KEY_ID: "${KOLIBRI_RELAY_APNS_KEY_ID:-}"
+      KOLIBRI_RELAY_APNS_TEAM_ID: "${KOLIBRI_RELAY_APNS_TEAM_ID:-}"
+      KOLIBRI_RELAY_APNS_TOPIC: "${KOLIBRI_RELAY_APNS_TOPIC:-day.kolibri.client}"
+      KOLIBRI_RELAY_TRUST_PROXY: "${KOLIBRI_RELAY_TRUST_PROXY:-1}"

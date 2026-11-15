@@ -3,6 +3,7 @@ import type { SessionInfo, User, WorkspaceFeatures, WorkspaceRole } from '@kolib
 import { currentLocale, translate } from '../i18n/i18n';
 import { api, ApiError } from '../sync/api';
 import * as idb from '../sync/idb';
+import { needsServer } from '../sync/server';
 import { byId, list, useQuery } from '../sync/store';
 import { flush, signOutLocal, start, unsentChanges } from '../sync/sync';
 
@@ -62,6 +63,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    /*
+     * A packaged app that has not been told where its server is has nobody to
+     * ask. The lookup would go to the app's own bundle — and Capacitor answers
+     * every path without an extension with `index.html` and a 200, on Android
+     * and iOS alike, so it did not fail: it came back as a "session" made of
+     * HTML, and the first `session.workspaces` ended the app on its error
+     * screen before the server picker could render. That was every fresh
+     * install. There is no session to restore yet, so there is nothing to wait
+     * for either; the picker hands over to the sign-in screen.
+     */
+    if (needsServer()) {
+      setReady(true);
+      return undefined;
+    }
     let cancelled = false;
     (async () => {
       try {

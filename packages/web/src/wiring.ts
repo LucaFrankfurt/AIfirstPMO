@@ -10,6 +10,9 @@
  * because a build that renders the app without installing these would look
  * perfectly fine and quietly show nobody as online.
  */
+import { installNativeFiles } from './adapters/native/files';
+import { installAppPush } from './adapters/push/app';
+import { currentLocale, translate } from './kernel/i18n/i18n';
 import { installPresence } from './modules/chat/presence';
 import { installGuideHint } from './modules/guide/hint';
 
@@ -20,4 +23,7 @@ export function installEffects(): void {
   installed = true;
   installPresence();
   installGuideHint();
+  installNativeFiles();
+  // The channel's name is read when it is made, in whatever language is current then.
+  installAppPush(() => translate(currentLocale(), 'push.channel'));
 }

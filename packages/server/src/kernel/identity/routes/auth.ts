@@ -363,7 +363,14 @@ export function registerAuthRoutes(router: Router): void {
   });
 
   router.post('/api/auth/logout', (ctx) => {
-    const raw = parseCookies(ctx.req)[SESSION_COOKIE];
+    // The cookie in a browser; the bearer in the packaged app, which has no
+    // cookie to send. Reading only the cookie, signing out in the app threw
+    // the token away on the phone and left the session alive on the server for
+    // the rest of its days — a sign-out in name only, and the one case where
+    // somebody who had copied the token would want it to be.
+    const header = ctx.req.headers.authorization;
+    const raw = parseCookies(ctx.req)[SESSION_COOKIE]
+      ?? (header?.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : undefined);
     // Read who it was before the session is gone, so signing out drops the
     // green dot immediately instead of leaving it lit for another minute.
     const who = raw ? destroySession(raw) : null;

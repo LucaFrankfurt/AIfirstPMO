@@ -185,6 +185,9 @@ export const fr: Catalogue = {
   'attachment.remove': 'Retirer',
   'attachment.removeConfirm': 'Retirer {name} ? Le fichier part à la corbeille et peut être restauré. Les octets stockés sont partagés et ne sont pas supprimés.',
   'attachment.kb': '{size} Ko',
+  'attachment.openFailed': 'Impossible d’ouvrir ce fichier.',
+  'attachment.preparing': 'Préparation du fichier…',
+  'attachment.saveFailed': 'Impossible d’enregistrer ce fichier.',
   'attachment.files': 'Fichiers',
   'task.comments': 'Commentaires',
   'task.activity': 'Activité',
@@ -1723,6 +1726,9 @@ export const fr: Catalogue = {
   'push.on': 'Cet appareil sera notifié',
   'push.denied': 'Ce navigateur a bloqué les notifications pour Kolibri. Cela se défait dans les réglages de site du navigateur — un site ne peut pas demander deux fois.',
   'push.failed': 'Impossible d’activer les notifications',
+  'push.appHint': 'Une bannière quand quelque chose vous attend, même app fermée. Elle dit seulement qu’il y a du nouveau — le contenu reste sur votre serveur jusqu’à ce que vous ouvriez l’app.',
+  'push.appDenied': 'Les notifications de Kolibri sont désactivées dans les réglages de ce téléphone. Activez-les là, puis revenez.',
+  'push.channel': 'Activité',
 
   /* ---------------------------------------------------------------- chat */
   'chat.title': 'Discussion',
@@ -2535,6 +2541,8 @@ export const fr: Catalogue = {
   'server.connect': 'Se connecter',
   'server.checking': 'Vérification…',
   'server.unreachable': 'Aucun Kolibri n’a répondu à cette adresse. Vérifiez l’adresse et que le serveur est joignable depuis cet appareil.',
+  'server.signingInTo': 'Connexion à {host}',
+  'server.change': 'Changer de serveur',
   'auth.headline': 'Votre travail vit sur votre serveur.',
   'auth.blurb': 'Projets, tâches et pages — hors ligne d’abord, avec un assistant autorisé à lire par-dessus votre épaule.',
   'auth.factOffline': 'Continue de fonctionner quand le réseau s’arrête',
