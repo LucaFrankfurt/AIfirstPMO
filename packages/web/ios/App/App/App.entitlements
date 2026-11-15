@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Push, for the notifications the relay sends (docs/mobile.md#push).
+
+  `development` is what Xcode writes for this capability and is right for a build
+  run from Xcode, whose token comes from APNs's sandbox. Archiving for TestFlight
+  or the App Store signs it as `production` from the distribution profile, so
+  this file is not edited between the two.
+-->
+<plist version="1.0">
+<dict>
+	<key>aps-environment</key>
+	<string>development</string>
+</dict>
+</plist>

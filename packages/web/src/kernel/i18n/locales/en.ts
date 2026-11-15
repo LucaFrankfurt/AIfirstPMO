@@ -1728,6 +1728,9 @@ export const en = {
   'push.on': 'This device will be notified',
   'push.denied': 'This browser has blocked notifications for Kolibri. It has to be undone in the browser’s own site settings — a site cannot ask twice.',
   'push.failed': 'Could not turn notifications on',
+  'push.appHint': 'A banner when something needs you, even with the app closed. It only ever says that something is new — what it is stays on your server until you open the app.',
+  'push.appDenied': 'Notifications for Kolibri are turned off in this phone’s settings. Turn them on there, then come back.',
+  'push.channel': 'Activity',
 
   /* ---------------------------------------------------------------- chat */
   'chat.title': 'Chat',

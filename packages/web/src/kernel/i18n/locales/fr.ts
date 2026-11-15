@@ -1724,6 +1724,9 @@ export const fr: Catalogue = {
   'push.on': 'Cet appareil sera notifié',
   'push.denied': 'Ce navigateur a bloqué les notifications pour Kolibri. Cela se défait dans les réglages de site du navigateur — un site ne peut pas demander deux fois.',
   'push.failed': 'Impossible d’activer les notifications',
+  'push.appHint': 'Une bannière quand quelque chose vous attend, même app fermée. Elle dit seulement qu’il y a du nouveau — le contenu reste sur votre serveur jusqu’à ce que vous ouvriez l’app.',
+  'push.appDenied': 'Les notifications de Kolibri sont désactivées dans les réglages de ce téléphone. Activez-les là, puis revenez.',
+  'push.channel': 'Activité',
 
   /* ---------------------------------------------------------------- chat */
   'chat.title': 'Discussion',

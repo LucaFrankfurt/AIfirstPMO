@@ -1722,6 +1722,9 @@ export const de: Catalogue = {
   'push.on': 'Dieses Gerät wird benachrichtigt',
   'push.denied': 'Dieser Browser hat Mitteilungen für Kolibri blockiert. Das lässt sich nur in seinen eigenen Website-Einstellungen zurücknehmen — eine Seite darf nicht zweimal fragen.',
   'push.failed': 'Mitteilungen konnten nicht eingeschaltet werden',
+  'push.appHint': 'Ein Banner, wenn dich etwas braucht, auch bei geschlossener App. Es sagt nur, dass es Neues gibt — was, bleibt auf deinem Server, bis du die App öffnest.',
+  'push.appDenied': 'Mitteilungen für Kolibri sind in den Einstellungen dieses Telefons ausgeschaltet. Schalte sie dort ein und komm dann zurück.',
+  'push.channel': 'Aktivität',
 
   /* ---------------------------------------------------------------- chat */
   'chat.title': 'Chat',

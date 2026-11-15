@@ -15,6 +15,8 @@ import { useT } from '../../kernel/i18n/i18n';
 import { buttonVariants } from '../../kernel/design-system/ui/button';
 import { SectionHeading } from '../../kernel/design-system/ui/section';
 import { Icon, useToast } from '../../kernel/design-system/ui';
+import { isPackaged } from '../../kernel/sync/server';
+import { AppPushToggle } from './app';
 
 type State = 'unsupported' | 'off' | 'on' | 'denied' | 'working';
 
@@ -27,7 +29,14 @@ function decodeKey(base64: string): ArrayBuffer {
   return bytes.buffer;
 }
 
-export function PushToggle() {
+/**
+ * The switch Settings shows: the phone's own in the packaged app, where neither
+ * WebView has the Push API, and web push everywhere else. Decided once, outside
+ * either component, so neither calls its hooks conditionally.
+ */
+export const PushToggle = () => (isPackaged() ? <AppPushToggle /> : <WebPushToggle />);
+
+function WebPushToggle() {
   const t = useT();
   const toast = useToast();
   const [state, setState] = useState<State>('unsupported');

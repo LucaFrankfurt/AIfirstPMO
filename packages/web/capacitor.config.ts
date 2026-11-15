@@ -6,7 +6,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
  * There is no second client here. `webDir` is `dist`, so whatever the browser
  * gets is what the phone gets, and a screen fixed once is fixed in three
  * places. What the shell adds is a store listing, an icon on a home screen and
- * — later — a push token the web has no way to hold.
+ * a push token the web has no way to hold (`docs/mobile.md#push`).
  *
  * The consequence that shapes the rest of the client is the origin. A packaged
  * app loads from `capacitor://localhost` on iOS and `https://localhost` on
