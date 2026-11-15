@@ -1875,6 +1875,23 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
 );
 CREATE INDEX IF NOT EXISTS push_subscriptions_user ON push_subscriptions (user_id);
 
+-- Phones running the packaged app that asked to be woken. The token is what
+-- Apple or Google issued to the app; it is sent to the push relay and nowhere
+-- else, with nothing about the notification beside it. Tied to the session
+-- that registered it, so signing out — or revoking that session from another
+-- device — stops the waking with it, rather than leaving a phone that is signed
+-- out, or signed in to somebody else's account, buzzing for this one.
+CREATE TABLE IF NOT EXISTS app_push_tokens (
+  id           TEXT PRIMARY KEY,
+  user_id      TEXT NOT NULL,
+  session_id   TEXT NOT NULL,
+  platform     TEXT NOT NULL CHECK (platform IN ('ios', 'android')),
+  token        TEXT NOT NULL UNIQUE,
+  last_sent_at INTEGER,
+  created_at   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS app_push_tokens_user ON app_push_tokens (user_id);
+
 -- Addresses that must not be written to again: a hard bounce or a complaint.
 -- Keyed by address rather than by user, because an invite goes to somebody who
 -- has no account yet and bounces just the same.

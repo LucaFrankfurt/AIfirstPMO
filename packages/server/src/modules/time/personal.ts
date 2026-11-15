@@ -186,6 +186,9 @@ export function exportPerson(userId: string): PersonalDoc {
       telegram: user.telegram_chat_id ? { linked: true, linked_at: at(user.telegram_linked_at), preference: user.telegram_prefs } : { linked: false },
       calendar_feed: user.calendar_token ? 'a subscription URL has been issued' : 'none issued',
       push_devices: Number(get<Row>(`SELECT count(*) AS n FROM push_subscriptions WHERE user_id = ?`, userId)?.n ?? 0),
+      // A phone's push token is held here too, and sent to the relay — so it is
+      // part of what this server keeps about somebody, and said so.
+      app_push_devices: Number(get<Row>(`SELECT count(*) AS n FROM app_push_tokens WHERE user_id = ?`, userId)?.n ?? 0),
     },
   };
 }

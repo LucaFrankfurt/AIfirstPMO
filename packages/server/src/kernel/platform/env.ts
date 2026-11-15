@@ -520,6 +520,15 @@ export const env = {
     privateKey: (process.env.KOLIBRI_VAPID_PRIVATE ?? '').replace(/\\n/g, '\n'),
     /** Who a push service should complain to. */
     subject: process.env.KOLIBRI_VAPID_SUBJECT ?? '',
+    /**
+     * Where the packaged app's pushes go: the relay that holds the publisher's
+     * APNs key and Firebase account, which a self-hosted server cannot have —
+     * see `adapters/push/app.ts`. What it is sent is a phone's token, which
+     * platform, and a language; never what happened. Empty turns the app's
+     * pushes off and leaves web push alone. Only somebody running their own
+     * build of the app, with their own credentials, has a reason to change it.
+     */
+    relay: process.env.KOLIBRI_PUSH_RELAY ?? 'https://push.kolibri.day',
   },
   /**
    * Telegram. A third way to be told, next to the bell, email and Web Push.
