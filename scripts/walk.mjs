@@ -20,6 +20,24 @@ import { switchOnVault } from './vault-fixture.mjs';
 import { switchOnProducts } from './catalogue-fixture.mjs';
 import { switchOnPlanning } from './planning-fixture.mjs';
 
+/**
+ * Show a project's tasks in one layout, whatever the last visit left behind.
+ *
+ * The layout is remembered per device (`kolibri.view.<project>`), so a screen
+ * that switched to the board would leave every later visit to the project on
+ * the board as well — and `check:menus` walks this list once per window. So
+ * both project screens say which layout they mean, rather than the second one
+ * depending on the order of the list.
+ */
+const showLayout = (layout) => async (page) => {
+  await page.evaluate((layout) => {
+    localStorage.setItem(`kolibri.view.${location.pathname.split('/')[2]}`, JSON.stringify({ layout }));
+  }, layout);
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.keyboard.press('Escape');
+  if (layout === 'board') await page.waitForSelector('.board-column', { timeout: 5000 });
+};
+
 /** Sign in, switch everything on, and say what there is to walk. */
 export async function walkable(page, base) {
   await page.goto(base, { waitUntil: 'networkidle' });
@@ -108,7 +126,20 @@ export async function walkable(page, base) {
 
   const SCREENS = [
     ['my work', '/'],
-    ['project', `/projects/${project}`],
+    ['project', `/projects/${project}`, showLayout('list')],
+    /*
+     * The board, which no check that measures had opened: a project opens on
+     * its list, and that is what they walked. The smoke walkthrough opens the
+     * board, at one size, and asks only whether it has columns. It is the one
+     * screen that is not a page scrolling in `#content` but a box filling it,
+     * holding scrollers of its own — and that is where it came apart. Its
+     * height was the window's rather than `#content`'s, 28px too tall above a
+     * phone's tab bar; and the hidden word on a card's date ("Overdue",
+     * "Today") escaped the column's list and stretched `#content` to the foot
+     * of the longest column, so scrolling a column to its end lifted the whole
+     * board out of the window.
+     */
+    ['project: board', `/projects/${project}`, showLayout('board')],
     // The last tab of the widest strip: where the active one goes off the end.
     ['project: settings', `/projects/${project}?tab=settings`],
     ['inbox', '/inbox'],

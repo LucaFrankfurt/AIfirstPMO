@@ -498,12 +498,12 @@ export function ProjectPage() {
       {/*
         The description, where the screen has room for it.
 
-        Not above a board: the board is sized as the whole rest of the window
-        (`100dvh` less the header and the tabs), so anything put above it pushes
-        the bottom of every column off the screen. A board is the screen it is
-        on. Every other layout — and a container, which has no board at all —
-        scrolls, and a project that says what it is for at the top of it is
-        worth more there than the two lines it costs.
+        Not above a board: the board takes whatever height the screen has left
+        (`.board-screen` in `app.css`), so anything put above it is taken out of
+        every column. A board is the screen it is on. Every other layout — and a
+        container, which has no board at all — scrolls, and a project that says
+        what it is for at the top of it is worth more there than the two lines
+        it costs.
 
         A project with no description gets nothing, which is most of them.
       */}
@@ -515,7 +515,7 @@ export function ProjectPage() {
       {tab === 'tasks' && isContainer && <ContainerChildren projectId={id} />}
       {tab === 'tasks' && !isContainer && (
         view.layout === 'board'
-          ? <div style={{ height: 'calc(100dvh - var(--header-height) - 110px)' }}>
+          ? <div className="board-screen">
             <TaskViews tasks={visible} view={view} projectId={id} onOpen={openTask} />
           </div>
           : <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5" style={{ paddingInline: 0 }}>

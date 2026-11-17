@@ -12,6 +12,8 @@
  *  - has the screen's title been squeezed to nothing
  *  - has a field been squeezed to nothing
  *  - does any box scroll by a sliver on an axis nobody meant it to have
+ *  - is anything absolute inside a scroller that does not hold it
+ *  - does a board that should fill the screen leave `#content` anything to scroll
  *  - can you see which tab you are on
  *
  * The bug that prompted it lived between 900 and 940 pixels — the band where
@@ -69,27 +71,63 @@ const SCREENS = await walkable(page, base);
  * **The tab you are on.** A strip that scrolls can hold the active tab off the
  * end of itself: on a phone `?tab=settings` opened with the strip at zero, the
  * settings page below and no underline anywhere on screen.
+ *
+ * **Something absolute that a scroller does not hold.** An absolutely
+ * positioned box is clipped by, and scrolls with, only the scrollers between
+ * it and its containing block — the nearest positioned ancestor. A scroller
+ * that is not positioned itself lets it straight through: it sits where it
+ * would have been in the list, unclipped and unscrolled, and stretches
+ * whichever scroller *does* hold it. That is how the board left the window.
+ * The visually hidden "Overdue" on a card's date had `#content` for its
+ * containing block, two scrollers out; forty overdue cards in one column made
+ * a 700px screen 5219px tall, and scrolling the column to its end carried on
+ * into `#content` and lifted the board off the top.
+ *
+ * Asked of the structure rather than of the damage, because the damage needs
+ * data: the same card at the top of a column does no harm at all, and the
+ * seed's columns are short. A box that is absolute inside a scroller which
+ * does not hold it is reported wherever it stands.
  */
 const oddities = () => {
   const out = [];
   /* The boxes that scroll sideways because somebody decided they should, each
      with the decision written beside its rule in `app.css`: a tab strip too
      long for a phone; a table, "the one layout that may be wider than the
-     screen"; the planner's grid, which is a timeline; and the header, which "on
+     screen"; the planner's grid, which is a timeline; the header, which "on
      narrow screens scrolls instead of squeezing the title away" and hides its
-     own scrollbar to do it. Found by measuring rather than guessed — anything
-     not on this list scrolling sideways is a finding, however far it goes. */
-  const MEANT_TO = ['tabs', 'table-wrap', 'planner-scroll', 'header'];
+     own scrollbar to do it; and the task board, whose columns are as many as
+     the project has states and which snaps from one to the next. Found by
+     measuring rather than guessed — anything not on this list scrolling
+     sideways is a finding, however far it goes. */
+  const MEANT_TO = ['tabs', 'table-wrap', 'planner-scroll', 'header', 'board'];
+  const scrolls = (v) => v === 'auto' || v === 'scroll';
+  const name = (el) => `${el.tagName.toLowerCase()}${[...el.classList].map((c) => '.' + c).join('')}`;
   for (const el of document.querySelectorAll('*')) {
     const cs = getComputedStyle(el);
-    const scrolls = (v) => v === 'auto' || v === 'scroll';
-    const name = () => `${el.tagName.toLowerCase()}${[...el.classList].map((c) => '.' + c).join('')}`;
     const y = el.scrollHeight - el.clientHeight;
     const x = el.scrollWidth - el.clientWidth;
     // #content is the page's vertical scroller; content a few px taller than the window is legitimate there.
-    if (scrolls(cs.overflowY) && y > 0 && y <= 3 && el.id !== 'content') out.push(`${name()} scrolls ${y}px vertically`);
+    if (scrolls(cs.overflowY) && y > 0 && y <= 3 && el.id !== 'content') out.push(`${name(el)} scrolls ${y}px vertically`);
     if (scrolls(cs.overflowX) && x > 0 && !MEANT_TO.some((c) => el.classList.contains(c))) {
-      out.push(`${name()} scrolls ${x}px sideways`);
+      out.push(`${name(el)} scrolls ${x}px sideways`);
+    }
+  }
+
+  /* What makes a box a containing block for an absolute one: being positioned,
+     and the handful of properties that make a box one without positioning it.
+     A transform is the one this app actually uses. */
+  const holds = (cs) => cs.position !== 'static' || cs.transform !== 'none' || cs.filter !== 'none'
+    || cs.perspective !== 'none' || /layout|paint|strict|content/.test(cs.contain)
+    || /transform|perspective|filter/.test(cs.willChange);
+  for (const el of document.querySelectorAll('*')) {
+    if (getComputedStyle(el).position !== 'absolute') continue;
+    for (let box = el.parentElement; box && box !== document.body; box = box.parentElement) {
+      const cs = getComputedStyle(box);
+      if (holds(cs)) break;
+      if (scrolls(cs.overflowX) || scrolls(cs.overflowY)) {
+        out.push(`${name(el)} is absolute inside ${name(box)}, which scrolls but is not its containing block`);
+        break;
+      }
     }
   }
 
@@ -111,8 +149,16 @@ const inspect = () => {
   // Only #content scrolls; a scrolling document means a second scrollbar.
   if (doc.scrollHeight > doc.clientHeight + 1) out.push(`page scrolls vertically by ${doc.scrollHeight - doc.clientHeight}px (second scrollbar)`);
 
-  // Anything sticky in #content must stop below its sticky header, not slide under it.
   const content = document.querySelector('#content');
+  // A board is the screen it is on: it takes what `#content` has left, so
+  // there is nothing over for `#content` to scroll. The board was sized from the
+  // window rather than from `#content`, and ran 28px past it above a phone's tab
+  // bar — enough that every column scrolled to its end took the board with it.
+  if (content?.querySelector(':scope > .board-screen') && content.scrollHeight > content.clientHeight + 1) {
+    out.push(`#content scrolls ${content.scrollHeight - content.clientHeight}px under a board that should fill it`);
+  }
+
+  // Anything sticky in #content must stop below its sticky header, not slide under it.
   const head = content?.querySelector(':scope > .header');
   if (head) {
     for (const el of content.querySelectorAll('*')) {
