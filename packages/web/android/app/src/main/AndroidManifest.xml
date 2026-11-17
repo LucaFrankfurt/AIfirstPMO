@@ -24,6 +24,18 @@
 
         </activity>
 
+        <!-- What Firebase uses for a notification it shows by itself, while the
+             app is closed: the status-bar silhouette (scripts/brand.py), not the
+             launcher tile, which Android would draw as a white square; and the
+             channel the app creates on first start, named in the reader's
+             language, rather than Firebase's own "Miscellaneous". -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_kolibri" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="kolibri" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

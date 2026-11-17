@@ -38,7 +38,7 @@ import { PAGE_DRAG, idFrom, isDrag, startDrag } from '../../kernel/design-system
 import { SelectBox, type Selection } from '../../kernel/design-system/selection';
 import { useSession } from '../../kernel/identity/session';
 import { byId } from '../../kernel/sync/store';
-import { familyOf, type DropZone } from './pagetree';
+import { familyOf, type DropZone } from './page-tree';
 import { movePage } from './page-parts';
 import { PageStatusChip } from './status';
 import { PublicKnowledgeMark } from './public-knowledge';

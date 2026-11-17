@@ -32,7 +32,7 @@ import { Button } from '../../kernel/design-system/ui/button';
 import { navCount } from '../../kernel/design-system/ui/nav';
 import { chipDot } from '../../kernel/design-system/ui/chip';
 import { Icon, MenuButton, useConfirm, useToast, type MenuEntry } from '../../kernel/design-system/ui';
-import { descendantsOf } from './pagetree';
+import { descendantsOf } from './page-tree';
 import { usePageStatuses } from './status';
 import { movePage, movePageToTop } from './page-parts';
 

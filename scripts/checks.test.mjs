@@ -167,6 +167,13 @@ const BREAKS = [
     says: /unplaced: server\/src\/stray\.ts/,
   },
   {
+    // The build that failed on a Mac: `./PageTree` found `pagetree.ts`.
+    what: 'a component and a helper whose names differ only in case',
+    script: 'modules.mjs',
+    break: (t) => t.write('packages/web/src/modules/pages/pagetree.ts', 'export const shadow = 1;\n'),
+    says: /shadowed: packages\/web\/src\/modules\/pages\/PageTree\.tsx and packages\/web\/src\/modules\/pages\/pagetree\.ts/,
+  },
+  {
     what: 'a module directory nothing describes',
     script: 'modules.mjs',
     break: (t) => t.write('packages/server/src/modules/telepathy/telepathy.ts', 'export const soon = 1;\n'),

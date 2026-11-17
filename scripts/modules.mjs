@@ -127,6 +127,8 @@ const ABOUT = {
   'adapter/share': ['A read-only link to one page or board, rendered for whoever holds it.'],
   'capability/share': ['Making, listing and revoking those links, from the screen the thing is on.'],
   'push': ['Web push, sent with no payload.'],
+  'relay': ['The publisher\'s push relay, run on its own: a phone\'s token in, a fixed sentence to Apple or Google out.'],
+  'native': ['The packaged app\'s own edges: an uploaded file handed to the phone\'s share sheet.'],
   'ai': ['Three providers behind one call.'],
   'calendar': ['An iCal feed of what is due.'],
   's3': ['Object storage, signed by hand.'],
@@ -301,6 +303,8 @@ const SHELL = new Set([
   'shared/src/index.ts',
   'server/src/index.ts', 'server/src/seed.ts', 'server/src/cli.ts', 'server/src/wiring.ts',
   'server/src/backends.ts',
+  // The push relay's own process: run by the app's publisher, never by a server.
+  'server/src/relay.ts',
   'web/src/main.tsx', 'web/src/App.tsx', 'web/src/AppShell.tsx',
   'web/src/CommandPalette.tsx', 'web/src/wiring.ts',
   'web/vite.config.ts', 'web/capacitor.config.ts',
@@ -318,6 +322,49 @@ for (const file of sources) {
 }
 for (const file of SHELL) {
   if (!sources.includes(file)) problems.push(`stale shell entry: ${file} no longer exists.`);
+}
+
+/*
+ * Two files a Mac cannot tell apart.
+ *
+ * `PageTree.tsx` beside `pagetree.ts` is two files on Linux, where CI runs and
+ * this check was written, and one name on macOS and Windows, whose disks ignore
+ * case by default. The bundler tries `.ts` before `.tsx`, so on a Mac
+ * `import … from './PageTree'` found the helper instead of the component and
+ * the build stopped there — on the first Mac that ran `npm run mobile`, with CI
+ * green behind it. It is the `.ts`-beside-`.tsx` trap in CLAUDE.md one step
+ * further: same basename once case stops counting.
+ *
+ * Over `packages/` and `sites/` alike, tests included, because the sites are
+ * built on the same laptops. What counts is anything an import can resolve.
+ */
+const RESOLVABLE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/;
+const NOT_SOURCE = new Set(['node_modules', 'dist', 'out', '.git', 'build', '.gradle', 'Pods']);
+/* What `cap sync` copies into the native projects: a build, not a source. */
+const NATIVE_COPY = /(android\/app\/src\/main\/assets|ios\/App\/App\/public)$/;
+const byFoldedName = new Map();
+for (const top of ['packages', 'sites']) {
+  const base = join(ROOT, top);
+  if (!existsSync(base)) continue;
+  (function walk(dir) {
+    for (const name of readdirSync(dir)) {
+      if (NOT_SOURCE.has(name)) continue;
+      const full = join(dir, name);
+      if (statSync(full).isDirectory()) {
+        if (!NATIVE_COPY.test(full)) walk(full);
+      } else if (RESOLVABLE.test(name)) {
+        const folded = join(dir, name.replace(RESOLVABLE, '')).toLowerCase();
+        byFoldedName.set(folded, [...(byFoldedName.get(folded) ?? []), relative(ROOT, full)]);
+      }
+    }
+  })(base);
+}
+for (const files of byFoldedName.values()) {
+  if (files.length < 2) continue;
+  problems.push(
+    `shadowed: ${files.sort().join(' and ')} are one module to a disk that ignores case (macOS, Windows), `
+    + 'so an import of one can get the other. Rename one.',
+  );
 }
 for (const module of MODULES) {
   if (module.ring !== 'shell' && !module.what) {

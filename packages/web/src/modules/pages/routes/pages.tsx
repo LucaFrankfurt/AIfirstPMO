@@ -10,7 +10,7 @@ import {
   ACCESS_KEY, PageCover, PageHistory, PageLabelChips, VersionDiff, labelItems, moveItems,
   useCover, useExport, usePageLabels, usePrint, useWatching,
 } from '../page-parts';
-import { pagesMatching } from '../pagetree';
+import { pagesMatching } from '../page-tree';
 import { PageStatusChip, statusItems, usePageStatuses } from '../status';
 import { PublicKnowledgeChip, PublicKnowledgeNotice, isPublicKnowledge } from '../public-knowledge';
 import { PageTree, foldableIds, usePageFolds } from '../PageTree';

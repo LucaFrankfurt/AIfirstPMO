@@ -225,18 +225,42 @@ def write_svg(bird: Image.Image, name: str) -> None:
     report(path, "vector tile, 384px art")
 
 
-def write_badge(bird: Image.Image, name: str, size: int = 96) -> None:
-    """Android throws away the colour of a notification badge and keeps the
-    alpha, so this ships the silhouette flat white. Handing it the white tile
-    instead is how you get a solid square in the status bar."""
+def silhouette(bird: Image.Image, size: int) -> Image.Image:
+    """The mark as alpha alone, flat white, centred on a transparent square."""
     art = bird.resize((round(size * 0.9 * bird.width / bird.height), round(size * 0.9)), Image.LANCZOS)
     badge = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     badge.alpha_composite(art, ((size - art.width) // 2, (size - art.height) // 2))
     flat = Image.new("RGBA", badge.size, (255, 255, 255, 0))
     flat.putalpha(badge.getchannel("A"))
+    return flat
+
+
+def write_badge(bird: Image.Image, name: str, size: int = 96) -> None:
+    """Android throws away the colour of a notification badge and keeps the
+    alpha, so this ships the silhouette flat white. Handing it the white tile
+    instead is how you get a solid square in the status bar."""
     path = PUBLIC / name
-    flat.save(path, optimize=True)
+    silhouette(bird, size).save(path, optimize=True)
     report(path, f"{size}x{size} silhouette")
+
+
+def write_status_icons(bird: Image.Image) -> None:
+    """The packaged app's notification icon on Android, per density.
+
+    The same rule as the web badge and for the same reason: the status bar
+    draws an icon from its alpha alone, so the launcher icon — a white tile —
+    arrives there as a white square. Named by the push relay's FCM message
+    (`ic_stat_kolibri`) and by the manifest's default, so a notification shown
+    by Firebase while the app is closed carries the mark too. 24dp, which is
+    the size Android asks for.
+    """
+    for bucket, scale in DENSITIES.items():
+        into = ANDROID / f"drawable-{bucket}"
+        into.mkdir(parents=True, exist_ok=True)
+        size = round(24 * scale)
+        path = into / "ic_stat_kolibri.png"
+        silhouette(bird, size).save(path, optimize=True)
+        report(path, f"{size}x{size} status-bar silhouette")
 
 
 def write_ico(bird: Image.Image, name: str) -> None:
@@ -362,6 +386,7 @@ def main() -> None:
     if IOS.exists() and ANDROID.exists():
         write_app_icons(bird)
         write_splashes(bird)
+        write_status_icons(bird)
 
 
 if __name__ == "__main__":

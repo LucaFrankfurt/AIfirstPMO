@@ -18,7 +18,7 @@
 import React from 'react';
 import { useCurrentFrame } from 'remotion';
 import { SlideView } from './Slide';
-import type { Slide } from './slide';
+import type { Slide } from './slide-types';
 
 /**
  * Built once, at module scope, and never inline in `Root`. Remotion remounts a

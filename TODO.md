@@ -369,7 +369,7 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       page started and never filled; a page nothing points at; and one nobody has touched in six
       months, which is often simply true of a finished document and is therefore reported rather
       than acted on. The arithmetic is `web/modules/pages/tidy.ts`, pure and tested without a
-      browser like `pagetree.ts` beside it, and the screen is a list with an offer next to it rather
+      browser like `page-tree.ts` beside it, and the screen is a list with an offer next to it rather
       than a Fix button: a wiki that tidies itself is a wiki that loses a draft.
       **The archive and the trash moved onto that screen.** They answer the same question — what is
       not in the tree, and what of it do I still want — and three screens each answering a third of
@@ -427,7 +427,7 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       happened to be made and a top-level page could never become a child. Drag a page onto another
       to nest it or between two to reorder; the same four moves — up, down, in, out — are in the
       menu, because drag is the one way somebody on a keyboard cannot take. The arithmetic is
-      `lib/pagetree.ts`, apart from the store like `family.ts` and for the same reason: the edge
+      `lib/page-tree.ts`, apart from the store like `family.ts` and for the same reason: the edge
       cases are a page dropped on itself and a page dropped inside its own subtree.
       **A page's history is one list**: `recordActivity` has named `page` alongside `task` since
       pages existed and there was no route to read the rows, so every rename, move, archive and
@@ -442,7 +442,7 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       by title — not by id, because a link somebody types has to be readable in the source and
       survive being pasted into a chat line — and `[[Onboarding|how we start]]` keeps the words the
       author chose about the page rather than a copy of its name. The arithmetic is
-      `shared/modules/pages/links.ts`, pure and apart from the store like `pagetree.ts`: parsing,
+      `shared/modules/pages/links.ts`, pure and apart from the store like `page-tree.ts`: parsing,
       resolving, the graph both ways, and the rewrite a rename needs.
       **A link to a page nobody has written is the point, not a bug.** It renders faintly with a
       `+` and following it creates that page, titled what was typed — which is how a wiki gets
@@ -503,7 +503,7 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       makes it worth a screen is the hollow node: a title somebody linked to and nobody has written,
       so the picture says where the holes are — which the tree and the backlink list genuinely
       cannot at a glance. Only pages a link touches are in it; the rest are dots the tree already
-      lists. The layout is a spring simulation in `pagegraph.ts` with no library and no randomness:
+      lists. The layout is a spring simulation in `page-graph.ts` with no library and no randomness:
       positions are seeded from the node's own id, so the same wiki draws the same picture and a
       test can assert about it. Its work is budgeted as `nodes² × rounds`, and the budget is on the
       time rather than on how many pages somebody is allowed to have.
@@ -881,33 +881,40 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       so it asks once which Kolibri it belongs to and carries a bearer token where a browser carries
       its cookie. Nobody has compiled either project or seen the app on a phone; what is open is
       below and in [`docs/mobile.md`](docs/mobile.md).
-- [ ] **Uploaded files do not load in the packaged app**, and the fix is a decision rather than a
-      repair. The server returns root-relative `/files/<hash>/<name>` URLs, which address the app's
-      own bundle; and that route requires authentication, which an `<img>`, a CSS `url()` and a
-      `<link>` cannot supply. Measured: a bare GET is 401, `Authorization` is 200, `?access_token`
-      is 200. So a query token is the only thing that makes an image load — and it puts the session
-      token in the DOM, in the referrer and in the access log, and the "open original" link would
-      hand it to the system browser. The three ways out and the one that looks right are laid out
-      in [`docs/mobile.md`](docs/mobile.md#the-open-question-uploaded-files-do-not-load). Nothing
-      here affects a browser, where every one of these URLs is same-origin and carries the cookie.
-- [ ] **Native push.** The port is already there — `notify.onNotification` — and the web fills it
-      with a service worker. Neither web push in an Android WebView nor a service worker under
-      `capacitor://` delivers anything, so the app needs an FCM and an APNs adapter filling that
-      same port. Credentials this repository does not have, and a device to prove it on.
+- [x] **Uploaded files load in the packaged app.** Images drawn inside the WebView carry the
+      server's origin and the session token in the query; the stored markup keeps `/files/…`, and
+      the HTML editor strips the rewrite before it saves. A link to an upload is never handed to the
+      system browser: the app fetches it with the header and gives it to the share sheet. The costs
+      — a token in a reverse proxy's access log, and in rich text copied out of the app — are in
+      [`docs/mobile.md`](docs/mobile.md#uploaded-files). Walked by `check:packaged`.
+- [x] **Push to the packaged app**, option A: the phone is told *that* something happened and
+      nothing about what, through a relay holding the publisher's Apple and Google credentials
+      (`src/relay.ts`, `docker-compose.relay.yml`). Tokens are tied to the session that registered
+      them. See [`docs/mobile.md`](docs/mobile.md#push).
+- [ ] **Push has not reached a phone.** Needs a Firebase project and its `google-services.json`, an
+      APNs key, the relay deployed at `push.kolibri.day`, and a device. Everything that would leave
+      the relay is checked against stand-ins; whether Apple and Google accept it is not.
+- [ ] **A banner that says what happened.** Option A says only "New activity". Saying more without
+      putting workspace content on a third party's disk means native code on both platforms — an
+      iOS notification service extension and an Android messaging service — that fetches the text
+      from the user's own server after the wake.
 - [ ] **SSO does not work in the app.** `ssoHref` is root-relative and the provider redirects back
       to the *server's* origin, which the app is not. Needs a registered deep link and a redirect
       target that reaches it. The app ID already claims a URL scheme; nothing listens on it.
 - [ ] **Nothing has been submitted to either store.** No screenshots, no privacy manifest, no
       `PrivacyInfo.xcprivacy`, no App Store Connect or Play Console entry, no signing identity.
-
----
-
-## The product catalogue, and what it deliberately does not hold
-
-The catalogue answers what is sold, what it costs and whether selling it is worth doing. Several
-things a reader might reasonably expect from that sentence are **not** built, and each is left
-out for a reason rather than forgotten. See [`docs/products.md`](docs/products.md).
-
+- [x] **Every fresh install of the app crashed before its first screen.** Capacitor answers every
+      extensionless path with `index.html` and a 200, so the session lookup that ran before a server
+      was named came back as HTML and `session.workspaces.find` threw. The picker took any 200 as a
+      Kolibri for the same reason. Fixed in the session provider and the picker, and walked by
+      `check:packaged`, which serves the bundle the way Capacitor does — the earlier check of the
+      same split used a static server that said 404, and passed. The sign-in screen in the app now
+      names its host and can change server, which the picker had promised and nothing offered.
+- [x] **Downloads and exports in the app** go to the phone's share sheet: what the server streams
+      is downloaded natively with the session in a header, what the page builds is written to the
+      cache, and both are shared. One port in `kernel/files/save.ts`, filled by the native adapter;
+      a browser keeps its own downloads. Walked by `check:packaged` against a recorded bridge — see
+      [`docs/mobile.md`](docs/mobile.md#exports-backups-and-saved-pages).
 - [ ] **No customer register, and therefore no real retention.** `churn_bps` is a number somebody
       types in from the system that counts customers; nothing here counts them. That makes every
       retention figure an assumption, which the screens say in as many words, and it makes the

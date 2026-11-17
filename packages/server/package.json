@@ -8,6 +8,7 @@
     "start": "node --experimental-sqlite --disable-warning=ExperimentalWarning src/index.ts",
     "dev": "node --experimental-sqlite --disable-warning=ExperimentalWarning --watch src/index.ts",
     "seed": "node --experimental-sqlite --disable-warning=ExperimentalWarning src/seed.ts",
+    "relay": "node src/relay.ts",
     "test": "node --experimental-sqlite --disable-warning=ExperimentalWarning --test test/*.test.ts",
     "doctor": "node --experimental-sqlite --disable-warning=ExperimentalWarning src/cli.ts doctor",
     "cli": "node --experimental-sqlite --disable-warning=ExperimentalWarning src/cli.ts"

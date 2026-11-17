@@ -82,9 +82,11 @@ npm run build
 ```
 
 CI runs all of those plus a browser job: both smoke walkthroughs (English and German) against a
-seeded server, then `check:responsive`, `check:contrast`, `check:a11y` and `check:clocks` — the last
-one opens a second browser whose system clock is five minutes fast, because that is the one question
-a single process cannot be asked. Those walk Chromium; `check:engines` walks boards — the sandboxed
+seeded server, then `check:responsive`, `check:contrast`, `check:a11y`, `check:clocks` — which opens
+a second browser whose system clock is five minutes fast, because that is the one question a single
+process cannot be asked — and `check:packaged`, which loads the bundle the way the iOS and Android
+shells do: from its own origin, with Capacitor's rule that every extensionless path answers
+`index.html` with a 200. Those walk Chromium; `check:engines` walks boards — the sandboxed
 frame, board pages, phones, shared links — in Firefox and WebKit, inside Playwright's own image,
 because a board is the part of the app whose behaviour belongs to the engine. Locally, where only
 Chromium exists, `KOLIBRI_ENGINES=chromium` checks the script itself.
@@ -111,6 +113,9 @@ Each of these passed the typechecker and the suites and was still wrong.
   itself, add it there.
 - **`.ts` and `.tsx` with the same basename in one directory.** `./reactions` resolves the `.ts`
   first, so every importer of the component silently gets the helper. No error anywhere. Rename one.
+  *Same* ignores case on macOS and Windows: `PageTree.tsx` beside `pagetree.ts` built on Linux and
+  in CI, and stopped `npm run mobile` on the first Mac to run it. `check:modules` now refuses any two
+  module files in one directory that differ only by case and extension.
 - **Generated blocks are compared byte for byte.** In `docs/modules.md` and `docs/module-map.html`,
   anything between `<!-- generated: … -->` and `<!-- end -->` (or the `/* generated: … */` markers
   inside the page's script) is written by `modules.mjs`. Never hand-edit — run

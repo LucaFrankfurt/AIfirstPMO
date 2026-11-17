@@ -80,6 +80,15 @@ export interface Auth {
   /** Present for API-token requests. */
   tokenId?: string;
   /**
+   * The session this request arrived on, when it arrived on one — a cookie or
+   * a session token as a bearer. Absent for an API token.
+   *
+   * Read by what has to end with the session rather than with the account: a
+   * phone that asked to be woken stops being woken when it signs out, or when
+   * somebody revokes that session from another device.
+   */
+  sessionId?: string;
+  /**
    * The one workspace this credential may touch, or null for all of them.
    *
    * Set only by an API token created with `confined`. It is not itself a gate
@@ -176,7 +185,7 @@ export function authenticate(ctx: Ctx): Auth | null {
     );
     if (session && session.expires_at > now) {
       run(`UPDATE sessions SET last_used_at = ? WHERE id = ?`, now, session.id);
-      return build(session.user_id, ['read', 'write']);
+      return withSession(build(session.user_id, ['read', 'write']), session.id);
     }
     return null;
   }
@@ -187,8 +196,10 @@ export function authenticate(ctx: Ctx): Auth | null {
     `SELECT id, user_id, expires_at FROM sessions WHERE token_hash = ?`, hashToken(cookieValue),
   );
   if (!session || session.expires_at <= Date.now()) return null;
-  return build(session.user_id, ['read', 'write']);
+  return withSession(build(session.user_id, ['read', 'write']), session.id);
 }
+
+const withSession = (auth: Auth | null, sessionId: string): Auth | null => (auth ? { ...auth, sessionId } : null);
 
 /**
  * The map, cut down to the one workspace a confined token may touch.

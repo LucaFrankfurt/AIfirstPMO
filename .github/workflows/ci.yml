@@ -167,8 +167,15 @@ jobs:
           # `check:css` — one second, exit 0 — and reporting green for the four
           # it never reached. `&&` cannot fail that way: either every one of
           # them runs or the leg is red.
+          #
+          # `check:packaged` is the sixth, and the only one that walks the app
+          # the way a phone loads it — the bundle from `https://localhost`,
+          # answered as Capacitor answers, the server elsewhere. Every fresh
+          # install crashed before its first screen while an earlier walk of
+          # the same split reported it fine, because that walk's static server
+          # said 404 where Capacitor says 200.
           - name: looks
-            run: npm run check:css && npm run check:a11y && npm run check:contrast && npm run check:responsive && npm run check:clocks
+            run: npm run check:css && npm run check:a11y && npm run check:contrast && npm run check:responsive && npm run check:clocks && npm run check:packaged
           # Every menu in the app, in a laptop window and a phone one, with
           # every drawer in them opened. The slowest leg before it was asked
           # why, and still the one most worth keeping: it walks two windows

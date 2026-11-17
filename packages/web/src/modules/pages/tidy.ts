@@ -9,7 +9,7 @@
  * is reported anywhere. So "tidy up the wiki" was a job with no list, which
  * means it was a job nobody did.
  *
- * Pure and apart from the store, like `pagetree.ts` beside it and for the same
+ * Pure and apart from the store, like `page-tree.ts` beside it and for the same
  * reason: the interesting part is which pages count as what, the edge cases are
  * off-by-one questions about empty content and shared titles, and both are
  * worth proving without a browser. The component reads the pages out of the

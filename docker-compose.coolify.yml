@@ -187,6 +187,9 @@ services:
       KOLIBRI_VAPID_PUBLIC: "${KOLIBRI_VAPID_PUBLIC:-}"
       KOLIBRI_VAPID_PRIVATE: "${KOLIBRI_VAPID_PRIVATE:-}"
       KOLIBRI_VAPID_SUBJECT: "${KOLIBRI_VAPID_SUBJECT:-}"
+      # The relay that wakes the packaged app (docs/mobile.md). `-` rather than
+      # `:-`, so that setting it empty turns the app's pushes off.
+      KOLIBRI_PUSH_RELAY: "${KOLIBRI_PUSH_RELAY-https://push.kolibri.day}"
 
       # Telegram. Long-polled, so it needs no public URL of its own.
       KOLIBRI_TELEGRAM_BOT_TOKEN: "${KOLIBRI_TELEGRAM_BOT_TOKEN:-}"

@@ -252,7 +252,12 @@ It is opt-in for one reason. Putting the token in a response body puts it where 
 which is the whole of what `HttpOnly` buys. A browser never sends the header, so a browser never
 gets one, and cross-site scripting on the web client is no better off than it was. What an app gets
 in exchange is a credential it has to store itself, on a device whose storage it does not control —
-which is a worse place than an `HttpOnly` cookie and the best available on that platform. OIDC is authorization-code with
+which is a worse place than an `HttpOnly` cookie and the best available on that platform. Signing
+out in the app ends that session on the server: `/api/auth/logout` reads the bearer when there is no
+cookie, which it did not at first — the phone forgot its token and the session lived on until it
+expired. Images inside the app carry the same token in their query, because an `<img>` cannot send
+a header; a link that *opens* a file never does, and goes to the share sheet instead. See
+[`mobile.md`](mobile.md#uploaded-files) for what that costs. OIDC is authorization-code with
 PKCE and nothing else — no implicit flow, no refresh tokens held here — and an address is taken from
 the provider only when the provider marks it verified.
 

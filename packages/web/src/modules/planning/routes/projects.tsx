@@ -61,6 +61,7 @@ import { SectionHeading } from '../../../kernel/design-system/ui/section';
 import { Chip, chipDot, chipVariants } from '../../../kernel/design-system/ui/chip';
 import { Triage, useNewIntakeCount } from '../../intake/intake';
 import { Attachments } from '../../../kernel/files/Attachments';
+import { fileDate, saveBlob, saveFromServer } from '../../../kernel/files/save';
 
 const VIEW_KEY = (projectId: string) => `kolibri.view.${projectId}`;
 
@@ -1155,6 +1156,8 @@ function ProjectPages({ projectId }: { projectId: string }) {
 function ProjectSettings({ projectId }: { projectId: string }) {
   const t = useT();
   const project = useRow('project', projectId);
+  /** What the project's downloads are called: its key, as the server names them too. */
+  const projectName = (project?.key ?? 'project').toLowerCase();
   const navigate = useNavigate();
   const members = useMembers();
   const toast = useToast();
@@ -1190,14 +1193,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
     try {
       const doc = await api.get<unknown>(`/api/workspaces/${workspaceId}/projects/${projectId}/export`);
       const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${(project?.key ?? 'project').toLowerCase()}.kolibri.json`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      await saveBlob(blob, `${projectName}.kolibri.json`);
     } catch (problem) {
       toast(problem instanceof Error ? problem.message : t('transfer.failed'));
     }
@@ -1586,13 +1582,14 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         <Button onClick={() => void exportJson()}>
           <Icon name="page" size={14} /> {t('transfer.export')}
         </Button>
-        {/* The archive and the spreadsheet are ordinary downloads rather than
-            a fetch into a blob: a project with its screenshots in it is large,
-            and a same-origin navigation carries the session cookie anyway. */}
-        <Button onClick={() => { window.location.href = `/api/workspaces/${workspaceId}/projects/${projectId}/export.zip`; }}>
+        {/* The archive and the spreadsheet are streamed by the server rather
+            than fetched into a blob: a project with its screenshots in it is
+            large. They used to be a navigation, which in the packaged app took
+            the whole app to an `/api/…` path its bundle answers with itself. */}
+        <Button onClick={() => void saveFromServer(`/api/workspaces/${workspaceId}/projects/${projectId}/export.zip`, `${projectName}-${fileDate()}.kolibri.zip`)}>
           <Icon name="archive" size={14} /> {t('transfer.exportZip')}
         </Button>
-        <Button onClick={() => { window.location.href = `/api/workspaces/${workspaceId}/export/tasks.csv?project_id=${projectId}`; }}>
+        <Button onClick={() => void saveFromServer(`/api/workspaces/${workspaceId}/export/tasks.csv?project_id=${projectId}`, `${projectName}-tasks-${fileDate()}.csv`)}>
           <Icon name="table" size={14} /> {t('transfer.exportCsv')}
         </Button>
         {canWrite && (

@@ -42,7 +42,12 @@ const { entryPoints } = await import('../src/wiring.ts');
  * list: it backs up, restores, reindexes and vacuums. A restore replaces whole
  * tables and must emphatically *not* fire a rule for every row it puts back.
  */
-const EXEMPT = new Set(['src/cli.ts']);
+const EXEMPT = new Set([
+  'src/cli.ts',
+  // The push relay: a separate process the app's publisher runs. It opens no
+  // database and writes nothing, so there are no write listeners for it to miss.
+  'src/relay.ts',
+]);
 
 after(() => rmSync(process.env.KOLIBRI_DATA_DIR!, { recursive: true, force: true }));
 

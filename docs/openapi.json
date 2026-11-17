@@ -17067,6 +17067,58 @@
         }
       }
     },
+    "/api/push/app": {
+      "post": {
+        "operationId": "postPushApp",
+        "summary": "POST /api/push/app",
+        "description": "Defined in `packages/server/src/adapters/push/routes/push.ts`. Its request and response shapes are not derivable from the registry, so they are not described here — read the handler.",
+        "tags": [
+          "hand-written"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "See the handler."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/push/app/forget": {
+      "post": {
+        "operationId": "postPushAppForget",
+        "summary": "POST /api/push/app/forget",
+        "description": "Defined in `packages/server/src/adapters/push/routes/push.ts`. Its request and response shapes are not derivable from the registry, so they are not described here — read the handler.",
+        "tags": [
+          "hand-written"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "See the handler."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/push/key": {
       "get": {
         "operationId": "getPushKey",

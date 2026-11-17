@@ -9,7 +9,7 @@
  * wrote.
  *
  * Everything here is pure and takes the pages as an argument, for the reason
- * `pagetree.ts` is: the client already holds every page it may read, so
+ * `page-tree.ts` is: the client already holds every page it may read, so
  * backlinks are arithmetic over a list rather than a round trip, and the
  * arithmetic is worth proving without a browser. The same functions answer for
  * MCP on the server, over rows out of SQLite.

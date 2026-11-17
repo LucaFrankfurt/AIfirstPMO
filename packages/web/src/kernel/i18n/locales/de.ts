@@ -178,6 +178,9 @@ export const de: Catalogue = {
   'attachment.remove': 'Entfernen',
   'attachment.removeConfirm': '{name} entfernen? Die Datei landet im Papierkorb und lässt sich wiederherstellen. Die gespeicherten Bytes werden geteilt und nicht gelöscht.',
   'attachment.kb': '{size} KB',
+  'attachment.openFailed': 'Diese Datei konnte nicht geöffnet werden.',
+  'attachment.preparing': 'Die Datei wird vorbereitet…',
+  'attachment.saveFailed': 'Diese Datei konnte nicht gespeichert werden.',
   'attachment.files': 'Dateien',
   'task.comments': 'Kommentare',
   'task.activity': 'Verlauf',
@@ -1721,6 +1724,9 @@ export const de: Catalogue = {
   'push.on': 'Dieses Gerät wird benachrichtigt',
   'push.denied': 'Dieser Browser hat Mitteilungen für Kolibri blockiert. Das lässt sich nur in seinen eigenen Website-Einstellungen zurücknehmen — eine Seite darf nicht zweimal fragen.',
   'push.failed': 'Mitteilungen konnten nicht eingeschaltet werden',
+  'push.appHint': 'Ein Banner, wenn dich etwas braucht, auch bei geschlossener App. Es sagt nur, dass es Neues gibt — was, bleibt auf deinem Server, bis du die App öffnest.',
+  'push.appDenied': 'Mitteilungen für Kolibri sind in den Einstellungen dieses Telefons ausgeschaltet. Schalte sie dort ein und komm dann zurück.',
+  'push.channel': 'Aktivität',
 
   /* ---------------------------------------------------------------- chat */
   'chat.title': 'Chat',
@@ -2534,6 +2540,8 @@ export const de: Catalogue = {
   'server.connect': 'Verbinden',
   'server.checking': 'Wird geprüft…',
   'server.unreachable': 'Unter dieser Adresse hat kein Kolibri geantwortet. Prüfe die Adresse und ob der Server von diesem Gerät aus erreichbar ist.',
+  'server.signingInTo': 'Anmeldung bei {host}',
+  'server.change': 'Server ändern',
   'auth.headline': 'Die Arbeit liegt auf deinem Server.',
   'auth.blurb': 'Projekte, Aufgaben und Seiten — offline zuerst, mit einem Assistenten, der mitlesen darf.',
   'auth.factOffline': 'Arbeitet weiter, wenn das Netz nicht will',

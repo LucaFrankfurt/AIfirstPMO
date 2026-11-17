@@ -30,6 +30,7 @@ import { escapeHtml, formatHtml, sanitizeHtml } from '@kolibri/shared';
 
 import { useInAppLinks } from './Markdown';
 import { useUploads, type AttachTo } from '../../kernel/files/uploads';
+import { fileSrc, withFileSources, withoutFileSources } from '../../kernel/sync/server';
 import { HEADING_PREFIX, usePageHref } from './page-links';
 import { cn } from '../../kernel/design-system/cn';
 import { buttonVariants } from '../../kernel/design-system/ui/button';
@@ -60,7 +61,7 @@ export function HtmlView({ source, className = '', asPage }: {
   // reader could not follow.
   const pageHref = usePageHref();
   const html = useMemo(
-    () => sanitizeHtml(source ?? '', asPage ? { headingPrefix: HEADING_PREFIX, idPrefix: 'u-', pageHref } : { pageHref }),
+    () => withFileSources(sanitizeHtml(source ?? '', asPage ? { headingPrefix: HEADING_PREFIX, idPrefix: 'u-', pageHref } : { pageHref })),
     [source, asPage, pageHref],
   );
   // Memoised for the reason `Markdown` memoises it: a fresh object makes React
@@ -146,7 +147,8 @@ export function HtmlEditor({ value, onChange, minHeight = 420, attachTo }: {
     if (!element || source) return;
     if (shown.current === value) return;
     shown.current = value;
-    element.innerHTML = sanitizeHtml(value);
+    // Drawn with the images this client can load; read back below without them.
+    element.innerHTML = withFileSources(sanitizeHtml(value));
   }, [value, source]);
 
   useEffect(() => {
@@ -166,7 +168,10 @@ export function HtmlEditor({ value, onChange, minHeight = 420, attachTo }: {
   const capture = (): void => {
     const element = host.current;
     if (!element) return;
-    const next = sanitizeHtml(element.innerHTML);
+    // The surface shows uploads on the server's origin with this device's
+    // session in the URL; what is stored is the bare `/files/…` path. Missing
+    // this would have saved the token into the page on its first edit.
+    const next = sanitizeHtml(withoutFileSources(element.innerHTML));
     // Recorded as what the element is showing *before* the change goes out, so
     // the effect above does not answer our own edit by rewriting the DOM.
     shown.current = next;
@@ -196,7 +201,7 @@ export function HtmlEditor({ value, onChange, minHeight = 420, attachTo }: {
 
   const insertImages = async (files: File[]): Promise<void> => {
     const done = await take(files);
-    if (done.length) put(done.map((one) => (one.image ? `<p><img src="${one.url}" alt=""></p>` : `<p><a href="${one.url}">${one.name}</a></p>`)).join(''));
+    if (done.length) put(done.map((one) => (one.image ? `<p><img src="${fileSrc(one.url)}" alt=""></p>` : `<p><a href="${one.url}">${one.name}</a></p>`)).join(''));
   };
 
   /**

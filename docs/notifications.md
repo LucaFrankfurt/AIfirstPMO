@@ -237,6 +237,7 @@ to push. The key pair is generated into the data directory on first use.
 | `KOLIBRI_PUSH` | `false` turns push off entirely |
 | `KOLIBRI_VAPID_PUBLIC` / `KOLIBRI_VAPID_PRIVATE` | Set them to keep subscriptions across a restore into a fresh data directory. Otherwise generated and stored in `vapid.json` |
 | `KOLIBRI_VAPID_SUBJECT` | `mailto:` or a URL, for a push service that wants to complain to somebody |
+| `KOLIBRI_PUSH_RELAY` | Where the iOS and Android app's pushes go — the relay holding the app publisher's credentials, default `https://push.kolibri.day`. It receives a phone's token, its platform and a language, never the notification. Empty turns the app's pushes off. See [`mobile.md`](mobile.md#push) |
 
 A subscription that answers `404` or `410` is deleted: that is how a push service says the browser
 threw it away.

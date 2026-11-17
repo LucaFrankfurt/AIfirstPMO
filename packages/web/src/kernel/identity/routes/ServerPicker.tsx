@@ -3,7 +3,7 @@ import { useI18n } from '../../i18n/i18n';
 import { Button } from '../../design-system/ui/button';
 import { Input } from '../../design-system/ui/field';
 import { api } from '../../sync/api';
-import { useServer } from '../../sync/server';
+import { isKolibriConfig, serverAddress, useServer } from '../../sync/server';
 import { AuthLayout } from '../AuthLayout';
 
 /**
@@ -29,12 +29,17 @@ export function ServerPicker({ onReady }: { onReady: () => void }) {
   async function connect(event: React.FormEvent) {
     event.preventDefault();
     setProblem(null);
+    const origin = serverAddress(address);
+    if (!origin) {
+      setProblem(t('server.unreachable'));
+      return;
+    }
     setChecking(true);
     // Kept before the check, because `api` reads the origin from here; put back
     // if the address turns out not to be a Kolibri, so a typo is not sticky.
-    useServer(address);
+    useServer(origin);
     try {
-      await api.config();
+      if (!isKolibriConfig(await api.config())) throw new Error('not a Kolibri');
       onReady();
     } catch {
       useServer('');
