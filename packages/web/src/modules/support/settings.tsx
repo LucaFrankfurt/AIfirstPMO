@@ -7,7 +7,7 @@
  */
 import { useEffect, useState } from 'react';
 import {
-  WIDGET_ASSISTANTS, WIDGET_IDENTITIES, cleanOrigins, isWidgetColor, widgetSnippet,
+  WIDGET_ASSISTANTS, WIDGET_IDENTITIES, cleanContextFields, cleanOrigins, contextFieldsText, isWidgetColor, widgetSnippet,
   type Widget, type WidgetAssistant, type WidgetIdentity,
 } from '@kolibri/shared';
 import { Empty, Icon, Sheet, useAction, useConfirm, useToast } from '../../kernel/design-system/ui';
@@ -134,6 +134,7 @@ function WidgetSheet({ widget, onClose }: { widget: Widget | null; onClose: () =
   const [assistant, setAssistant] = useState<WidgetAssistant>(widget?.assistant ?? 'off');
   const [knowledge, setKnowledge] = useState<string[]>(listOf<string>(widget?.knowledge));
   const [budget, setBudget] = useState(String(widget?.assistant_budget ?? 50));
+  const [customerFields, setCustomerFields] = useState(contextFieldsText(widget?.context_fields));
   const aiSwitch = useFeature('ai');
   const [modelOn, setModelOn] = useState(true);
   useEffect(() => { api.config().then((config) => setModelOn(!!config.ai)).catch(() => setModelOn(false)); }, []);
@@ -161,6 +162,7 @@ function WidgetSheet({ widget, onClose }: { widget: Widget | null; onClose: () =
       color: isWidgetColor(color) ? color : null, agents, enabled: enabled ? 1 : 0,
       reply_to: replyTo.trim() || null,
       assistant, knowledge, assistant_budget: Math.max(0, Math.round(Number(budget) || 0)),
+      context_fields: cleanContextFields(customerFields),
     };
     if (widget) update('widget', widget.id, values);
     else create('widget', values);
@@ -271,6 +273,13 @@ function WidgetSheet({ widget, onClose }: { widget: Widget | null; onClose: () =
               </div>
             )}
             {unread.size > 0 && <p className="m-0 text-[12px] text-warn">{t('widgets.notPublic')}</p>}
+            {/* Only where a host vouches for the visitor: an anonymous widget
+                has nobody to say anything about. */}
+            {identity === 'signed' && (
+              <Label label={t('widgets.customerFields')} hint={t('widgets.customerFieldsHint')}>
+                <Textarea rows={3} value={customerFields} placeholder={'plan: Plan\nstatus: Status'} onChange={(event) => setCustomerFields(event.target.value)} />
+              </Label>
+            )}
             {assistant === 'answer' && (
               <Label label={t('widgets.budget')} hint={t('widgets.budgetHint')}>
                 <Input type="number" min={0} max={10000} value={budget} onChange={(event) => setBudget(event.target.value)} />

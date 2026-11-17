@@ -21,7 +21,8 @@ mkdirSync(process.env.KOLIBRI_WEB_DIR!, { recursive: true });
 writeFileSync(`${process.env.KOLIBRI_WEB_DIR}/widget.html`, '<!doctype html><title>chat</title>');
 
 const { server } = await import('../src/index.ts');
-const { all, get } = await import('../src/kernel/platform/db/index.ts');
+const { all, get, run } = await import('../src/kernel/platform/db/index.ts');
+const { sealWidgetSecrets } = await import('../src/modules/support/support.ts');
 const { resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
 const { replyTag, replyText, takeReply } = await import('../src/adapters/widget/mail.ts');
 const { writeEntity } = await import('../src/kernel/write-path/repo.ts');
@@ -114,6 +115,20 @@ describe('a widget', () => {
     secret = (await ok(`/api/widgets/${widget.id}/secret`)).secret;
     assert.ok(secret.length >= 32);
     assert.notEqual(secret, 'chosen-by-the-client');
+    const stored = get<any>(`SELECT secret FROM widgets WHERE id = ?`, widget.id).secret;
+    assert.match(stored, /^v1\./, 'sealed in the database');
+    assert.equal(stored.includes(secret), false, 'a copied backup is not a copied key');
+  });
+
+  it('seals a key stored before keys were sealed, once, and keeps it working', async () => {
+    const legacy = await ok(`/api/workspaces/${workspaceId}/widgets`, { project_id: projectId, name: 'Legacy' });
+    run(`UPDATE widgets SET secret = 'typed-before-sealing-existed' WHERE id = ?`, legacy.id);
+    sealWidgetSecrets();
+    sealWidgetSecrets();
+    const stored = get<any>(`SELECT secret FROM widgets WHERE id = ?`, legacy.id).secret;
+    assert.match(stored, /^v1\./);
+    assert.equal((await ok(`/api/widgets/${legacy.id}/secret`)).secret, 'typed-before-sealing-existed', 'sealed once, not twice');
+    await ok(`/api/widgets/${legacy.id}`, undefined, 'DELETE');
   });
 
   it('serves its page to the sites it names, and only those', async () => {
@@ -234,11 +249,40 @@ describe('a signed visitor', () => {
     assert.ok(old.deleted_at, 'and the deleted one stays deleted');
   });
 
+  it('keeps from the token\'s ctx only the facts the widget allows, on the server only', async () => {
+    resetRateLimits();
+    await ok(`/api/widgets/${widget.id}`, { context_fields: 'plan: Plan\nstatus: Status\nNot A Key: x\nplan: twice' }, 'PATCH');
+    const fields = get<any>(`SELECT context_fields FROM widgets WHERE id = ?`, widget.id).context_fields;
+    assert.deepEqual(JSON.parse(fields), [{ key: 'plan', label: 'Plan' }, { key: 'status', label: 'Status' }], 'a bad key and a repeat are dropped');
+    const token = hostToken(secret, {
+      sub: 'merchant-ctx', exp: inAnHour(),
+      ctx: { plan: 'Pro', status: { nested: true }, card: '4242 4242 4242 4242', ignored: 'x' },
+    });
+    const opened = await visit(`/w/${widget.id}/session`, { token });
+    const row = get<any>(`SELECT * FROM conversations WHERE id = ?`, opened.json.conversation.id);
+    assert.deepEqual(JSON.parse(row.visitor_context), { plan: 'Pro' }, 'not allowed, not kept; nested, not kept');
+    const viaApi = await ok(`/api/conversations/${row.id}`);
+    assert.equal('visitor_context' in viaApi, false, 'never in a row a member is sent');
+    const pulled = await ok(`/api/sync/pull?workspace=${workspaceId}&since=0`);
+    const synced = (pulled.changes.conversation ?? []).filter((change: any) => change.id === row.id);
+    assert.ok(synced.length, 'the conversation itself does sync');
+    assert.equal(JSON.stringify(synced).includes('visitor_context'), false, 'its context never does');
+
+    const later = hostToken(secret, { sub: 'merchant-ctx', exp: inAnHour(), ctx: { plan: 'Team', status: 'x'.repeat(201) } });
+    await visit(`/w/${widget.id}/session`, { token: later });
+    assert.deepEqual(
+      JSON.parse(get<any>(`SELECT visitor_context FROM conversations WHERE id = ?`, row.id).visitor_context),
+      { plan: 'Team' }, 'every token overwrites it, and a value too long is dropped rather than cut',
+    );
+    await ok(`/api/widgets/${widget.id}`, { context_fields: [] }, 'PATCH');
+  });
+
   it('stops when the secret is rotated', async () => {
     resetRateLimits();
     const old = secret;
     secret = (await ok(`/api/widgets/${widget.id}/secret`, {})).secret;
     assert.notEqual(secret, old);
+    assert.match(get<any>(`SELECT secret FROM widgets WHERE id = ?`, widget.id).secret, /^v1\./, 'a new key is sealed too');
     const claims = { sub: 'merchant-7', exp: inAnHour() };
     assert.equal((await visit(`/w/${widget.id}/session`, { token: hostToken(old, claims) })).status, 401);
     assert.equal((await visit(`/w/${widget.id}/session`, { token: hostToken(secret, claims) })).status, 200);

@@ -2345,6 +2345,14 @@ export type ConversationAuthor = 'visitor' | 'agent' | 'bot';
 /** What the model does in a widget: nothing, drafts for the team, or answers first. */
 export type WidgetAssistant = 'off' | 'suggest' | 'answer';
 
+/** One fact about a signed-in visitor the host may put in its token, and what the model calls it. */
+export interface WidgetContextField {
+  /** The name inside the token's `ctx` claim. */
+  key: string;
+  /** What the model and the visitor read, e.g. "Plan". */
+  label: string;
+}
+
 /**
  * A chat window embedded on somebody else's site, for one audience.
  *
@@ -2376,6 +2384,12 @@ export interface Widget extends Base {
   knowledge: ID[];
   /** Answers a day the model may give from this widget. */
   assistant_budget: number;
+  /**
+   * The facts about a signed-in visitor the host may send in its token's `ctx`
+   * claim, and the only ones kept: anything else in the claim is dropped.
+   * Read defensively — a widget synced before the column existed has none.
+   */
+  context_fields?: WidgetContextField[];
   created_by: ID | null;
 }
 

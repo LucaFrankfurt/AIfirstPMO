@@ -83,7 +83,7 @@ a workspace admin types in, and a **Web Push subscription**, whose endpoint the 
 Both are also the classic way to make a server reach what the person asking cannot — the container
 beside it, the database on the private network, the metadata service on `169.254.169.254`.
 
-`lib/outbound.ts` is the only way out:
+`adapters/webhooks/outbound.ts` is the only way out:
 
 - scheme restricted to `http`/`https`; a URL with credentials in it is refused;
 - the name is resolved **before** the connection and *every* address it answers with is checked;
@@ -106,18 +106,25 @@ resolve and one that resolves somewhere private get one sentence — so the scre
 `KOLIBRI_ALLOW_PRIVATE_WEBHOOKS=1` turns the check off, for the instance that genuinely posts to
 `http://n8n:5678` on its own docker network or reads mail from a server on it. Off by default.
 
-**A model, when somebody asks for one.** A task review (`docs/ai.md`) sends the project name, column,
-labels, title and description of one task to whichever provider the operator configured; a board
-drawn or changed on a canvas sends the description typed, the canvas's title, the board being
-changed and — when *match the look* is ticked — up to two other boards. These are the only features
-that send a workspace's own words to a third party, so they are gated twice — a key in
-the environment *and* a switch a workspace admin sets — refused for guests and read-only tokens,
-rate-limited per person, and never triggered by anything but a click. Assignees, dates, estimates,
-comments and attachments are not sent. Nothing about the review is stored; what survives is whatever
-somebody chose to apply, as an ordinary edit under their own name.
+**A model.** Three features send a workspace's own words to whichever provider the operator
+configured, and all three are gated twice — a model on the server *and* *AI assistance* switched on
+for the workspace by an admin:
+
+| feature | sent | when |
+|---|---|---|
+| task review (`docs/ai.md`) | project name, column, labels, title and description of one task | a person clicks |
+| board on a canvas | the description typed, the canvas's title, the board being changed, up to two other boards with *match the look* | a person clicks |
+| support assistant, *Suggests* (`docs/support.md`) | the conversation, the widget's public knowledge pages, the visitor's allowed facts | a member clicks *Suggest a reply* |
+| support assistant, *Answers first* | the same | **a visitor writes** — no member is involved, until hand-over or the widget's answers a day are spent |
+
+The first two are refused for guests and read-only tokens and rate-limited per person. Assignees,
+dates, estimates, comments and attachments are not sent. Nothing about a review is stored; what
+survives is whatever somebody chose to apply, as an ordinary edit under their own name. The support
+assistant's answers are conversation lines like any other; what it may read is set per widget,
+and a visitor is told in the window that an AI answers first and which of their own facts it sees.
 
 The provider URL comes from the environment rather than from a user, which is why it goes out
-through plain `fetch` rather than `lib/outbound.ts`: those checks exist for an address somebody
+through plain `fetch` rather than `adapters/webhooks/outbound.ts`: those checks exist for an address somebody
 typed into the app, and applying them here would refuse a gateway on the instance's own network,
 which is a supported way to run this.
 

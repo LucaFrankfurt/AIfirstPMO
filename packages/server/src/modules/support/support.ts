@@ -6,8 +6,12 @@
  * customer and an anonymous visitor — the difference between them is settled
  * at the door, not in here.
  */
-import { SUPPORT_MESSAGE_MAX, SUPPORT_TYPING_MS, excerpt, visitorLabel, type Conversation, type ConversationFile } from '@kolibri/shared';
-import { all, get, type Row } from '../../kernel/platform/db/index.ts';
+import {
+  SUPPORT_MESSAGE_MAX, SUPPORT_TYPING_MS, cleanContextFields, excerpt, pickContext, visitorLabel,
+  type Conversation, type ConversationFile, type WidgetContextField,
+} from '@kolibri/shared';
+import { all, get, run, type Row } from '../../kernel/platform/db/index.ts';
+import { seal, unseal } from '../../kernel/platform/seal.ts';
 import { hasFeature } from '../../kernel/platform/features.ts';
 import { badRequest } from '../../kernel/platform/http.ts';
 import { uid } from '../../kernel/platform/ids.ts';
@@ -41,6 +45,86 @@ export interface Visitor {
   name: string | null;
   email: string | null;
   verified: boolean;
+  /** What the host's token said about them, kept to the widget's fields. Signed visitors only. */
+  context?: Record<string, string | number | boolean>;
+}
+
+/* ------------------------------------------------------- the widget secret */
+
+const WIDGET_SECRET = 'widget';
+
+/** A host's signing key as the database keeps it. */
+export const sealWidgetSecret = (plain: string): string => seal(WIDGET_SECRET, plain);
+
+/**
+ * The key a host signs with, opened — or '' when it cannot be.
+ *
+ * '' is what a restore without the instance's `.secret` file leaves: every
+ * token is then refused as unsigned, and *New secret* on the widget's card is
+ * the way out. A key stored before sealing existed is read as it is, for the
+ * one boot between the upgrade and `sealWidgetSecrets`.
+ */
+export function widgetSecret(widget: Row): string {
+  const stored = String(widget.secret ?? '');
+  return stored.startsWith('v1.') ? unseal(WIDGET_SECRET, stored) ?? '' : stored;
+}
+
+/**
+ * Widgets made before their key was sealed, sealed once.
+ *
+ * With context claims a widget's key signs in a customer *and* says what plan
+ * they are on, so a leaked database copy should not be a leaked key. A
+ * minted key is base64url and never starts with `v1.`, which is how a sealed
+ * one is told from one that is not.
+ */
+export function sealWidgetSecrets(): void {
+  for (const row of all<Row>(`SELECT id, secret FROM widgets WHERE secret <> '' AND secret NOT LIKE 'v1.%'`)) {
+    run(`UPDATE widgets SET secret = ? WHERE id = ?`, sealWidgetSecret(String(row.secret)), row.id);
+  }
+}
+
+/* ------------------------------------------------------- what the host said */
+
+/**
+ * Kept beside the conversation, never on a device: the column is a `secret`
+ * one, written here with a plain UPDATE, so no `seq` moves and no pull carries
+ * it. Overwritten by every token, because the host is the authority on it.
+ */
+function keepContext(conversationId: string, visitor: Visitor): void {
+  const context = visitor.verified && visitor.context && Object.keys(visitor.context).length
+    ? JSON.stringify(visitor.context)
+    : null;
+  run(`UPDATE conversations SET visitor_context = ? WHERE id = ?`, context, conversationId);
+}
+
+/**
+ * What the model may be told about the visitor of a conversation, by label.
+ *
+ * Kept to the widget's fields as they are *now*, so a field an admin removes
+ * stops reaching the model at once, not when the visitor's next token comes.
+ * Nothing at all for a visitor nobody vouched for.
+ */
+export function contextOf(widget: Row, conversation: Row): { label: string; value: string | number | boolean }[] {
+  if (widget.identity !== 'signed' || !Number(conversation.verified) || !conversation.visitor_context) return [];
+  let stored: unknown;
+  try {
+    stored = JSON.parse(String(conversation.visitor_context));
+  } catch {
+    return [];
+  }
+  const fields = contextFieldsOf(widget);
+  const picked = pickContext(stored, fields);
+  return fields.filter((field) => field.key in picked).map((field) => ({ label: field.label, value: picked[field.key] }));
+}
+
+/** A widget's allowed fields, from the JSON the row keeps them in. */
+export function contextFieldsOf(widget: Row): WidgetContextField[] {
+  try {
+    const stored = typeof widget.context_fields === 'string' ? JSON.parse(widget.context_fields) : widget.context_fields;
+    return cleanContextFields(Array.isArray(stored) ? stored : []);
+  } catch {
+    return [];
+  }
 }
 
 /** A new conversation for this visitor, in this widget. */
@@ -56,6 +140,7 @@ function openConversation(widget: Row, visitor: Visitor): Row {
     verified: visitor.verified ? 1 : 0,
     status: 'open',
   }, asWidget(widget));
+  keepContext(id, visitor);
   return get<Row>(`SELECT * FROM conversations WHERE id = ?`, id)!;
 }
 
@@ -80,6 +165,7 @@ export function conversationFor(widget: Row, visitor: Visitor): Row {
   if (visitor.verified && visitor.name !== found.visitor_name) patch.visitor_name = visitor.name;
   if (visitor.verified && visitor.email !== found.visitor_email) patch.visitor_email = visitor.email;
   if (Object.keys(patch).length) writeEntity('conversation', String(found.id), patch, asWidget(widget));
+  keepContext(String(found.id), visitor);
   return get<Row>(`SELECT * FROM conversations WHERE id = ?`, found.id)!;
 }
 
@@ -105,7 +191,18 @@ export function newConversation(widget: Row, from: Row): Row {
     name: from.visitor_name ?? null,
     email: from.visitor_email ?? null,
     verified: !!Number(from.verified),
+    context: storedContext(from),
   });
+}
+
+/** The context a conversation was given, carried into the visitor's next one. */
+function storedContext(conversation: Row): Record<string, string | number | boolean> | undefined {
+  try {
+    const parsed = conversation.visitor_context ? JSON.parse(String(conversation.visitor_context)) : null;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** The visitor's chats with this widget, newest first: what the window lists as earlier chats. */

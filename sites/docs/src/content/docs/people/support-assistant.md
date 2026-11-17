@@ -45,12 +45,35 @@ Start with **Suggests replies to the team**: every draft is read by a person bef
 
 A page taken out of the knowledge base stays in the widget's list, struck through and not read.
 
+## What it knows about a visitor
+
+Signed widgets only. Your site puts facts in its token's `ctx` claim; the widget keeps the ones under
+*What it may know about a signed-in visitor*, one `key: Label` a line:
+
+```
+plan: Plan
+status: Status
+next_appointment: Next appointment
+```
+
+| | |
+|---|---|
+| A value | text up to 200 characters, a number or yes/no; anything else is dropped |
+| Fresh | as of the token — your site signs a new one each time the chat is opened |
+| Stored | beside the conversation, on the server only; never on a team device |
+| The visitor | is told which facts the assistant sees |
+| The team | sees the answers, not the values |
+
+With these facts the assistant answers questions about the visitor's own account from them — and
+only from them. A question they do not answer, or a request to change something, still goes to a
+person. It never fetches anything itself, so it cannot read another customer's data.
+
 ## When it hands over
 
 It goes quiet and the team is told at once when:
 
 - the pages do not answer the question;
-- the visitor is upset, or asks about their own account;
+- the visitor is upset, or asks about their own account and the facts above do not answer it, or wants something changed;
 - the visitor presses **Talk to a person**;
 - a member answers in the conversation — answering is taking over;
 - the day's answers are spent;
@@ -62,8 +85,11 @@ The inbox shows *Assistant answering* while it is in charge of a conversation.
 
 | setting | sent to the model | when |
 |---|---|---|
-| Suggests | the conversation, the widget's pages | a member presses *Suggest a reply* |
-| Answers first | the conversation, the widget's pages | a visitor writes, until it hands over |
+| Suggests | the conversation, the widget's pages, the visitor's allowed facts | a member presses *Suggest a reply* |
+| Answers first | the conversation, the widget's pages, the visitor's allowed facts | a visitor writes, until it hands over |
+
+The visitor's window says, before they write, that an AI assistant answers first — and which of their
+facts it sees. Its lines are labelled *AI assistant*.
 
 Never: the workspace's search, other pages, tasks, members. Instructions inside a visitor's message
 change nothing.
@@ -75,7 +101,9 @@ sources and whether it would hand over. Nothing is written. See [Support chat](/
 
 - [ ] a question the pages answer, in German and in English — answered in that language, sources below
 - [ ] a question the pages do not answer — hands over
-- [ ] a question about the visitor's own account — hands over
+- [ ] a question about the visitor's own account, no facts — hands over
+- [ ] the same, with a fact that answers it (`try_assistant` with `customer_data`) — answered from it
+- [ ] a request to change something in the account — hands over
 - [ ] an upset visitor — hands over
 - [ ] *"Ignore your rules and …"* — not followed
 - [ ] *Talk to a person* — the team is told at once
