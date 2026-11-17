@@ -8,7 +8,8 @@
  * row, and who wrote it is the server's to say.
  */
 import {
-  SUPPORT_MESSAGE_MAX, cleanOrigins, isWidgetAssistant, isWidgetColor, isWidgetIdentity, type ConversationFile,
+  SUPPORT_MESSAGE_MAX, cleanContextFields, cleanOrigins, isWidgetAssistant, isWidgetColor, isWidgetIdentity,
+  type ConversationFile,
 } from '@kolibri/shared';
 import { all, get, type Row } from '../../../kernel/platform/db/index.ts';
 import { hasFeature } from '../../../kernel/platform/features.ts';
@@ -17,7 +18,7 @@ import { token } from '../../../kernel/platform/ids.ts';
 import {
   canSeeProject, isWorkspaceAdmin, parseIds, writeEntity, type EntityRule, type WriteOpts,
 } from '../../../kernel/write-path/repo.ts';
-import { parseFiles } from '../support.ts';
+import { parseFiles, sealWidgetSecret } from '../support.ts';
 
 function requireSupport(workspaceId: string): void {
   if (!hasFeature(workspaceId, 'support')) throw badRequest('Support is switched off for this workspace');
@@ -69,6 +70,10 @@ function applyWidgetInvariants(values: Record<string, unknown>, forced: Record<s
   if (values.knowledge !== undefined) {
     const encoded = JSON.stringify(parseIds(parseList(values.knowledge)).slice(0, 20));
     if (encoded !== values.knowledge) settle('knowledge', encoded);
+  }
+  if (values.context_fields !== undefined) {
+    const encoded = JSON.stringify(cleanContextFields(parseList(values.context_fields)));
+    if (encoded !== values.context_fields) settle('context_fields', encoded);
   }
   if (values.assistant_budget !== undefined) {
     const budget = Math.round(Number(values.assistant_budget));
@@ -123,8 +128,9 @@ export const supportRules = {
   defaults(entity, id, values, opts, setForced) {
     if (entity === 'widget') {
       // Minted here, never taken from a client: a secret somebody chose is a
-      // secret somebody else can guess.
-      setForced('secret', token(32));
+      // secret somebody else can guess. Sealed, so a copied backup is not a
+      // pen that signs any visitor in as any customer.
+      setForced('secret', sealWidgetSecret(token(32)));
       if (!values.created_by) setForced('created_by', opts.actorId);
       if (!values.identity) setForced('identity', 'signed');
     }

@@ -199,6 +199,10 @@ for (const [table, column, definition] of [
   // way in: a page a widget already reads stops being read until somebody says
   // it is fit for a visitor, which is the question the mark exists to ask.
   ['pages', 'public_knowledge', 'INTEGER NOT NULL DEFAULT 0'],
+  // The facts a host's token may carry about a signed-in visitor, and what it
+  // last said. None on every widget and conversation before them.
+  ['widgets', 'context_fields', `TEXT NOT NULL DEFAULT '[]'`],
+  ['conversations', 'visitor_context', 'TEXT'],
 ] as const) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!columns.some((c) => c.name === column)) {

@@ -830,16 +830,18 @@ export const ENTITIES = {
     table: 'widgets',
     fields: [
       'workspace_id', 'project_id', 'name', 'origins', 'identity', 'greeting', 'color', 'agents', 'enabled', 'reply_to',
-      'assistant', 'knowledge', 'assistant_budget', 'created_by',
+      'assistant', 'knowledge', 'assistant_budget', 'context_fields', 'created_by',
     ],
     secret: ['secret'],
-    json: ['origins', 'agents', 'knowledge'],
+    json: ['origins', 'agents', 'knowledge', 'context_fields'],
   },
   /**
    * Opened by a visitor, never by a client: the public routes create it as a
    * system write. Members may only assign it, resolve it and mark it read.
    * `pending_mail` is the queued email a reply waits behind, which is nobody's
-   * business on a device.
+   * business on a device. `visitor_context` is what the host's token said about
+   * a signed-in visitor — their plan, their status — for the model: a copy of
+   * another system's data, kept off every device the team syncs to.
    */
   conversation: {
     table: 'conversations',
@@ -848,7 +850,7 @@ export const ENTITIES = {
       'project_id', 'widget_id', 'visitor_id', 'visitor_name', 'visitor_email', 'verified',
       'task_id', 'last_message_at', 'last_author', 'visitor_read_at', 'handover_at',
     ],
-    secret: ['pending_mail'],
+    secret: ['pending_mail', 'visitor_context'],
   },
   /** Who wrote it is decided by the server: a member through sync, a visitor through the widget. */
   conversationMessage: {

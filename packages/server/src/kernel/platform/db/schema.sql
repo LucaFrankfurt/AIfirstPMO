@@ -2200,6 +2200,8 @@ CREATE TABLE IF NOT EXISTS widgets (
   -- JSON list of members told about a new message; empty means the project's.
   agents       TEXT NOT NULL DEFAULT '[]',
   enabled      INTEGER NOT NULL DEFAULT 1,
+  -- The key a host signs its visitors' tokens with, sealed with the instance
+  -- secret (`seal`, purpose 'widget'). Server-only.
   secret       TEXT NOT NULL DEFAULT '',
   -- The address a support email's Reply-To names. See the upgrade list.
   reply_to     TEXT,
@@ -2209,6 +2211,8 @@ CREATE TABLE IF NOT EXISTS widgets (
   knowledge    TEXT NOT NULL DEFAULT '[]',
   -- Answers a day the model may give from this widget.
   assistant_budget INTEGER NOT NULL DEFAULT 50,
+  -- JSON list of {key, label}: the facts a host's token may carry in `ctx`.
+  context_fields TEXT NOT NULL DEFAULT '[]',
   created_by   TEXT,
   created_at   INTEGER NOT NULL,
   updated_at   INTEGER NOT NULL,
@@ -2242,6 +2246,9 @@ CREATE TABLE IF NOT EXISTS conversations (
   -- The queued email a reply is waiting behind, withdrawn if the visitor reads
   -- the reply first. Server-only.
   pending_mail    TEXT,
+  -- JSON object: what the host's token said about a signed-in visitor, kept to
+  -- the widget's fields. Server-only, overwritten by every token.
+  visitor_context TEXT,
   created_at      INTEGER NOT NULL,
   updated_at      INTEGER NOT NULL,
   deleted_at      INTEGER,

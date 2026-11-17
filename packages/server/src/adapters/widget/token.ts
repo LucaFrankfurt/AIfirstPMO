@@ -19,6 +19,8 @@ export interface HostClaims {
   sub: string;
   name: string | null;
   email: string | null;
+  /** The `ctx` claim as signed, unfiltered: the widget's fields decide what of it is kept. */
+  ctx: unknown;
 }
 
 /**
@@ -66,7 +68,7 @@ export function verifyHostToken(secret: string, jwt: string, now = Date.now()): 
   const sub = text(claims.sub, 200);
   if (!sub) throw refuse('The token names no user (sub)');
   const email = text(claims.email, 254);
-  return { sub, name: text(claims.name, 200), email: email && email.includes('@') ? email : null };
+  return { sub, name: text(claims.name, 200), email: email && email.includes('@') ? email : null, ctx: claims.ctx };
 }
 
 /* ---------------------------------------------------------------- session */

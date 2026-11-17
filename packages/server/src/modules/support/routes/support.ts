@@ -17,7 +17,7 @@ import { env } from '../../../kernel/platform/env.ts';
 import { byValue, enforce } from '../../../kernel/identity/ratelimit.ts';
 import { AiError } from '../../ai-review/model.ts';
 import { draftReply } from '../assistant.ts';
-import { conversationAsTask, setTyping, typingIn } from '../support.ts';
+import { conversationAsTask, sealWidgetSecret, setTyping, typingIn, widgetSecret } from '../support.ts';
 
 /** The same allowance a task review has: a person clicking, paced like one. */
 const SUGGEST_LIMIT = { burst: env.ai.burst, everySeconds: env.ai.everySeconds, deepens: false };
@@ -41,7 +41,7 @@ function conversationForMember(ctx: Ctx): Row {
 
 export function registerSupportRoutes(router: Router): void {
   /** The secret a host site signs its visitors' tokens with. Admins only, and only on request. */
-  router.get('/api/widgets/:id/secret', (ctx: Ctx) => ({ secret: String(widgetForAdmin(ctx).secret ?? '') }));
+  router.get('/api/widgets/:id/secret', (ctx: Ctx) => ({ secret: widgetSecret(widgetForAdmin(ctx)) }));
 
   /**
    * A new secret, for when the old one has been somewhere it should not.
@@ -52,7 +52,7 @@ export function registerSupportRoutes(router: Router): void {
     const secret = token(32);
     // A plain UPDATE: the column is `secret` in the registry, which is what
     // keeps it out of every write a client can make — this route's included.
-    run(`UPDATE widgets SET secret = ? WHERE id = ?`, secret, widget.id);
+    run(`UPDATE widgets SET secret = ? WHERE id = ?`, sealWidgetSecret(secret), widget.id);
     return { secret };
   });
 

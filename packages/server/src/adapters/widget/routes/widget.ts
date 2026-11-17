@@ -12,7 +12,7 @@
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { excerpt, type ConversationFile } from '@kolibri/shared';
+import { excerpt, pickContext, type ConversationFile } from '@kolibri/shared';
 import { all, get, type Row } from '../../../kernel/platform/db/index.ts';
 import { env } from '../../../kernel/platform/env.ts';
 import { buildCsp } from '../../../kernel/platform/csp.ts';
@@ -27,10 +27,11 @@ import * as storage from '../../../kernel/files/storage.ts';
 import { storeFile } from '../../../kernel/files/uploads.ts';
 import { displayName } from '../../../kernel/write-path/repo.ts';
 import {
-  conversationFor, conversationsOfVisitor, liveWidget, markVisitorRead, messagesOf, newConversation, onTyping, parseFiles,
-  postVisitorMessage, resolveByVisitor, setTyping, typingIn, unreadByVisitor, visitorsOwn, type Visitor,
+  contextFieldsOf, contextOf, conversationFor, conversationsOfVisitor, liveWidget, markVisitorRead, messagesOf,
+  newConversation, onTyping, parseFiles, postVisitorMessage, resolveByVisitor, setTyping, typingIn, unreadByVisitor,
+  visitorsOwn, widgetSecret, type Visitor,
 } from '../../../modules/support/support.ts';
-import { handOver, respondTo } from '../../../modules/support/assistant.ts';
+import { assistantReady, handOver, respondTo } from '../../../modules/support/assistant.ts';
 import { readSession, signSession, verifyHostToken } from '../token.ts';
 import { withdrawMail } from '../mail.ts';
 
@@ -72,6 +73,17 @@ const publicView = (widget: Row) => ({
   color: widget.color ?? null,
   identity: widget.identity,
 });
+
+/**
+ * Whether a model answers this visitor first, and which of their own facts it
+ * is given — said in the window before they write, because they are owed both:
+ * that it is a machine (AI Act Art. 50) and what it was told about them. Labels
+ * only; the values are theirs and they know them.
+ */
+const assistantView = (widget: Row, conversation: Row) => {
+  const answers = widget.assistant === 'answer' && assistantReady(widget);
+  return { answers, sees: answers ? contextOf(widget, conversation).map((fact) => fact.label) : [] };
+};
 
 const conversationView = (conversation: Row) => ({
   id: conversation.id,
@@ -211,8 +223,9 @@ export function registerWidgetRoutes(router: Router): void {
       if (cleanText(body.website, 200)) throw badRequest('That did not look like a person');
       visitor = { id: `anon-${uid()}`, name: cleanText(body.name, 120), email: cleanEmail(body.email), verified: false };
     } else {
-      const claims = verifyHostToken(String(widget.secret ?? ''), String(body.token ?? ''));
-      visitor = { id: claims.sub, name: claims.name, email: claims.email, verified: true };
+      const claims = verifyHostToken(widgetSecret(widget), String(body.token ?? ''));
+      const context = pickContext(claims.ctx, contextFieldsOf(widget));
+      visitor = { id: claims.sub, name: claims.name, email: claims.email, verified: true, context };
     }
     const conversation = conversationFor(widget, visitor);
     const expiresAt = Date.now() + (widget.identity === 'anonymous' ? ANONYMOUS_SESSION_MS : SIGNED_SESSION_MS);
@@ -224,10 +237,11 @@ export function registerWidgetRoutes(router: Router): void {
   });
 
   router.get('/w/:widget/messages', (ctx: Ctx) => {
-    const { conversation } = visitorOf(ctx);
+    const { widget, conversation } = visitorOf(ctx);
     return {
       conversation: conversationView(conversation),
       messages: messagesOf(String(conversation.id)).map(messageView),
+      assistant: assistantView(widget, conversation),
     };
   });
 

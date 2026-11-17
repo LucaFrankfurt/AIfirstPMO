@@ -146,6 +146,9 @@ export function VisitorChat() {
   const [attempt, setAttempt] = useState(0);
   /** When the model handed over, or the visitor asked for a person. */
   const [handedOver, setHandedOver] = useState<number | null>(null);
+  // Whether a model answers first, and which of the visitor's own facts it is
+  // given: said before they write (AI Act Art. 50), not discovered afterwards.
+  const [assistant, setAssistant] = useState<{ answers: boolean; sees: string[] }>({ answers: false, sees: [] });
   /** Resolved by the team or by the visitor; writing on reopens it. */
   const [resolved, setResolved] = useState(false);
   /** The visitor's chats with this widget, this one among them; the list shows when `browsing`. */
@@ -215,10 +218,15 @@ export function VisitorChat() {
     let source: EventSource | null = null;
     let alive = true;
     let typingTimer = 0;
-    call<{ messages: Line[]; conversation: { agent_read_at: number | null; handover_at?: number | null; status: string } }>('/messages', session)
+    call<{
+      messages: Line[];
+      conversation: { agent_read_at: number | null; handover_at?: number | null; status: string };
+      assistant?: { answers: boolean; sees: string[] };
+    }>('/messages', session)
       .then((history) => {
         if (!alive) return;
         setLines(history.messages);
+        setAssistant(history.assistant ?? { answers: false, sees: [] });
         setAgentRead(history.conversation.agent_read_at);
         setHandedOver(history.conversation.handover_at ?? null);
         setResolved(history.conversation.status === 'resolved');
@@ -495,6 +503,12 @@ export function VisitorChat() {
       )}
       {stage === 'ready' && !browsing && (
         <>
+          {assistant.answers && !handedOver && (
+            <p className="m-0 px-4 pt-2 text-center text-[12px] text-muted" role="note">
+              {words.aiNotice}
+              {assistant.sees.length > 0 && ` ${words.aiSees.replace('{fields}', assistant.sees.join(', '))}`}
+            </p>
+          )}
           <Thread words={words} lines={threadLines} typing={agentTyping ? words.team : false} seenAt={agentRead} />
           {/* While the model is answering, a person is one click away; once one
               is coming, the visitor is told rather than left to wonder. */}

@@ -53,6 +53,7 @@ import { environmentRules } from './modules/secrets/rules/environments.ts';
 import { shareRules } from './adapters/share/rules/share.ts';
 import { webhookRules } from './adapters/webhooks/rules/webhooks.ts';
 import { supportRules } from './modules/support/rules/support.ts';
+import { sealWidgetSecrets } from './modules/support/support.ts';
 import { installSupportMail } from './adapters/widget/mail.ts';
 
 let installed = false;
@@ -102,4 +103,6 @@ export function installEffects(): void {
    */
   backfillEnvironments();
   backfillPageStatuses();
+  // A widget's signing key, stored as typed before keys were sealed.
+  sealWidgetSecrets();
 }

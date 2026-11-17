@@ -15,7 +15,8 @@
  * stranger's conversation on the website to find out.
  */
 import {
-  SUPPORT_MESSAGE_MAX, WIDGET_ASSISTANTS, awaitsReply, excerpt, unreadByTeam, visitorLabel, type Conversation,
+  CONTEXT_FIELDS_MAX, SUPPORT_MESSAGE_MAX, WIDGET_ASSISTANTS, awaitsReply, cleanContextFields, excerpt, unreadByTeam,
+  visitorLabel, type Conversation,
 } from '@kolibri/shared';
 import { all, get, type Row } from '../../../kernel/platform/db/index.ts';
 import { env } from '../../../kernel/platform/env.ts';
@@ -24,7 +25,7 @@ import { uid } from '../../../kernel/platform/ids.ts';
 import { isLocale, localeOf } from '../../../kernel/i18n/i18n.ts';
 import { canSeeProject, displayName, parseIds, serialize, writeEntity } from '../../../kernel/write-path/repo.ts';
 import { answersToday, knowledgeOf, tryAssistant, type KnowledgePage } from '../../../modules/support/assistant.ts';
-import { conversationAsTask, messagesOf, parseFiles } from '../../../modules/support/support.ts';
+import { contextFieldsOf, conversationAsTask, messagesOf, parseFiles } from '../../../modules/support/support.ts';
 import {
   findMember, findPage, McpError, requireFeature, requireWrite, str, taskView, type McpCtx, type ToolDef, workspaceOf, writeOpts,
 } from '../kit.ts';
@@ -135,6 +136,7 @@ function widgetView(row: Row) {
     answers_today: answersToday(String(row.id)),
     answers_a_day: Number(row.assistant_budget ?? 0),
     knowledge: knowledgeOf(row).map(knowledgeView),
+    customer_fields: row.identity === 'signed' ? contextFieldsOf(row) : [],
   };
 }
 
@@ -340,7 +342,8 @@ export const supportTools: ToolDef[] = [
     description:
       'The chat widgets on your websites: who may write in, on which sites, whether the model answers '
       + `(\`assistant\`: off, suggest or answer), and the knowledge pages it reads. ${KNOWLEDGE_RULES} `
-      + '`model_ready` is false while no model is configured on the server or AI assistance is off for the workspace.',
+      + '`model_ready` is false while no model is configured on the server or AI assistance is off for the workspace. '
+      + '`customer_fields` are the facts a signed-in visitor\'s token may carry in its `ctx` claim for the model.',
     readOnly: true,
     schema: { type: 'object', properties: { workspace_id: { type: 'string' } } },
     run: (args, ctx) => {
@@ -360,7 +363,9 @@ export const supportTools: ToolDef[] = [
       + 'or replace the pages it reads. `knowledge` is the whole list, in the order to read them — page ids or '
       + 'exact titles, at most 20 — and every page must be marked as public knowledge first (`update_page` '
       + 'with `public_knowledge: true`). The name is what the model calls the business, and the window\'s '
-      + 'title. Owners and admins only.',
+      + 'title. `customer_fields` replaces the facts a signed-in visitor\'s token may carry in `ctx` — '
+      + '`{key, label}`, key lowercase letters, digits and underscores, at most 20; the model is given them '
+      + 'only for a visitor the host signed in. Owners and admins only.',
     schema: {
       type: 'object',
       required: ['widget'],
@@ -371,6 +376,15 @@ export const supportTools: ToolDef[] = [
         assistant: { type: 'string', enum: [...WIDGET_ASSISTANTS] },
         knowledge: { type: 'array', items: { type: 'string' }, description: 'Page ids or exact titles, in order' },
         answers_a_day: { type: 'number', description: 'Past it, every conversation goes to a person' },
+        customer_fields: {
+          type: 'array',
+          description: 'The whole list; [] for none',
+          items: {
+            type: 'object',
+            properties: { key: { type: 'string' }, label: { type: 'string' } },
+            required: ['key'],
+          },
+        },
         workspace_id: { type: 'string' },
       },
     },
@@ -391,6 +405,20 @@ export const supportTools: ToolDef[] = [
         patch.assistant = args.assistant;
       }
       if (args.answers_a_day !== undefined) patch.assistant_budget = Number(args.answers_a_day);
+      if (args.customer_fields !== undefined) {
+        if (!Array.isArray(args.customer_fields)) throw new McpError('customer_fields is a list of {key, label}');
+        if (args.customer_fields.length > CONTEXT_FIELDS_MAX) throw new McpError(`At most ${CONTEXT_FIELDS_MAX} fields`);
+        const fields = cleanContextFields(args.customer_fields);
+        // Said rather than dropped: a key the token can never carry is a typo
+        // the caller would otherwise only find when the model knows nothing.
+        if (fields.length !== args.customer_fields.length) {
+          throw new McpError('Each key is lowercase letters, digits and underscores, starts with a letter, and appears once');
+        }
+        if (row.identity !== 'signed' && fields.length) {
+          throw new McpError('This widget takes anyone; customer data comes only from a signed-in visitor');
+        }
+        patch.context_fields = fields;
+      }
       if (args.knowledge !== undefined) {
         if (!Array.isArray(args.knowledge)) throw new McpError('knowledge is a list of pages');
         if (args.knowledge.length > 20) throw new McpError('At most 20 pages');
@@ -417,7 +445,8 @@ export const supportTools: ToolDef[] = [
       + 'nothing is written: no conversation, no line in the inbox, nothing counted against the day\'s answers. '
       + 'Works whatever the widget\'s own setting, so pages can be tried before visitors meet the model. '
       + '`handover: true` means it would hand the visitor to a person, and `answer` is then the line it would '
-      + 'say. One model call on the instance\'s key. Owners and admins only.',
+      + 'say. `customer_data` is a sample `ctx` claim for a signed-in visitor, kept to the widget\'s '
+      + '`customer_fields` as a real token is. One model call on the instance\'s key. Owners and admins only.',
     readOnly: true,
     schema: {
       type: 'object',
@@ -425,6 +454,7 @@ export const supportTools: ToolDef[] = [
       properties: {
         widget: { type: 'string', description: 'Its id or name' },
         question: { type: 'string', description: 'As a visitor would write it' },
+        customer_data: { type: 'object', description: 'A sample `ctx` claim, e.g. {"plan": "Pro"}' },
         workspace_id: { type: 'string' },
       },
     },
@@ -436,7 +466,7 @@ export const supportTools: ToolDef[] = [
       if (!question) throw new McpError('Ask something');
       const read = knowledgeOf(row).filter((page) => !page.skipped);
       try {
-        const answer = await tryAssistant(row, question);
+        const answer = await tryAssistant(row, question, args.customer_data);
         return { ...answer, pages_read: read.map((page) => page.title) };
       } catch (error) {
         throw new McpError(error instanceof Error ? error.message : 'The model did not answer');

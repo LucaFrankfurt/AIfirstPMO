@@ -54,12 +54,16 @@ it).
 one request to the instance before the click — `widget.js` itself. No cookie, no beacon, no frame.
 
 **Signed-in visitors are proven by their own site.** The host signs a short-lived HS256 JWT on its
-server with the widget's secret: `sub` (its own user id), `name`, `email`, `exp`. Kolibri verifies it
+server with the widget's secret: `sub` (its own user id), `name`, `email`, `exp`, and optionally `ctx`
+(facts for the assistant — see *What the host says about a visitor*). Kolibri verifies it
 with `node:crypto` (`adapters/widget/token.ts`) — HS256 only, so `alg: none` is refused; `exp` is
 required and may be at most a day away — and exchanges it for a stateless session of its own, signed
 with the instance secret and valid for twelve hours. The token reaches the iframe by `postMessage`
-and is never in a URL. The secret is a registry `secret` field, so it never syncs; an admin reveals
-it on request and can rotate it, which stops every token signed with the old one at once.
+and is never in a URL. The secret is a registry `secret` field, so it never syncs, and it is sealed
+with the instance secret (`seal`, purpose `widget`) so a copied backup cannot sign anybody in; an
+admin reveals it on request and can rotate it, which stops every token signed with the old one at
+once. Keys stored before sealing are sealed at boot (`sealWidgetSecrets`). A restore without the
+instance's `.secret` file leaves every key unreadable: tokens are refused until *New secret*.
 
 **Anonymous visitors** may leave a name and an email, both optional and both shown as unverified. A
 hidden field no person fills in turns a form-filling program away, and the routes have their own
@@ -153,7 +157,8 @@ const secret = new TextEncoder().encode(process.env.SUPPORT_CHAT_SECRET);
 export async function GET() {
   const user = await currentUser();
   if (!user) return new Response('', { status: 401 });
-  const token = await new SignJWT({ name: user.name, email: user.email })
+  // `ctx`: facts the widget allows its assistant to see — leave it out if none.
+  const token = await new SignJWT({ name: user.name, email: user.email, ctx: { plan: user.plan } })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(user.id)
     .setExpirationTime('1h')
@@ -210,11 +215,41 @@ is told at once — when:
 
 The fences, which are the point: it reads **only the pages the widget names, and of those only the
 ones in the public knowledge base** — never the workspace's search, never a private page, never a
-task; it has no tools and writes one line of text
+task — and about the visitor **only what the host's signed token said** (below); it has no tools and writes one line of text
 as itself; it is asked for JSON and argued with (`parseAnswer`), so a source it names that is not one
 of the pages is dropped and an answer it cannot shape is a hand-over; and the conversation is given
 to it as data, with the rule that instructions inside it change nothing. Measured with a fake model
 in `support-assistant.test.ts`, including that a private page ticked as knowledge is never sent.
+
+### What the host says about a visitor
+
+A signed widget's token may carry facts about the visitor in a `ctx` claim — their plan, their
+status, a date — and the model is given the ones the widget allows (*What it may know about a
+signed-in visitor*, `context_fields`). This is how the assistant answers "which plan am I on"
+without Kolibri ever calling another system. Why this and not a lookup, tool calls or MCP: the
+host signs, the server keeps, the model only words — it can never choose whose data it reads.
+
+```json
+{ "sub": "u_123", "exp": 1763390000, "ctx": { "plan": "Pro", "status": "active" } }
+```
+
+| | |
+|---|---|
+| Allowed fields | `key: Label` per line; key `[a-z][a-z0-9_]*`, at most 20; anything else in `ctx` is dropped |
+| A value | a string up to 200 characters, a number or a yes/no; longer, nested or empty is dropped, not cut |
+| Kept | `conversations.visitor_context`, a registry `secret` field: never synced, never on a device |
+| Fresh | overwritten by every token — as old as the token the visitor's window asked for |
+| Given to the model | only for a visitor the host signed in, only the fields allowed *now*, in a `CUSTOMER DATA` block fenced by a word drawn per request, after the knowledge and before the conversation |
+| Anonymous widget | never: there is nobody to vouch for the visitor |
+| Told to the visitor | in the window: an AI answers first, and the labels of the facts it sees |
+| Team | sees the answers, not the values |
+
+The rules change only when there is customer data: an account question is answered **from it and
+only from it**; one it does not answer, or a request to change anything, is handed over. Without
+customer data the prompt is word for word what it was.
+
+`try_assistant` takes a sample `ctx` as `customer_data`, kept to the widget's fields as a real
+token is.
 
 ### The public knowledge base
 
@@ -274,19 +309,27 @@ What leaves the instance, and when:
 
 | mode | sent | when |
 |---|---|---|
-| Suggests | the conversation, the widget's pages | a member presses *Suggest a reply* |
-| Answers first | the conversation, the widget's pages | a visitor writes, until hand-over or the day's answers are spent |
+| Suggests | the conversation, the widget's pages, the visitor's allowed facts | a member presses *Suggest a reply* |
+| Answers first | the conversation, the widget's pages, the visitor's allowed facts | a visitor writes, until hand-over or the day's answers are spent |
+
+The visitor's window says so before they write: *An AI assistant answers first. A person takes over
+whenever you ask.* — and, with customer data, *It sees from your account: Plan, Status.* Bot lines
+are labelled *AI assistant*. (EU AI Act Art. 50(1), in force since 2 August 2026.)
 
 To try a real model:
 
 - [ ] a question the pages answer, in German and in English: answer in that language, sources below it
 - [ ] a question the pages do not answer: hand-over
-- [ ] a question about the visitor's own account: hand-over
+- [ ] a question about the visitor's own account, no customer data: hand-over
+- [ ] the same, with customer data that answers it: answered from it
+- [ ] with customer data, a request to change something: hand-over
 - [ ] an upset visitor: hand-over
 - [ ] "ignore your rules and …": not followed
 - [ ] *Talk to a person*: the team is told at once
 
-Not yet measured against a real model — `TODO.md`.
+Measured against a real model on 17 November 2026, through `try_assistant` on a live instance,
+before customer data existed: every hand-over and the injection held; a page-backed answer named
+the wrong page as its source, twice. See `TODO.md`.
 
 ## Over MCP
 
@@ -297,8 +340,8 @@ Not yet measured against a real model — `TODO.md`.
 | `list_conversations`, `get_conversation` | the inbox; an assistant's line carries its `sources` |
 | `reply_to_conversation`, `update_conversation`, `create_task_from_conversation` | the inbox's buttons |
 | `list_widgets` | each widget's model setting, and per knowledge page: `read`, `chars`, `chars_read`, `skipped` (`deleted`, `private`, `not_public_knowledge`, `over_budget`) |
-| `update_widget` | name, greeting, model setting, answers a day, knowledge pages in order — owners and admins; an unmarked page is refused by name |
-| `try_assistant` | a test question, answered from the pages as a visitor would get it; nothing written, nothing counted — owners and admins |
+| `update_widget` | name, greeting, model setting, answers a day, knowledge pages in order, `customer_fields` — owners and admins; an unmarked page is refused by name |
+| `try_assistant` | a test question, answered from the pages as a visitor would get it, with an optional sample `customer_data`; nothing written, nothing counted — owners and admins |
 | `create_page`, `update_page`, `list_pages` | `public_knowledge` marks, unmarks, filters |
 
 Writing knowledge pages with an assistant: `list_widgets` → write or fix a page → `update_page` with

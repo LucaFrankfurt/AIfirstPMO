@@ -15,9 +15,10 @@ This is the part to read before deciding anything.
 
 A value is encrypted with **AES-256-GCM** under a key derived from the
 instance secret, which lives in `.secret` in the data directory and **not in
-the database**. It is the same `seal.ts` the SMTP password and a mailbox
-credential already use, under a purpose of its own so that a ciphertext lifted
-out of one table cannot be opened as a value from another.
+the database**. It is the same `seal.ts` the SMTP password, a mailbox
+credential and a support widget's signing key already use, under a purpose of
+its own so that a ciphertext lifted out of one table cannot be opened as a
+value from another.
 
 | | |
 |---|---|

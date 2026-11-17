@@ -1740,7 +1740,7 @@ follows is what was deliberately *not* built, and why, so that none of it is re-
       that one column and can never invent one — and both the terminal and a comment above the table
       say so rather than leaving it to be inferred. Doing it properly means rebuilding the table
       instead of altering it, in a generator that so far only ever adds. It is one column out of the
-      **78** the list carries; the other undroppable-looking eight turned out to be something else
+      **80** the list carries; the other undroppable-looking eight turned out to be something else
       entirely, list entries for columns `CREATE TABLE` never creates at all, which is the shape
       everything here is trying to reach. The shape comparison inherits the same blind spot: the
       recorded table carries the `UNIQUE`, so the check believes an upgraded instance has it, while
@@ -1974,11 +1974,19 @@ See [`docs/support.md`](docs/support.md) for what is built and why it is shaped 
 - [x] **The model in a widget**: suggested replies for the team, or the first answer from the
       widget's own knowledge pages with sources, handing over when unsure, when asked, when a person
       answers or when the day's budget is spent.
-- [ ] **The assistant has not met a real model here.** Every behaviour is measured against a fake
-      provider; what a real one answers to the prompt — how often it hands over, whether it keeps to
-      the visitor's language — has not been looked at. Not for lack of trying: the development
-      sandbox refuses a key for the model provider, so it has to be looked at on an instance that
-      has one. **P2**
+- [x] **The assistant met a real model** on 17 November 2026, through `try_assistant` on a live
+      instance, before customer data existed: answered in German and in English from the pages;
+      handed over for a question the pages do not answer, one about the visitor's own account, an
+      upset visitor and "ignore your rules"; nothing written.
+- [ ] **A page-backed answer named the wrong page as its source** — twice, both languages: the
+      payment methods came from one page and the answer cited the other. `parseAnswer` only checks
+      that a source is one of the pages, not that it is the one used. **P2**
+- [ ] **Customer data has not met a real model.** The `CUSTOMER DATA` block and its rules are
+      measured against a fake provider; answered-from-data, hand-over-when-silent and a value that
+      tries to give orders want a run with `try_assistant` and `customer_data`. **P2**
+- [ ] **Facts as of the question, not the token** — a signed lookup to the host when a token's
+      facts are too old, behind a port (stage 2 of the research on external data). Not until an
+      operator names the need. **P3**
 - [x] **Replying to the support email reaches the conversation**, when the widget names a reply
       address that is a connected inbox: a signed tag in the subject, the sender checked against the
       conversation's address, the quoted email cut off.

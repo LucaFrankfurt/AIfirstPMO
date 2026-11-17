@@ -21,6 +21,7 @@ workspace may write in. [Support chat](/people/support/) has to be switched on f
 | Who is told | members notified of a new message; nobody ticked means owners and admins |
 | Replies by email go to | a connected mailbox — see [below](#replies-by-email) |
 | The assistant | see [The support assistant](/people/support-assistant/) |
+| What it may know about a signed-in visitor | signed widgets: the `ctx` facts the assistant is given, one `key: Label` a line |
 | Live | off hides the window on every site, deletes nothing |
 
 ### Allowed sites
@@ -69,9 +70,11 @@ Your site's server signs a short-lived token with the widget's **signing secret*
 | `sub` | your own user id — how a returning visitor finds their chats |
 | `name` | shown in the inbox |
 | `email` | where answers go when they have left |
+| `ctx` | facts for the assistant, e.g. `{ "plan": "Pro" }` — only the fields the widget allows are kept; see [The support assistant](/people/support-assistant/#what-it-knows-about-a-visitor) |
 | `exp` | required; at most a day ahead |
 
-HS256 only. *New secret* stops every token signed with the old one at once.
+HS256 only. *New secret* stops every token signed with the old one at once. The secret is stored
+sealed; restoring a backup without the instance's `.secret` file needs a *New secret*.
 
 :::caution[Keep the secret on the server]
 It signs tokens for anybody. Never put it in a page, a bundle or a URL.
@@ -91,7 +94,8 @@ const secret = new TextEncoder().encode(process.env.SUPPORT_CHAT_SECRET);
 export async function GET() {
   const user = await currentUser();
   if (!user) return new Response('', { status: 401 });
-  const token = await new SignJWT({ name: user.name, email: user.email })
+  // `ctx`: facts the widget allows its assistant to see — leave it out if none.
+  const token = await new SignJWT({ name: user.name, email: user.email, ctx: { plan: user.plan } })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(user.id)
     .setExpirationTime('1h')

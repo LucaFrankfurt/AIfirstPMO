@@ -1,11 +1,14 @@
 # Task reviews and canvas boards
 
-Kolibri can ask a model two things: to read a task back to whoever wrote it and suggest clearer
+Kolibri can ask a model two things here: to read a task back to whoever wrote it and suggest clearer
 wording, and to draw a board on a canvas or change one. Both are off until two different people
 switch them on, and both only ever run when somebody clicks a button.
 
-This is the one feature that sends a workspace's own words to a company. Everything below is shaped
-by that.
+The third use, the support assistant, can run without a click — on a visitor's message, when a widget
+is set to answer first. It is described in [`support.md`](support.md#the-model); the table of what
+leaves the instance for all three is in [`security.md`](security.md).
+
+Sending a workspace's own words to a company is what everything below is shaped by.
 
 ## Reviewing a task
 

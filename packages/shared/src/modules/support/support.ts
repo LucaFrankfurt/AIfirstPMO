@@ -4,7 +4,7 @@
  * The server decides with these and the settings screen previews with them, so
  * a site the screen accepts is a site the server will let frame the widget.
  */
-import type { Conversation, WidgetAssistant, WidgetIdentity } from '../../kernel/registry/types.ts';
+import type { Conversation, WidgetAssistant, WidgetContextField, WidgetIdentity } from '../../kernel/registry/types.ts';
 
 export const WIDGET_IDENTITIES = ['signed', 'anonymous'] as const satisfies readonly WidgetIdentity[];
 
@@ -15,6 +15,69 @@ export const WIDGET_ASSISTANTS = ['off', 'suggest', 'answer'] as const satisfies
 
 export const isWidgetAssistant = (value: unknown): value is WidgetAssistant =>
   (WIDGET_ASSISTANTS as readonly unknown[]).includes(value);
+
+/**
+ * The facts about a visitor a widget may take from the host's token.
+ *
+ * Few and short on purpose: they are a plan, a status, a date — what a model
+ * needs to answer "which plan am I on" — not a record. A value longer than
+ * this is dropped rather than cut, because half an address is a wrong one.
+ */
+export const CONTEXT_FIELDS_MAX = 20;
+export const CONTEXT_VALUE_MAX = 200;
+const CONTEXT_KEY = /^[a-z][a-z0-9_]{0,39}$/;
+
+/**
+ * A widget's allowed fields, from what an admin typed or a tool sent.
+ *
+ * Either a list of `{ key, label }` or lines of `key: Label` — the form is a
+ * text box, like the allowed sites. A key the token can carry is lowercase
+ * letters, digits and underscores; a line that is not one is dropped, and so
+ * is a key named twice.
+ */
+export function cleanContextFields(value: unknown): WidgetContextField[] {
+  const entries: unknown[] = typeof value === 'string' ? value.split('\n') : Array.isArray(value) ? value : [];
+  const out: WidgetContextField[] = [];
+  for (const entry of entries) {
+    let key = '';
+    let label = '';
+    if (typeof entry === 'string') {
+      const [head, ...rest] = entry.split(':');
+      key = head.trim();
+      label = rest.join(':').trim();
+    } else if (entry && typeof entry === 'object') {
+      key = String((entry as Record<string, unknown>).key ?? '').trim();
+      label = String((entry as Record<string, unknown>).label ?? '').trim();
+    }
+    if (!CONTEXT_KEY.test(key) || out.some((field) => field.key === key)) continue;
+    out.push({ key, label: (label || key).slice(0, 60) });
+    if (out.length === CONTEXT_FIELDS_MAX) break;
+  }
+  return out;
+}
+
+/** The fields as the settings form shows them: one `key: Label` a line. */
+export const contextFieldsText = (fields: WidgetContextField[] | undefined): string =>
+  (fields ?? []).map((field) => (field.label === field.key ? field.key : `${field.key}: ${field.label}`)).join('\n');
+
+/**
+ * What a signed token's `ctx` claim says about the visitor, kept to the
+ * widget's fields: a string, a number or a yes/no each, nothing nested.
+ *
+ * Everything else is dropped without a word. The host chooses what to send and
+ * the admin what to keep; a claim nobody allowed is the host sending more than
+ * this widget was set up for, and keeping it would put it in front of a model.
+ */
+export function pickContext(raw: unknown, fields: WidgetContextField[]): Record<string, string | number | boolean> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: Record<string, string | number | boolean> = {};
+  for (const { key } of fields) {
+    const value = (raw as Record<string, unknown>)[key];
+    if (typeof value === 'boolean' || (typeof value === 'number' && Number.isFinite(value))) out[key] = value;
+    if (typeof value === 'string' && value.trim() && value.trim().length <= CONTEXT_VALUE_MAX) out[key] = value.trim();
+  }
+  return out;
+}
 
 /** Long enough for a stack trace pasted by a customer, short enough to refuse a novel. */
 export const SUPPORT_MESSAGE_MAX = 4000;

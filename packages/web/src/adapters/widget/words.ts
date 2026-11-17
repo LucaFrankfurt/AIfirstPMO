@@ -12,7 +12,9 @@ import type { ThreadWords } from '../../kernel/design-system/conversation';
 
 const CATALOGUE = {
   en: {
-    assistant: 'Assistant',
+    assistant: 'AI assistant',
+    aiNotice: 'An AI assistant answers first. A person takes over whenever you ask.',
+    aiSees: 'It sees from your account: {fields}.',
     sources: 'From',
     person: 'Talk to a person',
     personComing: 'A person from the team will answer here.',
@@ -53,7 +55,9 @@ const CATALOGUE = {
     typingNamed: '{name} is typing',
   },
   de: {
-    assistant: 'Assistent',
+    assistant: 'KI-Assistent',
+    aiNotice: 'Zuerst antwortet ein KI-Assistent. Ein Mensch übernimmt, sobald du es möchtest.',
+    aiSees: 'Er sieht aus deinem Konto: {fields}.',
     sources: 'Aus',
     person: 'Mit einem Menschen sprechen',
     personComing: 'Ein Mensch aus dem Team antwortet hier.',
@@ -94,7 +98,9 @@ const CATALOGUE = {
     typingNamed: '{name} schreibt',
   },
   fr: {
-    assistant: 'Assistant',
+    assistant: 'Assistant IA',
+    aiNotice: 'Un assistant IA répond d’abord. Une personne prend le relais dès que vous le demandez.',
+    aiSees: 'Il voit dans votre compte : {fields}.',
     sources: 'Source',
     person: 'Parler à une personne',
     personComing: 'Une personne de l’équipe va répondre ici.',
