@@ -736,7 +736,9 @@ from the bucket, though — for an instance whose files are only there, start it
 app, which does.
 
 Keep `.secret` with the backup (or set `KOLIBRI_SECRET` explicitly) — without it, existing sessions
-and API tokens are void. It is deliberately *not* in the snapshot: a copy of the database and the key
+and API tokens are void, and every sealed value reads as unset: settings typed in *Settings → Server*,
+mailbox passwords, vault values and support widgets' signing keys (each widget then needs *New
+secret*, and its sites the new one). It is deliberately *not* in the snapshot: a copy of the database and the key
 that signs its sessions, in one tarball, is a worse trade than an operator remembering one file.
 
 This procedure is rehearsed by `packages/server/test/maintenance.test.ts`, which backs one instance

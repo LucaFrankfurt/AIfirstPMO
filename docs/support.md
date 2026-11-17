@@ -54,7 +54,8 @@ it).
 one request to the instance before the click — `widget.js` itself. No cookie, no beacon, no frame.
 
 **Signed-in visitors are proven by their own site.** The host signs a short-lived HS256 JWT on its
-server with the widget's secret: `sub` (its own user id), `name`, `email`, `exp`. Kolibri verifies it
+server with the widget's secret: `sub` (its own user id), `name`, `email`, `exp`, and optionally `ctx`
+(facts for the assistant — see *What the host says about a visitor*). Kolibri verifies it
 with `node:crypto` (`adapters/widget/token.ts`) — HS256 only, so `alg: none` is refused; `exp` is
 required and may be at most a day away — and exchanges it for a stateless session of its own, signed
 with the instance secret and valid for twelve hours. The token reaches the iframe by `postMessage`

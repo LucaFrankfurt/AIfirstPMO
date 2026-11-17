@@ -75,6 +75,9 @@ Once. After that the button opens the task. Delete the task, and the button make
 
 - A round button on the site. Nothing loads until it is clicked — no cookie, no frame.
 - The window: greeting, the conversation, pictures, *Seen*, typing.
+- With the assistant answering first: a line saying an AI assistant answers first and a person takes
+  over on request — and, for a signed-in visitor, which of their facts it sees. Its lines read
+  *AI assistant*.
 - **Done** — marks the chat resolved.
 - **New chat** — once a chat is resolved.
 - **Earlier chats** (the clock) — their own chats with this widget, with a dot where the team answered

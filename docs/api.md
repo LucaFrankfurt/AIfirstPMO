@@ -366,7 +366,9 @@ address is verified, and both are shown as unverified wherever they appear.
 ### Support widgets
 
 A `widget` is an ordinary entity (`/api/workspaces/:ws/widgets`), written by an owner or admin of a
-workspace with `support` switched on. Its signing secret is never in the row:
+workspace with `support` switched on. `context_fields` is a list of `{ key, label }` — the facts a
+signed visitor's token may carry in `ctx` — or the same as `key: Label` lines. Its signing secret is
+never in the row, and is stored sealed:
 
 ```
 GET  /api/widgets/:id/secret              admin; the secret a host signs its visitors' tokens with
@@ -391,7 +393,7 @@ GET  /widget.js                           the loader a site embeds
 GET  /w/:widget                           the iframe page, framed only by the widget's origins
 GET  /w/:widget/config                    name, greeting, colour, identity
 POST /w/:widget/session                   { token } signed, or { name, email } anonymous → { session, expiresAt }
-GET  /w/:widget/messages                  the thread
+GET  /w/:widget/messages                  the thread, and assistant: { answers, sees } — whether an AI answers first, the labels of the facts it is given
 POST /w/:widget/messages                  { body, files }
 POST /w/:widget/read                      the visitor has seen it; withdraws a pending email
 POST /w/:widget/handover                  "talk to a person": the assistant goes quiet, the team is told
@@ -405,8 +407,9 @@ POST /w/:widget/files                     a picture, raw body, as the app's own 
 GET  /w/:widget/files/:hash               a file used in this conversation, and no other
 ```
 
-The host's token is an HS256 JWT with `sub`, `name`, `email` and `exp`, at most a day away. See
-[`support.md`](support.md) for the whole of it.
+The host's token is an HS256 JWT with `sub`, `name`, `email`, `exp` (at most a day away) and,
+optionally, `ctx` — facts about the visitor, kept only as far as the widget's `context_fields`
+allow. See [`support.md`](support.md) for the whole of it.
 
 ## Files
 
