@@ -18,10 +18,14 @@
  * cannot disagree.
  */
 import { useMemo, useState } from 'react';
-import { htmlTitle, htmlToMarkdown, looksLikeHtml, outlineOf, splitByHeadings, type PageFormat } from '@kolibri/shared';
+import {
+  headingSlug, htmlTitle, htmlToMarkdown, linkImportedFiles, looksLikeHtml, normalizePath, outlineOf, pageKey,
+  splitByHeadings, type FileLinkTarget, type PageFormat,
+} from '@kolibri/shared';
 
 import { createPage } from '../../kernel/sync/mutations';
-import { useMe } from '../../kernel/identity/session';
+import { list, useQuery } from '../../kernel/sync/store';
+import { useMe, useSession } from '../../kernel/identity/session';
 import { useT } from '../../kernel/i18n/i18n';
 import { cn } from '../../kernel/design-system/cn';
 import { Button } from '../../kernel/design-system/ui/button';
@@ -36,6 +40,8 @@ const TEXT_NAME = /\.(md|markdown|mdown|txt|text|html?|xhtml)$/i;
 interface Loaded {
   key: string;
   name: string;
+  /** Where it sat in the folder that was chosen, or just its name: what its neighbours' links spell. */
+  path: string;
   text: string;
   html: boolean;
 }
@@ -77,14 +83,17 @@ export function ImportPages({ parentId, projectId, onClose }: {
   const [keepHtml, setKeepHtml] = useState(true);
   const [split, setSplit] = useState(false);
 
-  const load = async (chosen: File[]): Promise<void> => {
+  const load = async (chosen: File[], folder = false): Promise<void> => {
     const usable = chosen.filter((file) => TEXT_NAME.test(file.name) || file.type.startsWith('text/'));
-    setRefused(chosen.filter((file) => !usable.includes(file)).map((file) => file.name));
+    // A folder brings its pictures and stylesheets along; leaving them out is
+    // what was asked for, and naming each one would bury the list.
+    setRefused(folder ? [] : chosen.filter((file) => !usable.includes(file)).map((file) => file.name));
     const read = await Promise.all(usable.map(async (file, at) => {
       const text = await file.text();
       return {
-        key: `${file.name}-${at}-${file.size}`,
+        key: `${file.webkitRelativePath || file.name}-${at}-${file.size}`,
         name: file.name,
+        path: normalizePath(file.webkitRelativePath || file.name),
         text,
         // The extension first, then the content. A `.txt` full of markup is
         // still a document somebody saved out of a browser, and an `.html` that
@@ -102,20 +111,76 @@ export function ImportPages({ parentId, projectId, onClose }: {
    * every file rather than editing a list of drafts — there is no state here to
    * get out of step with what the reader is looking at.
    */
-  const drafts = useMemo<Draft[]>(() => files.flatMap((file): Draft[] => {
-    const fallback = (file.html ? htmlTitle(file.text) : markdownTitle(file.text)) ?? baseName(file.name);
-    if (file.html && keepHtml) return [{ title: fallback, content: file.text.trim(), format: 'html' as const }];
-    const markdown = (file.html ? htmlToMarkdown(file.text) : file.text).trim();
-    if (!split) return [{ title: fallback, content: markdown, format: 'markdown' as const }];
-    return splitByHeadings(markdown).map((section, at) => ({
-      // The lead-in before the first heading keeps the document's own name; a
-      // section that somehow has no heading is numbered rather than left blank,
-      // because two pages called "Untitled" are two pages nobody can tell apart.
-      title: section.title ?? (at === 0 ? fallback : `${fallback} (${at + 1})`),
-      content: section.content,
-      format: 'markdown' as const,
+  const { workspaceId } = useSession();
+  const existing = useQuery(
+    () => list('page', (page) => page.workspace_id === workspaceId).map((page) => pageKey(page.title ?? '')),
+    [workspaceId],
+  );
+
+  const { drafts, linked, unlinked } = useMemo(() => {
+    const perFile = files.map((file) => {
+      const fallback = (file.html ? htmlTitle(file.text) : markdownTitle(file.text)) ?? baseName(file.name);
+      if (file.html && keepHtml) {
+        return { file, markdown: '', drafts: [{ title: fallback, content: file.text.trim(), format: 'html' as const }] };
+      }
+      const markdown = (file.html ? htmlToMarkdown(file.text) : file.text).trim();
+      if (!split) return { file, markdown, drafts: [{ title: fallback, content: markdown, format: 'markdown' as const }] };
+      return {
+        file,
+        markdown,
+        drafts: splitByHeadings(markdown).map((section, at) => ({
+          // The lead-in before the first heading keeps the document's own name; a
+          // section that somehow has no heading is numbered rather than left blank,
+          // because two pages called "Untitled" are two pages nobody can tell apart.
+          title: section.title ?? (at === 0 ? fallback : `${fallback} (${at + 1})`),
+          content: section.content,
+          format: 'markdown' as const,
+        })),
+      };
+    });
+
+    /*
+     * The links between the files, as links between the pages they become.
+     *
+     * By title, because that is what `[[…]]` is — so a title only counts when
+     * it is unique: among the pages of this import *and* the workspace's, or
+     * the link would land on whichever page is older. A file is found by its
+     * path in the chosen folder, or, for files dropped without one, by its
+     * name when only one file has it.
+     */
+    const titles = new Map<string, number>();
+    for (const key of [...existing, ...perFile.flatMap((one) => one.drafts.map((draft) => pageKey(draft.title)))]) {
+      titles.set(key, (titles.get(key) ?? 0) + 1);
+    }
+    const unique = (title: string) => titles.get(pageKey(title)) === 1;
+    const byPath = new Map(perFile.map((one) => [one.file.path, one]));
+    const byName = new Map<string, (typeof perFile)[number] | null>();
+    for (const one of perFile) {
+      const name = one.file.path.split('/').pop()!;
+      byName.set(name, byName.has(name) ? null : one);
+    }
+    const resolve = (path: string, fragment: string | null): FileLinkTarget | null => {
+      const one = byPath.get(path) ?? byName.get(path.split('/').pop()!) ?? null;
+      if (!one) return null;
+      // Split into pages, a section may be a page of its own; whole, it is a heading of one.
+      const section = fragment && split ? one.drafts.find((draft) => headingSlug(draft.title) === fragment) : undefined;
+      const title = (section ?? one.drafts[0]).title;
+      if (!unique(title)) return null;
+      const heading = fragment && !section ? outlineOf(one.markdown).find((found) => found.slug === fragment)?.text ?? null : null;
+      return { title, heading };
+    };
+
+    let linked = 0;
+    let unlinked = 0;
+    const drafts: Draft[] = perFile.flatMap((one) => one.drafts.map((draft) => {
+      if (draft.format !== 'markdown') return draft;
+      const result = linkImportedFiles(draft.content, one.file.path, resolve);
+      linked += result.linked;
+      unlinked += result.unlinked;
+      return { ...draft, content: result.text };
     }));
-  }), [files, keepHtml, split]);
+    return { drafts, linked, unlinked };
+  }, [files, keepHtml, split, existing]);
 
   const anyHtml = files.some((file) => file.html);
   const splittable = files.some((file) => !file.html || !keepHtml);
@@ -160,18 +225,33 @@ export function ImportPages({ parentId, projectId, onClose }: {
       >
         <Icon name="page" size={20} />
         <p className="m-0">{t('page.importDrop')}</p>
-        <label className={cn(buttonVariants({ variant: 'secondary', size: 'sm' }), 'cursor-pointer')}>
-          {t('page.importChoose')}
-          <input
-            type="file" hidden multiple
-            accept=".md,.markdown,.mdown,.txt,.text,.html,.htm,.xhtml,text/markdown,text/html,text/plain"
-            onChange={(event) => {
-              void load([...(event.target.files ?? [])]);
-              // Cleared, so choosing the same file twice in a row still fires.
-              event.target.value = '';
-            }}
-          />
-        </label>
+        <span className="flex flex-wrap justify-center gap-2">
+          <label className={cn(buttonVariants({ variant: 'secondary', size: 'sm' }), 'cursor-pointer')}>
+            {t('page.importChoose')}
+            <input
+              type="file" hidden multiple
+              accept=".md,.markdown,.mdown,.txt,.text,.html,.htm,.xhtml,text/markdown,text/html,text/plain"
+              onChange={(event) => {
+                void load([...(event.target.files ?? [])]);
+                // Cleared, so choosing the same file twice in a row still fires.
+                event.target.value = '';
+              }}
+            />
+          </label>
+          {/* A whole folder, so the links between its files can be followed
+              by path — `../dashboard/staff.md` — not only by name. */}
+          <label className={cn(buttonVariants({ variant: 'secondary', size: 'sm' }), 'cursor-pointer')}>
+            {t('page.importFolder')}
+            <input
+              type="file" hidden multiple
+              {...{ webkitdirectory: '' }}
+              onChange={(event) => {
+                void load([...(event.target.files ?? [])], true);
+                event.target.value = '';
+              }}
+            />
+          </label>
+        </span>
       </div>
 
       {refused.length > 0 && (
@@ -202,6 +282,12 @@ export function ImportPages({ parentId, projectId, onClose }: {
           <p className="text-[12.5px] text-muted mt-1.5 mb-2.5">
             {parentId ? t('page.importUnderPage') : t('page.importAtTop')}
           </p>
+          {(linked > 0 || unlinked > 0) && (
+            <p className="text-[12.5px] text-muted mt-0 mb-2.5">
+              {t('page.importLinks', { count: linked })}
+              {unlinked > 0 && ` ${t('page.importUnlinked', { count: unlinked })}`}
+            </p>
+          )}
 
           {/* The preview *is* the drafts — the same array the button walks, so
               a row that is shown is a page that will exist. */}

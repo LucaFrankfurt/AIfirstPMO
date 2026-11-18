@@ -16,8 +16,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  excerpt, headingSlug, linkContext, linkGraph, linkableTitle, outlineOf, pageKey, pageResolver,
-  renameLinks, renderMarkdown, wikiLinks,
+  excerpt, headingSlug, linkContext, linkGraph, linkImportedFiles, linkableTitle, normalizePath, outlineOf, pageKey,
+  pageResolver, renameLinks, renderMarkdown, wikiLinks,
 } from '@kolibri/shared';
 
 const pages = [
@@ -347,5 +347,75 @@ describe('the outline of a page', () => {
 
   it('is not fooled by a comment in a shell block or a rule under nothing', () => {
     assert.deepEqual(outlineOf('```sh\n# not a heading\n```\n\n---\n'), []);
+  });
+});
+
+describe('links between imported files', () => {
+  // A help centre as it is exported: one folder per area, files linking by path.
+  const imported: Record<string, { title: string; headings?: Record<string, string> }> = {
+    'help/dashboard/staff.md': { title: 'Staff', headings: { roles: 'Roles' } },
+    'help/dashboard/staff-privacy.md': { title: 'Staff privacy' },
+    'help/account/sign-up.md': { title: 'Create your account' },
+    'help/account/odd.md': { title: 'C# for staff' },
+  };
+  const resolve = (path: string, fragment: string | null) => {
+    const found = imported[path];
+    return found ? { title: found.title, heading: fragment ? found.headings?.[fragment] ?? null : null } : null;
+  };
+
+  it('turns a related list into page links, by path relative to the file', () => {
+    const source = [
+      '## Related',
+      '- [Staff](../dashboard/staff.md)',
+      '- [Staff privacy](../dashboard/staff-privacy.md)',
+      '- [Create your account](sign-up.md)',
+      '- [Who can see what](../dashboard/staff.md#roles)',
+    ].join('\n');
+    const { text, linked, unlinked } = linkImportedFiles(source, 'help/account/log-in.md', resolve);
+    assert.equal(text, [
+      '## Related',
+      '- [[Staff]]',
+      '- [[Staff privacy]]',
+      '- [[Create your account]]',
+      '- [[Staff#Roles|Who can see what]]',
+    ].join('\n'));
+    assert.deepEqual({ linked, unlinked }, { linked: 4, unlinked: 0 });
+    assert.deepEqual(wikiLinks(text).map((link) => link.target), ['Staff', 'Staff privacy', 'Create your account', 'Staff']);
+  });
+
+  it('leaves the words, not a dead path, where the file did not come along', () => {
+    const { text, linked, unlinked } = linkImportedFiles('See [Billing](../billing/plans.md) first.', 'help/account/log-in.md', resolve);
+    assert.equal(text, 'See Billing first.');
+    assert.deepEqual({ linked, unlinked }, { linked: 0, unlinked: 1 });
+  });
+
+  it('keeps a title a link cannot carry out of a link', () => {
+    assert.equal(linkImportedFiles('[Guide](odd.md)', 'help/account/x.md', resolve).text, 'Guide', 'a # would end the title early');
+  });
+
+  it('leaves the web, absolute paths, anchors, images, other files and code alone', () => {
+    const source = [
+      '[Site](https://example.com/staff.md) [Mail](mailto:a@b.c) [Abs](/pages/x) [Here](#roles)',
+      '![Shot](../dashboard/staff.md) [Sheet](prices.pdf)',
+      '`[Staff](../dashboard/staff.md)`',
+      '```',
+      '[Staff](../dashboard/staff.md)',
+      '```',
+    ].join('\n');
+    const { text, linked, unlinked } = linkImportedFiles(source, 'help/account/x.md', resolve);
+    assert.equal(text, source);
+    assert.deepEqual({ linked, unlinked }, { linked: 0, unlinked: 0 });
+  });
+
+  it('reads an address in angle brackets, with a title, or encoded', () => {
+    const imported2 = { 'docs/getting started.md': { title: 'Getting started' } } as Record<string, { title: string }>;
+    const resolve2 = (path: string) => (imported2[path] ? { title: imported2[path].title } : null);
+    assert.equal(linkImportedFiles('[Start](<getting started.md> "Read me")', 'docs/a.md', resolve2).text, '[[Getting started|Start]]');
+    assert.equal(linkImportedFiles('[Start](getting%20started.md)', 'docs/a.md', resolve2).text, '[[Getting started|Start]]');
+  });
+
+  it('spells paths one way', () => {
+    assert.equal(normalizePath('./help//account/../dashboard\\staff.md'), 'help/dashboard/staff.md');
+    assert.equal(normalizePath('../../x.md'), 'x.md', 'nothing above the import to point at');
   });
 });

@@ -279,8 +279,31 @@ asking `headingAt`, the same function the outline beside a page asks. It did
 not, for a while, so a document written that way drew a full outline and
 imported as one long page.
 
-What is **not** here is a ZIP or a folder. A browser hands a dropped folder over
-one file at a time with no reliable tree, and a half-honoured hierarchy is worse
-than a flat list you can drag into shape in a minute. Pictures referenced by a
+### Links between the files
+
+`linkImportedFiles` in `shared/modules/pages/links.ts`, run on every markdown
+page before the preview:
+
+| Link | Becomes |
+|---|---|
+| `[Staff](../dashboard/staff.md)` | `[[Staff]]` |
+| `[Who sees what](staff.md#roles)` | `[[Staff#Roles\|Who sees what]]`; split into pages, the page for that heading |
+| a file not in this import | its words — a relative URL renders as its own source |
+| a target whose title another page also has (here or in the workspace) | its words — `[[…]]` would land on the older one |
+| a title with `#`, `[`, `]`, `\|` | its words |
+| `https:`, `mailto:`, `/…`, `#…`, images, anything not `.md`/`.html`, code | unchanged |
+
+| How the files were chosen | How a link finds its file |
+|---|---|
+| *Choose a folder* | by path, relative to the linking file |
+| *Choose files*, or dropped | by file name, when only one file has it |
+
+Pages kept as HTML are not rewritten. The preview counts both outcomes.
+
+What is **not** here is a ZIP or a dropped folder, and no folder's tree is
+rebuilt: *Choose a folder* reads paths for the links, and the pages still land
+flat under one parent. A browser hands a dropped folder over one file at a time
+with no reliable tree, and a half-honoured hierarchy is worse than a flat list
+you can drag into shape in a minute. Pictures referenced by a
 `<img src="https://…">` keep working; ones referenced as `data:` URLs do not
 survive the allowlist and are dropped.

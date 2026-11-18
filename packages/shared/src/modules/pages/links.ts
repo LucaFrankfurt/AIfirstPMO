@@ -370,3 +370,101 @@ export function outlineOf(source: string): Heading[] {
   }
   return out;
 }
+
+/* ------------------------------------------------- links between imported files */
+
+/** Where a link between imported files lands: a page's title, and a section of it if the link named one. */
+export interface FileLinkTarget {
+  title: string;
+  heading?: string | null;
+}
+
+/**
+ * `[label](href)` and `![alt](src)`, an optional "title" after the address.
+ * In `<…>` the address may hold spaces, as CommonMark allows; bare, it may not.
+ */
+const MARKDOWN_LINK = /(!?)\[([^\]\n]+)\]\(\s*(?:<([^>\n]+)>|([^)\s]+))(?:\s+"[^"\n]*")?\s*\)/g;
+
+/** A document another document in a folder of them would link to. */
+const DOCUMENT = /\.(md|markdown|mdown|html?|xhtml)$/i;
+
+/**
+ * A path as a folder of documents spells it, made comparable: forward slashes,
+ * no `.` and no `..` left, no leading `./`. `..` past the top is dropped
+ * rather than kept — there is nothing above the import to point at.
+ */
+export function normalizePath(path: string): string {
+  const out: string[] = [];
+  for (const part of String(path ?? '').replace(/\\/g, '/').split('/')) {
+    if (!part || part === '.') continue;
+    if (part === '..') out.pop();
+    else out.push(part);
+  }
+  return out.join('/');
+}
+
+/** `docs/dashboard/staff.md` and `../features/x.md` → `docs/features/x.md`. */
+const besides = (from: string, href: string): string => {
+  const folder = normalizePath(from).split('/').slice(0, -1).join('/');
+  return normalizePath(folder ? `${folder}/${href}` : href);
+};
+
+/**
+ * A document's links to the other documents it was imported with, as page
+ * links: `[Staff](../dashboard/staff.md)` → `[[Staff]]`, and with a section,
+ * `[[Staff#Roles]]`.
+ *
+ * Exported help centres and docs folders link file to file, and in a wiki
+ * those addresses mean nothing — the renderer refuses a relative URL, so the
+ * line came out as its own source. Written as `[[…]]` they become what every
+ * link here already is: by title, followed when a page is renamed, counted as
+ * a backlink.
+ *
+ * `resolve` is the caller's: it knows which files came together and what each
+ * became, and returns null for one it cannot vouch for — not imported, or a
+ * title another page also has, where `[[…]]` would land on whichever is older.
+ * A link it cannot resolve becomes its label: plain words read better than a
+ * path nobody can follow. Links to the web, to `/…`, to `#…`, to anything that
+ * is not a document, images, and everything inside code are left as written.
+ */
+export function linkImportedFiles(
+  source: string,
+  from: string,
+  resolve: (path: string, fragment: string | null) => FileLinkTarget | null,
+): { text: string; linked: number; unlinked: number } {
+  const text = String(source ?? '');
+  const masked = withoutCode(text);
+  const edits: { at: number; end: number; with: string }[] = [];
+  let linked = 0;
+  let unlinked = 0;
+  for (const match of masked.matchAll(MARKDOWN_LINK)) {
+    const [whole, bang] = match;
+    const href = (match[3] ?? match[4]).trim();
+    if (bang) continue;
+    if (/^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith('/') || href.startsWith('#')) continue;
+    const hash = href.indexOf('#');
+    const address = (hash < 0 ? href : href.slice(0, hash)).replace(/\?.*$/, '');
+    if (!DOCUMENT.test(address)) continue;
+    let path = address;
+    try {
+      path = decodeURIComponent(address);
+    } catch { /* kept as written */ }
+    const fragment = hash < 0 ? null : href.slice(hash + 1) || null;
+    // From the source, not the mask: a label holding a code span is blanked there.
+    const label = text.slice(match.index + 1, match.index + 1 + match[2].length).trim();
+    const target = resolve(besides(from, path), fragment);
+    const title = target?.title.trim() ?? '';
+    if (title && linkableTitle(title) && !title.includes('#')) {
+      const heading = target?.heading && linkableTitle(target.heading) && !target.heading.includes('#') ? `#${target.heading}` : '';
+      const alias = label && linkableTitle(label) && pageKey(label) !== pageKey(title) ? `|${label}` : '';
+      edits.push({ at: match.index, end: match.index + whole.length, with: `[[${title}${heading}${alias}]]` });
+      linked += 1;
+    } else {
+      edits.push({ at: match.index, end: match.index + whole.length, with: label });
+      unlinked += 1;
+    }
+  }
+  let out = text;
+  for (const edit of edits.reverse()) out = out.slice(0, edit.at) + edit.with + out.slice(edit.end);
+  return { text: out, linked, unlinked };
+}
