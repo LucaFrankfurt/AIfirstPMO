@@ -165,7 +165,7 @@ are work, and the work is still owed.
 | `update_agenda_item` | state, title, description, projects, who is responsible, and the notes — `append_notes` while people may be typing |
 | `create_task_from_agenda_item` | a task that remembers the point; the project defaults to the point's first |
 | `carry_over_agenda` | the button, as a tool — same rows, same ids |
-| `file_meeting_minutes` | the minutes as a page, or the same page rewritten |
+| `file_meeting_minutes` | the minutes as a dated entry under the meeting's series page, or the same page rewritten |
 
 ## What it does not do, yet
 

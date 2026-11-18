@@ -22,7 +22,7 @@
  *   decided for somebody.
  */
 import { useMemo } from 'react';
-import { statusOf, type Label, type Page } from '@kolibri/shared';
+import { labelsForPage, statusOf, type Label, type Page } from '@kolibri/shared';
 import { useT } from '../../kernel/i18n/i18n';
 import { remove, restore, update } from '../../kernel/sync/mutations';
 import { list, useQuery } from '../../kernel/sync/store';
@@ -34,6 +34,7 @@ import { chipDot } from '../../kernel/design-system/ui/chip';
 import { Icon, MenuButton, useConfirm, useToast, type MenuEntry } from '../../kernel/design-system/ui';
 import { descendantsOf } from './page-tree';
 import { usePageStatuses } from './status';
+import { typeOf, usePageTypes } from './organise';
 import { movePage, movePageToTop } from './page-parts';
 
 /**
@@ -46,11 +47,25 @@ export function PageBulkBar({ selection, pages }: { selection: Selection; pages:
   const toast = useToast();
   const { confirm, dialog } = useConfirm();
   const { workspaceId } = useSession();
-  const labels = useQuery(() => list('label', (label) => !label.project_id) as Label[], [workspaceId]);
+  const allLabels = useQuery(() => list('label', (label) => label.workspace_id === workspaceId) as Label[], [workspaceId]);
   const projects = useQuery(() => list('project', (project) => !project.archived), [workspaceId]);
   const statuses = usePageStatuses();
+  const types = usePageTypes();
 
   const selected = useMemo(() => pages.filter((page) => selection.has(page.id)), [pages, selection]);
+  /*
+   * The labels any page in the selection may carry — `labelsForPage` for each,
+   * together. This offered the workspace-wide labels only, while a page's own
+   * menu offered every label there was, so a selection could not be given the
+   * project label each of its pages could be given one by one. Named with
+   * their project where they have one, because a project's `Bug` and the
+   * next project's `Bug` are two labels with one name.
+   */
+  const labels = useMemo(() => {
+    const offered = new Map<string, Label>();
+    for (const page of selected) for (const label of labelsForPage(page, allLabels)) offered.set(label.id, label);
+    return [...offered.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [selected, allLabels]);
   /**
    * The pages under the selection that are not themselves in it.
    *
@@ -177,7 +192,7 @@ export function PageBulkBar({ selection, pages }: { selection: Selection; pages:
   };
 
   /*
-   * Four drawers, not four lists poured into one menu.
+   * Five drawers, not five lists poured into one menu.
    *
    * This is the bar's only menu and it carried every page in the wiki, every
    * rung, every label and every project at once — the same shape the page's own
@@ -223,9 +238,26 @@ export function PageBulkBar({ selection, pages }: { selection: Selection; pages:
         id: `label-${label.id}`,
         label: label.name,
         icon: <span className={chipDot} style={{ background: label.color }} />,
-        hint: selected.every((page) => (page.labels ?? []).includes(label.id)) ? '✓' : undefined,
+        hint: [selected.every((page) => (page.labels ?? []).includes(label.id)) ? '✓' : null,
+          label.project_id ? projects.find((project) => project.id === label.project_id)?.name : null]
+          .filter(Boolean).join(' ') || undefined,
         onSelect: () => toggleLabel(label),
       })),
+    },
+    {
+      id: 'type',
+      label: t('page.type'),
+      icon: <Icon name="page" size={14} />,
+      items: [
+        ...types.map((type) => ({
+          id: `type-${type.id}`,
+          label: type.name,
+          icon: <span aria-hidden="true">{type.icon ?? '•'}</span>,
+          hint: selected.every((page) => typeOf(page, types)?.id === type.id) ? '✓' : undefined,
+          onSelect: () => applyTo(selected, { type_id: type.id }),
+        })),
+        ...(types.length ? [{ id: 'type-none', label: t('page.typeNone'), onSelect: () => applyTo(selected, { type_id: null }) }] : []),
+      ],
     },
     {
       id: 'project',

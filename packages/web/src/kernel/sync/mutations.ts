@@ -4,7 +4,7 @@
  * round trip, online or off.
  */
 import {
-  compareOrder, descendants, orderKey, relocate,
+  compareOrder, comparePages, descendants, orderKey, relocate,
   type EntityName, type Page, type PageFormat, type Priority, type ProjectVocabulary, type Task,
 } from '@kolibri/shared';
 import { now } from './clock';
@@ -190,10 +190,17 @@ export function createPage(
     content?: string; format?: PageFormat; icon?: string;
     /** Who may see it — the whole workspace unless said. A copy of something private says. */
     access?: Page['access'];
+    /** What kind of document it is: a template's, or a series'. */
+    type_id?: string | null;
+    labels?: string[];
+    /** A page whose sub-pages are dated entries — see `isSeries`. */
+    series?: number;
   },
   actorId: string,
 ): string {
-  const siblings = list('page', (p) => (p.parent_id ?? null) === (input.parent_id ?? null)).sort(byOrder);
+  // `comparePages`, so the last sibling is the one the tree draws last even
+  // where two keys are equal — see `organise.ts` in shared.
+  const siblings = list('page', (p) => (p.parent_id ?? null) === (input.parent_id ?? null)).sort(comparePages);
   return create('page', {
     title: input.title ?? 'Untitled',
     icon: input.icon ?? '📄',
@@ -205,6 +212,9 @@ export function createPage(
     archived: 0,
     created_by: actorId,
     sort_order: orderKey(siblings[siblings.length - 1]?.sort_order ?? null, null),
+    ...(input.type_id ? { type_id: input.type_id } : {}),
+    ...(input.labels?.length ? { labels: input.labels } : {}),
+    ...(input.series ? { series: 1 } : {}),
   });
 }
 

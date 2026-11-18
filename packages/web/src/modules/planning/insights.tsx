@@ -15,7 +15,7 @@
  */
 import { useMemo, useState } from 'react';
 import type { Task } from '@kolibri/shared';
-import { coversProject, duration, isDoneGroup, totalsOf } from '@kolibri/shared';
+import { coversProject, duration, isDoneGroup, labelApplies, totalsOf } from '@kolibri/shared';
 import { shortDate, today } from '../../kernel/design-system/format';
 import { useT } from '../../kernel/i18n/i18n';
 import { byId, list, useQuery } from '../../kernel/sync/store';
@@ -255,7 +255,7 @@ export function ProjectInsights({ projectId }: { projectId: string }) {
   const t = useT();
   const members = useMemberMap();
   const tasks = useQuery(() => list('task', (task) => task.project_id === projectId && !task.archived), [projectId]);
-  const labels = useQuery(() => list('label', (row) => !row.project_id || row.project_id === projectId), [projectId]);
+  const labels = useQuery(() => list('label', (row) => labelApplies(row, 'task') && (!row.project_id || row.project_id === projectId)), [projectId]);
   const entries = useQuery(() => list('timeEntry', (entry) => entry.project_id === projectId), [projectId]);
   const cycles = useQuery(() => list('cycle', (cycle) => coversProject(cycle, projectId)), [projectId]);
   const seesMoney = useSeesMoney();

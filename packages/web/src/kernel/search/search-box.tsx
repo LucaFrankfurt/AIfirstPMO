@@ -27,7 +27,7 @@ import {
   applySuggestion, suggest,
   type FacetKind, type FacetOption,
 } from './search-query';
-import { coversProject, type QueryVocabulary } from '@kolibri/shared';
+import { coversProject, labelApplies, type QueryVocabulary } from '@kolibri/shared';
 
 export const FACET_LABEL: Record<FacetKind, TranslationKey> = {
   person: 'search.facetPerson', label: 'search.facetLabel', project: 'search.facetProject',
@@ -361,7 +361,7 @@ export function useVocabulary(projectId?: string | null): QueryVocabulary {
   const members = useMembers();
   const states = useQuery(() => list('state', (row) => !projectId || row.project_id === projectId), [projectId]);
   const labels = useQuery(
-    () => list('label', (row) => !row.project_id || !projectId || row.project_id === projectId),
+    () => list('label', (row) => labelApplies(row, 'task') && (!row.project_id || !projectId || row.project_id === projectId)),
     [projectId, workspaceId],
   );
   // `coversProject` and not `project_id`: a cycle or a milestone may be shared,

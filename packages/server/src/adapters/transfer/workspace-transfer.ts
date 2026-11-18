@@ -63,6 +63,8 @@ export interface WorkspaceDoc {
   modules: Record<string, unknown>[];
   /** Pages outside every project, the boards on the canvases among them, and what was said on them. */
   pages: Record<string, unknown>[];
+  /** Optional: the kinds of document the pages are filed as. An archive made before there were any has none. */
+  page_types?: Record<string, unknown>[];
   /** Optional: an archive made before there were canvases has none. */
   page_artboards?: Record<string, unknown>[];
   page_comments: Record<string, unknown>[];
@@ -206,6 +208,7 @@ export function exportWorkspace(workspaceId: string, options: WorkspaceExportOpt
     cycles: live('cycles', 'workspace_id = ? AND project_id IS NULL', workspaceId).map(clean),
     modules: live('modules', 'workspace_id = ? AND project_id IS NULL', workspaceId).map(clean),
     pages: pages.map(clean),
+    page_types: live('page_types', 'workspace_id = ?', workspaceId).map(clean),
     page_artboards: pageArtboards.map(clean),
     page_comments: pageComments.map(clean),
     views: live('views', 'workspace_id = ?', workspaceId).map(clean),
@@ -388,6 +391,24 @@ function writeWorkspace(actorId: string, doc: WorkspaceDoc, options: WorkspaceIm
     bump('modules');
   }
 
+  /*
+   * The page types, before the projects: a page can name its own, and most
+   * pages live in a project, which `importProject` writes below with this
+   * `map` as its seed. Written after the projects at first, every page inside
+   * one arrived with no type. Matched by name to the
+   * ones the new workspace was just seeded with — a second "Concept" beside
+   * the first would be the duplicate this feature exists to stop — and made
+   * where there is no such name. Without this every page arrived with no type:
+   * its `type_id` named a row in the old workspace, which the write path folds
+   * to none.
+   */
+  const ownTypes = new Map(all<Row>(`SELECT id, name FROM page_types WHERE workspace_id = ? AND deleted_at IS NULL`, workspaceId)
+    .map((type) => [String(type.name).trim().toLowerCase(), String(type.id)]));
+  for (const row of doc.page_types ?? []) {
+    const same = ownTypes.get(String(row.name ?? '').trim().toLowerCase());
+    if (same && row.id) map.set(String(row.id), same);
+    else if (!same) write('pageType', row, {});
+  }
   /* ------------------------------------------------------------- projects */
 
   const projects: WorkspaceImportReport['projects'] = [];
@@ -450,12 +471,23 @@ function writeWorkspace(actorId: string, doc: WorkspaceDoc, options: WorkspaceIm
   for (const row of inTreeOrder(doc.pages ?? [])) {
     write('page', row, {
       project_id: null,
+      type_id: to(row.type_id),
       parent_id: to(row.parent_id),
       created_by: who(row.created_by) ?? actorId,
       watchers: jsonList(row.watchers).map(who).filter(Boolean),
       labels: jsonList(row.labels).map(to).filter(Boolean),
+      // As in `transfer.ts`: the successor once it exists, and no claim about
+      // a version that stays behind in the other workspace.
+      superseded_by: null,
+      settled_version_id: null,
+      settled_drift: 0,
     });
     bump('pages');
+  }
+  for (const row of doc.pages ?? []) {
+    const page = to(row.id);
+    const successor = to(row.superseded_by);
+    if (page && successor) writeEntity('page', page, { superseded_by: successor }, opts());
   }
   for (const row of doc.page_artboards ?? []) {
     const page = to(row.page_id);

@@ -481,6 +481,8 @@ export const labelView = (row: Row): Record<string, unknown> => ({
   description: row.description ?? null,
   // Null means every project in the workspace may use it.
   project_id: row.project_id ?? null,
+  // What it may be put on: tasks, pages, or both (`all`).
+  applies_to: row.applies_to ?? 'all',
 });
 
 /** One cycle, as `list_cycles` and the writers both report it. */
@@ -1508,14 +1510,24 @@ export function resolveLabels(workspaceId: string, projectId: string, refs: unkn
   const out: string[] = [];
   for (const ref of refs) {
     if (typeof ref !== 'string' || !ref.trim()) continue;
+    // A label kept for pages is not a task's to take; see `labelApplies`.
     const existing = get<Row>(
       `SELECT id FROM labels WHERE workspace_id = ? AND deleted_at IS NULL AND (id = ? OR lower(name) = lower(?))
-        AND (project_id IS NULL OR project_id = ?) LIMIT 1`,
+        AND (project_id IS NULL OR project_id = ?) AND applies_to <> 'pages' LIMIT 1`,
       workspaceId, ref, ref, projectId,
     );
     if (existing) {
       out.push(existing.id);
       continue;
+    }
+    // An id that names a label the match above passed over — one kept for
+    // pages, or another project's — is a refusal, not a name: inventing a
+    // task label called `7ba27461-…` is what this did instead.
+    const byId = get<Row>(`SELECT name, applies_to, project_id FROM labels WHERE workspace_id = ? AND id = ? AND deleted_at IS NULL`, workspaceId, ref);
+    if (byId) {
+      throw new McpError(byId.applies_to === 'pages'
+        ? `The label "${byId.name}" is kept for pages, not tasks`
+        : `The label "${byId.name}" belongs to another project`);
     }
     const { row } = writeEntity('label', uid(), { workspace_id: workspaceId, project_id: projectId, name: ref.trim() },
       writeOpts(workspaceId, ctx));

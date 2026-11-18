@@ -718,6 +718,9 @@ CREATE TABLE IF NOT EXISTS labels (
   name         TEXT NOT NULL,
   color        TEXT NOT NULL DEFAULT '#6366f1',
   description  TEXT,
+  -- What the label may be put on: 'all', 'tasks' or 'pages'. A page about the
+  -- pricing model and a regression drew from one list until this existed.
+  applies_to   TEXT NOT NULL DEFAULT 'all',
   created_at   INTEGER NOT NULL,
   updated_at   INTEGER NOT NULL,
   deleted_at   INTEGER,
@@ -1073,6 +1076,25 @@ CREATE TABLE IF NOT EXISTS page_statuses (
 );
 CREATE INDEX IF NOT EXISTS page_statuses_seq ON page_statuses (workspace_id, seq);
 
+-- What kind of document a page is, in a workspace's own words: a concept, the
+-- minutes of a meeting, a runbook. One per page — labels say what a page is
+-- about, and a menu that held both answered neither. Workspace-wide for the
+-- reason `page_statuses` is.
+CREATE TABLE IF NOT EXISTS page_types (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  name         TEXT NOT NULL,
+  icon         TEXT,
+  color        TEXT NOT NULL DEFAULT '#64748b',
+  sort_order   TEXT NOT NULL DEFAULT 'V',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS page_types_seq ON page_types (workspace_id, seq);
+
 
 CREATE TABLE IF NOT EXISTS pages (
   id           TEXT PRIMARY KEY,
@@ -1108,6 +1130,18 @@ CREATE TABLE IF NOT EXISTS pages (
   -- written before there were any, and read as the workspace's draft — see
   -- `statusOf`. Not a word, so renaming a rung does not rewrite the wiki.
   status_id    TEXT,
+  -- What kind of document it is: a row in `page_types`, or none.
+  type_id      TEXT,
+  -- A reference page, pinned to the top of the wiki as *the* page on its subject.
+  pinned       INTEGER NOT NULL DEFAULT 0,
+  -- The page that replaced this one; see `isSuperseded`.
+  superseded_by TEXT,
+  -- Whether the sub-pages are dated entries of one recurring document.
+  series       INTEGER NOT NULL DEFAULT 0,
+  -- The version cut when the page last reached a `final` rung, and whether the
+  -- text has moved since. Server-written: the version is in `page_versions`.
+  settled_version_id TEXT,
+  settled_drift INTEGER NOT NULL DEFAULT 0,
   created_at   INTEGER NOT NULL,
   updated_at   INTEGER NOT NULL,
   deleted_at   INTEGER,
@@ -1214,7 +1248,12 @@ CREATE TABLE IF NOT EXISTS page_versions (
   content    TEXT NOT NULL,
   title      TEXT NOT NULL,
   author_id  TEXT,
-  created_at INTEGER NOT NULL
+  created_at INTEGER NOT NULL,
+  -- A version somebody named — "V5", "as approved" — rather than one the
+  -- server kept on its own. Named versions are never folded into the next
+  -- edit and never fall off the end of the list. NULL on every automatic one.
+  name       TEXT,
+  note       TEXT
 );
 CREATE INDEX IF NOT EXISTS page_versions_page ON page_versions (page_id, created_at);
 

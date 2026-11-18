@@ -2679,6 +2679,19 @@
         "type": "object",
         "description": "A row of `labels` (table `labels`).",
         "properties": {
+          "applies_to": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "all",
+              "tasks",
+              "pages",
+              null
+            ],
+            "description": "Tasks, pages or both. Read through `labelApplies` and never directly: a label a device synced before the column existed has none, and that means `all`."
+          },
           "color": {
             "type": "string"
           },
@@ -3437,6 +3450,13 @@
               "null"
             ]
           },
+          "pinned": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "A reference page: pinned to the top of the wiki as *the* page on its subject. A workspace's statement, so it syncs — unlike a fold, which is a fact about one device."
+          },
           "project_id": {
             "type": [
               "string",
@@ -3455,6 +3475,29 @@
             "description": "Server-assigned, workspace-monotonic sync cursor.",
             "readOnly": true
           },
+          "series": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "A page whose sub-pages are dated entries of one recurring document — the minutes of a weekly, a scorecard per week. It draws its entries newest first and makes the next one with a title in one date format."
+          },
+          "settled_drift": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Whether the text has changed since that version. Server-written beside it.",
+            "readOnly": true
+          },
+          "settled_version_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The version cut when this page last reached a `final` rung — what \"Final\" was said *about*. Server-written: the version table is the server's.",
+            "readOnly": true
+          },
           "sort_order": {
             "type": "string"
           },
@@ -3465,8 +3508,22 @@
             ],
             "description": "How finished this page is — a row in `page_statuses`, not a word. Null on every page written before there were any, and on a page whose status somebody deleted. `statusOf` reads that as the workspace's draft, which is the honest answer: a page nobody has said anything about is a draft, and the alternative — rewriting every row to point at a status the moment the feature shipped — would claim an editorial decision nobody made."
           },
+          "superseded_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The page that replaced this one. Set together with a `superseded` rung; see `isSuperseded`."
+          },
           "title": {
             "type": "string"
+          },
+          "type_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A row in `page_types`, or none. One per page; see `PageType`."
           },
           "updated_at": {
             "type": "number",
@@ -3511,8 +3568,57 @@
             "enum": [
               "draft",
               "review",
-              "final"
+              "final",
+              "superseded"
             ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "seq": {
+            "type": "number",
+            "description": "Server-assigned, workspace-monotonic sync cursor.",
+            "readOnly": true
+          },
+          "sort_order": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "number",
+            "readOnly": true
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        }
+      },
+      "PageType": {
+        "type": "object",
+        "description": "A row of `page-types` (table `page_types`).",
+        "properties": {
+          "color": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "number",
+            "readOnly": true
+          },
+          "deleted_at": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "readOnly": true
+          },
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "readOnly": true
           },
           "name": {
             "type": "string"
@@ -4555,6 +4661,7 @@
               "meeting",
               "agendaItem",
               "pageStatus",
+              "pageType",
               "artboard",
               "attachment",
               "view",
@@ -4884,8 +4991,8 @@
             "type": "string",
             "enum": [
               "page",
-              "intake",
-              "tasks"
+              "tasks",
+              "intake"
             ]
           },
           "last_seen_at": {
@@ -14325,6 +14432,199 @@
         }
       }
     },
+    "/api/page-types/{id}": {
+      "get": {
+        "operationId": "getPageType",
+        "summary": "Read one pageType",
+        "tags": [
+          "page-types"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The row.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageType"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updatePageType",
+        "summary": "Change a pageType",
+        "description": "Partial: only the fields present are written.",
+        "tags": [
+          "page-types"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PageType"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The row as it now stands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageType"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body was refused — a rule in the registry, or one the entity keeps for itself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deletePageType",
+        "summary": "Delete a pageType",
+        "description": "Soft: the row keeps its place in the sync log and comes back as deleted.",
+        "tags": [
+          "page-types"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/pages/{id}": {
       "get": {
         "operationId": "getPage",
@@ -14660,6 +14960,47 @@
       "get": {
         "operationId": "getPagesVersionsByVersionId",
         "summary": "GET /api/pages/:id/versions/:versionId",
+        "description": "Defined in `packages/server/src/kernel/write-path/routes/entities.ts`. Its request and response shapes are not derivable from the registry, so they are not described here — read the handler.",
+        "tags": [
+          "hand-written"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "See the handler."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchPagesVersionsByVersionId",
+        "summary": "PATCH /api/pages/:id/versions/:versionId",
         "description": "Defined in `packages/server/src/kernel/write-path/routes/entities.ts`. Its request and response shapes are not derivable from the registry, so they are not described here — read the handler.",
         "tags": [
           "hand-written"
@@ -27426,6 +27767,174 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PageStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body was refused — a rule in the registry, or one the entity keeps for itself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{ws}/page-types": {
+      "get": {
+        "operationId": "listPageType",
+        "summary": "List page-types",
+        "description": "Filterable by any field of the row: `?project_id=…&priority=urgent`, and `?field=null` for rows that have none.",
+        "tags": [
+          "page-types"
+        ],
+        "parameters": [
+          {
+            "name": "ws",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 1000
+            },
+            "description": "At most 1000."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Any field of the row."
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "include_deleted",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The page-types this caller may see.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PageType"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createPageType",
+        "summary": "Create a pageType",
+        "tags": [
+          "page-types"
+        ],
+        "parameters": [
+          {
+            "name": "ws",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PageType"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The row as it was stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageType"
                 }
               }
             }

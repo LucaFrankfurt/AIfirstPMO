@@ -63,8 +63,8 @@ after(() => {
 });
 
 describe('a workspace gets a ladder', () => {
-  it('has three rungs, in order, one of each kind', () => {
-    assert.deepEqual(rungs().map((one: any) => one.kind), ['draft', 'review', 'final']);
+  it('has four rungs, in order, one of each kind', () => {
+    assert.deepEqual(rungs().map((one: any) => one.kind), ['draft', 'review', 'final', 'superseded']);
   });
 
   it('names them in a language rather than in a key', () => {

@@ -2,7 +2,7 @@ import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   addDays, DEFAULT_WORKING_DAYS, coversProject, dueTone, excerpt, isDoneGroup, orderKey,
-  STATE_GROUPS, type ProjectScope,
+  STATE_GROUPS, type Page, type ProjectScope,
 } from '@kolibri/shared';
 import { Header, Trail, type Crumb } from '../../../kernel/design-system/chrome';
 import { QuickAdd } from '../../work/QuickAdd';
@@ -36,6 +36,7 @@ const MilestoneKpis = lazy(() => import('../../kpis/routes/kpis').then((m) => ({
  */
 const ProjectBudget = lazy(() => import('../../budgets/budget').then((m) => ({ default: m.ProjectBudget })));
 import { Markdown, MarkdownEditor } from '../../pages/Markdown';
+import { PageTree, usePageFolds } from '../../pages/PageTree';
 import { Avatar, Empty, Icon, MenuButton, Progress, Sheet, useConfirm, useToast } from '../../../kernel/design-system/ui';
 import { GuideHint } from '../../guide/hint';
 import { api } from '../../../kernel/sync/api';
@@ -1124,12 +1125,25 @@ export function ModulePage() {
 
 /* ------------------------------------------------------------ pages + cfg */
 
+/**
+ * A project's pages, as the wiki draws them.
+ *
+ * It was a flat list in the store's order, with no status and the project's
+ * templates mixed in as though they were content — a second, worse drawing of
+ * rows the wiki already draws properly. Now it is the wiki's own tree, cut to
+ * this project: a page whose parent sits in another project is drawn at the
+ * top here, the way `PageTree` draws any page whose parent it was not given.
+ */
 function ProjectPages({ projectId }: { projectId: string }) {
   const t = useT();
   const navigate = useNavigate();
   const me = useMe();
   const canWrite = useCanWrite();
-  const pages = useQuery(() => list('page', (p) => p.project_id === projectId && !p.archived), [projectId]);
+  const folds = usePageFolds();
+  const pages = useQuery(
+    () => list('page', (p) => p.project_id === projectId && !p.archived && !p.is_template) as Page[],
+    [projectId],
+  );
 
   return (
     <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
@@ -1143,12 +1157,7 @@ function ProjectPages({ projectId }: { projectId: string }) {
         )}
       </div>
       {!pages.length && <Empty emoji="📄" title={t('project.noPages')} hint={t('project.noPagesHint')} guide="pages" />}
-      {pages.map((page) => (
-        <button key={page.id} className="task-row text-left" style={{ width: '100%' }} onClick={() => navigate(`/pages/${page.id}`)}>
-          <span>{page.icon ?? '📄'}</span>
-          <span className="flex-1 min-w-0 truncate">{page.title}</span>
-        </button>
-      ))}
+      <PageTree pages={pages} canWrite={canWrite} folds={folds} marks />
     </div>
   );
 }

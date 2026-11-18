@@ -1,6 +1,7 @@
 export * from './kernel/registry/types.ts';
 export * from './kernel/registry/entities.ts';
 export * from './kernel/registry/order.ts';
+export * from './kernel/registry/labels.ts';
 export * from './kernel/registry/family.ts';
 export * from './kernel/registry/attachments.ts';
 export * from './kernel/registry/day.ts';
@@ -24,6 +25,7 @@ export * from './modules/pages/html.ts';
 export * from './modules/pages/markdown.ts';
 export * from './modules/pages/links.ts';
 export * from './modules/pages/status.ts';
+export * from './modules/pages/organise.ts';
 export * from './modules/pages/editor.ts';
 export * from './modules/pages/anchor.ts';
 export { fitBoard, fitCss, fitInPlace, fitScript, intoHead, stripFitScript, withFit } from './modules/pages/fit.ts';

@@ -12,7 +12,7 @@
  * sibling. Nothing wrote it after a page was created until now, which is why
  * the tree could only ever be in the order things happened to be made.
  */
-import { compareOrder, matchesTerms, orderKey, parseTerms, wouldLoop } from '@kolibri/shared';
+import { comparePages, matchesTerms, orderKey, parseTerms, wouldLoop } from '@kolibri/shared';
 
 /**
  * Which third of a row a drop was released over, and therefore what it means.
@@ -28,13 +28,20 @@ export interface PageNode {
   id: string;
   parent_id: string | null;
   sort_order?: string;
+  /** The tie-break when two keys are equal — see `comparePages`. */
+  created_at?: number;
 }
 
-/** The children of one page, in the order the tree draws them. */
+/**
+ * The children of one page, in the order the tree draws them.
+ *
+ * `comparePages`, not the key alone: two siblings with one key were drawn in
+ * the store's order, which is not the same on two devices. See `organise.ts`.
+ */
 export const childrenOf = <T extends PageNode>(pages: T[], parentId: string | null): T[] =>
   pages
     .filter((page) => (page.parent_id ?? null) === parentId)
-    .sort((a, b) => compareOrder(a.sort_order ?? '', b.sort_order ?? ''));
+    .sort(comparePages);
 
 /**
  * The patch that moves `pageId` to `zone` of `targetId`, or `null` for a move
@@ -186,7 +193,7 @@ export function familyOf<T extends PageNode>(pages: T[]): Map<string | null, T[]
     if (same) same.push(page);
     else kin.set(at, [page]);
   }
-  for (const brood of kin.values()) brood.sort((a, b) => compareOrder(a.sort_order ?? '', b.sort_order ?? ''));
+  for (const brood of kin.values()) brood.sort(comparePages);
   return kin;
 }
 
@@ -278,4 +285,84 @@ export function withAncestors<T extends PageNode>(pages: T[], matched: Iterable<
     for (const parent of ancestorsOf(pages, id)) keep.add(parent.id);
   }
   return keep;
+}
+
+/**
+ * Which ids a filtered tree draws, for any question asked of a page — a label,
+ * a rung, a type — and what was typed in the box beside it.
+ *
+ * The label and status filters on the index narrowed the *list* before the
+ * tree was built, and the tree draws a page whose parent is not in its list at
+ * the top level. So picking a label turned every matching sub-page into a
+ * chapter of its own, while the box beside it, which went through
+ * `pagesMatching`, kept the path. One question, two answers about what a
+ * filtered tree looks like. Now every filter is a set of matches drawn with
+ * the path to them.
+ *
+ * `undefined` when nothing is being asked, as `pagesMatching` answers it, so
+ * the folds stay in charge of an unfiltered tree.
+ */
+export function pagesWhere<T extends PageNode & { title?: string | null }>(
+  pages: T[],
+  test: ((page: T) => boolean) | null,
+  typed: string,
+): { keep?: Set<string>; matched?: Set<string> } {
+  const terms = parseTerms(typed);
+  if (!test && !terms.length) return { keep: undefined, matched: undefined };
+  const hits = new Set(pages
+    .filter((page) => (!test || test(page)) && (!terms.length || matchesTerms(page.title || '', terms)))
+    .map((page) => page.id));
+  // `trailsOf` once rather than `ancestorsOf` per match: a label on forty
+  // pages of a three-hundred-page wiki was forty maps of three hundred.
+  const trails = trailsOf(pages);
+  const keep = new Set<string>();
+  for (const id of hits) {
+    keep.add(id);
+    for (const parent of trails.get(id) ?? []) keep.add(parent.id);
+  }
+  return { keep, matched: hits };
+}
+
+/**
+ * The pages, in sections by what the *top of each branch* says — its project,
+ * on the index.
+ *
+ * By the branch and not by the page, because a grouping that tore a sub-page
+ * away from its parent because the two were filed in different projects would
+ * be the `detached` finding drawn on purpose. A branch is one thing to a
+ * reader; where its root is filed is where the branch is. A page whose parent
+ * is not in the list is the root of its own branch, as `PageTree` draws it.
+ *
+ * Sections come back in the order `order` gives their keys, with every key the
+ * pages produce present even if `order` does not name it, so nothing is lost
+ * to a project the caller did not know about.
+ */
+export function groupBranches<T extends PageNode, K>(
+  pages: T[],
+  keyOf: (root: T) => K,
+  order: K[],
+): { key: K; pages: T[] }[] {
+  const byId = new Map(pages.map((page) => [page.id, page]));
+  const rootOf = new Map<string, T>();
+  const climb = (page: T): T => {
+    const known = rootOf.get(page.id);
+    if (known) return known;
+    const seen = new Set<string>([page.id]);
+    let at = page;
+    while (at.parent_id && byId.has(at.parent_id) && !seen.has(at.parent_id)) {
+      seen.add(at.parent_id);
+      at = byId.get(at.parent_id)!;
+    }
+    rootOf.set(page.id, at);
+    return at;
+  };
+  const groups = new Map<K, T[]>();
+  for (const page of pages) {
+    const key = keyOf(climb(page));
+    const same = groups.get(key);
+    if (same) same.push(page);
+    else groups.set(key, [page]);
+  }
+  const keys = [...order.filter((key) => groups.has(key)), ...[...groups.keys()].filter((key) => !order.includes(key))];
+  return keys.map((key) => ({ key, pages: groups.get(key)! }));
 }

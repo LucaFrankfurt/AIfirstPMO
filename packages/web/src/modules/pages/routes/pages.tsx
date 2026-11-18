@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
-  formatHtml, htmlOutline, isBoardFormat, htmlToMarkdown, outlineOf, pageExcerpt, pageResolver, renderMarkdown,
-  statusOf, type Anchor, type Page, type PageFormat,
+  formatHtml, htmlOutline, isBoardFormat, isSuperseded, htmlToMarkdown, outlineOf, pageExcerpt, pageResolver, renderMarkdown,
+  comparePages, statusOf, type Anchor, type Label, type Page, type PageFormat, type PageStatus, type PageType,
 } from '@kolibri/shared';
 import { Header, Trail, type Crumb } from '../../../kernel/design-system/chrome';
 import { Comments } from '../../work/comments';
@@ -10,7 +10,11 @@ import {
   ACCESS_KEY, PageCover, PageHistory, PageLabelChips, VersionDiff, labelItems, moveItems,
   useCover, useExport, usePageLabels, usePrint, useWatching,
 } from '../page-parts';
-import { pagesMatching } from '../page-tree';
+import { groupBranches, pagesMatching, pagesWhere, trailsOf } from '../page-tree';
+import {
+  DriftNotice, isPinned, isSeries, PageTypeChip, pinItem, SeriesEntries, seriesItem, SupersededNotice, successorItems,
+  typeItems, typeOf, usePageTypes,
+} from '../organise';
 import { PageStatusChip, statusItems, usePageStatuses } from '../status';
 import { PublicKnowledgeChip, PublicKnowledgeNotice, isPublicKnowledge } from '../public-knowledge';
 import { PageTree, foldableIds, usePageFolds } from '../PageTree';
@@ -31,7 +35,7 @@ import { ShareSheet } from '../../share/share';
 import { useHighlights, useSelectionAnchor } from '../annotate';
 import { relativeTime } from '../../../kernel/design-system/format';
 
-import { createPage, remove, update } from '../../../kernel/sync/mutations';
+import { byOrder, createPage, remove, update } from '../../../kernel/sync/mutations';
 import { byId, list, useQuery, useRow } from '../../../kernel/sync/store';
 import { useCollaborativeText } from '../collab';
 import { useCanWrite, useMe, useMemberMap, useSession } from '../../../kernel/identity/session';
@@ -40,9 +44,9 @@ import { Input } from '../../../kernel/design-system/ui/field';
 import { EmojiPicker } from '../../../kernel/design-system/ui/emoji-picker';
 import { SectionHeading } from '../../../kernel/design-system/ui/section';
 import { navItem } from '../../../kernel/design-system/ui/nav';
-import { chipDot } from '../../../kernel/design-system/ui/chip';
+import { Chip, chipDot } from '../../../kernel/design-system/ui/chip';
 import { useSelection } from '../../../kernel/design-system/selection';
-import { useT } from '../../../kernel/i18n/i18n';
+import { useT, type TranslationKey } from '../../../kernel/i18n/i18n';
 import { cn } from '../../../kernel/design-system/cn';
 import { useMinute } from '../../../kernel/design-system/minute';
 
@@ -127,6 +131,26 @@ export function PageFromLink() {
   return null;
 }
 
+/** How the index draws the wiki, kept on this device like the folds. */
+type Grouping = 'tree' | 'project' | 'type' | 'status';
+const GROUP_KEY = 'kolibri.page-group';
+const GROUPINGS: Grouping[] = ['tree', 'project', 'type', 'status'];
+const GROUP_LABEL: Record<Grouping, TranslationKey> = {
+  tree: 'page.groupTree', project: 'page.groupProject', type: 'page.groupType', status: 'page.groupStatus',
+};
+
+const readGrouping = (): Grouping => {
+  try {
+    const kept = localStorage.getItem(GROUP_KEY) as Grouping | null;
+    return kept && GROUPINGS.includes(kept) ? kept : 'tree';
+  } catch {
+    return 'tree';
+  }
+};
+
+/** What the type filter is set to when it asks for pages with none. */
+const NO_TYPE = '__none';
+
 export function PagesIndex() {
   useMinute(); // re-reads the ages below once a minute — `design-system/minute.ts`
   const t = useT();
@@ -134,13 +158,25 @@ export function PagesIndex() {
   const me = useMe();
   const navigate = useNavigate();
   const all = useQuery(() => list('page', (p) => p.workspace_id === workspaceId && !p.archived), [workspaceId]);
-  const labels = useQuery(() => list('label', (label) => !label.project_id), [workspaceId]);
-  const [filter, setFilter] = useState<string>('');
+  const allLabels = useQuery(() => list('label', (label) => label.workspace_id === workspaceId) as Label[], [workspaceId]);
+  const projects = useQuery(() => list('project', (project) => !project.archived).sort(byOrder), [workspaceId]);
+  /** The labels to show, any of them; empty for all. */
+  const [labelsOn, setLabelsOn] = useState<string[]>([]);
   /** The rung to show, or '' for all of them. */
   const [rung, setRung] = useState<string>('');
+  /** The type to show, `NO_TYPE` for pages without one, or '' for all. */
+  const [typeOn, setTypeOn] = useState<string>('');
   const statuses = usePageStatuses();
+  const types = usePageTypes();
   const [importing, setImporting] = useState(false);
   const canWrite = useCanWrite();
+  const [grouping, setGroupingState] = useState<Grouping>(readGrouping);
+  const setGrouping = (next: Grouping) => {
+    setGroupingState(next);
+    try {
+      localStorage.setItem(GROUP_KEY, next);
+    } catch { /* blocked storage — the session still works */ }
+  };
 
   /*
    * The archive is on the tidying screen now, and this is why.
@@ -158,21 +194,40 @@ export function PagesIndex() {
   // Templates are kept out of the tree: they are starting points, not content,
   // and a handbook with three half-written templates in it reads as a mess.
   const templates = useMemo(() => all.filter((page) => page.is_template), [all]);
-  const pages = useMemo(
-    () => all.filter((page) => !page.is_template
-      && (!filter || (page.labels ?? []).includes(filter))
-      // By the rung a page *stands on*, which is not the same as its column:
-      // a page that never had a status stands on the draft, and a filter that
-      // asked the column would have hidden exactly the pages this feature was
-      // built to find.
-      && (!rung || statusOf(page, statuses)?.id === rung)) as Page[],
-    [all, filter, rung, statuses],
+  const pages = useMemo(() => all.filter((page) => !page.is_template) as Page[], [all]);
+  /*
+   * Recently edited, without the pages somebody replaced: "what is current" is
+   * the question this row answers, and last quarter's prices were the most
+   * recently touched page on the first real wiki the week they were retired.
+   */
+  const recent = useMemo(
+    () => pages.filter((page) => !isSuperseded(page, statuses))
+      .sort((a, b) => b.updated_at - a.updated_at).slice(0, 6),
+    [pages, statuses],
   );
-  const recent = useMemo(() => [...pages].sort((a, b) => b.updated_at - a.updated_at).slice(0, 6), [pages]);
+  /*
+   * The reference pages: what the first real wiki kept as a hand-written table
+   * at the bottom of a cleanup page — which page counts, per subject. Above the
+   * recent ones, because "what is current" outranks "what moved".
+   */
+  const pinned = useMemo(
+    () => pages.filter((page) => isPinned(page) && !isSuperseded(page, statuses))
+      .sort((a, b) => (a.title || '').localeCompare(b.title || '')),
+    [pages, statuses],
+  );
+  /*
+   * Every label any page carries, from wherever it was made.
+   *
+   * This asked only for workspace-wide labels, while a page's own menu offered
+   * every label there was — so a page labelled with one of its project's
+   * labels could be labelled and never filtered by it. On the first real
+   * instance 72 of 73 labels belonged to a project, and the filter had one
+   * label to offer.
+   */
   const inUse = useMemo(() => {
-    const used = new Set(all.flatMap((page) => page.labels ?? []));
-    return labels.filter((label) => used.has(label.id));
-  }, [all, labels]);
+    const used = new Set(pages.flatMap((page) => page.labels ?? []));
+    return allLabels.filter((label) => used.has(label.id)).sort((a, b) => a.name.localeCompare(b.name));
+  }, [pages, allLabels]);
   // What the wiki has asked for and nobody has written: the only to-do list
   // here that writes itself.
   const unwritten = useUnwritten();
@@ -191,12 +246,83 @@ export function PagesIndex() {
   const foldable = useMemo(() => foldableIds(pages), [pages]);
 
   /**
-   * The filter, as a set of ids to draw: matches *plus the path to each of
-   * them*, because the answer to "where is the leave policy" is the path and
-   * not the row. `pagesMatching` is shared with the tree beside a page, so the
-   * two cannot come to disagree about what counts as a match.
+   * The filters, as one question asked of a page — or none.
+   *
+   * Labels are *any of*: a page about pricing or about sales is what somebody
+   * ticking both is looking for. The rung is by where a page *stands*, which is
+   * not the same as its column: a page that never had a status stands on the
+   * draft, and a filter that asked the column would hide exactly the pages
+   * this feature was built to find.
    */
-  const { keep, matched } = useMemo(() => pagesMatching(pages, hunt), [pages, hunt]);
+  const filtering = labelsOn.length + (rung ? 1 : 0) + (typeOn ? 1 : 0);
+  const test = useMemo(() => (filtering
+    ? (page: Page) => (!labelsOn.length || labelsOn.some((id) => (page.labels ?? []).includes(id)))
+      && (!rung || statusOf(page, statuses)?.id === rung)
+      && (!typeOn || (typeOn === NO_TYPE ? !typeOf(page, types) : page.type_id === typeOn))
+    : null), [filtering, labelsOn, rung, typeOn, statuses, types]);
+
+  /**
+   * The filters and the box, as a set of ids to draw: matches *plus the path to
+   * each of them*, because the answer to "where is the leave policy" is the
+   * path and not the row. The label and status filters used to narrow the list
+   * before the tree was built instead, which drew every matching sub-page as a
+   * chapter of its own — see `pagesWhere`.
+   */
+  const { keep, matched } = useMemo(() => pagesWhere(pages, test, hunt), [pages, test, hunt]);
+  const trails = useMemo(() => trailsOf(pages), [pages]);
+
+  /*
+   * The sections, when the wiki is drawn in them.
+   *
+   * By project, the tree is kept whole and filed by where each branch's top
+   * page is filed — a sub-page stays under its parent even when the two sit in
+   * different projects. By type or by status there is no tree to keep: those
+   * are said of each page on its own, so the sections are flat lists with each
+   * page's path beside it.
+   */
+  const sections = useMemo((): { id: string; label: string; icon?: React.ReactNode; pages: Page[] }[] => {
+    if (grouping === 'project') {
+      // A project id that names nothing any more is filed with the workspace,
+      // rather than as a second section called the same thing. An archived
+      // project still has a name, and keeps its own section after the live ones.
+      return groupBranches(pages, (root) => (root.project_id && byId('project', root.project_id) ? root.project_id : null),
+        [null, ...projects.map((project) => project.id)])
+        .map(({ key, pages: rows }) => {
+          const project = key ? byId('project', key) : undefined;
+          return {
+            id: key ?? 'none',
+            label: project?.name ?? t('page.workspaceLevel'),
+            icon: project?.icon ?? undefined,
+            pages: rows,
+          };
+        })
+        .filter((section) => !keep || section.pages.some((page) => keep.has(page.id)));
+    }
+    if (grouping === 'type' || grouping === 'status') {
+      const shown = pages.filter((page) => !matched || matched.has(page.id));
+      const keyOf = (page: Page) => (grouping === 'type' ? typeOf(page, types)?.id : statusOf(page, statuses)?.id) ?? null;
+      const order = grouping === 'type' ? types : statuses;
+      return [...order.map((one) => one.id), null]
+        .map((id) => {
+          const one = order.find((row) => row.id === id);
+          return {
+            id: id ?? 'none',
+            label: one?.name ?? t(grouping === 'type' ? 'page.typeNone' : 'pageStatus.draft'),
+            icon: grouping === 'type'
+              ? (one as PageType | undefined)?.icon ?? undefined
+              : one ? <span className={chipDot} style={{ background: (one as PageStatus).color }} /> : undefined,
+            pages: shown.filter((page) => keyOf(page) === id)
+              .sort((a, b) => (a.title || '').localeCompare(b.title || '')),
+          };
+        })
+        .filter((section) => section.pages.length > 0);
+    }
+    return [];
+  }, [grouping, pages, projects, types, statuses, keep, matched, t]);
+  const flat = grouping === 'type' || grouping === 'status';
+
+  const toggleLabel = (id: string) =>
+    setLabelsOn(labelsOn.includes(id) ? labelsOn.filter((one) => one !== id) : [...labelsOn, id]);
 
   return (
     <>
@@ -223,40 +349,69 @@ export function PagesIndex() {
           <Icon name="archive" size={14} />
           <span className="hide-sm">{t('page.tidy')}</span>
         </Button>
-        {/* One filter button with two sections rather than two buttons. This
+        {/* One filter button with drawers rather than three buttons. This
             header is one row 52px tall and scrolls sideways when it does not
-            fit; a second control here costs more than the second question is
-            worth, and the two narrow the same list. */}
-        {(inUse.length > 0 || statuses.length > 0) && (
+            fit; a control per question costs more than the questions are worth,
+            and all of them narrow the same tree. Drawers, because labels and
+            types are lists that grow with the workspace — see `check:menus`. */}
+        {(inUse.length > 0 || statuses.length > 0 || types.length > 0) && (
           <MenuButton
             variant="secondary" size="sm"
             items={[
-              { id: 'all', label: t('page.allPages'), hint: filter || rung ? undefined : '✓',
-                onSelect: () => { setFilter(''); setRung(''); } },
-              ...inUse.map((label) => ({
-                id: label.id,
-                section: t('page.filterByLabel'),
-                label: label.name,
-                icon: <span className={chipDot} style={{ background: label.color }} />,
-                hint: filter === label.id ? '✓' : undefined,
-                onSelect: () => setFilter(filter === label.id ? '' : label.id),
-              })),
-              ...statuses.map((status) => ({
-                id: `status-${status.id}`,
-                section: t('page.status'),
-                label: status.name,
-                icon: <span className={chipDot} style={{ background: status.color }} />,
-                hint: rung === status.id ? '✓' : undefined,
-                onSelect: () => setRung(rung === status.id ? '' : status.id),
-              })),
+              { id: 'all', label: t('page.allPages'), hint: filtering ? undefined : '✓',
+                onSelect: () => { setLabelsOn([]); setRung(''); setTypeOn(''); } },
+              ...(inUse.length ? [{
+                id: 'labels',
+                label: t('page.labels'),
+                icon: <Icon name="tag" size={14} />,
+                hint: labelsOn.length ? String(labelsOn.length) : undefined,
+                search: inUse.length > 8,
+                items: inUse.map((label) => ({
+                  id: `label-${label.id}`,
+                  label: label.name,
+                  icon: <span className={chipDot} style={{ background: label.color }} />,
+                  // Which project's: eight projects each seeded a `Bug`, and the
+                  // name alone names none of them.
+                  hint: [labelsOn.includes(label.id) ? '✓' : null,
+                    label.project_id ? byId('project', label.project_id)?.name : null].filter(Boolean).join(' ') || undefined,
+                  keepOpen: true,
+                  onSelect: () => toggleLabel(label.id),
+                })),
+              }] : []),
+              ...(statuses.length ? [{
+                id: 'status',
+                label: t('page.status'),
+                icon: <Icon name="check" size={14} />,
+                hint: statuses.find((status) => status.id === rung)?.name,
+                items: statuses.map((status) => ({
+                  id: `status-${status.id}`,
+                  label: status.name,
+                  icon: <span className={chipDot} style={{ background: status.color }} />,
+                  hint: rung === status.id ? '✓' : undefined,
+                  onSelect: () => setRung(rung === status.id ? '' : status.id),
+                })),
+              }] : []),
+              ...(types.length ? [{
+                id: 'type',
+                label: t('page.type'),
+                icon: <Icon name="page" size={14} />,
+                hint: typeOn === NO_TYPE ? t('page.typeNone') : types.find((type) => type.id === typeOn)?.name,
+                items: [
+                  ...types.map((type) => ({
+                    id: `type-${type.id}`,
+                    label: type.name,
+                    icon: <span aria-hidden="true">{type.icon ?? '•'}</span>,
+                    hint: typeOn === type.id ? '✓' : undefined,
+                    onSelect: () => setTypeOn(typeOn === type.id ? '' : type.id),
+                  })),
+                  { id: 'type-none', label: t('page.typeNone'), hint: typeOn === NO_TYPE ? '✓' : undefined,
+                    onSelect: () => setTypeOn(typeOn === NO_TYPE ? '' : NO_TYPE) },
+                ],
+              }] : []),
             ]}
           >
             <Icon name="filter" size={14} />
-            <span className="hide-sm">
-              {filter ? byId('label', filter)?.name ?? t('page.filterByLabel')
-                : rung ? statuses.find((status) => status.id === rung)?.name ?? t('page.status')
-                  : t('page.filterByLabel')}
-            </span>
+            <span className="hide-sm">{filtering ? t('page.filters', { count: filtering }) : t('page.filterByLabel')}</span>
           </MenuButton>
         )}
         {templates.length > 0 && (
@@ -267,13 +422,13 @@ export function PagesIndex() {
               label: `${template.icon ?? '📄'} ${template.title}`,
               // A copy, not a link: a template is a starting point, and editing
               // the new page must not edit the template. In the template's own
-              // format and with its icon — an HTML template used to become a
-              // markdown page showing its tags — and with copies of its boards
-              // when it is a canvas or a board page.
+              // format, with its icon and its type — an HTML template used to
+              // become a markdown page showing its tags — and with copies of
+              // its boards when it is a canvas or a board page.
               onSelect: () => {
                 const made = createPage({
                   title: template.title, content: template.content, project_id: template.project_id,
-                  format: template.format ?? 'markdown', icon: template.icon ?? undefined,
+                  format: template.format ?? 'markdown', icon: template.icon ?? undefined, type_id: template.type_id ?? null,
                 }, me);
                 copyBoards(template, { id: made, title: template.title, format: template.format ?? 'markdown' });
                 navigate(`/pages/${made}`);
@@ -320,35 +475,23 @@ export function PagesIndex() {
           />
         ) : (
           <>
+            {pinned.length > 0 && (
+              <>
+                <h2 className="mb-2 text-sm font-semibold">{t('page.pinned')}</h2>
+                <div className="mb-6 grid gap-3 sm:grid-cols-2">
+                  {pinned.map((page) => <PageCard key={page.id} page={page} />)}
+                </div>
+              </>
+            )}
             <h2 className="mb-2 text-sm font-semibold">{t('page.recentlyEdited')}</h2>
             {/* Links, not buttons that navigate: a page is a thing people open
                 in a second tab, and a button cannot be. */}
             <div className="mb-6 grid gap-3 sm:grid-cols-2">
-              {recent.map((page) => (
-                <Link
-                  key={page.id}
-                  to={`/pages/${page.id}`}
-                  // `min-w-0`, because a grid item's automatic minimum is its
-                  // content: the title inside truncates, but the *card* was
-                  // sized to the untruncated title and pushed the track wider
-                  // than the column. Measured at 340px with a real handbook's
-                  // titles — a 452px card in a 340px screen, and `main` scrolling
-                  // sideways by 124px on a phone.
-                  className="flex min-w-0 flex-col gap-1 rounded-[var(--radius)] border border-line bg-raised p-3.5 text-left transition-colors hover:border-line-strong hover:bg-hover outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
-                >
-                  <span className="flex items-center gap-2">
-                    <span aria-hidden="true">{page.icon ?? '📄'}</span>
-                    <strong className="flex-1 min-w-0 truncate">{page.title || t('common.untitled')}</strong>
-                    <PageStatusChip page={page} dot />
-                  </span>
-                  <p className="m-0 text-[12.5px] text-muted">{page.format === 'canvas' ? t('canvas.kind') : page.format === 'board' ? t('board.kind') : pageExcerpt(page.content, page.format, 110) || t('page.emptyPage')}</p>
-                  <span className="text-[11.5px] text-muted">{t('page.updated', { time: relativeTime(page.updated_at) })}</span>
-                </Link>
-              ))}
+              {recent.map((page) => <PageCard key={page.id} page={page} />)}
             </div>
             <div className="flex items-center flex-wrap gap-2 mb-2">
               <h2 className="text-sm font-semibold">{t('page.all')}</h2>
-              {!drawn && canWrite && !picking && <span className="text-[12px] text-muted hide-sm">{t('page.dragHint')}</span>}
+              {!drawn && canWrite && !picking && !flat && <span className="text-[12px] text-muted hide-sm">{t('page.dragHint')}</span>}
               <span className="flex-1 min-w-0" />
               {!drawn && (
                 <>
@@ -362,7 +505,25 @@ export function PagesIndex() {
                     value={hunt}
                     onChange={(event) => setHunt(event.target.value)}
                   />
-                  {foldable.length > 0 && !keep && (
+                  <MenuButton
+                    variant="ghost" size="sm"
+                    items={GROUPINGS.map((one) => ({
+                      id: `group-${one}`,
+                      label: t(GROUP_LABEL[one]),
+                      hint: grouping === one ? '✓' : undefined,
+                      onSelect: () => {
+                        // A selection made in a tree means nothing in a flat
+                        // list, and the flat lists have no Select to end it with.
+                        selection.clear();
+                        if (one === 'type' || one === 'status') setPicking(false);
+                        setGrouping(one);
+                      },
+                    }))}
+                  >
+                    <Icon name="folder" size={14} />
+                    <span className="hide-sm">{t(GROUP_LABEL[grouping])}</span>
+                  </MenuButton>
+                  {foldable.length > 0 && !keep && !flat && (
                     <Button
                       variant="ghost" size="sm"
                       title={folds.count ? t('page.unfoldAll') : t('page.foldAll')}
@@ -372,7 +533,7 @@ export function PagesIndex() {
                       <Icon name={folds.count ? 'chevronDown' : 'chevronRight'} size={14} />
                     </Button>
                   )}
-                  {canWrite && (
+                  {canWrite && !flat && (
                     <Button
                       variant={picking ? 'primary' : 'ghost'} size="sm"
                       aria-pressed={picking}
@@ -401,8 +562,8 @@ export function PagesIndex() {
             {drawn ? (
               <PageGraph nodes={graph.nodes} edges={graph.edges} />
             ) : keep?.size === 0 ? (
-              <p className="text-muted text-[12.5px]">{t('page.filterNone')}</p>
-            ) : (
+              <p className="text-muted text-[12.5px]">{filtering ? t('page.filterNoMatch') : t('page.filterNone')}</p>
+            ) : grouping === 'tree' ? (
               <PageTree
                 pages={pages}
                 canWrite={canWrite}
@@ -412,6 +573,46 @@ export function PagesIndex() {
                 matched={matched}
                 marks
               />
+            ) : (
+              sections.map((section) => (
+                <section key={section.id} className="mb-5">
+                  <SectionHeading tight>
+                    <span className="flex items-center gap-1.5">
+                      {section.icon && <span aria-hidden="true">{section.icon}</span>}
+                      <span>{section.label}</span>
+                      {/* What the section shows: its matches while a filter
+                          runs, not the whole branch set behind them. */}
+                      <span className="text-muted text-[12px] font-normal">
+                        {matched ? section.pages.filter((page) => matched.has(page.id)).length : section.pages.length}
+                      </span>
+                    </span>
+                  </SectionHeading>
+                  {flat ? section.pages.map((page) => (
+                    <Link key={page.id} to={`/pages/${page.id}`} className="page-row">
+                      <span className={cn(navItem(), 'page-row-main')}>
+                        <span style={{ width: 16 }}>{page.icon ?? '📄'}</span>
+                        <span className="flex-1 min-w-0 truncate">{page.title || t('common.untitled')}</span>
+                        {/* The path, because out of the tree "Preise" could be
+                            any of four pages and where it hangs says which. */}
+                        <span className="text-[11.5px] text-muted truncate hide-sm" style={{ maxWidth: '40%' }}>
+                          {(trails.get(page.id) ?? []).map((parent) => parent.title || t('common.untitled')).join(' › ')}
+                        </span>
+                        <PageStatusChip page={page} dot />
+                      </span>
+                    </Link>
+                  )) : (
+                    <PageTree
+                      pages={section.pages}
+                      canWrite={canWrite}
+                      folds={folds}
+                      selection={picking ? selection : undefined}
+                      keep={keep}
+                      matched={matched}
+                      marks
+                    />
+                  )}
+                </section>
+              ))
             )}
 
             {canWrite && unwritten.length > 0 && (
@@ -447,6 +648,34 @@ export function PagesIndex() {
   );
 }
 
+/**
+ * A page as a card: the reference pages and the recent ones, drawn alike.
+ *
+ * `min-w-0`, because a grid item's automatic minimum is its content: the title
+ * inside truncates, but the *card* was sized to the untruncated title and
+ * pushed the track wider than the column. Measured at 340px with a real
+ * handbook's titles — a 452px card in a 340px screen, and `main` scrolling
+ * sideways by 124px on a phone.
+ */
+function PageCard({ page }: { page: Page }) {
+  const t = useT();
+  return (
+    <Link
+      to={`/pages/${page.id}`}
+      className="flex min-w-0 flex-col gap-1 rounded-[var(--radius)] border border-line bg-raised p-3.5 text-left transition-colors hover:border-line-strong hover:bg-hover outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+    >
+      <span className="flex items-center gap-2">
+        <span aria-hidden="true">{page.icon ?? '📄'}</span>
+        <strong className="flex-1 min-w-0 truncate">{page.title || t('common.untitled')}</strong>
+        <PageTypeChip page={page} dot />
+        <PageStatusChip page={page} dot />
+      </span>
+      <p className="m-0 text-[12.5px] text-muted">{page.format === 'canvas' ? t('canvas.kind') : page.format === 'board' ? t('board.kind') : pageExcerpt(page.content, page.format, 110) || t('page.emptyPage')}</p>
+      <span className="text-[11.5px] text-muted">{t('page.updated', { time: relativeTime(page.updated_at) })}</span>
+    </Link>
+  );
+}
+
 /* ------------------------------------------------------------------- page */
 
 /** Whether this device wants the tree beside the page. Never synced — see below. */
@@ -479,7 +708,8 @@ export function PageDetail() {
   const [diffing, setDiffing] = useState<string | null>(null);
 
   const { workspaceId } = useSession();
-  const children = useQuery(() => list('page', (p) => p.parent_id === id && !p.archived), [id]);
+  // In the tree's order, which the store's is not — see `comparePages`.
+  const children = useQuery(() => (list('page', (p) => p.parent_id === id && !p.archived) as Page[]).sort(comparePages), [id]);
   // Where this page sits, and what points at it: the tree and the web, the two
   // halves of finding your way around a wiki.
   const trail = useTrail(id);
@@ -487,6 +717,7 @@ export function PageDetail() {
   const rename = useRenamePage();
   const labels = usePageLabels((page ?? { project_id: null }) as any);
   const statuses = usePageStatuses();
+  const types = usePageTypes();
   const { watching, toggle: toggleWatch } = useWatching((page ?? { id, watchers: [] }) as any);
   const cover = useCover((page ?? { id, cover_url: null }) as any);
   const exportPage = useExport();
@@ -745,17 +976,37 @@ export function PageDetail() {
             // template is given copies of them (`boards.ts`).
             { id: 'share', label: t('share.action'), icon: <Icon name="link" size={14} />,
               onSelect: () => setSharing(true) },
-            { id: 'template', label: page.is_template ? t('page.unmarkTemplate') : t('page.markTemplate'),
-              icon: <Icon name="copy" size={14} />, hint: page.is_template ? '✓' : undefined,
-              onSelect: () => update('page', id, { is_template: page.is_template ? 0 : 1 }) },
-            { id: 'public-knowledge',
-              label: isPublicKnowledge(page) ? t('page.unmarkPublicKnowledge') : t('page.markPublicKnowledge'),
-              icon: <Icon name="globe" size={14} />, hint: isPublicKnowledge(page) ? '✓' : undefined,
-              onSelect: () => update('page', id, { public_knowledge: isPublicKnowledge(page) ? 0 : 1 }) },
+            /*
+             * What a page is *used as*, in one drawer: the reference on its
+             * subject, a series of dated entries, a template, something a
+             * visitor may be told. Four switches of one kind, and in a drawer
+             * rather than four rows because this menu has to fit a laptop and
+             * a phone (`check:menus`) and it gained two lists the same day.
+             */
+            {
+              id: 'mark-as',
+              label: t('page.markAs'),
+              icon: <Icon name="star" size={14} />,
+              hint: [isPinned(page) && t('page.pinnedChip'), isSeries(page) && t('page.series'),
+                page.is_template && t('page.template')].filter(Boolean).join(', ') || undefined,
+              items: [
+                { ...pinItem(page, t), keepOpen: true },
+                { ...seriesItem(page, t), keepOpen: true },
+                { id: 'template', label: page.is_template ? t('page.unmarkTemplate') : t('page.markTemplate'),
+                  icon: <Icon name="copy" size={14} />, hint: page.is_template ? '✓' : undefined, keepOpen: true,
+                  onSelect: () => update('page', id, { is_template: page.is_template ? 0 : 1 }) },
+                { id: 'public-knowledge',
+                  label: isPublicKnowledge(page) ? t('page.unmarkPublicKnowledge') : t('page.markPublicKnowledge'),
+                  icon: <Icon name="globe" size={14} />, hint: isPublicKnowledge(page) ? '✓' : undefined, keepOpen: true,
+                  onSelect: () => update('page', id, { public_knowledge: isPublicKnowledge(page) ? 0 : 1 }) },
+              ],
+            },
             ...cover.items(t('page.cover')),
             ...moveItems(page, workspaceId, t('page.move')),
             labelItems(page, labels, t('page.labels')),
             statusItems(page, statuses, t('page.status')),
+            ...(types.length || page.type_id ? [typeItems(page, types, t('page.type'), t('page.typeNone'))] : []),
+            successorItems(page, siblings, statuses, t),
             {
               id: 'access',
               label: t('page.access'),
@@ -811,6 +1062,11 @@ export function PageDetail() {
         </MenuButton>
       </Header>
 
+      {/* A canvas or a board page draws its own surface below, so the one
+          notice that applies to it — replaced, and by what — goes above. */}
+      {isBoardFormat(page.format) && isSuperseded(page, statuses) && (
+        <div className="px-3 pt-3 sm:px-6"><SupersededNotice page={page} /></div>
+      )}
       {page.format === 'canvas' ? (
         <CanvasView page={page} canWrite={canWrite} ai={boardAi} printRequest={printRequest} thread={(props) => <Comments {...props} />} />
       ) : page.format === 'board' ? (
@@ -875,6 +1131,10 @@ export function PageDetail() {
             )}
           </div>
         )}
+        {/* The same place, for the same question: is this the page I should be
+            reading, and is it still what was signed off. */}
+        <SupersededNotice page={page} />
+        <DriftNotice page={page} onCompare={setDiffing} />
         {/* The wiki itself is the first crumb, then the pages this one is
             nested under. Without the first one a top-level page had no trail at
             all, and no route back to the wiki except the sidebar. */}
@@ -920,6 +1180,8 @@ export function PageDetail() {
                 things somebody sets already live. */}
             <div className="flex items-center flex-wrap gap-1.5 mb-3.5">
               <PageStatusChip page={page} />
+              <PageTypeChip page={page} />
+              {isPinned(page) && <Chip title={t('page.pin')}><Icon name="star" size={11} /> {t('page.pinnedChip')}</Chip>}
               <PublicKnowledgeChip page={page} />
               <PageLabelChips page={page} />
             </div>
@@ -956,7 +1218,10 @@ export function PageDetail() {
           </>
         )}
 
-        {children.length > 0 && (
+        {/* A series draws its entries newest first and offers the next one;
+            every other page lists its sub-pages in the tree's order. */}
+        {isSeries(page) && <SeriesEntries page={page} entries={children as Page[]} />}
+        {!isSeries(page) && children.length > 0 && (
           <section className="mt-7">
             <SectionHeading tight>{t('page.subpages')}</SectionHeading>
             {children.map((child) => (

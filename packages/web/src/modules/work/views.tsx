@@ -1,7 +1,7 @@
 import { Fragment, useMemo, useState } from 'react';
 import type { Field, Filters, Layout, StateGroup, Task } from '@kolibri/shared';
 import {
-  FIELD_ANSWERED, FIELD_EMPTY, emptyValue, fieldChoices, fieldMatches, fieldValueId,
+  FIELD_ANSWERED, FIELD_EMPTY, emptyValue, fieldChoices, fieldMatches, fieldValueId, labelApplies,
   countFilters, formatFieldValue, isDoneGroup, isGroupable, matchesTerms, orderKey,
   parseTerms, passesFilters, PRIORITIES, readFieldValue,
 } from '@kolibri/shared';
@@ -207,7 +207,21 @@ export function ViewControls({
 }) {
   const t = useT();
   const states = useStates(projectId);
-  const labels = useLabels(projectId);
+  /*
+   * The labels worth filtering tasks by: those a task may be given, and any a
+   * task already carries — a label switched to pages-only after it was put on
+   * tasks is still on them, and still worth finding them by. Not every label,
+   * which would offer the wiki's topics in a task filter.
+   */
+  const everyLabel = useLabels(projectId);
+  const carried = useQuery(
+    () => new Set(list('task', (task) => !projectId || task.project_id === projectId).flatMap((task) => task.labels ?? [])),
+    [projectId],
+  );
+  const labels = useMemo(
+    () => everyLabel.filter((label) => labelApplies(label, 'task') || carried.has(label.id)),
+    [everyLabel, carried],
+  );
   const cycles = useCycles(projectId);
   const modules = useModules(projectId);
   const members = useMembers();

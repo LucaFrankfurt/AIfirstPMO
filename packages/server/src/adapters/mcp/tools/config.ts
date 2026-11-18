@@ -1,11 +1,15 @@
 /**
  * The vocabulary a project is described in: its states and its labels.
  */
-import { orderKey, STATE_GROUPS } from '@kolibri/shared';
+import { LABEL_SCOPES, orderKey, STATE_GROUPS, type LabelScope } from '@kolibri/shared';
 import { all, get, type Row } from '../../../kernel/platform/db/index.ts';
 import { writeEntity } from '../../../kernel/write-path/repo.ts';
 import { uid } from '../../../kernel/platform/ids.ts';
 import { colour, findLabel, findProject, findState, labelView, McpError, requireWrite, stateGroup, stateView, str, type ToolDef, workspaceOf, writeOpts } from '../kit.ts';
+
+/** A label scope as the tools take it, or undefined for anything else. */
+const scopeArg = (value: unknown): LabelScope | undefined =>
+  (LABEL_SCOPES as readonly string[]).includes(String(value)) ? (String(value) as LabelScope) : undefined;
 
 export const configTools: ToolDef[] = [
   {
@@ -215,6 +219,7 @@ export const configTools: ToolDef[] = [
         description: label.description ?? null,
         // Null rather than a project id means every project here may use it.
         project_id: label.project_id ?? null,
+        applies_to: label.applies_to ?? 'all',
         open_tasks: Number(get<Row>(
           `SELECT count(*) c FROM tasks t LEFT JOIN states s ON s.id = t.state_id
             WHERE t.workspace_id = ? AND t.deleted_at IS NULL AND t.archived = 0
@@ -251,6 +256,7 @@ export const configTools: ToolDef[] = [
         color: { type: 'string', description: 'Hex, e.g. #3b82f6' },
         description: { type: 'string' },
         project: { type: 'string', description: 'Project id, key or name. Omit for a label every project can use.' },
+        applies_to: { type: 'string', enum: ['all', 'tasks', 'pages'], description: 'What it may be put on. `pages` for a topic in the wiki, `tasks` for a kind of work; `all` when left out.' },
         workspace_id: { type: 'string' },
       },
     },
@@ -301,6 +307,7 @@ export const configTools: ToolDef[] = [
         name,
         ...(tint ? { color: tint } : {}),
         description: str(args.description) ?? null,
+        applies_to: scopeArg(args.applies_to) ?? 'all',
       }, writeOpts(workspaceId, ctx));
       return labelView(row);
     },
@@ -331,6 +338,7 @@ export const configTools: ToolDef[] = [
         color: { type: 'string', description: 'Hex, e.g. #3b82f6' },
         description: { type: 'string' },
         workspace_wide: { type: 'boolean', description: 'Detach from its project so every project may use it' },
+        applies_to: { type: 'string', enum: ['all', 'tasks', 'pages'], description: 'What it may be put on from now on. Labels already on a task or page stay there.' },
         workspace_id: { type: 'string' },
       },
     },
@@ -369,11 +377,16 @@ export const configTools: ToolDef[] = [
       if (tint) patch.color = tint;
       if (args.description !== undefined) patch.description = str(args.description) ?? null;
       if (args.workspace_wide === true) patch.project_id = null;
+      if (args.applies_to !== undefined) {
+        const scope = scopeArg(args.applies_to);
+        if (!scope) throw new McpError('`applies_to` is one of all, tasks, pages');
+        patch.applies_to = scope;
+      }
       if (args.workspace_wide === false && !label.project_id) {
         throw new McpError('A workspace-wide label cannot be narrowed to one project — the tasks in the others already carry it');
       }
       if (!Object.keys(patch).length) {
-        throw new McpError('Nothing to change — pass name, color, description or workspace_wide');
+        throw new McpError('Nothing to change — pass name, color, description, workspace_wide or applies_to');
       }
 
       const { row } = writeEntity('label', String(label.id), patch, writeOpts(workspaceId, ctx));

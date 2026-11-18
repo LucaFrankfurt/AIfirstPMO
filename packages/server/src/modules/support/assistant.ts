@@ -55,7 +55,7 @@ export function assistantReady(widget: Row | undefined): boolean {
 }
 
 /** Why a page a widget names is not read: gone, private, not marked, or past the budget. */
-export type KnowledgeSkip = 'deleted' | 'private' | 'not_public_knowledge' | 'over_budget';
+export type KnowledgeSkip = 'deleted' | 'private' | 'not_public_knowledge' | 'superseded' | 'over_budget';
 
 /** One page a widget names, and how much of it the model reads. */
 export interface KnowledgePage {
@@ -83,8 +83,10 @@ export function knowledgeOf(widget: Row): KnowledgePage[] {
   const ids = parseIds(widget.knowledge);
   if (!ids.length) return [];
   const rows = new Map(all<Row>(
-    `SELECT id, title, content, access, public_knowledge, deleted_at FROM pages
-      WHERE id IN (${ids.map(() => '?').join(',')}) AND workspace_id = ?`,
+    `SELECT p.id, p.title, p.content, p.access, p.public_knowledge, p.deleted_at, p.superseded_by,
+            (SELECT kind FROM page_statuses s WHERE s.id = p.status_id AND s.deleted_at IS NULL) AS kind
+       FROM pages p
+      WHERE p.id IN (${ids.map(() => '?').join(',')}) AND p.workspace_id = ?`,
     ...ids, widget.workspace_id,
   ).map((row) => [String(row.id), row]));
   let budget = KNOWLEDGE_CHARS;
@@ -95,8 +97,12 @@ export function knowledgeOf(widget: Row): KnowledgePage[] {
     const skipped: KnowledgeSkip | null = !row || row.deleted_at ? 'deleted'
       : row.access === 'private' ? 'private'
         : Number(row.public_knowledge) !== 1 ? 'not_public_knowledge'
-          : budget <= 0 ? 'over_budget'
-            : null;
+          // A page somebody replaced is still marked as fit for a visitor — it
+          // was, once — and is exactly the page a customer must not be quoted:
+          // last quarter's prices, said with today's confidence.
+          : row.superseded_by || row.kind === 'superseded' ? 'superseded'
+            : budget <= 0 ? 'over_budget'
+              : null;
     if (skipped) return { ...page, skipped };
     const text = content.slice(0, Math.min(PAGE_CHARS, budget));
     budget -= text.length;

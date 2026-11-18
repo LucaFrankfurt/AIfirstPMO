@@ -1,5 +1,6 @@
 import { Fragment, type ReactNode } from 'react';
 import {
+  labelApplies,
   PRIORITIES, ancestry, coversProject, descendants, fieldKeys, isDoneGroup, mayEnter,
   type Cycle, type Filters, type Label, type Layout, type Module, type State, type Task,
 } from '@kolibri/shared';
@@ -197,7 +198,14 @@ export function AssigneePicker({ task, compact }: { task: Task; compact?: boolea
 
 export function LabelPicker({ task }: { task: Task }) {
   const t = useT();
-  const labels = useLabels(task.project_id);
+  /*
+   * The labels a task may be given — not one kept for the wiki (`labelApplies`)
+   * — and whatever it already carries, so a label switched to pages-only after
+   * it was put on a task can still be seen ticked here and taken off. The
+   * chips and the board's grouping read `useLabels` unfiltered for that reason.
+   */
+  const all = useLabels(task.project_id);
+  const labels = all.filter((label) => labelApplies(label, 'task') || (task.labels ?? []).includes(label.id));
   // Only the ones that still exist. A task keeps the id of a label that was
   // deleted out from under it — every other place that reads them resolves the
   // id and skips what is gone, and this counted the raw list instead. Delete a

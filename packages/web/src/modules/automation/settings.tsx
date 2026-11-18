@@ -13,6 +13,7 @@
  */
 import { useEffect, useState } from 'react';
 import {
+  labelApplies,
   FAN_OUT, PRIORITIES, RECIPIENT_KINDS, RELATION_KINDS, STATE_GROUPS, TEMPLATE_KINDS,
   type AutomationTriggerKind, type FanOut, type Priority, type Recipient, type RecipientKind,
   type RelationKind, type StateGroup, type TemplateKind, type WorkspaceRole,
@@ -405,7 +406,7 @@ function RuleEditor({
   );
   // Labels a rule may add: this project's, plus the workspace-wide ones.
   const actionLabels = useQuery(
-    () => list('label', (label) => !label.project_id || label.project_id === form.project_id),
+    () => list('label', (label) => labelApplies(label, 'task') && (!label.project_id || label.project_id === form.project_id)),
     [form.project_id],
   );
   // Only what was filled in. An empty control is "leave it alone", not a value.
