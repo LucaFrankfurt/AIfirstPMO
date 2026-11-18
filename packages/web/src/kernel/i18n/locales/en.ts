@@ -2248,6 +2248,7 @@ export const en = {
   'pageStatus.draft': 'Draft',
   'pageStatus.review': 'In review',
   'pageStatus.final': 'Final',
+  'page.hideKnowledge': 'Hide the public knowledge base',
   'page.knowledgeIntro': 'The pages written for people outside the workspace — the only ones a support assistant may read. They stay where they are in the wiki; this is the same pages, gathered.',
   'page.knowledgeEmpty': 'No page is in the public knowledge base yet.',
   'page.knowledgeEmptyHint': 'Mark a page from its menu, under “Mark as”, or write a new article here.',

@@ -2242,6 +2242,7 @@ export const de: Catalogue = {
   'pageStatus.draft': 'Entwurf',
   'pageStatus.review': 'Im Review',
   'pageStatus.final': 'Final',
+  'page.hideKnowledge': 'Öffentliche Wissensbasis ausblenden',
   'page.knowledgeIntro': 'Die Seiten für Menschen außerhalb des Arbeitsbereichs – die einzigen, die ein Support-Assistent lesen darf. Sie bleiben, wo sie im Wiki stehen; hier sind dieselben Seiten gesammelt.',
   'page.knowledgeEmpty': 'Noch keine Seite ist in der öffentlichen Wissensbasis.',
   'page.knowledgeEmptyHint': 'Markiere eine Seite über ihr Menü unter „Markieren als“ oder schreib hier einen neuen Artikel.',

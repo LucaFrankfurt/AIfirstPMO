@@ -2243,6 +2243,7 @@ export const fr: Catalogue = {
   'pageStatus.draft': 'Brouillon',
   'pageStatus.review': 'En relecture',
   'pageStatus.final': 'Final',
+  'page.hideKnowledge': 'Masquer la base de connaissances publique',
   'page.knowledgeIntro': 'Les pages écrites pour des personnes extérieures à l’espace — les seules qu’un assistant de support peut lire. Elles restent à leur place dans le wiki ; ce sont les mêmes pages, rassemblées ici.',
   'page.knowledgeEmpty': 'Aucune page n’est encore dans la base de connaissances publique.',
   'page.knowledgeEmptyHint': 'Marquez une page depuis son menu, sous « Marquer comme », ou écrivez ici un nouvel article.',
