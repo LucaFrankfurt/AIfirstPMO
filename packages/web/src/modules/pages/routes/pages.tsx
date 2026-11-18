@@ -190,6 +190,8 @@ export function PagesIndex() {
   const [rung, setRung] = useState<string>('');
   /** The type to show, `NO_TYPE` for pages without one, or '' for all. */
   const [typeOn, setTypeOn] = useState<string>('');
+  /** Leave out the pages marked as public knowledge — they have a view of their own. Off unless asked. */
+  const [hideKnowledge, setHideKnowledge] = useState(false);
   const statuses = usePageStatuses();
   const types = usePageTypes();
   const [importing, setImporting] = useState(false);
@@ -289,13 +291,20 @@ export function PagesIndex() {
    * not the same as its column: a page that never had a status stands on the
    * draft, and a filter that asked the column would hide exactly the pages
    * this feature was built to find.
+   *
+   * Hiding the knowledge base is the one filter that leaves pages *out* rather
+   * than picking them, and it is asked the same way so it behaves the same: a
+   * page kept under a hidden article still draws the article, faint, as the
+   * path to it — rather than turning up at the top level as if it had none.
    */
-  const filtering = labelsOn.length + (rung ? 1 : 0) + (typeOn ? 1 : 0);
+  const knowledge = useMemo(() => pages.some(isPublicKnowledge), [pages]);
+  const filtering = labelsOn.length + (rung ? 1 : 0) + (typeOn ? 1 : 0) + (hideKnowledge ? 1 : 0);
   const test = useMemo(() => (filtering
     ? (page: Page) => (!labelsOn.length || labelsOn.some((id) => (page.labels ?? []).includes(id)))
       && (!rung || statusOf(page, statuses)?.id === rung)
       && (!typeOn || (typeOn === NO_TYPE ? !typeOf(page, types) : page.type_id === typeOn))
-    : null), [filtering, labelsOn, rung, typeOn, statuses, types]);
+      && (!hideKnowledge || !isPublicKnowledge(page))
+    : null), [filtering, labelsOn, rung, typeOn, hideKnowledge, statuses, types]);
 
   /**
    * The filters and the box, as a set of ids to draw: matches *plus the path to
@@ -398,12 +407,20 @@ export function PagesIndex() {
             fit; a control per question costs more than the questions are worth,
             and all of them narrow the same tree. Drawers, because labels and
             types are lists that grow with the workspace — see `check:menus`. */}
-        {(inUse.length > 0 || statuses.length > 0 || types.length > 0) && (
+        {(inUse.length > 0 || statuses.length > 0 || types.length > 0 || knowledge) && (
           <MenuButton
             variant="secondary" size="sm"
             items={[
               { id: 'all', label: t('page.allPages'), hint: filtering ? undefined : '✓',
-                onSelect: () => { setLabelsOn([]); setRung(''); setTypeOn(''); } },
+                onSelect: () => { setLabelsOn([]); setRung(''); setTypeOn(''); setHideKnowledge(false); } },
+              // A switch rather than a list, so a row of its own and not a drawer.
+              ...(knowledge ? [{
+                id: 'hide-knowledge',
+                label: t('page.hideKnowledge'),
+                icon: <Icon name="globe" size={14} />,
+                hint: hideKnowledge ? '✓' : undefined,
+                onSelect: () => setHideKnowledge(!hideKnowledge),
+              }] : []),
               ...(inUse.length ? [{
                 id: 'labels',
                 label: t('page.labels'),
