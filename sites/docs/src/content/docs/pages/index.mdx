@@ -117,6 +117,19 @@ the version before it stays in the history.
 **Pages → Import** takes markdown and HTML files and turns them into pages — one page per file, or
 one page per `#` heading for the long single-file exports other wikis produce.
 
+Links between the imported files come along: `[Staff](../dashboard/staff.md)` becomes `[[Staff]]`,
+and `staff.md#roles` becomes `[[Staff#Roles]]`. *Choose a folder* finds the files by their path; files
+chosen or dropped one by one, by their name.
+
+| | |
+|---|---|
+| Target in this import, title unique | a page link |
+| Target not in this import, or its title also on another page | the link's words, without the link |
+| Web addresses, `/…`, `#…`, pictures, code | as written |
+| Pages kept as HTML | as written |
+
+The preview says how many links became page links and how many stayed text.
+
 It saves as you type. There is no save button and no draft state, which is why the
 [version history](/pages/history/) matters — it is the undo that survives closing the tab.
 
