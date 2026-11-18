@@ -2262,7 +2262,7 @@ export const fr: Catalogue = {
   'page.replacedNotice': 'Cette page est obsolète.',
   'page.replacedClear': 'Finalement pas remplacée',
   'page.replacedMark': 'Remplacée',
-  'page.changedSince': 'Modifiée depuis « {status} » le {date}.',
+  'page.changedSince': 'Modifiée depuis son passage à « {status} » — dernière fois le {date}.',
   'page.changedSinceCompare': 'Voir les modifications',
   'page.saveVersion': 'Enregistrer la version',
   'page.versionName': 'Nom de la version',

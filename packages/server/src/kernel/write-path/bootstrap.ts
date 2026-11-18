@@ -110,12 +110,21 @@ export function backfillPageStatuses(): void {
    * stays given. And only a workspace with a live ladder — one whose every
    * rung was deleted said something this would contradict. Appended after the
    * last rung, which is where `DEFAULT_PAGE_STATUSES` puts it too.
+   *
+   * A tombstone does not last for ever: emptying the trash, by hand or by the
+   * daily retention, deletes the row and leaves a line in `purges` — which
+   * says which entity went but not which rung. So a workspace that has purged
+   * *any* rung is left alone as well. That can miss a workspace that purged a
+   * draft once and never had this rung, which can add it by hand; the other
+   * way round, a rung somebody deleted would come back after every emptied
+   * trash, measured so in review before this clause existed.
    */
   const ladders = all<Row>(
     `SELECT w.id, w.owner_id FROM workspaces w
       WHERE w.deleted_at IS NULL
         AND EXISTS (SELECT 1 FROM page_statuses s WHERE s.workspace_id = w.id AND s.deleted_at IS NULL)
-        AND NOT EXISTS (SELECT 1 FROM page_statuses s WHERE s.workspace_id = w.id AND s.kind = 'superseded')`,
+        AND NOT EXISTS (SELECT 1 FROM page_statuses s WHERE s.workspace_id = w.id AND s.kind = 'superseded')
+        AND NOT EXISTS (SELECT 1 FROM purges p WHERE p.workspace_id = w.id AND p.entity = 'pageStatus')`,
   );
   for (const workspace of ladders) {
     const workspaceId = String(workspace.id);
@@ -168,16 +177,19 @@ export function seedPageTypes(workspaceId: string, actorId: string): void {
 /**
  * The same list, for the workspaces that existed before page types did.
  *
- * Asked of every row ever written, tombstones included, for the reason the
- * fourth rung above is: a workspace that deleted every type it was given has
- * answered, and a restart must not ask again. No page is given a type — which
+ * Asked of every row ever written, tombstones and purges included, for the
+ * reason the fourth rung above is: a workspace that deleted every type it was
+ * given has answered, and a restart must not ask again. No page is given a type — which
  * kind of document an existing page is, is its author's to say.
  */
 export function backfillPageTypes(): void {
+  // `purges` for the reason the fourth rung above asks it: an emptied trash
+  // removes the tombstones that said "deleted on purpose", and leaves this.
   const workspaces = all<Row>(
     `SELECT w.id, w.owner_id FROM workspaces w
       WHERE w.deleted_at IS NULL
-        AND NOT EXISTS (SELECT 1 FROM page_types t WHERE t.workspace_id = w.id)`,
+        AND NOT EXISTS (SELECT 1 FROM page_types t WHERE t.workspace_id = w.id)
+        AND NOT EXISTS (SELECT 1 FROM purges p WHERE p.workspace_id = w.id AND p.entity = 'pageType')`,
   );
   for (const workspace of workspaces) seedPageTypes(String(workspace.id), String(workspace.owner_id ?? ''));
 }

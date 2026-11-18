@@ -582,6 +582,10 @@ export function importProject(workspaceId: string, actorId: string, doc: Project
         created_by: who(row.created_by) ?? actorId,
         watchers: whoList(row.watchers),
         labels: list(row.labels).map(to).filter(Boolean),
+        // The type the workspace import mapped by name, or the id as it was —
+        // right for a project imported into the workspace it came from, and
+        // folded to none by the write path for one that names another's.
+        type_id: to(row.type_id) ?? row.type_id ?? null,
         // Named after the page it replaced once that page has a new id, below.
         superseded_by: null,
         // The version "Final" was said about stays behind: versions are not

@@ -149,19 +149,43 @@ export function copyProject(
 
     if (include.pages) {
       // Parents before children, so a child's new parent id already exists.
-      const pages = all<Row>(`SELECT * FROM pages WHERE project_id = ? AND deleted_at IS NULL ORDER BY sort_order`, sourceId);
+      const pages = all<Row>(`SELECT * FROM pages WHERE project_id = ? AND deleted_at IS NULL ORDER BY sort_order, created_at, id`, sourceId);
       for (const row of inTreeOrder(pages)) {
         const id = uid();
         map.set(String(row.id), id);
         const { id: _i, created_at: _c, updated_at: _u, seq: _s, clocks: _k, deleted_at: _d, ...rest } = row;
+        const parent = mapped(row.parent_id);
+        const { sort_order: order, ...kept } = rest;
         writeEntity('page', id, {
-          ...rest,
+          ...kept,
           project_id: projectId,
           workspace_id: workspaceId,
-          parent_id: mapped(row.parent_id),
+          parent_id: parent,
+          // Under a copied parent the source's key still orders it among its
+          // copied siblings. At the top level it would share its key with the
+          // original beside it — the tie `comparePages` breaks and `untie`
+          // exists to undo — so there the write path gives it a fresh one.
+          ...(parent ? { sort_order: order } : {}),
+          // Named once every copy exists, below; and no claim about a version
+          // of another page.
+          superseded_by: null,
+          settled_version_id: null,
+          settled_drift: 0,
           created_by: actorId,
         }, opts());
         bump('pages');
+      }
+      // A successor in the same project is its copy; one outside it is the
+      // original, which is still what replaced the page.
+      for (const row of pages) {
+        if (!row.superseded_by) continue;
+        // With the rung the original stands on, so the write path does not
+        // move the copy to the superseded rung on its behalf: a page replaced
+        // and still on Final is copied on Final, its stamp intact.
+        writeEntity('page', mapped(row.id)!, {
+          superseded_by: mapped(row.superseded_by) ?? row.superseded_by,
+          status_id: row.status_id ?? null,
+        }, opts());
       }
       // A canvas copied without its boards would arrive as an empty page that
       // says it is a canvas. Comments stay behind, as they do for every page.

@@ -6,7 +6,7 @@
  */
 import { useMemo } from 'react';
 import type { Task } from '@kolibri/shared';
-import { PRIORITIES, coversProject } from '@kolibri/shared';
+import { PRIORITIES, coversProject, labelApplies } from '@kolibri/shared';
 import { priorityKey, useT } from '../../kernel/i18n/i18n';
 import { moveTaskToProject, remove, restore, update } from '../../kernel/sync/mutations';
 import { byId, list, useQuery } from '../../kernel/sync/store';
@@ -34,7 +34,12 @@ export function SelectionBar({ selection, tasks }: { selection: Selection; tasks
   const soleProject = projectIds.size === 1 ? [...projectIds][0] : undefined;
 
   const states = useStates(soleProject);
-  const labels = useLabels(soleProject);
+  // What a task may be given: not a label kept for the wiki (`labelApplies`).
+  // What can be taken off is whatever the selection carries, whatever its
+  // scope — a label switched to pages-only is still on the tasks it was on.
+  const everyLabel = useLabels(soleProject);
+  const labels = everyLabel.filter((label) => labelApplies(label, 'task'));
+  const carried = everyLabel.filter((label) => selected.some((task) => (task.labels ?? []).includes(label.id)));
   const cycles = useQuery(
     () => (soleProject ? list('cycle', (cycle) => coversProject(cycle, soleProject)) : []),
     [soleProject],
@@ -138,8 +143,8 @@ export function SelectionBar({ selection, tasks }: { selection: Selection; tasks
       id: 'remove',
       label: t('select.removeLabelSection'),
       icon: <Icon name="close" size={14} />,
-      search: labels.length > 8,
-      items: labels.map((label) => ({
+      search: carried.length > 8,
+      items: carried.map((label) => ({
         id: `remove-${label.id}`,
         label: label.name,
         onSelect: () => applyToAll((task) => ({ labels: (task.labels ?? []).filter((id) => id !== label.id) }), done),

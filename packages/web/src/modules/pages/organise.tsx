@@ -14,7 +14,7 @@
 import { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  comparePages, isSuperseded, localDay, ladder, orderKey, pageKey, seriesEntryTitle, statusOf, supersededStatus,
+  comparePages, entryDay, isSuperseded, localDay, ladder, orderKey, pageKey, seriesEntryTitle, statusOf, supersededStatus,
   type Page, type PageStatus, type PageType,
 } from '@kolibri/shared';
 import { useT } from '../../kernel/i18n/i18n';
@@ -29,6 +29,7 @@ import { SectionHeading } from '../../kernel/design-system/ui/section';
 import { EmojiPicker } from '../../kernel/design-system/ui/emoji-picker';
 import { shortDate } from '../../kernel/design-system/format';
 import { usePageStatuses } from './status';
+import { copyBoards } from './boards';
 
 /* ---------------------------------------------------------------- types */
 
@@ -236,10 +237,28 @@ export function successorItems(
       })),
       ...(page.superseded_by ? [{
         id: 'replaced-none', label: t('page.replacedByNone'),
-        onSelect: () => update('page', page.id, { superseded_by: null }),
+        onSelect: () => clearSuccessor(page, statuses),
       }] : []),
     ],
   };
+}
+
+/**
+ * Say a page was not replaced after all: the pointer goes, and the page comes
+ * off the superseded rung onto the draft.
+ *
+ * Both halves, from both places that offer it — the menu and the notice. The
+ * menu cleared only the pointer at first, and the page went on saying it was
+ * replaced, now with nothing to say by what. The server takes the same step
+ * for a write that clears only the pointer (`followSuccessor`); this sends the
+ * rung as well so the screen does not wait for the round trip to agree.
+ */
+export function clearSuccessor(page: Page, statuses: PageStatus[]): void {
+  const draft = ladder(statuses).find((status) => status.kind === 'draft');
+  update('page', page.id, {
+    superseded_by: null,
+    ...(statusOf(page, statuses)?.kind === 'superseded' && draft ? { status_id: draft.id } : {}),
+  });
 }
 
 /**
@@ -260,7 +279,6 @@ export function SupersededNotice({ page }: { page: Page }) {
     [page.superseded_by],
   );
   if (!isSuperseded(page, statuses)) return null;
-  const draft = ladder(statuses).find((status) => status.kind === 'draft');
   return (
     <div className="page-archived" role="note">
       <Icon name="refresh" size={15} />
@@ -270,15 +288,7 @@ export function SupersededNotice({ page }: { page: Page }) {
           : t('page.replacedNotice')}
       </span>
       {canWrite && (
-        <Button
-          size="sm"
-          onClick={() => update('page', page.id, {
-            superseded_by: null,
-            // Off the superseded rung too, or the page would go on saying it
-            // was replaced with nothing left to say by what.
-            ...(statusOf(page, statuses)?.kind === 'superseded' && draft ? { status_id: draft.id } : {}),
-          })}
-        >
+        <Button size="sm" onClick={() => clearSuccessor(page, statuses)}>
           {t('page.replacedClear')}
         </Button>
       )}
@@ -306,6 +316,8 @@ export function DriftNotice({ page, onCompare }: { page: Page; onCompare: (versi
     <div className="page-archived" role="note">
       <Icon name="pencil" size={15} />
       <span className="flex-1 min-w-0">
+        {/* The last edit's date, which is what the page row has: the day it
+            was set to Final is in the history, beside the version itself. */}
         {t('page.changedSince', { status: status.name, date: shortDate(page.updated_at) })}
       </span>
       <Button size="sm" onClick={() => onCompare(page.settled_version_id!)}>{t('page.changedSinceCompare')}</Button>
@@ -343,21 +355,28 @@ export function useSeriesEntry(): (series: Page, template?: Page) => string {
   const { workspaceId } = useSession();
   return (series, template) => {
     const taken = new Set(list('page', (page) => page.workspace_id === workspaceId).map((page) => pageKey(page.title || '')));
-    return createPage({
+    const title = seriesEntryTitle(series.title || '', localDay(Date.now()), taken);
+    const format = template?.format ?? 'markdown';
+    const made = createPage({
       parent_id: series.id,
       project_id: series.project_id ?? null,
       access: series.access,
-      title: seriesEntryTitle(series.title || '', localDay(Date.now()), taken),
+      title,
       icon: series.icon ?? undefined,
       content: template?.content ?? '',
-      format: template?.format ?? 'markdown',
+      format,
       // The series says what kind of document its entries are; a template only
       // when the series has not.
       type_id: series.type_id ?? template?.type_id ?? null,
       labels: series.labels ?? [],
     }, me);
+    // A canvas or a board page is its boards: without copies of them, an entry
+    // from such a template is an empty page that says it is a canvas.
+    if (template) copyBoards(template, { id: made, title, format });
+    return made;
   };
 }
+
 
 /**
  * A series' entries, newest first, where its sub-pages would be.
@@ -378,7 +397,7 @@ export function SeriesEntries({ page, entries }: { page: Page; entries: Page[] }
     [workspaceId],
   );
   const newest = useMemo(
-    () => [...entries].sort((a, b) => b.created_at - a.created_at || comparePages(b, a)),
+    () => [...entries].sort((a, b) => entryDay(b).localeCompare(entryDay(a)) || b.created_at - a.created_at || comparePages(b, a)),
     [entries],
   );
   const start = (template?: Page) => navigate(`/pages/${next(page, template)}`);
@@ -414,7 +433,7 @@ export function SeriesEntries({ page, entries }: { page: Page; entries: Page[] }
         <Link key={entry.id} to={`/pages/${entry.id}`} className="task-row text-left" style={{ width: '100%' }}>
           <span aria-hidden="true">{entry.icon ?? '📄'}</span>
           <span className="flex-1 min-w-0 truncate">{entry.title || t('common.untitled')}</span>
-          <span className="text-[11.5px] text-muted">{shortDate(entry.created_at)}</span>
+          <span className="text-[11.5px] text-muted">{entryDay(entry)}</span>
         </Link>
       ))}
     </section>

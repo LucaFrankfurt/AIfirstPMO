@@ -6,8 +6,8 @@
  */
 
 import {
-  crdt, defaultStatus, linkableTitle, orderKey, PAGE_STATUS_KINDS, pageKey, renameLinks, supersededStatus,
-  type CrdtState, type EntityName, type PageFormat, type PageStatus, type PageStatusKind,
+  crdt, defaultStatus, LABEL_SCOPES, linkableTitle, orderKey, PAGE_STATUS_KINDS, pageKey, renameLinks, supersededStatus,
+  type CrdtState, type EntityName, type LabelScope, type PageFormat, type PageStatus, type PageStatusKind,
 } from '@kolibri/shared';
 import { all, get, type Row, run } from '../../../kernel/platform/db/index.ts';
 import { uid } from '../../../kernel/platform/ids.ts';
@@ -404,23 +404,34 @@ function settlePageLinks(id: string, values: Record<string, unknown>, forced: Re
 }
 
 /**
- * Saying what replaced a page puts it on the `superseded` rung, from any door.
+ * Saying what replaced a page puts it on the `superseded` rung, from any door —
+ * and taking that back takes it off again.
  *
  * Only when the write did not also say where the page stands — a client that
  * sends both has decided — and only when the ladder has such a rung. A
  * workspace without one still gets the pointer, and `isSuperseded` reads that
  * alone; inventing a rung here would put back one somebody deleted.
+ *
+ * The way back was missing at first, and review found it from both ends:
+ * clearing "replaced by" left the page on the superseded rung, so it went on
+ * saying it was replaced, with nothing left to say by what — struck through
+ * in the tree and kept from the support assistant. Now a page whose successor
+ * is cleared while it stands on that rung goes to the draft, which is what a
+ * page nobody has said anything new about is.
  */
 function followSuccessor(values: Record<string, unknown>, existing: Row | undefined, forced: Record<string, unknown>, opts: WriteOpts): void {
-  if (!values.superseded_by || values.status_id !== undefined) return;
+  if (values.superseded_by === undefined || values.status_id !== undefined) return;
+  const named = !!values.superseded_by;
+  if (!named && !existing?.superseded_by) return;
   const rungs = all<Row>(
     `SELECT id, kind, sort_order FROM page_statuses WHERE workspace_id = ? AND deleted_at IS NULL`,
     String(opts.workspaceId ?? existing?.workspace_id ?? ''),
   ) as unknown as PageStatus[];
-  const target = supersededStatus(rungs);
-  if (!target) return;
   const current = rungs.find((rung) => rung.id === existing?.status_id);
-  if (current?.kind === 'superseded') return;
+  const target = named
+    ? (current?.kind === 'superseded' ? undefined : supersededStatus(rungs))
+    : (current?.kind === 'superseded' ? defaultStatus(rungs) : undefined);
+  if (!target) return;
   values.status_id = target.id;
   forced.status_id = target.id;
 }
@@ -478,8 +489,23 @@ function settleFinal(values: Record<string, unknown>, existing: Row | undefined,
   }
 }
 
+/**
+ * A label's scope is one of three words, whatever arrived.
+ *
+ * Folded rather than refused, like a rung's kind: the column is NOT NULL, so a
+ * `null` from a hand-written PATCH or an older client was a raw constraint
+ * error and a sync batch the device could not get past. Here because the
+ * column exists for pages' sake — a rule may speak for another module's entity.
+ */
+function settleLabelScope(values: Record<string, unknown>, forced: Record<string, unknown>): void {
+  if (values.applies_to === undefined) return;
+  if (LABEL_SCOPES.includes(values.applies_to as LabelScope)) return;
+  values.applies_to = 'all';
+  forced.applies_to = 'all';
+}
+
 export const pageRules = {
-  entities: ['page', 'pageStatus', 'pageType'],
+  entities: ['page', 'pageStatus', 'pageType', 'label'],
   defaults(entity, id, values, opts, setForced) {
     if (entity !== 'page') return;
     if (!values.created_by) setForced('created_by', opts.actorId);
@@ -495,12 +521,20 @@ export const pageRules = {
     // mean, and a default that overrode it would make that unsayable. This hook
     // is `applyCreateDefaults`, so there is no need to ask whether this is a
     // create — it is one.
-    if (values.status_id === undefined) {
+    // Not for a page created already replaced — an import of history, an
+    // assistant filing last year's model with `replaced_by`: the rung is
+    // `followSuccessor`'s to choose, and a draft put here first would read as
+    // the writer having chosen it.
+    if (values.status_id === undefined && !values.superseded_by) {
       const start = startingStatus(String(values.workspace_id ?? opts.workspaceId ?? ''));
       if (start) setForced('status_id', start);
     }
   },
   invariants(entity, id, values, existing, forced, opts) {
+    if (entity === 'label') {
+      settleLabelScope(values, forced);
+      return;
+    }
     if (entity === 'pageType') return;
     settlePageStatus(entity, values, forced, opts);
     if (entity !== 'page') return;

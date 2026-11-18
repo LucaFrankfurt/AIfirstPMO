@@ -268,8 +268,11 @@ function pageBody(share: Row, notice?: 'sent' | 'problem'): string {
   // A replaced page says so before anything else: on a link somebody was sent,
   // "this is not the current one" matters more than how finished it ever got.
   const replaced = rung?.kind === 'superseded' || page.superseded_by;
+  // The rung's own word only when it is the superseded one: a page pointed at
+  // its successor while still on "Final" read "Final — this text has been
+  // replaced", which says two opposite things at once.
   const unfinished = replaced
-    ? `<p class="status-notice">${escape(String(rung?.name ?? 'Superseded'))} — this ${isBoardFormat(page.format as PageFormat) ? 'page' : 'text'} has been replaced by a newer one.</p>`
+    ? `<p class="status-notice">${escape(rung?.kind === 'superseded' ? String(rung.name) : 'Superseded')} — this ${isBoardFormat(page.format as PageFormat) ? 'page' : 'text'} has been replaced by a newer one.</p>`
     : rung && rung.kind !== 'final'
       ? `<p class="status-notice">${escape(String(rung.name))} — this ${isBoardFormat(page.format as PageFormat) ? 'page' : 'text'} has not been signed off.</p>`
       : '';

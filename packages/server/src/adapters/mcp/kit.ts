@@ -1520,6 +1520,15 @@ export function resolveLabels(workspaceId: string, projectId: string, refs: unkn
       out.push(existing.id);
       continue;
     }
+    // An id that names a label the match above passed over — one kept for
+    // pages, or another project's — is a refusal, not a name: inventing a
+    // task label called `7ba27461-…` is what this did instead.
+    const byId = get<Row>(`SELECT name, applies_to, project_id FROM labels WHERE workspace_id = ? AND id = ? AND deleted_at IS NULL`, workspaceId, ref);
+    if (byId) {
+      throw new McpError(byId.applies_to === 'pages'
+        ? `The label "${byId.name}" is kept for pages, not tasks`
+        : `The label "${byId.name}" belongs to another project`);
+    }
     const { row } = writeEntity('label', uid(), { workspace_id: workspaceId, project_id: projectId, name: ref.trim() },
       writeOpts(workspaceId, ctx));
     out.push(row.id);

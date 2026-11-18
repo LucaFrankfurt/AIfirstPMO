@@ -110,9 +110,7 @@ export const useStates = (projectId?: string | null): State[] =>
 
 export const useLabels = (projectId?: string | null): Label[] =>
   useQuery(
-    // Not a label kept for the wiki — see `labelApplies`.
-    () => list('label', (l) => labelApplies(l, 'task') && (!l.project_id || !projectId || l.project_id === projectId))
-      .sort((a, b) => a.name.localeCompare(b.name)),
+    () => list('label', (l) => !l.project_id || !projectId || l.project_id === projectId).sort((a, b) => a.name.localeCompare(b.name)),
     [projectId],
   );
 
@@ -200,7 +198,14 @@ export function AssigneePicker({ task, compact }: { task: Task; compact?: boolea
 
 export function LabelPicker({ task }: { task: Task }) {
   const t = useT();
-  const labels = useLabels(task.project_id);
+  /*
+   * The labels a task may be given — not one kept for the wiki (`labelApplies`)
+   * — and whatever it already carries, so a label switched to pages-only after
+   * it was put on a task can still be seen ticked here and taken off. The
+   * chips and the board's grouping read `useLabels` unfiltered for that reason.
+   */
+  const all = useLabels(task.project_id);
+  const labels = all.filter((label) => labelApplies(label, 'task') || (task.labels ?? []).includes(label.id));
   // Only the ones that still exist. A task keeps the id of a label that was
   // deleted out from under it — every other place that reads them resolves the
   // id and skips what is gone, and this counted the raw list instead. Delete a

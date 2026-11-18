@@ -2811,7 +2811,12 @@ await step('a page says how finished it is, and the word can be changed', async 
   await page.locator('.header button')
     .filter({ hasText: new RegExp(`${LABELS.filterPages}|${RUNGS.final}`) }).first().click();
   await page.waitForTimeout(350);
-  const pick = rungItem(page, RUNGS.final).first();
+  // The rungs are a drawer of the filter, beside the labels and the types —
+  // three lists that grow with the workspace, which `check:menus` keeps out of
+  // the top level — so the walk opens it the way it opens the page menu's.
+  await page.locator('[role=menuitem]').filter({ hasText: new RegExp(`^${LABELS.statusDrawer}`) }).first().click();
+  await page.waitForTimeout(250);
+  const pick = rungItem(page.locator('[role=menu]').last(), RUNGS.final).first();
   if (!await pick.count()) throw new Error('the filter offers no rungs');
   await pick.click();
   await page.waitForTimeout(800);

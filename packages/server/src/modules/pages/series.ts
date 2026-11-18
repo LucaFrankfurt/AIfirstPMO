@@ -9,7 +9,7 @@
  * meeting's minutes both come here, and the app's button does the same with
  * the same shared functions (`seriesEntryTitle`, `findSeries`).
  */
-import { findSeries, localDay, pageKey, seriesEntryTitle, type PageFormat } from '@kolibri/shared';
+import { findSeries, localDay, pageKey, seriesAbove, seriesEntryTitle, type PageFormat } from '@kolibri/shared';
 import { all, get, type Row } from '../../kernel/platform/db/index.ts';
 import { uid } from '../../kernel/platform/ids.ts';
 import { writeEntity, type WriteOpts } from '../../kernel/write-path/repo.ts';
@@ -37,7 +37,11 @@ export function dayFor(at: number, actorId: string): string {
  */
 export function addSeriesEntry(
   series: Row,
-  input: { day: string; base?: string; content?: string; format?: PageFormat; icon?: string | null; typeId?: string | null },
+  input: {
+    day: string; base?: string; content?: string; format?: PageFormat; icon?: string | null; typeId?: string | null;
+    /** Who may read it, when that is not the series' to decide — minutes are everybody's. */
+    access?: string;
+  },
   opts: WriteOpts,
 ): Row {
   const workspaceId = String(series.workspace_id);
@@ -48,7 +52,7 @@ export function addSeriesEntry(
     project_id: series.project_id ?? null,
     type_id: input.typeId !== undefined ? input.typeId : series.type_id ?? null,
     labels: series.labels ? JSON.parse(String(series.labels)) : [],
-    access: series.access ?? 'workspace',
+    access: input.access ?? series.access ?? 'workspace',
     title,
     icon: input.icon !== undefined ? input.icon : series.icon ?? null,
     content: input.content ?? '',
@@ -58,23 +62,40 @@ export function addSeriesEntry(
 }
 
 /**
- * The series a title names, made if there is none yet.
+ * The series earlier entries hang under, or the one a title names, made if
+ * there is neither.
+ *
+ * Only series everybody in the workspace can read — open, and in no project
+ * or a public one: minutes are a workspace page, and filing them under
+ * somebody's private page made them private to whoever filed them, under a
+ * parent the rest of the workspace could not see.
  *
  * At the top level and in no project, because a meeting belongs to none — the
  * series is a page like any other afterwards, to be moved, typed and filed by
  * whoever looks after the wiki, and every later entry follows it there.
  */
-export function seriesNamed(workspaceId: string, title: string, icon: string | null, opts: WriteOpts): Row {
+export function seriesFor(
+  workspaceId: string,
+  wanted: { title: string; icon: string | null; earlier: string[] },
+  opts: WriteOpts,
+): Row {
+  // Readable by everybody means in no project or in a public one as well: an
+  // entry takes its series' project, and a series moved into a private project
+  // would file the next minutes where only that project's members see them.
   const pages = all<Row>(
-    `SELECT id, title, archived, is_template, created_at FROM pages
-      WHERE workspace_id = ? AND series = 1 AND deleted_at IS NULL`,
+    `SELECT p.id, p.title, p.series, p.archived, p.is_template, p.created_at, p.parent_id, p.access FROM pages p
+      WHERE p.workspace_id = ? AND p.deleted_at IS NULL AND p.access = 'workspace'
+        AND (p.project_id IS NULL
+             OR EXISTS (SELECT 1 FROM projects j WHERE j.id = p.project_id AND j.visibility = 'public' AND j.deleted_at IS NULL))`,
     workspaceId,
   ).map((row) => ({
-    id: String(row.id), title: String(row.title ?? ''), series: 1,
+    id: String(row.id), title: String(row.title ?? ''), series: Number(row.series ?? 0),
     archived: Number(row.archived ?? 0), is_template: Number(row.is_template ?? 0), created_at: Number(row.created_at ?? 0),
+    parent_id: (row.parent_id as string | null) ?? null,
   }));
-  const found = findSeries(pages, title);
+  const found = seriesAbove(pages, wanted.earlier) ?? findSeries(pages, wanted.title);
   if (found) return get<Row>(`SELECT * FROM pages WHERE id = ?`, found.id)!;
+  const { title, icon } = wanted;
   return writeEntity('page', uid(), {
     workspace_id: workspaceId, title, icon, series: 1, content: '', format: 'markdown',
     access: 'workspace', project_id: null, parent_id: null, created_by: opts.actorId,

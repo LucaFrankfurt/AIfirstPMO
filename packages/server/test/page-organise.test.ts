@@ -23,6 +23,9 @@ const { resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
 const { untiePageOrder } = await import('../src/modules/pages/order.ts');
 const { backfillPageStatuses, backfillPageTypes } = await import('../src/kernel/write-path/bootstrap.ts');
 const { knowledgeOf } = await import('../src/modules/support/assistant.ts');
+const { emptyTrash } = await import('../src/modules/trash/trash.ts');
+const { copyProject } = await import('../src/modules/planning/copy.ts');
+const { exportWorkspace, importWorkspace } = await import('../src/adapters/transfer/workspace-transfer.ts');
 
 let base = '';
 const cookies: Record<string, string> = {};
@@ -348,3 +351,154 @@ describe('a label kept for pages', () => {
     assert.deepEqual(scopes, ['all'], 'a task label was made rather than the page one taken');
   });
 });
+
+/*
+ * What review found, each asked again through the door it was found at.
+ */
+describe('what review found', () => {
+  it('a read-only token can neither restore, name nor rename a version', async () => {
+    const made = await page({ title: 'Guarded', content: 'text' });
+    const kept = await api('ada', `/api/pages/${made.id}/versions`, { body: { name: 'Kept' } });
+    const reader = (await api('ada', '/api/tokens', { body: { name: 'ro', workspaceId, scopes: 'read' } })).token;
+    await assert.rejects(api('ro', `/api/pages/${made.id}/versions`, { token: reader, body: { name: 'Mine' } }), /403/);
+    await assert.rejects(api('ro', `/api/pages/${made.id}/versions`, { token: reader, body: { restore: kept.id } }), /403/);
+    await assert.rejects(api('ro', `/api/pages/${made.id}/versions/${kept.id}`, { token: reader, method: 'PATCH', body: { name: 'x' } }), /403/);
+    assert.equal(get<any>(`SELECT name FROM page_versions WHERE id = ?`, kept.id).name, 'Kept');
+  });
+
+  it('a page created already replaced stands on the superseded rung, from REST and MCP', async () => {
+    const current = await page({ title: 'Current model' });
+    const viaRest = await page({ title: 'Last year\'s model', superseded_by: current.id });
+    assert.equal(rowOf(viaRest.id).status_id, rung('superseded').id);
+    const viaMcp = await tool('create_page', { title: 'Older model', replaced_by: current.id });
+    assert.equal(rowOf(viaMcp.id).status_id, rung('superseded').id);
+  });
+
+  it('clearing the successor takes the page off the superseded rung', async () => {
+    const current = await page({ title: 'Replacement' });
+    const old = await page({ title: 'Replaced for a while' });
+    await patch(old.id, { superseded_by: current.id });
+    await tool('update_page', { page: old.id, replaced_by: '' });
+    assert.equal(rowOf(old.id).superseded_by, null);
+    assert.equal(rowOf(old.id).status_id, rung('draft').id);
+    const listed = (await listPages()).find((one: any) => one.id === old.id);
+    assert.equal(listed.superseded, false);
+  });
+
+  it('a deleted rung or type stays deleted after the trash is emptied', () => {
+    const fourth = rung('superseded');
+    run(`UPDATE page_statuses SET deleted_at = 1 WHERE id = ?`, fourth.id);
+    run(`UPDATE page_types SET deleted_at = 1 WHERE workspace_id = ?`, workspaceId);
+    emptyTrash(workspaceId, 'manual', Date.now());
+    backfillPageStatuses();
+    backfillPageTypes();
+    assert.equal(rung('superseded'), undefined);
+    assert.equal(Number(get<any>(`SELECT count(*) AS n FROM page_types WHERE workspace_id = ?`, workspaceId).n), 0);
+    // Put back for the cases below, which read the ladder.
+    run(`INSERT INTO page_statuses (id, workspace_id, name, kind, color, sort_order, created_at, updated_at)
+         VALUES ('restored-superseded', ?, 'Superseded', 'superseded', '#a1a1aa', 'z', 1, 1)`, workspaceId);
+  });
+
+  it('an id of a label kept for pages is refused rather than made into a task label\'s name', async () => {
+    const label = await tool('create_label', { name: 'Topic', applies_to: 'pages' });
+    const project = get<any>(`SELECT key FROM projects WHERE workspace_id = ? LIMIT 1`, workspaceId);
+    await assert.rejects(tool('create_task', { project: project.key, title: 'x', labels: [label.id] }), /kept for pages/);
+    assert.equal(get<any>(`SELECT count(*) AS n FROM labels WHERE name = ?`, label.id).n, 0);
+  });
+
+  it('a label scope that is not one of the three is folded to all, not refused', async () => {
+    const label = await api('ada', `/api/workspaces/${workspaceId}/labels`, { body: { name: 'Loose', applies_to: null } });
+    assert.equal(get<any>(`SELECT applies_to FROM labels WHERE id = ?`, label.id).applies_to, 'all');
+  });
+
+  it('minutes are never filed under a private series, and stay readable by the workspace', async () => {
+    const theirs = await page({ title: 'Meeting minutes: Board', series: 1, access: 'private' });
+    const meeting = await tool('create_meeting', { title: 'Board', starts_at: '2026-11-02T09:00:00+01:00' });
+    const filed = await tool('file_meeting_minutes', { meeting: meeting.id ?? meeting.meeting?.id });
+    const entry = rowOf(filed.page_id);
+    assert.notEqual(entry.parent_id, theirs.id);
+    assert.equal(entry.access, 'workspace');
+    assert.equal(rowOf(entry.parent_id).access, 'workspace');
+  });
+
+  it('the next minutes find the series through the last ones, even after it was renamed', async () => {
+    const first = await tool('create_meeting', { title: 'Retro', starts_at: '2026-10-01T09:00:00+01:00' });
+    const one = await tool('file_meeting_minutes', { meeting: first.id ?? first.meeting?.id });
+    const series = rowOf(one.page_id).parent_id;
+    await patch(series, { title: 'Retrospectives' });
+    const second = await tool('create_meeting', { title: 'Retro', starts_at: '2026-10-15T09:00:00+01:00' });
+    const two = await tool('file_meeting_minutes', { meeting: second.id ?? second.meeting?.id });
+    assert.equal(rowOf(two.page_id).parent_id, series);
+  });
+
+  it('a copied project leaves the Final stamp behind and gives its top pages keys of their own', async () => {
+    const project = get<any>(`SELECT id FROM projects WHERE workspace_id = ? AND key = 'BIL'`, workspaceId);
+    const root = await page({ title: 'Billing root', project_id: project.id, content: 'x' });
+    const successor = await page({ title: 'Billing new', project_id: project.id });
+    await patch(root.id, { status_id: rung('final').id });
+    const old = await page({ title: 'Billing old', project_id: project.id, superseded_by: successor.id });
+    const report = copyProject(workspaceId, rowOf(root.id).created_by, project.id, { name: 'Billing copy', key: 'BIC', include: { pages: true } } as any);
+    const copyId = (report as any).project?.id ?? (report as any).id;
+    const copies = all<any>(`SELECT * FROM pages WHERE project_id = ?`, copyId);
+    const byTitle = new Map(copies.map((row: any) => [row.title, row]));
+    // Its own stamp — the copy arrives on Final, so a version of *its* text is
+    // cut — and never the original's, which names another page's history.
+    const stamp = byTitle.get('Billing root').settled_version_id;
+    assert.notEqual(stamp, rowOf(root.id).settled_version_id);
+    assert.equal(get<any>(`SELECT page_id FROM page_versions WHERE id = ?`, stamp)?.page_id, byTitle.get('Billing root').id);
+    assert.equal(byTitle.get('Billing old').superseded_by, byTitle.get('Billing new').id, 'pointed at the copy of its successor');
+    const originals = new Set(all<any>(`SELECT sort_order FROM pages WHERE workspace_id = ? AND parent_id IS NULL AND project_id = ?`, workspaceId, project.id)
+      .map((row: any) => row.sort_order));
+    for (const row of copies.filter((one: any) => !one.parent_id)) assert.ok(!originals.has(row.sort_order), `${row.title} shares a key with an original`);
+    assert.ok(old.id);
+  });
+
+  it('a workspace export carries its page types, and the import matches them by name', async () => {
+    const type = get<any>(`SELECT id, name FROM page_types WHERE workspace_id = ? AND deleted_at IS NULL ORDER BY sort_order LIMIT 1`, workspaceId)
+      ?? (await api('ada', `/api/workspaces/${workspaceId}/page-types`, { body: { name: 'Konzept', color: '#123456' } }));
+    const typed = await page({ title: 'Typed for the trip', type_id: type.id });
+    const doc = exportWorkspace(workspaceId);
+    assert.ok((doc.page_types ?? []).some((one: any) => one.id === type.id));
+    const report = importWorkspace(rowOf(typed.id).created_by, doc);
+    const arrived = get<any>(`SELECT type_id FROM pages WHERE workspace_id = ? AND title = 'Typed for the trip'`, report.workspace.id);
+    const its = get<any>(`SELECT name FROM page_types WHERE id = ?`, arrived.type_id);
+    assert.equal(its?.name, type.name);
+    const names = all<any>(`SELECT name FROM page_types WHERE workspace_id = ? AND deleted_at IS NULL`, report.workspace.id).map((row: any) => row.name);
+    assert.equal(names.length, new Set(names).size, 'no type twice');
+  });
+
+  it('a workspace import keeps the type of a page inside a project, too', async () => {
+    const project = get<any>(`SELECT id FROM projects WHERE workspace_id = ? AND key = 'BIL'`, workspaceId);
+    const type = await api('ada', `/api/workspaces/${workspaceId}/page-types`, { body: { name: 'Runbook for the trip', color: '#123456' } });
+    const typed = await page({ title: 'Project page with a type', project_id: project.id, type_id: type.id });
+    const report = importWorkspace(rowOf(typed.id).created_by, exportWorkspace(workspaceId));
+    const arrived = get<any>(`SELECT type_id FROM pages WHERE workspace_id = ? AND title = 'Project page with a type'`, report.workspace.id);
+    assert.equal(get<any>(`SELECT name FROM page_types WHERE id = ?`, arrived.type_id)?.name, 'Runbook for the trip');
+  });
+
+  it('a copied page that was replaced while on Final stays on Final, its stamp with it', async () => {
+    const project = get<any>(`SELECT id FROM projects WHERE workspace_id = ? AND key = 'BIL'`, workspaceId);
+    const next = await page({ title: 'Kept final, successor', project_id: project.id });
+    const kept = await page({ title: 'Kept final', project_id: project.id, content: 'still true' });
+    await patch(kept.id, { status_id: rung('final').id });
+    await patch(kept.id, { superseded_by: next.id, status_id: rung('final').id });
+    assert.equal(rowOf(kept.id).status_id, rung('final').id);
+    const report = copyProject(workspaceId, rowOf(kept.id).created_by, project.id, { name: 'Billing copy two', key: 'BIT', include: { pages: true } } as any);
+    const copy = get<any>(`SELECT * FROM pages WHERE project_id = ? AND title = 'Kept final'`, (report as any).project.id);
+    assert.equal(copy.status_id, rung('final').id);
+    assert.ok(copy.settled_version_id, 'the copy keeps a stamp of its own');
+  });
+
+  it('minutes are not filed under a series in a private project', async () => {
+    const secret = await api('ada', `/api/workspaces/${workspaceId}/projects`, { body: { name: 'Board room', key: 'BRD', visibility: 'private' } });
+    const secretId = secret.id ?? secret.project?.id ?? get<any>(`SELECT id FROM projects WHERE key = 'BRD' AND workspace_id = ?`, workspaceId).id;
+    run(`UPDATE projects SET visibility = 'private' WHERE id = ?`, secretId);
+    const hidden = await page({ title: 'Meeting minutes: Strategy', series: 1, project_id: secretId });
+    const meeting = await tool('create_meeting', { title: 'Strategy', starts_at: '2026-11-03T09:00:00+01:00' });
+    const filed = await tool('file_meeting_minutes', { meeting: meeting.id ?? meeting.meeting?.id });
+    const entry = rowOf(filed.page_id);
+    assert.notEqual(entry.parent_id, hidden.id);
+    assert.equal(entry.project_id, null);
+  });
+});
+

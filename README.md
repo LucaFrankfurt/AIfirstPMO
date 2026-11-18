@@ -192,7 +192,7 @@ view of the backlog without handing it a pen.
 | Attachments | `upload_attachment`, `list_attachments`, `get_attachment`, `delete_attachment` |
 | Planning | `list_cycles`, `create_cycle`, `update_cycle`, `delete_cycle`, `list_modules`, `create_module`, `update_module`, `delete_module`, `log_time`, `list_time`, `list_templates`, `apply_template` |
 | Configuration | `list_states`, `create_state`, `update_state`, `list_labels`, `create_label`, `update_label` |
-| Pages | `list_pages`, `get_page`, `create_page`, `update_page`, `list_page_templates`, `create_page_from_template`, `comment_page`, `list_page_comments`, `suggest_page_edit`, `resolve_comment` |
+| Pages | `list_pages`, `get_page`, `create_page`, `update_page`, `list_page_statuses`, `list_page_types`, `list_page_versions`, `save_page_version`, `new_series_entry`, `list_page_templates`, `create_page_from_template`, `comment_page`, `list_page_comments`, `suggest_page_edit`, `resolve_comment` |
 | Canvas | `get_artboard`, `add_artboard`, `update_artboard`, `delete_artboard` |
 | KPIs | `list_kpis`, `kpi_status`, `create_kpi`, `record_measurement`, `set_kpi_target` |
 | Decisions | `list_decisions`, `decision_result`, `create_decision`, `cast_vote`, `close_decision` |

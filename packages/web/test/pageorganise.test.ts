@@ -11,7 +11,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  comparePages, findSeries, labelApplies, labelsForPage, localDay, orderKey, seriesEntryTitle, untie, pageKey,
+  comparePages, entryDay, findSeries, labelApplies, labelsForPage, localDay, orderKey, seriesAbove, seriesEntryTitle, untie, pageKey,
 } from '@kolibri/shared';
 import { childrenOf, groupBranches, pagesWhere, type PageNode } from '../src/modules/pages/page-tree.ts';
 import { tidyPages } from '../src/modules/pages/tidy.ts';
@@ -79,6 +79,30 @@ describe('a dated entry', () => {
     ];
     assert.equal(findSeries(pages, 'Minutes: Weekly')?.id, 'live');
     assert.equal(findSeries(pages, 'Minutes: Monthly'), undefined);
+  });
+});
+
+describe('where the next minutes go', () => {
+  const pages = [
+    { id: 'series', title: 'Retrospectives', series: 1, created_at: 1 },
+    { id: 'retired', title: 'Old retros', series: 1, archived: 1, created_at: 0 },
+    { id: 'one', title: 'Retro · 2026-10-01', parent_id: 'series' },
+    { id: 'stray', title: 'Retro · 2026-09-01', parent_id: 'retired' },
+  ];
+
+  it('under the series the last minutes hang under, whatever it is called now', () => {
+    assert.equal(seriesAbove(pages, ['one'])?.id, 'series');
+  });
+
+  it('past one whose series was archived, to the next that is live', () => {
+    assert.equal(seriesAbove(pages, ['stray', 'one'])?.id, 'series');
+    assert.equal(seriesAbove(pages, ['stray']), undefined);
+  });
+
+  it('dates an entry by the day in its title, not the day it was filed', () => {
+    const late = Date.UTC(2026, 10, 20);
+    assert.equal(entryDay({ title: 'Minutes: Weekly · 2026-11-04 (2)', created_at: late }), '2026-11-04');
+    assert.equal(entryDay({ title: 'Written by hand', created_at: Date.UTC(2026, 10, 20, 12) }), localDay(Date.UTC(2026, 10, 20, 12)));
   });
 });
 

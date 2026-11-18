@@ -282,7 +282,11 @@ export function PagesIndex() {
    */
   const sections = useMemo((): { id: string; label: string; icon?: React.ReactNode; pages: Page[] }[] => {
     if (grouping === 'project') {
-      return groupBranches(pages, (root) => root.project_id ?? null, [null, ...projects.map((project) => project.id)])
+      // A project id that names nothing any more is filed with the workspace,
+      // rather than as a second section called the same thing. An archived
+      // project still has a name, and keeps its own section after the live ones.
+      return groupBranches(pages, (root) => (root.project_id && byId('project', root.project_id) ? root.project_id : null),
+        [null, ...projects.map((project) => project.id)])
         .map(({ key, pages: rows }) => {
           const project = key ? byId('project', key) : undefined;
           return {
@@ -508,8 +512,10 @@ export function PagesIndex() {
                       label: t(GROUP_LABEL[one]),
                       hint: grouping === one ? '✓' : undefined,
                       onSelect: () => {
-                        // A selection made in a tree means nothing in a flat list.
+                        // A selection made in a tree means nothing in a flat
+                        // list, and the flat lists have no Select to end it with.
                         selection.clear();
+                        if (one === 'type' || one === 'status') setPicking(false);
                         setGrouping(one);
                       },
                     }))}
@@ -574,7 +580,11 @@ export function PagesIndex() {
                     <span className="flex items-center gap-1.5">
                       {section.icon && <span aria-hidden="true">{section.icon}</span>}
                       <span>{section.label}</span>
-                      <span className="text-muted text-[12px] font-normal">{section.pages.length}</span>
+                      {/* What the section shows: its matches while a filter
+                          runs, not the whole branch set behind them. */}
+                      <span className="text-muted text-[12px] font-normal">
+                        {matched ? section.pages.filter((page) => matched.has(page.id)).length : section.pages.length}
+                      </span>
                     </span>
                   </SectionHeading>
                   {flat ? section.pages.map((page) => (
@@ -1052,6 +1062,11 @@ export function PageDetail() {
         </MenuButton>
       </Header>
 
+      {/* A canvas or a board page draws its own surface below, so the one
+          notice that applies to it — replaced, and by what — goes above. */}
+      {isBoardFormat(page.format) && isSuperseded(page, statuses) && (
+        <div className="px-3 pt-3 sm:px-6"><SupersededNotice page={page} /></div>
+      )}
       {page.format === 'canvas' ? (
         <CanvasView page={page} canWrite={canWrite} ai={boardAi} printRequest={printRequest} thread={(props) => <Comments {...props} />} />
       ) : page.format === 'board' ? (

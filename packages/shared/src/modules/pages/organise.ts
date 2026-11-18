@@ -118,6 +118,31 @@ export interface SeriesCandidate {
   is_template?: number;
   deleted_at?: number | null;
   created_at?: number;
+  parent_id?: string | null;
+  access?: string;
+}
+
+/** A page entries may still be filed under: a series nobody archived, deleted or made a template. */
+const liveSeries = (page: SeriesCandidate | undefined): boolean =>
+  !!page && !!page.series && !page.archived && !page.is_template && !page.deleted_at;
+
+/**
+ * The series the earlier entries of something already hang under.
+ *
+ * Asked before the title, because a title is a weak tie: a series somebody
+ * renamed is not found by its old name, and a meeting filed by a German
+ * colleague's screen is looked for under "Protokolle: Weekly" while the
+ * English one asks for another. Where the minutes of earlier meetings went is
+ * the answer that does not depend on either. `entries` in the order to trust
+ * them — the most recent first.
+ */
+export function seriesAbove<T extends SeriesCandidate>(pages: readonly T[], entries: readonly string[]): T | undefined {
+  const byId = new Map(pages.map((page) => [page.id, page]));
+  for (const id of entries) {
+    const parent = byId.get(byId.get(id)?.parent_id ?? '');
+    if (liveSeries(parent)) return parent;
+  }
+  return undefined;
 }
 
 /**
@@ -132,6 +157,17 @@ export interface SeriesCandidate {
 export function findSeries<T extends SeriesCandidate>(pages: readonly T[], title: string): T | undefined {
   const key = pageKey(title);
   return pages
-    .filter((page) => page.series && !page.archived && !page.is_template && !page.deleted_at && pageKey(page.title) === key)
+    .filter((page) => liveSeries(page) && pageKey(page.title) === key)
     .sort((a, b) => (a.created_at ?? 0) - (b.created_at ?? 0) || (a.id < b.id ? -1 : 1))[0];
 }
+
+/**
+ * The day an entry is *for*: the date in its title, which the series wrote
+ * there — or the day it was made, for an entry written by hand.
+ *
+ * Not the day it was made alone: minutes filed a week late for an older
+ * meeting are titled with the meeting's day and would otherwise sit at the top
+ * of the series as the newest, dated the day somebody got round to them.
+ */
+export const entryDay = (page: { title?: string | null; created_at: number }): string =>
+  (page.title ?? '').match(/(\d{4}-\d{2}-\d{2})(?!.*\d{4}-\d{2}-\d{2})/)?.[1] ?? localDay(page.created_at);

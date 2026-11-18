@@ -15,7 +15,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
-  carryOver, findSeries, followUp, localDay, meetingsInOrder, minutesMarkdown, nextMeeting, pageKey, seriesEntryTitle,
+  carryOver, findSeries, followUp, localDay, meetingsInOrder, minutesMarkdown, nextMeeting, pageKey, seriesAbove, seriesEntryTitle,
   type Meeting, type Page,
 } from '@kolibri/shared';
 import { Header, Trail } from '../../../kernel/design-system/chrome';
@@ -227,14 +227,27 @@ export function MeetingDetail() {
        * naming patterns.
        */
       const wiki = list('page', (page) => page.workspace_id === meeting.workspace_id && !page.deleted_at) as Page[];
+      // Only a series the whole workspace reads: minutes are a workspace page,
+      // and under somebody's private page they would be private to the filer.
+      // In no project or a public one, too: an entry takes its series' project.
+      const open = wiki.filter((page) => page.access === 'workspace'
+        && (!page.project_id || byId('project', page.project_id)?.visibility === 'public'));
+      // Where this meeting's earlier minutes went comes first — the tie that
+      // holds when the series is renamed, or a colleague files in another
+      // language. See `seriesAbove`.
+      const key = pageKey(meeting.title);
+      const earlier = list('meeting', (one) => one.workspace_id === meeting.workspace_id && one.id !== meeting.id
+        && !!one.minutes_page_id && pageKey(one.title) === key)
+        .sort((a, b) => (b.starts_at ?? 0) - (a.starts_at ?? 0))
+        .map((one) => String(one.minutes_page_id));
       const seriesTitle = t('meeting.minutesSeries', { title: meeting.title });
-      const series = findSeries(wiki, seriesTitle)
+      const series = seriesAbove(open, earlier) ?? findSeries(open, seriesTitle)
         ?? byId('page', createPage({ title: seriesTitle, icon: '📝', series: 1 }, me)) as Page;
       const taken = new Set(wiki.map((page) => pageKey(page.title || '')));
       const pageId = createPage({
         parent_id: series.id,
         project_id: series.project_id ?? null,
-        access: series.access,
+        access: 'workspace',
         type_id: series.type_id ?? null,
         labels: series.labels ?? [],
         title: seriesEntryTitle(t('meeting.minutesTitle', { title: meeting.title }), localDay(meeting.starts_at ?? Date.now()), taken),

@@ -20,14 +20,14 @@
 import {
   AGENDA_STATUS, MEETING_REPEATS, MEETING_STATUS, agendaOf, agendaTally, carryOver, followUp, isMeetingRepeat, isOverdue,
   meetingsInOrder,
-  minutesMarkdown, nextAgendaKey, nextMeeting,
+  minutesMarkdown, nextAgendaKey, nextMeeting, pageKey,
   type AgendaItem, type AgendaStatus, type Meeting, type MinutesTask,
 } from '@kolibri/shared';
 import { all, get, tx, type Row } from '../../../kernel/platform/db/index.ts';
 import { canSeeProject, serialize, writeEntity } from '../../../kernel/write-path/repo.ts';
 import { uid } from '../../../kernel/platform/ids.ts';
 import { env } from '../../../kernel/platform/env.ts';
-import { addSeriesEntry, dayFor, seriesNamed } from '../../../modules/pages/series.ts';
+import { addSeriesEntry, dayFor, seriesFor } from '../../../modules/pages/series.ts';
 import { localeOf, translatorFor } from '../../../kernel/i18n/i18n.ts';
 import {
   fileTask, findMember, findProject, McpError, namesOf, requireFeature, requireWrite, resolveUsers, safeList, str, taskView,
@@ -578,12 +578,21 @@ export const meetingTools: ToolDef[] = [
            * they hang under one page per meeting title, which is a page like
            * any other to move, type and file once; later entries follow it.
            */
-          const series = seriesNamed(workspaceId, t('minutes.series', { title: meeting.title }), '📝', opts);
+          // Where this meeting's earlier minutes went, most recent first — the
+          // tie that holds when the series is renamed or a colleague files in
+          // another language. See `seriesAbove`.
+          const key = pageKey(meeting.title);
+          const earlier = meetingsIn(workspaceId)
+            .filter((one) => one.id !== meeting.id && one.minutes_page_id && pageKey(one.title) === key)
+            .sort((a, b) => (b.starts_at ?? 0) - (a.starts_at ?? 0))
+            .map((one) => String(one.minutes_page_id));
+          const series = seriesFor(workspaceId, { title: t('minutes.series', { title: meeting.title }), icon: '📝', earlier }, opts);
           pageId = String(addSeriesEntry(series, {
             day: dayFor(meeting.starts_at ?? Date.now(), ctx.auth.userId),
             base: t('minutes.title', { title: meeting.title }),
             content,
             format: 'markdown',
+            access: 'workspace',
           }, opts).id);
           writeEntity('meeting', meeting.id, { minutes_page_id: pageId }, opts);
         }

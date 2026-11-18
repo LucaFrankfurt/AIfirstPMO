@@ -151,7 +151,10 @@ export const ACCESS_KEY: Record<string, TranslationKey> = {
 export function VersionDiff({ page, versionId, onClose }: { page: Page; versionId: string; onClose: () => void }) {
   const t = useT();
   const [old, setOld] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
+  /** Two fetches, two failures: clearing the second's must not hide the first's. */
+  const [failedOpen, setFailedOpen] = useState(false);
+  const [failedOther, setFailedOther] = useState(false);
+  const failed = failedOpen || failedOther;
   /**
    * What the version is compared *with*: the page as it is now, or another
    * version. Now by default, for the reason above; another version because
@@ -159,20 +162,26 @@ export function VersionDiff({ page, versionId, onClose }: { page: Page; versionI
    * and answering it by restoring one and diffing the other is not an answer.
    */
   const [against, setAgainst] = useState('');
-  const [others, setOthers] = useState<{ id: string; label: string }[]>([]);
-  const [newer, setNewer] = useState<string | null>(null);
+  const [others, setOthers] = useState<{ id: string; label: string; at: number }[]>([]);
+  const [opened, setOpened] = useState<number | null>(null);
+  const [other, setOther] = useState<string | null>(null);
 
   useEffect(() => {
     let live = true;
     api.pageVersion(page.id, versionId)
-      .then((version) => { if (live) setOld(String(version.content ?? '')); })
-      .catch(() => { if (live) setFailed(true); });
+      .then((version) => {
+        if (!live) return;
+        setOld(String(version.content ?? ''));
+        setOpened(Number(version.created_at));
+      })
+      .catch(() => { if (live) setFailedOpen(true); });
     api.pageVersions(page.id)
       .then((rows) => {
         if (!live) return;
         setOthers(rows.filter((row: any) => row.id !== versionId).map((row: any) => ({
           id: String(row.id),
           label: `${row.name ? `${row.name} · ` : ''}${shortDate(Number(row.created_at))}`,
+          at: Number(row.created_at),
         })));
       })
       .catch(() => { /* the comparison with now still works */ });
@@ -180,25 +189,33 @@ export function VersionDiff({ page, versionId, onClose }: { page: Page; versionI
   }, [page.id, versionId]);
 
   useEffect(() => {
-    if (!against) {
-      setNewer(null);
-      return;
-    }
+    // Cleared first, so neither the last choice's text nor its error outlives it.
+    setOther(null);
+    setFailedOther(false);
+    if (!against) return;
     let live = true;
     api.pageVersion(page.id, against)
-      .then((version) => { if (live) setNewer(String(version.content ?? '')); })
-      .catch(() => { if (live) setFailed(true); });
+      .then((version) => { if (live) setOther(String(version.content ?? '')); })
+      .catch(() => { if (live) setFailedOther(true); });
     return () => { live = false; };
   }, [page.id, against]);
 
-  const target = against ? newer : page.content ?? '';
+  /*
+   * Older on the left, whichever was opened: "what changed between V4 and V5"
+   * reads the same asked from either end, and opening V5 and picking V4 drew
+   * V5's additions as removals.
+   */
+  const chosenAt = others.find((one) => one.id === against)?.at ?? 0;
+  const flipped = !!against && opened !== null && chosenAt > 0 && chosenAt < opened;
+  const before = !against ? old : flipped ? other : old;
+  const after = !against ? page.content ?? '' : flipped ? old : other;
   const parts = useMemo(
-    () => (old === null || target === null ? [] : collapse(diffLines(old, target), 3)),
-    [old, target],
+    () => (before === null || after === null ? [] : collapse(diffLines(before, after), 3)),
+    [before, after],
   );
   const summary = useMemo(
-    () => (old === null || target === null ? { added: 0, removed: 0 } : diffSummary(diffLines(old, target))),
-    [old, target],
+    () => (before === null || after === null ? { added: 0, removed: 0 } : diffSummary(diffLines(before, after))),
+    [before, after],
   );
 
   return (
@@ -213,8 +230,8 @@ export function VersionDiff({ page, versionId, onClose }: { page: Page; versionI
         </div>
       )}
       {failed && <p className="text-[12px] text-danger">{t('page.historyFailed')}</p>}
-      {old === null && !failed && <p className="text-muted">{t('common.loading')}</p>}
-      {old !== null && (
+      {(before === null || after === null) && !failed && <p className="text-muted">{t('common.loading')}</p>}
+      {before !== null && after !== null && (
         <>
           <p className="text-[12px] text-muted mb-2.5">
             {t('page.diffSummary', { added: summary.added, removed: summary.removed })}

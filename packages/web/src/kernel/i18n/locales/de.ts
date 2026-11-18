@@ -2261,7 +2261,7 @@ export const de: Catalogue = {
   'page.replacedNotice': 'Diese Seite ist überholt.',
   'page.replacedClear': 'Doch nicht ersetzt',
   'page.replacedMark': 'Ersetzt',
-  'page.changedSince': 'Geändert seit „{status}“ am {date}.',
+  'page.changedSince': 'Geändert, seit die Seite auf „{status}“ steht – zuletzt am {date}.',
   'page.changedSinceCompare': 'Änderungen zeigen',
   'page.saveVersion': 'Version speichern',
   'page.versionName': 'Versionsname',

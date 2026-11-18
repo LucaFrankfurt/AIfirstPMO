@@ -361,6 +361,43 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       `reconcileReactions` is in `shared/modules/work/reactions.ts`. Each module supplies only the
       list of columns an edit may not touch. `comment-edit.test.ts` asks all of it through the doors
       that were wrong — REST and the sync push — rather than through the functions.
+- [x] **What a wiki needs beyond its tree: types, named versions, replaced pages, series.** Measured
+      on the first real instance before any of it, through MCP: 56 of 77 pages drawn at the top level,
+      57 of them on the column's default sort key, nine titles carrying a version or a state
+      (`V5`, `v3 final`, `Arbeitsversion 2`), twenty-one carrying a date in seven formats, eight
+      meeting notes in three places under six naming patterns, and a page called "Aufräumliste" that
+      kept by hand a table of which page was current on each subject. Each of these is now a field:
+      **a page type** (`page_types`, one per page, seeded and backfilled once), **a named version**
+      (`page_versions.name`, never folded into the next edit and never dropped from the list; any two
+      can be compared), **the version "Final" was said about** (`settled_version_id`, cut when a page
+      reaches a final rung, and `settled_drift`, which the page draws as "edited since"), **a fourth
+      rung kind, `superseded`, with `superseded_by`** (a notice with a link, faint in the tree, kept
+      from the support assistant, said on a share link), **a series** (dated entries in one format;
+      filed minutes go under one series per meeting, found through where its earlier minutes went),
+      **a label's scope** (`applies_to`: a page is offered the workspace's labels and its own
+      project's rather than eight `Bug`s), and **reference pages** pinned above the recent ones. The
+      index groups by project — keeping each branch whole — by type or by status, and every filter
+      now keeps the path to its matches.
+      **Five of the findings were bugs, not missing features.** `create_page` stored `parent` as it
+      arrived, so a title became a `parent_id`; every page created over MCP, filed as minutes or
+      posted to REST got the key `V`, so ties were drawn in whatever order a device's store held
+      them and a drop between two tied pages landed after all of them (`comparePages` breaks ties
+      everywhere now, the write path gives every new page a key after its siblings, and `untie`
+      spreads old ties once at start without touching `updated_at`); the index's label filter
+      offered only workspace-wide labels while a page's menu offered every label; the label and
+      status filters drew matching sub-pages as chapters of their own; a project's Pages tab was a
+      flat list with its templates in it; and `list_pages` reported no status for the pages every
+      screen called the draft. Independent reviews then found more before this was pushed, in two
+      rounds, among them a read-only token that could restore a version (older than this work),
+      backfills that came back after the trash was emptied, minutes filed under a private series
+      becoming private to the filer, and a workspace import that dropped the type of every page
+      inside a project. `page-organise.test.ts` asks each through the door it was found at.
+      **Still open.** Pages that were already on a final rung before the upgrade have no settled
+      version and never report drift until they are set to final again. A workspace transfer maps
+      page types by name; page *statuses* still arrive as the draft, as they did before. The
+      one-time untie writes with the server's clock, so a drag of a tied page queued offline before
+      the upgrade arrives older than it and is dropped. And nothing moves the existing wiki: the
+      version numbers and dates already typed into titles stay there until somebody uses the fields.
 - [x] **The wiki can be tidied, and the tree says what it is.** Every finding is something the tree
       used to draw a confident wrong answer about rather than merely stay quiet on: a page whose
       parent was archived, deleted or made a template (it reappears at the top level as though

@@ -134,7 +134,7 @@ const en = {
   'seed.pageTypeRunbook': 'Runbook',
   'seed.pageTypeReport': 'Report',
   /* The page every filed minutes of one meeting series hangs under. */
-  'minutes.series': 'Minutes: {title}',
+  'minutes.series': 'Meeting minutes: {title}',
 
   /* The feedback template and rule every new project starts with. */
   'seed.feedbackTemplate': 'Feedback request',

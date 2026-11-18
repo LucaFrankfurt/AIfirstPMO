@@ -989,6 +989,10 @@ export function registerEntityRoutes(router: Router): void {
 
   router.post('/api/pages/:id/versions', async (ctx: Ctx) => {
     const auth = requireAuth(ctx);
+    // Both halves write — a restore rewrites the page, a name rewrites its
+    // history — and a read-only token is a promise to do neither. The restore
+    // half had no such check before names were added beside it.
+    if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
     const page = workspaceOf('page', ctx.params.id);
     requireWorkspace(ctx, page.workspace_id, 'member');
     guardPage(auth.userId, 'page', page);
@@ -1024,6 +1028,7 @@ export function registerEntityRoutes(router: Router): void {
    */
   router.patch('/api/pages/:id/versions/:versionId', async (ctx: Ctx) => {
     const auth = requireAuth(ctx);
+    if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
     const page = workspaceOf('page', ctx.params.id);
     requireWorkspace(ctx, page.workspace_id, 'member');
     guardPage(auth.userId, 'page', page);
