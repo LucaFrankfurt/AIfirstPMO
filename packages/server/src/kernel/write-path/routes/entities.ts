@@ -3,7 +3,7 @@ import {
   isCrossWorkspace, isGuestWritable, parseCsv,
   type EntityName, type ImportField, type Mapping, type WorkspaceRole,
 } from '@kolibri/shared';
-import { all, get, limitOf, type Row } from '../../platform/db/index.ts';
+import { all, get, limitOf, run, type Row } from '../../platform/db/index.ts';
 import { hasRole, requireAuth, requireWorkspace } from '../../identity/auth.ts';
 import { serverClock, createProject } from '../bootstrap.ts';
 import { badRequest, flag, forbidden, notFound, readJson, type Ctx, type Router } from '../../platform/http.ts';
@@ -20,6 +20,7 @@ import {
   writeEntity,
 } from '../repo.ts';
 import { emptyTrash, purgeable } from '../../../modules/trash/trash.ts';
+import { listVersions, nameVersion } from '../../../modules/pages/rules/pages.ts';
 import { env } from '../../platform/env.ts';
 
 const resolve = (segment: string): EntityName => {
@@ -952,11 +953,7 @@ export function registerEntityRoutes(router: Router): void {
     const page = workspaceOf('page', ctx.params.id);
     requireWorkspace(ctx, page.workspace_id);
     guardPage(auth.userId, 'page', page);
-    return all<Row>(
-      `SELECT id, title, author_id, created_at, length(content) AS size FROM page_versions
-        WHERE page_id = ? ORDER BY created_at DESC LIMIT 100`,
-      ctx.params.id,
-    );
+    return listVersions(ctx.params.id);
   });
 
   router.get('/api/pages/:id/versions/:versionId', (ctx: Ctx) => {
@@ -995,7 +992,7 @@ export function registerEntityRoutes(router: Router): void {
     const page = workspaceOf('page', ctx.params.id);
     requireWorkspace(ctx, page.workspace_id, 'member');
     guardPage(auth.userId, 'page', page);
-    const body = await readJson<{ restore?: string }>(ctx);
+    const body = await readJson<{ restore?: string; name?: string; note?: string }>(ctx);
     if (body.restore) {
       const version = get<Row>(`SELECT * FROM page_versions WHERE id = ? AND page_id = ?`, body.restore, ctx.params.id);
       if (!version) throw notFound('Version not found');
@@ -1004,7 +1001,41 @@ export function registerEntityRoutes(router: Router): void {
       });
       return serialize('page', row);
     }
-    throw badRequest('Pass { restore: versionId } to restore a version');
+    // A name for what the page says now — see `nameVersion`.
+    const name = typeof body.name === 'string' ? body.name.trim().slice(0, 120) : '';
+    if (name) {
+      const current = get<Row>(`SELECT * FROM pages WHERE id = ?`, ctx.params.id)!;
+      const note = typeof body.note === 'string' && body.note.trim() ? body.note.trim().slice(0, 500) : null;
+      const id = nameVersion(current, auth.userId, name, note);
+      return get<Row>(
+        `SELECT id, title, author_id, created_at, length(content) AS size, name, note FROM page_versions WHERE id = ?`, id,
+      );
+    }
+    throw badRequest('Pass { restore: versionId } to restore a version, or { name } to keep this one');
+  });
+
+  /**
+   * Name a version after the fact, or say why it matters.
+   *
+   * The automatic snapshots are most of a history, and the one somebody wants
+   * to point at later — "the text we sent the bank" — is usually one of them,
+   * found by diffing backwards. An empty name takes the name away again, and
+   * the version goes back to being one the list may let fall off its end.
+   */
+  router.patch('/api/pages/:id/versions/:versionId', async (ctx: Ctx) => {
+    const auth = requireAuth(ctx);
+    const page = workspaceOf('page', ctx.params.id);
+    requireWorkspace(ctx, page.workspace_id, 'member');
+    guardPage(auth.userId, 'page', page);
+    const version = get<Row>(`SELECT id FROM page_versions WHERE id = ? AND page_id = ?`, ctx.params.versionId, ctx.params.id);
+    if (!version) throw notFound('Version not found');
+    const body = await readJson<{ name?: string | null; note?: string | null }>(ctx);
+    const clean = (value: unknown, max: number) => (typeof value === 'string' && value.trim() ? value.trim().slice(0, max) : null);
+    if (body.name !== undefined) run(`UPDATE page_versions SET name = ? WHERE id = ?`, clean(body.name, 120), version.id);
+    if (body.note !== undefined) run(`UPDATE page_versions SET note = ? WHERE id = ?`, clean(body.note, 500), version.id);
+    return get<Row>(
+      `SELECT id, title, author_id, created_at, length(content) AS size, name, note FROM page_versions WHERE id = ?`, version.id,
+    );
   });
 
   /* --------------------------------------------------- board history */

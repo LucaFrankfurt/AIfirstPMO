@@ -1,5 +1,6 @@
 import { Fragment, type ReactNode } from 'react';
 import {
+  labelApplies,
   PRIORITIES, ancestry, coversProject, descendants, fieldKeys, isDoneGroup, mayEnter,
   type Cycle, type Filters, type Label, type Layout, type Module, type State, type Task,
 } from '@kolibri/shared';
@@ -109,7 +110,9 @@ export const useStates = (projectId?: string | null): State[] =>
 
 export const useLabels = (projectId?: string | null): Label[] =>
   useQuery(
-    () => list('label', (l) => !l.project_id || !projectId || l.project_id === projectId).sort((a, b) => a.name.localeCompare(b.name)),
+    // Not a label kept for the wiki — see `labelApplies`.
+    () => list('label', (l) => labelApplies(l, 'task') && (!l.project_id || !projectId || l.project_id === projectId))
+      .sort((a, b) => a.name.localeCompare(b.name)),
     [projectId],
   );
 

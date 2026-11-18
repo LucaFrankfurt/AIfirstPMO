@@ -140,10 +140,10 @@ function widgetView(row: Row) {
   };
 }
 
-const KNOWLEDGE_RULES = 'The model reads a page only while it is marked as public knowledge and not private, '
+const KNOWLEDGE_RULES = 'The model reads a page only while it is marked as public knowledge, not private and not replaced by a newer page, '
   + 'in the order listed, the first 8,000 characters of each and 24,000 in all; `chars_read` below `chars` '
   + 'means the end of the page is never read. `skipped` says why a page is not read: `deleted`, `private`, '
-  + '`not_public_knowledge` or `over_budget`.';
+  + '`not_public_knowledge`, `superseded` or `over_budget`.';
 
 /** Who said a line, as a person reading the thread would name them. */
 const speaker = (message: Row, visitor: string): { from: string; name: string } => {

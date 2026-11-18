@@ -27,10 +27,17 @@ export const STATE_GROUPS = ['backlog', 'unstarted', 'started', 'completed', 'ca
  * the order: the export marker (anything not `final` says so when it leaves),
  * the tidy screen's finding (a `review` nobody finished), and a new page's
  * default (the first `draft`). `group_key` on a task state is the same device
- * for the same reason, and this is deliberately its smaller cousin: three
+ * for the same reason, and this is deliberately its smaller cousin: four
  * kinds, not five, because a wiki page is not a workflow.
+ *
+ * `superseded` is the fourth, and the one a page reaches by being *replaced*
+ * rather than by being finished. It exists because the only other way to say
+ * "this is history now" was to archive the page — which takes it out of every
+ * list, so the reader following an old link finds nothing where they should
+ * have found "read this one instead". The first real wiki on an instance kept
+ * a hand-written list of pages to "mark as history" for exactly that reason.
  */
-export const PAGE_STATUS_KINDS = ['draft', 'review', 'final'] as const;
+export const PAGE_STATUS_KINDS = ['draft', 'review', 'final', 'superseded'] as const;
 export type PageStatusKind = (typeof PAGE_STATUS_KINDS)[number];
 export type StateGroup = (typeof STATE_GROUPS)[number];
 
@@ -1032,12 +1039,29 @@ export interface FieldValue extends Base {
   value: string | null;
 }
 
+/**
+ * What a label may be put on.
+ *
+ * Tasks and pages drew from one pool, so the menu on a handbook page offered
+ * eight labels called "Bug" — one seeded per project — and a page about the
+ * pricing model was labelled from the same list as a regression. `all` is what
+ * every label written before this meant, and stays the default.
+ */
+export const LABEL_SCOPES = ['all', 'tasks', 'pages'] as const;
+export type LabelScope = (typeof LABEL_SCOPES)[number];
+
 export interface Label extends Base {
   workspace_id: ID;
   project_id: ID | null;
   name: string;
   color: string;
   description: string | null;
+  /**
+   * Tasks, pages or both. Read through `labelApplies` and never directly: a
+   * label a device synced before the column existed has none, and that means
+   * `all`.
+   */
+  applies_to?: LabelScope;
 }
 
 export interface Task extends Base {
@@ -1191,6 +1215,25 @@ export interface PageStatus extends Base {
   sort_order: string;
 }
 
+/**
+ * What kind of document a page is — a concept, the minutes of a meeting, a
+ * runbook — in a workspace's own words.
+ *
+ * One per page, where labels are many: "what kind" and "what about" are two
+ * questions, and a wiki that answers both with labels answers neither, because
+ * the menu that holds `Protokoll` also holds `Pricing` and `Bug`. Modelled on
+ * `PageStatus` and for the same reason workspace-wide: a handbook belongs to no
+ * project and still has a kind. No `kind` underneath the name — nothing in the
+ * product branches on what a type is called, only on which one a page has.
+ */
+export interface PageType extends Base {
+  workspace_id: ID;
+  name: string;
+  icon: string | null;
+  color: string;
+  sort_order: string;
+}
+
 export interface Page extends Base {
   workspace_id: ID;
   project_id: ID | null;
@@ -1253,6 +1296,35 @@ export interface Page extends Base {
    * moment the feature shipped — would claim an editorial decision nobody made.
    */
   status_id: ID | null;
+  /*
+   * Everything below arrived after pages had synced to devices, so a device
+   * that was there first holds rows without any of it until each row is next
+   * edited — the trap `agenda_items.assignees` fell into. Optional on purpose:
+   * the compiler then refuses a read that forgets it may be missing.
+   */
+  /** A row in `page_types`, or none. One per page; see `PageType`. */
+  type_id?: ID | null;
+  /**
+   * A reference page: pinned to the top of the wiki as *the* page on its
+   * subject. A workspace's statement, so it syncs — unlike a fold, which is a
+   * fact about one device.
+   */
+  pinned?: number;
+  /** The page that replaced this one. Set together with a `superseded` rung; see `isSuperseded`. */
+  superseded_by?: ID | null;
+  /**
+   * A page whose sub-pages are dated entries of one recurring document — the
+   * minutes of a weekly, a scorecard per week. It draws its entries newest
+   * first and makes the next one with a title in one date format.
+   */
+  series?: number;
+  /**
+   * The version cut when this page last reached a `final` rung — what "Final"
+   * was said *about*. Server-written: the version table is the server's.
+   */
+  settled_version_id?: ID | null;
+  /** Whether the text has changed since that version. Server-written beside it. */
+  settled_drift?: number;
 }
 
 /**
@@ -2481,6 +2553,7 @@ export interface EntityMap {
   meeting: Meeting;
   agendaItem: AgendaItem;
   pageStatus: PageStatus;
+  pageType: PageType;
   page: Page;
   artboard: Artboard;
   comment: Comment;

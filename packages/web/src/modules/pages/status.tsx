@@ -17,7 +17,7 @@
  * and its export notice. That is the whole reason the kind exists.
  */
 import {
-  kindOf, ladder, orderKey, PAGE_STATUS_KINDS, statusOf,
+  isSuperseded, kindOf, ladder, orderKey, PAGE_STATUS_KINDS, statusOf,
   type Page, type PageStatus, type PageStatusKind,
 } from '@kolibri/shared';
 import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
@@ -32,7 +32,7 @@ import { Chip, chipDot } from '../../kernel/design-system/ui/chip';
 
 /** What each kind is called where a workspace is choosing one. */
 export const KIND_KEY: Record<PageStatusKind, TranslationKey> = {
-  draft: 'pageStatus.draft', review: 'pageStatus.review', final: 'pageStatus.final',
+  draft: 'pageStatus.draft', review: 'pageStatus.review', final: 'pageStatus.final', superseded: 'pageStatus.superseded',
 };
 
 /** This workspace's ladder, in its own order. */
@@ -77,16 +77,33 @@ export function PageStatusChip({ page, dot }: { page: Pick<Page, 'status_id'>; d
  * file does, and it renders nothing at all for a finished page: a document that
  * announces its own correctness is noise.
  */
-export function PageStatusNotice({ page }: { page: Pick<Page, 'status_id'> }) {
+export function PageStatusNotice({ page }: { page: Pick<Page, 'status_id' | 'superseded_by'> }) {
   const t = useT();
   const statuses = usePageStatuses();
+  const said = outsideNotice(page, statuses, t);
+  if (!said) return null;
+  return <p className="status-notice" style={{ borderColor: statusOf(page, statuses)?.color }}>{said}</p>;
+}
+
+/**
+ * The sentence, for the three ways a page leaves: this notice, the export and
+ * the print. It was written out three times, and the day "replaced" became a
+ * thing to say was the day the three would have disagreed.
+ *
+ * Replaced first, whatever rung the page stands on: "this is not the current
+ * one" is what a reader of a forwarded page most needs to know.
+ */
+export function outsideNotice(
+  page: Pick<Page, 'status_id' | 'superseded_by'>,
+  statuses: PageStatus[],
+  t: ReturnType<typeof useT>,
+): string | null {
   const status = statusOf(page, statuses);
+  if (isSuperseded(page, statuses)) {
+    return t('page.statusReplaced', { status: status?.kind === 'superseded' ? status.name : t('page.replacedMark') });
+  }
   if (!status || kindOf(page, statuses) === 'final') return null;
-  return (
-    <p className="status-notice" style={{ borderColor: status.color }}>
-      {t('page.statusNotFinal', { status: status.name })}
-    </p>
-  );
+  return t('page.statusNotFinal', { status: status.name });
 }
 
 /**

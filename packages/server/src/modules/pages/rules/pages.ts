@@ -6,7 +6,7 @@
  */
 
 import {
-  crdt, defaultStatus, linkableTitle, PAGE_STATUS_KINDS, pageKey, renameLinks,
+  crdt, defaultStatus, linkableTitle, orderKey, PAGE_STATUS_KINDS, pageKey, renameLinks, supersededStatus,
   type CrdtState, type EntityName, type PageFormat, type PageStatus, type PageStatusKind,
 } from '@kolibri/shared';
 import { all, get, type Row, run } from '../../../kernel/platform/db/index.ts';
@@ -179,6 +179,70 @@ function snapshotPage(before: Row, actorId: string): void {
   );
 }
 
+/**
+ * Keep what a page says now as a version with a name — "V5", "as approved".
+ *
+ * The other half of `snapshotPage`, and the half people asked for by working
+ * around its absence: with only the automatic snapshots, the way to say "this
+ * is version 5" was to copy the page and type `V5` into the copy's title. Then
+ * every `[[link]]` kept pointing at version 4, because a link resolves by
+ * title, and the wiki on the first real instance held six prices side by side.
+ * A named version is the same page with a marker in its history, so the links
+ * keep landing on the current text and the old one is still one click away.
+ *
+ * Stores the *current* text, where `snapshotPage` stores the previous one: a
+ * name is said about what is on the screen. The next automatic snapshot
+ * compares against this row and skips itself when nothing changed, so naming
+ * a version never doubles it.
+ */
+export function nameVersion(page: Row, actorId: string, name: string, note: string | null, id: string = uid()): string {
+  run(
+    `INSERT INTO page_versions (id, page_id, content, title, author_id, created_at, name, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    id, page.id, String(page.content ?? ''), String(page.title ?? ''), actorId, Date.now(), name, note,
+  );
+  return id;
+}
+
+/**
+ * A page's history as a list: every named version, and the newest hundred the
+ * server kept on its own.
+ *
+ * The hundred was the whole list, and a busy page's first versions fell off
+ * it. A named one never does — somebody said it mattered — so the two are
+ * asked for separately and drawn as one, newest first.
+ */
+export function listVersions(pageId: string): Row[] {
+  return all<Row>(
+    `SELECT id, title, author_id, created_at, length(content) AS size, name, note FROM page_versions
+      WHERE page_id = ?1
+        AND (name IS NOT NULL
+             OR id IN (SELECT id FROM page_versions WHERE page_id = ?1 AND name IS NULL ORDER BY created_at DESC LIMIT 100))
+      ORDER BY created_at DESC`,
+    pageId,
+  );
+}
+
+/**
+ * A key after every sibling under `parentId`, so a new page lands at the bottom.
+ *
+ * Every door a page arrives through comes past `defaults` below, and that is
+ * where this is used. It was the MCP tools' own helper, used only when a page
+ * was *moved*: a page *created* over MCP, filed as meeting minutes or posted to
+ * REST without a key got the column's default `V` — and on the first real wiki
+ * 57 of 77 pages carried it, 41 of them side by side at the top level, drawn in
+ * whatever order each device's store happened to hold them.
+ */
+export function lastPageOrder(workspaceId: string, parentId: string | null): string {
+  const last = get<Row>(
+    `SELECT sort_order FROM pages
+      WHERE workspace_id = ? AND deleted_at IS NULL
+        AND ${parentId ? 'parent_id = ?' : 'parent_id IS NULL'}
+      ORDER BY sort_order DESC LIMIT 1`,
+    ...(parentId ? [workspaceId, parentId] : [workspaceId]),
+  );
+  return orderKey((last?.sort_order as string | null) ?? null, null);
+}
+
 
 
 /**
@@ -300,11 +364,132 @@ function settlePageStatus(entity: EntityName, values: Record<string, unknown>, f
   forced.status_id = null;
 }
 
+/** A yes or a no, however it arrived — see `public_knowledge` above. */
+function settleFlag(field: string, values: Record<string, unknown>, forced: Record<string, unknown>): void {
+  if (values[field] === undefined) return;
+  const flag = values[field] === true || Number(values[field]) === 1 ? 1 : 0;
+  if (flag !== values[field]) {
+    values[field] = flag;
+    forced[field] = flag;
+  }
+}
+
+/**
+ * The page's type and its successor point inside its own workspace, or at
+ * nothing.
+ *
+ * Corrected rather than refused, for the reason `settlePageStatus` gives: a
+ * foreign id is a copy-paste or a transfer, and a 400 to a sync batch is a
+ * device that stops syncing. `guardReferences` cannot do this for them — it
+ * knows columns by name, and neither of these names its table.
+ *
+ * A page replaced by itself is folded to nothing as well: it is the one value
+ * that would make `isSuperseded` true with nowhere to send the reader.
+ */
+function settlePageLinks(id: string, values: Record<string, unknown>, forced: Record<string, unknown>, opts: WriteOpts): void {
+  if (values.type_id) {
+    const type = get<Row>(`SELECT workspace_id FROM page_types WHERE id = ? AND deleted_at IS NULL`, values.type_id);
+    if (!type || String(type.workspace_id) !== String(opts.workspaceId)) {
+      values.type_id = null;
+      forced.type_id = null;
+    }
+  }
+  if (values.superseded_by) {
+    const successor = get<Row>(`SELECT workspace_id FROM pages WHERE id = ?`, values.superseded_by);
+    if (values.superseded_by === id || (successor && String(successor.workspace_id) !== String(opts.workspaceId))) {
+      values.superseded_by = null;
+      forced.superseded_by = null;
+    }
+  }
+}
+
+/**
+ * Saying what replaced a page puts it on the `superseded` rung, from any door.
+ *
+ * Only when the write did not also say where the page stands — a client that
+ * sends both has decided — and only when the ladder has such a rung. A
+ * workspace without one still gets the pointer, and `isSuperseded` reads that
+ * alone; inventing a rung here would put back one somebody deleted.
+ */
+function followSuccessor(values: Record<string, unknown>, existing: Row | undefined, forced: Record<string, unknown>, opts: WriteOpts): void {
+  if (!values.superseded_by || values.status_id !== undefined) return;
+  const rungs = all<Row>(
+    `SELECT id, kind, sort_order FROM page_statuses WHERE workspace_id = ? AND deleted_at IS NULL`,
+    String(opts.workspaceId ?? existing?.workspace_id ?? ''),
+  ) as unknown as PageStatus[];
+  const target = supersededStatus(rungs);
+  if (!target) return;
+  const current = rungs.find((rung) => rung.id === existing?.status_id);
+  if (current?.kind === 'superseded') return;
+  values.status_id = target.id;
+  forced.status_id = target.id;
+}
+
+/**
+ * What "Final" was said about, kept beside the page.
+ *
+ * A rung is a claim about a text, and the text kept moving under it: on the
+ * first real wiki a pricing paper stood on "Final" after three newer pricing
+ * models had overtaken it, and nothing on the page could say so. Now reaching
+ * a `final` rung cuts a named version of the text as it stands, and every
+ * later edit records whether the text still matches it — `settled_drift`,
+ * which the page draws as "changed since Final" with the difference one click
+ * away. Leaving the rung clears both: a page that no longer claims to be
+ * finished has nothing to drift from.
+ *
+ * Deliberately not a demotion. A typo fixed in a finished handbook is not a
+ * draft, and a status that fell back on every keystroke would teach people to
+ * stop using the top rung at all. The reader is told; the rung stays.
+ *
+ * The version row itself is written in `effects`, after the page row exists —
+ * its id is minted here so the page and its version name each other in the
+ * same write, and `effects` recognises a cut as an id no version has yet.
+ */
+function settleFinal(values: Record<string, unknown>, existing: Row | undefined, forced: Record<string, unknown>): void {
+  const moved = values.status_id !== undefined && values.status_id !== (existing?.status_id ?? null);
+  if (moved) {
+    const rung = values.status_id
+      ? get<Row>(`SELECT kind FROM page_statuses WHERE id = ? AND deleted_at IS NULL`, values.status_id)
+      : undefined;
+    if (rung?.kind === 'final') {
+      const version = uid();
+      values.settled_version_id = version;
+      values.settled_drift = 0;
+      forced.settled_version_id = version;
+      forced.settled_drift = 0;
+      return;
+    }
+    if (existing?.settled_version_id) {
+      values.settled_version_id = null;
+      values.settled_drift = 0;
+      forced.settled_version_id = null;
+      forced.settled_drift = 0;
+    }
+    return;
+  }
+  // The text moved under a rung that is still final: does it still say what was settled?
+  if (values.content === undefined || !existing?.settled_version_id) return;
+  const settled = get<Row>(`SELECT content FROM page_versions WHERE id = ?`, existing.settled_version_id);
+  if (!settled) return;
+  const drift = String(values.content ?? '') === String(settled.content ?? '') ? 0 : 1;
+  if (drift !== Number(existing.settled_drift ?? 0)) {
+    values.settled_drift = drift;
+    forced.settled_drift = drift;
+  }
+}
+
 export const pageRules = {
-  entities: ['page', 'pageStatus'],
+  entities: ['page', 'pageStatus', 'pageType'],
   defaults(entity, id, values, opts, setForced) {
     if (entity !== 'page') return;
     if (!values.created_by) setForced('created_by', opts.actorId);
+    // At the bottom of its siblings, from every door — see `lastPageOrder`.
+    if (values.sort_order === undefined || values.sort_order === null || values.sort_order === '') {
+      setForced('sort_order', lastPageOrder(
+        String(values.workspace_id ?? opts.workspaceId ?? ''),
+        (values.parent_id as string | null | undefined) ?? null,
+      ));
+    }
     // `=== undefined` and not falsy: a client that deliberately sends `null`
     // is saying "no status", which a workspace with no ladder is entitled to
     // mean, and a default that overrode it would make that unsayable. This hook
@@ -316,12 +501,34 @@ export const pageRules = {
     }
   },
   invariants(entity, id, values, existing, forced, opts) {
+    if (entity === 'pageType') return;
     settlePageStatus(entity, values, forced, opts);
-    if (entity === 'page') applyPageInvariants(values, existing, forced);
+    if (entity !== 'page') return;
+    applyPageInvariants(values, existing, forced);
+    settleFlag('pinned', values, forced);
+    settleFlag('series', values, forced);
+    settlePageLinks(id, values, forced, opts);
+    followSuccessor(values, existing, forced, opts);
+    // Last: it reads the rung `followSuccessor` may have chosen and the text
+    // `applyPageInvariants` derived from the CRDT.
+    settleFinal(values, existing, forced);
   },
   effects(entity, row, before, changed, opts) {
-    if (entity !== 'page' || !before) return;
-    if (changed.content !== undefined) snapshotPage(before, opts.actorId);
+    if (entity !== 'page') return;
+    // The text as it was, first: the cut below is newer, and the snapshot's
+    // own collapsing would otherwise read it as this author's latest version
+    // and skip the text that came before it.
+    if (before && changed.content !== undefined) snapshotPage(before, opts.actorId);
+    // The version "Final" was said about, now that there is a page row to read
+    // it from: the id `settleFinal` minted in this write, which no version has
+    // yet. The transfers clear the column rather than carry it, because an id
+    // from another workspace names a version of another page.
+    const cut = typeof changed.settled_version_id === 'string' ? changed.settled_version_id : null;
+    if (cut && !get<Row>(`SELECT 1 AS hit FROM page_versions WHERE id = ?`, cut)) {
+      const rung = get<Row>(`SELECT name FROM page_statuses WHERE id = ?`, row.status_id);
+      nameVersion(row, opts.actorId, String(rung?.name ?? 'Final'), null, cut);
+    }
+    if (!before) return;
     // After the snapshot, so the page's own history records the rename against
     // the text as it was — and never on a system write; see `followRename`.
     if (changed.title !== undefined && !opts.system) {

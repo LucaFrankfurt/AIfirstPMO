@@ -454,8 +454,18 @@ function writeWorkspace(actorId: string, doc: WorkspaceDoc, options: WorkspaceIm
       created_by: who(row.created_by) ?? actorId,
       watchers: jsonList(row.watchers).map(who).filter(Boolean),
       labels: jsonList(row.labels).map(to).filter(Boolean),
+      // As in `transfer.ts`: the successor once it exists, and no claim about
+      // a version that stays behind in the other workspace.
+      superseded_by: null,
+      settled_version_id: null,
+      settled_drift: 0,
     });
     bump('pages');
+  }
+  for (const row of doc.pages ?? []) {
+    const page = to(row.id);
+    const successor = to(row.superseded_by);
+    if (page && successor) writeEntity('page', page, { superseded_by: successor }, opts());
   }
   for (const row of doc.page_artboards ?? []) {
     const page = to(row.page_id);

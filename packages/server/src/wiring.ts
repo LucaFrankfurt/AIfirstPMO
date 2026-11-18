@@ -18,7 +18,8 @@
  * has something to be measured against. It is idempotent, so calling it twice
  * (a test that boots the server and also seeds) is not a bug.
  */
-import { backfillEnvironments, backfillPageStatuses } from './kernel/write-path/bootstrap.ts';
+import { backfillEnvironments, backfillPageStatuses, backfillPageTypes } from './kernel/write-path/bootstrap.ts';
+import { untiePageOrder } from './modules/pages/order.ts';
 import { installAutomations } from './modules/automation/automation.ts';
 import { installNotifications } from './modules/notifications/effects.ts';
 import { installWebhookEvents } from './adapters/webhooks/effects.ts';
@@ -103,6 +104,9 @@ export function installEffects(): void {
    */
   backfillEnvironments();
   backfillPageStatuses();
+  backfillPageTypes();
+  // Pages that were given the column's default key instead of a place; see `order.ts`.
+  untiePageOrder();
   // A widget's signing key, stored as typed before keys were sealed.
   sealWidgetSecrets();
 }

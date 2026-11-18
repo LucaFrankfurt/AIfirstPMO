@@ -481,6 +481,8 @@ export const labelView = (row: Row): Record<string, unknown> => ({
   description: row.description ?? null,
   // Null means every project in the workspace may use it.
   project_id: row.project_id ?? null,
+  // What it may be put on: tasks, pages, or both (`all`).
+  applies_to: row.applies_to ?? 'all',
 });
 
 /** One cycle, as `list_cycles` and the writers both report it. */
@@ -1508,9 +1510,10 @@ export function resolveLabels(workspaceId: string, projectId: string, refs: unkn
   const out: string[] = [];
   for (const ref of refs) {
     if (typeof ref !== 'string' || !ref.trim()) continue;
+    // A label kept for pages is not a task's to take; see `labelApplies`.
     const existing = get<Row>(
       `SELECT id FROM labels WHERE workspace_id = ? AND deleted_at IS NULL AND (id = ? OR lower(name) = lower(?))
-        AND (project_id IS NULL OR project_id = ?) LIMIT 1`,
+        AND (project_id IS NULL OR project_id = ?) AND applies_to <> 'pages' LIMIT 1`,
       workspaceId, ref, ref, projectId,
     );
     if (existing) {

@@ -2,13 +2,15 @@
  * The wiki: reading it, writing it, and starting from a template.
  */
 import {
-  artboard, findAnchor, isBoardFormat, isPin, linkGraph, makeAnchor, orderKey, pageResolver, passageOf, textAnchor, wikiLinks,
-  type LinkablePage, type PageFormat,
+  artboard, findAnchor, isBoardFormat, isPin, isSuperseded, linkGraph, makeAnchor, orderKey, pageResolver, passageOf, statusOf,
+  textAnchor, wikiLinks,
+  type LinkablePage, type PageFormat, type PageStatus,
 } from '@kolibri/shared';
 import { all, get, type Row } from '../../../kernel/platform/db/index.ts';
 import { env } from '../../../kernel/platform/env.ts';
 import { canSeeSubject, deleteEntity, serialize, wouldLoop, writeEntity } from '../../../kernel/write-path/repo.ts';
-import { renameFollowers } from '../../../modules/pages/rules/pages.ts';
+import { lastPageOrder, listVersions, nameVersion, renameFollowers } from '../../../modules/pages/rules/pages.ts';
+import { addSeriesEntry, dayFor } from '../../../modules/pages/series.ts';
 import { uid } from '../../../kernel/platform/ids.ts';
 import {
   findPage, findProject, McpError, requireWrite, str, type McpCtx, type ToolDef, visiblePagesSql, workspaceOf, writeOpts,
@@ -70,7 +72,7 @@ const PUBLIC_KNOWLEDGE = 'Written for people outside the workspace: everything o
  * which is a wiki quietly losing a chapter.
  */
 function reparent(page: Row, ref: string, workspaceId: string, ctx: McpCtx): Record<string, unknown> {
-  if (ref === 'root' || ref === '') return { parent_id: null, sort_order: lastOrder(workspaceId, null) };
+  if (ref === 'root' || ref === '') return { parent_id: null, sort_order: lastPageOrder(workspaceId, null) };
   const parent = findPage(ref, workspaceId, ctx);
   if (parent.id === page.id) throw new McpError('A page cannot be its own parent');
   // The write path's own walk, which the task and component trees already use
@@ -79,19 +81,72 @@ function reparent(page: Row, ref: string, workspaceId: string, ctx: McpCtx): Rec
   if (wouldLoop('pages', String(page.id), String(parent.id))) {
     throw new McpError(`"${page.title}" cannot be moved inside itself`);
   }
-  return { parent_id: parent.id, sort_order: lastOrder(workspaceId, String(parent.id)) };
+  return { parent_id: parent.id, sort_order: lastPageOrder(workspaceId, String(parent.id)) };
 }
 
-/** A key after every sibling there, so a moved page lands at the bottom. */
-function lastOrder(workspaceId: string, parentId: string | null): string {
-  const last = get<Row>(
-    `SELECT sort_order FROM pages
-      WHERE workspace_id = ? AND deleted_at IS NULL
-        AND ${parentId ? 'parent_id = ?' : 'parent_id IS NULL'}
-      ORDER BY sort_order DESC LIMIT 1`,
-    ...(parentId ? [workspaceId, parentId] : [workspaceId]),
-  );
-  return orderKey((last?.sort_order as string | null) ?? null, null);
+/**
+ * The ladder, for saying where each page stands the way the app does.
+ *
+ * `list_pages` used to name the rung with a subquery on `status_id`, which
+ * answered `null` for every page that never had one — 31 of 77 on the first
+ * real wiki — while every screen called those same pages the draft. One
+ * answer: `statusOf`, the function the screens use.
+ */
+const ladderOf = (workspaceId: string): PageStatus[] => all<Row>(
+  `SELECT id, name, kind, color, sort_order FROM page_statuses WHERE workspace_id = ? AND deleted_at IS NULL`, workspaceId,
+) as unknown as PageStatus[];
+
+/**
+ * A page type by id or name, in this workspace — or none, for `""`.
+ *
+ * Unresolvable is an error with the names there are, as `findStatus` does it:
+ * a page silently filed under no type is the thing types exist to stop.
+ */
+function findType(wanted: string, workspaceId: string): string | null {
+  if (!wanted.trim()) return null;
+  const types = all<Row>(`SELECT id, name FROM page_types WHERE workspace_id = ? AND deleted_at IS NULL`, workspaceId);
+  const want = wanted.trim().toLowerCase();
+  const found = types.find((type) => String(type.id) === wanted)
+    ?? types.find((type) => String(type.name).toLowerCase() === want);
+  if (!found) {
+    throw new McpError(`No page type here is called "${wanted}". ${types.map((type) => type.name).join(', ') || 'This workspace has none.'}`);
+  }
+  return String(found.id);
+}
+
+/**
+ * The page that replaced another, or none for `""`.
+ *
+ * Through `findPage`, so a page the caller may not see cannot be named as the
+ * successor of one they can — the banner would otherwise link a reader to a
+ * page that answers 403.
+ */
+function findSuccessor(page: Row | null, ref: string, workspaceId: string, ctx: McpCtx): string | null {
+  if (!ref.trim()) return null;
+  const successor = findPage(ref, workspaceId, ctx);
+  if (page && successor.id === page.id) throw new McpError('A page cannot be replaced by itself');
+  return String(successor.id);
+}
+
+/** The four organising fields `create_page` and `update_page` both take. */
+const ORGANISE = {
+  type: { type: 'string', description: 'What kind of document it is — a name or id from `list_page_types`. `""` clears it.' },
+  pinned: { type: 'boolean', description: 'Pin it to the top of the wiki as the reference page on its subject.' },
+  replaced_by: {
+    type: 'string',
+    description: 'The page that replaced this one (id or exact title). It is moved to the workspace\'s superseded rung and shows a "replaced by" notice. `""` clears it.',
+  },
+  series: { type: 'boolean', description: 'Make its sub-pages dated entries of one recurring document (minutes, a weekly scorecard). `new_series_entry` adds the next one.' },
+} as const;
+
+/** The organising fields a call asked for, as a patch. */
+function organise(args: Record<string, unknown>, page: Row | null, workspaceId: string, ctx: McpCtx): Record<string, unknown> {
+  const patch: Record<string, unknown> = {};
+  if (args.type !== undefined) patch.type_id = findType(String(args.type ?? ''), workspaceId);
+  if (args.pinned !== undefined) patch.pinned = marked(args.pinned);
+  if (args.replaced_by !== undefined) patch.superseded_by = findSuccessor(page, String(args.replaced_by ?? ''), workspaceId, ctx);
+  if (args.series !== undefined) patch.series = marked(args.series);
+  return patch;
 }
 
 /**
@@ -168,12 +223,24 @@ export const pageTools: ToolDef[] = [
   {
     name: 'list_page_statuses',
     title: 'List page statuses',
-    description: 'The rungs this workspace uses for how finished a page is, in its own order. `kind` is what the product reads — draft, review or final — whatever the rung is called.',
+    description: 'The rungs this workspace uses for how finished a page is, in its own order. `kind` is what the product reads — draft, review, final or superseded — whatever the rung is called.',
     readOnly: true,
     schema: { type: 'object', properties: { workspace_id: { type: 'string' } } },
     run: (args, ctx) => all<Row>(
       `SELECT id, name, kind, color, sort_order FROM page_statuses
         WHERE workspace_id = ? AND deleted_at IS NULL ORDER BY sort_order`,
+      workspaceOf(args, ctx),
+    ),
+  },
+  {
+    name: 'list_page_types',
+    title: 'List page types',
+    description: 'The kinds of document this workspace files pages as — a concept, meeting notes, a runbook — in its own order and words. One per page; labels are for what a page is about.',
+    readOnly: true,
+    schema: { type: 'object', properties: { workspace_id: { type: 'string' } } },
+    run: (args, ctx) => all<Row>(
+      `SELECT id, name, icon, color, sort_order FROM page_types
+        WHERE workspace_id = ? AND deleted_at IS NULL ORDER BY sort_order, created_at, id`,
       workspaceOf(args, ctx),
     ),
   },
@@ -211,18 +278,30 @@ export const pageTools: ToolDef[] = [
       const parent = str(args.parent);
       const under = parent && parent !== 'root' ? findPage(parent, workspaceId, ctx).id : null;
       const level = parent ? (under ? 'AND parent_id = ?' : 'AND parent_id IS NULL') : '';
+      const ladder = ladderOf(workspaceId);
+      const types = new Map(all<Row>(
+        `SELECT id, name FROM page_types WHERE workspace_id = ? AND deleted_at IS NULL`, workspaceId,
+      ).map((type) => [String(type.id), String(type.name)]));
       return all<Row>(
         `SELECT id, title, icon, project_id, parent_id, sort_order, updated_at, created_by, is_template, public_knowledge,
-            format, (SELECT name FROM page_statuses WHERE id = pages.status_id) AS status FROM pages
+            format, status_id, type_id, pinned, superseded_by, series FROM pages
           WHERE workspace_id = ? ${project ? 'AND project_id = ?' : ''} ${level} AND deleted_at IS NULL AND archived = 0
             ${templates ? '' : 'AND is_template = 0'} ${args.public_knowledge === true ? 'AND public_knowledge = 1' : ''}
             ${visiblePagesSql()}
-          ORDER BY ${parent ? 'sort_order' : 'updated_at DESC'} LIMIT 200`,
+          ORDER BY ${parent ? 'sort_order, created_at, id' : 'updated_at DESC'} LIMIT 200`,
         workspaceId,
         ...(project ? [project.id] : []),
         ...(under ? [under] : []),
         ctx.auth.userId, ctx.auth.userId,
-      );
+      ).map(({ status_id: statusId, type_id: typeId, ...row }) => {
+        const page = { status_id: (statusId as string | null) ?? null, superseded_by: (row.superseded_by as string | null) ?? null };
+        return {
+          ...row,
+          status: statusOf(page, ladder)?.name ?? null,
+          type: typeId ? types.get(String(typeId)) ?? null : null,
+          superseded: isSuperseded(page, ladder),
+        };
+      });
     },
   },
   {
@@ -288,19 +367,35 @@ export const pageTools: ToolDef[] = [
           description: "How finished it is — a rung's name, its id, or one of `draft`, `review`, `final`. Left out, it starts on the workspace's draft.",
         },
         public_knowledge: { type: 'boolean', description: PUBLIC_KNOWLEDGE },
+        ...ORGANISE,
       },
     },
     run: (args, ctx) => {
       const workspaceId = workspaceOf(args, ctx);
       requireWrite(ctx, workspaceId);
-      const project = args.project ? findProject(String(args.project), workspaceId, ctx) : null;
+      /*
+       * The parent by `findPage`, as `update_page` has always done it. This
+       * stored `args.parent` as it arrived, so a title went into `parent_id`
+       * as text: on the first real wiki a pricing page's parent was the
+       * string "Product overview", and it sat at the top level pretending to be
+       * a chapter of its own. An id that names nothing was kept the same way.
+       */
+      const parent = str(args.parent) && str(args.parent) !== 'root' ? findPage(String(args.parent), workspaceId, ctx) : null;
+      // A sub-page is in its parent's project unless told otherwise — what
+      // "Add a sub-page" in the app has always done.
+      const project = args.project
+        ? findProject(String(args.project), workspaceId, ctx)
+        : (parent?.project_id ? { id: String(parent.project_id) } : null);
       const format = asFormat(args.format);
       // A board page's content is its board, not its text.
       const board = format === 'board';
       const { row } = writeEntity('page', uid(), {
+        ...organise(args, null, workspaceId, ctx),
         workspace_id: workspaceId,
         project_id: project?.id ?? null,
-        parent_id: str(args.parent) ?? null,
+        // No `sort_order`: the write path puts a new page after its siblings
+        // whichever door it came through — see `lastPageOrder`.
+        parent_id: parent ? String(parent.id) : null,
         title: String(args.title),
         icon: str(args.icon) ?? ICONS[format],
         content: board ? '' : String(args.content ?? ''),
@@ -344,6 +439,7 @@ export const pageTools: ToolDef[] = [
           description: "Move it to this rung — a name, an id, or one of `draft`, `review`, `final`.",
         },
         public_knowledge: { type: 'boolean', description: `Mark or unmark it. ${PUBLIC_KNOWLEDGE}` },
+        ...ORGANISE,
         workspace_id: { type: 'string' },
       },
     },
@@ -371,10 +467,97 @@ export const pageTools: ToolDef[] = [
       if (args.format !== undefined) patch.format = asFormat(args.format);
       if (args.parent !== undefined) Object.assign(patch, reparent(page, String(args.parent), workspaceId, ctx));
       if (args.public_knowledge !== undefined) patch.public_knowledge = marked(args.public_knowledge);
+      Object.assign(patch, organise(args, page, workspaceId, ctx));
       const { row } = writeEntity('page', page.id, patch, writeOpts(workspaceId, ctx));
       // Said in the answer, because rewriting other people's pages is a real
       // thing to have done and the caller is the only one who can mention it.
       return { ...pageView(row), ...(following ? { links_followed: following } : {}) };
+    },
+  },
+  {
+    name: 'list_page_versions',
+    title: 'List page versions',
+    description: "A page's history, newest first: every named version (\"V5\", \"as approved\", and the one cut automatically when the page reached a final rung) and the most recent automatic snapshots. `settled` marks the version the page's final rung was given for; `changed_since_settled` on the answer says whether the text has moved since.",
+    readOnly: true,
+    schema: { type: 'object', required: ['page'], properties: { page: { type: 'string' }, workspace_id: { type: 'string' } } },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      const page = findPage(String(args.page), workspaceId, ctx);
+      return {
+        page: String(page.title),
+        changed_since_settled: page.settled_version_id ? Number(page.settled_drift ?? 0) === 1 : null,
+        versions: listVersions(String(page.id)).map((row) => ({
+          id: row.id, name: row.name ?? null, note: row.note ?? null, title: row.title,
+          author_id: row.author_id ?? null, created_at: row.created_at, characters: row.size,
+          settled: row.id === page.settled_version_id,
+        })),
+      };
+    },
+  },
+  {
+    name: 'save_page_version',
+    title: 'Save a named page version',
+    description: 'Keep what a page says now as a named version — "V5", "sent to the investor" — instead of copying it into a new page with a version number in its title. Links keep landing on the one page, and the named version stays in its history for good.',
+    schema: {
+      type: 'object',
+      required: ['page', 'name'],
+      properties: {
+        page: { type: 'string' },
+        name: { type: 'string', description: 'What the version is called, e.g. "V5" or "as approved 16.11."' },
+        note: { type: 'string', description: 'Why it is worth keeping, in a sentence.' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      const page = findPage(String(args.page), workspaceId, ctx);
+      const name = String(args.name ?? '').trim();
+      if (!name) throw new McpError('A named version needs a name');
+      const id = nameVersion(page, ctx.auth.userId, name.slice(0, 120), str(args.note) ?? null);
+      return { id, page: String(page.title), name };
+    },
+  },
+  {
+    name: 'new_series_entry',
+    title: 'New entry in a series',
+    description: 'Add the next dated entry under a series page (see `series` on `update_page`): titled "<series> · YYYY-MM-DD", in the series\' project, with its type and labels. Start it from a template or give the content.',
+    schema: {
+      type: 'object',
+      required: ['series'],
+      properties: {
+        series: { type: 'string', description: 'The series page, by id or exact title.' },
+        day: { type: 'string', description: 'The day the entry is for, as YYYY-MM-DD. Defaults to today.' },
+        template: { type: 'string', description: 'A template to start from (id or exact title, from `list_page_templates`).' },
+        content: { type: 'string', description: 'Markdown body. Ignored when a template is given.' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      const series = findPage(String(args.series), workspaceId, ctx);
+      if (!Number(series.series ?? 0)) {
+        throw new McpError(`"${series.title}" is not a series — set \`series: true\` on it with update_page first`);
+      }
+      const asked = str(args.day);
+      if (asked && !/^\d{4}-\d{2}-\d{2}$/.test(asked)) throw new McpError('`day` is YYYY-MM-DD');
+      const template = str(args.template)
+        ? get<Row>(
+          `SELECT * FROM pages WHERE workspace_id = ? AND is_template = 1 AND deleted_at IS NULL
+             AND (id = ? OR lower(title) = lower(?)) ${visiblePagesSql()}`,
+          workspaceId, String(args.template), String(args.template), ctx.auth.userId, ctx.auth.userId,
+        )
+        : undefined;
+      if (str(args.template) && !template) throw new McpError(`No page template called "${args.template}"`);
+      const row = addSeriesEntry(series, {
+        day: asked ?? dayFor(Date.now(), ctx.auth.userId),
+        content: template ? String(template.content ?? '') : String(args.content ?? ''),
+        format: template ? asFormat(template.format) : 'markdown',
+        // A template's type wins over the series' only when the series has none.
+        typeId: series.type_id ?? template?.type_id ?? null,
+      }, writeOpts(workspaceId, ctx));
+      return { id: String(row.id), title: String(row.title), url: `${env.publicUrl}/pages/${row.id}` };
     },
   },
   {
@@ -445,6 +628,9 @@ export const pageTools: ToolDef[] = [
         // thing about a copy that must not be decided by a default.
         format: asFormat(template.format),
         icon: template.icon ?? null,
+        // A template for minutes makes minutes: what kind of document it is
+        // comes with the copy, as the button in the app does it.
+        type_id: template.type_id ?? null,
         created_by: ctx.auth.userId,
         // Never a template itself. Copying one is how somebody ends up with
         // four almost-identical templates and no idea which is the real one.

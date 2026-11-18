@@ -44,6 +44,8 @@ export interface TidyPage {
    * simply means the finding below never fires.
    */
   statusKind?: string | null;
+  /** The page that replaced this one, if any — see `isSuperseded`. */
+  superseded_by?: string | null;
 }
 
 /**
@@ -177,12 +179,17 @@ export function tidyPages<T extends TidyPage>(
     // alone, because nothing can be done about it from here.
     if (page.parent_id && !live.has(page.parent_id) && known.has(page.parent_id)) note('detached', page);
     if (isEmpty(page) && !hasChildren.has(page.id)) note('empty', page);
+    // A replaced page is *meant* to be left alone and pointed at by nothing:
+    // that is what replacing it said. Reporting it as isolated or untouched
+    // would put back on the list exactly the pages somebody just tidied off it.
+    const replaced = page.statusKind === 'superseded' || !!page.superseded_by;
     if (
-      !page.parent_id
+      !replaced
+      && !page.parent_id
       && !hasChildren.has(page.id)
       && !(links.in.get(page.id) ?? []).length
     ) note('isolated', page);
-    if (now - page.updated_at > staleAfter) note('stale', page);
+    if (!replaced && now - page.updated_at > staleAfter) note('stale', page);
     // Measured from the last edit, which is the only date a page carries. That
     // is a little generous — somebody who puts a page up for review and then
     // fixes a typo starts the clock again — and generous is the right side to

@@ -203,6 +203,27 @@ for (const [table, column, definition] of [
   // last said. None on every widget and conversation before them.
   ['widgets', 'context_fields', `TEXT NOT NULL DEFAULT '[]'`],
   ['conversations', 'visitor_context', 'TEXT'],
+  /*
+   * What a wiki needed beyond its tree, measured on the first real one: 56 of
+   * 77 pages at the top level, version numbers and dates typed into titles,
+   * and a hand-kept list of which page was current on each subject.
+   *
+   * Every one of these lands on a table that has already synced, so a device
+   * keeps its old rows without them until each is next edited — the trap in
+   * CLAUDE.md. The defaults are what every existing row already was: no type,
+   * not pinned, replaced by nothing, not a series, nothing settled, and a
+   * label that applies to everything.
+   */
+  ['pages', 'type_id', 'TEXT'],
+  ['pages', 'pinned', 'INTEGER NOT NULL DEFAULT 0'],
+  ['pages', 'superseded_by', 'TEXT'],
+  ['pages', 'series', 'INTEGER NOT NULL DEFAULT 0'],
+  ['pages', 'settled_version_id', 'TEXT'],
+  ['pages', 'settled_drift', 'INTEGER NOT NULL DEFAULT 0'],
+  ['labels', 'applies_to', `TEXT NOT NULL DEFAULT 'all'`],
+  // Server-side only, like the table: never synced, so no device holds old rows.
+  ['page_versions', 'name', 'TEXT'],
+  ['page_versions', 'note', 'TEXT'],
 ] as const) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!columns.some((c) => c.name === column)) {

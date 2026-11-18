@@ -6,12 +6,12 @@
  * `page_versions` — and had no screen. This is the screen.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Page } from '@kolibri/shared';
+import type { Label, Page } from '@kolibri/shared';
 import {
-  collapse, diffLines, diffSummary, escapeHtml, htmlToMarkdown, renderMarkdown, sanitizeHtml, statusOf,
+  collapse, diffLines, diffSummary, escapeHtml, htmlToMarkdown, labelsForPage, renderMarkdown, sanitizeHtml,
   type DiffLine,
 } from '@kolibri/shared';
-import { usePageStatuses } from './status';
+import { outsideNotice, usePageStatuses } from './status';
 import { api } from '../../kernel/sync/api';
 import { relativeTime, shortDate } from '../../kernel/design-system/format';
 import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
@@ -22,6 +22,7 @@ import { pull } from '../../kernel/sync/sync';
 import { useMe, useMemberMap, useSession } from '../../kernel/identity/session';
 import { chipDot, chipVariants } from '../../kernel/design-system/ui/chip';
 import { Button } from '../../kernel/design-system/ui/button';
+import { Input, Select } from '../../kernel/design-system/ui/field';
 import { Avatar, Icon, Sheet, useConfirm, useToast, type MenuGroup, type MenuItem } from '../../kernel/design-system/ui';
 import { downscale, uploadLink } from '../../kernel/files/uploads';
 import { fileSrc } from '../../kernel/sync/server';
@@ -31,14 +32,19 @@ import { useMinute } from '../../kernel/design-system/minute';
 /* -------------------------------------------------------------- labels */
 
 /**
- * Every label in the workspace.
+ * The labels a page is offered — `labelsForPage` in shared says which.
  *
- * Not "this page's project's labels": a page is the one thing that can live
- * outside a project entirely, and scoping its labels to one would leave every
- * workspace-level page unlabellable — which is what the first version did, and
- * it showed up the moment the menu opened with no labels in it.
+ * Every label in the workspace was the second answer, after the first — this
+ * page's project's labels only — left every workspace-level page with an empty
+ * menu. It overshot: with every project seeded with the same four labels, a
+ * handbook page was offered eight `Bug`s. The answer now is the workspace's own
+ * labels that apply to pages, which a workspace can finally make
+ * (`WorkspaceLabelSettings`), plus the page's own project's.
  */
-export const usePageLabels = (_page: Page) => useQuery(() => list('label'), []);
+export const usePageLabels = (page: Page) => useQuery(
+  () => labelsForPage(page, list('label') as Label[]),
+  [page.project_id, (page.labels ?? []).join()],
+);
 
 export function PageLabelChips({ page }: { page: Page }) {
   const ids = page.labels ?? [];
@@ -146,26 +152,66 @@ export function VersionDiff({ page, versionId, onClose }: { page: Page; versionI
   const t = useT();
   const [old, setOld] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  /**
+   * What the version is compared *with*: the page as it is now, or another
+   * version. Now by default, for the reason above; another version because
+   * "what changed between V4 and V5" is the question a named version invites,
+   * and answering it by restoring one and diffing the other is not an answer.
+   */
+  const [against, setAgainst] = useState('');
+  const [others, setOthers] = useState<{ id: string; label: string }[]>([]);
+  const [newer, setNewer] = useState<string | null>(null);
 
   useEffect(() => {
     let live = true;
     api.pageVersion(page.id, versionId)
       .then((version) => { if (live) setOld(String(version.content ?? '')); })
       .catch(() => { if (live) setFailed(true); });
+    api.pageVersions(page.id)
+      .then((rows) => {
+        if (!live) return;
+        setOthers(rows.filter((row: any) => row.id !== versionId).map((row: any) => ({
+          id: String(row.id),
+          label: `${row.name ? `${row.name} · ` : ''}${shortDate(Number(row.created_at))}`,
+        })));
+      })
+      .catch(() => { /* the comparison with now still works */ });
     return () => { live = false; };
   }, [page.id, versionId]);
 
+  useEffect(() => {
+    if (!against) {
+      setNewer(null);
+      return;
+    }
+    let live = true;
+    api.pageVersion(page.id, against)
+      .then((version) => { if (live) setNewer(String(version.content ?? '')); })
+      .catch(() => { if (live) setFailed(true); });
+    return () => { live = false; };
+  }, [page.id, against]);
+
+  const target = against ? newer : page.content ?? '';
   const parts = useMemo(
-    () => (old === null ? [] : collapse(diffLines(old, page.content ?? ''), 3)),
-    [old, page.content],
+    () => (old === null || target === null ? [] : collapse(diffLines(old, target), 3)),
+    [old, target],
   );
   const summary = useMemo(
-    () => (old === null ? { added: 0, removed: 0 } : diffSummary(diffLines(old, page.content ?? ''))),
-    [old, page.content],
+    () => (old === null || target === null ? { added: 0, removed: 0 } : diffSummary(diffLines(old, target))),
+    [old, target],
   );
 
   return (
     <Sheet title={t('page.whatChanged')} wide onClose={onClose}>
+      {others.length > 0 && (
+        <div className="field mb-2.5">
+          <label htmlFor="diff-against">{t('page.compareWith')}</label>
+          <Select id="diff-against" value={against} onChange={(event) => setAgainst(event.target.value)}>
+            <option value="">{t('page.compareNow')}</option>
+            {others.map((other) => <option key={other.id} value={other.id}>{other.label}</option>)}
+          </Select>
+        </div>
+      )}
       {failed && <p className="text-[12px] text-danger">{t('page.historyFailed')}</p>}
       {old === null && !failed && <p className="text-muted">{t('common.loading')}</p>}
       {old !== null && (
@@ -362,7 +408,7 @@ export function PageCover({ page }: { page: Page }) {
 
 /** One thing that happened to the page, whichever half of the record it is in. */
 type Entry =
-  | { kind: 'version'; id: string; at: number; who: string | null; title: string; size: number }
+  | { kind: 'version'; id: string; at: number; who: string | null; title: string; size: number; name: string | null; note: string | null }
   | { kind: 'change'; id: string; at: number; who: string | null; verb: string; field: string | null; to: string | null };
 
 /** How a field change reads, per field. Anything unlisted is not shown at all. */
@@ -399,6 +445,30 @@ export function PageHistory({ page, onClose, onCompare }: {
   const { confirm, dialog } = useConfirm();
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [failed, setFailed] = useState(false);
+  /** Bumped after a version is named, so the list is read again from the server, which owns it. */
+  const [reload, setReload] = useState(0);
+  const [naming, setNaming] = useState<{ id: string | null; name: string; note: string } | null>(null);
+  const statuses = usePageStatuses();
+  const settled = statuses.find((status) => status.kind === 'final' && status.id === page.status_id)?.name
+    ?? statuses.find((status) => status.kind === 'final')?.name ?? '';
+
+  /**
+   * Keep the page as it is now under a name, or name one of the versions it
+   * already has. Both are the server's to write — the table never leaves it —
+   * so the sheet asks and then reads the list again.
+   */
+  const saveName = async () => {
+    if (!naming || !naming.name.trim()) return;
+    try {
+      if (naming.id) await api.nameVersion(page.id, naming.id, { name: naming.name.trim(), note: naming.note.trim() || null });
+      else await api.saveVersion(page.id, naming.name.trim(), naming.note.trim() || null);
+      setNaming(null);
+      setReload((n) => n + 1);
+      toast(t('page.versionSaved'));
+    } catch {
+      toast(t('page.versionFailed'));
+    }
+  };
 
   useEffect(() => {
     let live = true;
@@ -412,6 +482,7 @@ export function PageHistory({ page, onClose, onCompare }: {
             kind: 'version', id: String(version.id), at: Number(version.created_at),
             who: version.author_id ? String(version.author_id) : null,
             title: String(version.title ?? ''), size: Number(version.size ?? 0),
+            name: version.name ? String(version.name) : null, note: version.note ? String(version.note) : null,
           })),
           ...activity.map((row: any): Entry => ({
             kind: 'change', id: String(row.id), at: Number(row.created_at),
@@ -424,7 +495,7 @@ export function PageHistory({ page, onClose, onCompare }: {
       })
       .catch(() => { if (live) setFailed(true); });
     return () => { live = false; };
-  }, [page.id]);
+  }, [page.id, reload]);
 
   /** What one activity row says, or nothing if it is a field nobody reads about. */
   const said = (entry: Extract<Entry, { kind: 'change' }>): string | null => {
@@ -442,8 +513,33 @@ export function PageHistory({ page, onClose, onCompare }: {
 
   const shown = (entries ?? []).filter((entry) => entry.kind === 'version' || said(entry) !== null);
 
+  /** The two fields a name is given in, for the page now or for one version. */
+  const nameForm = (
+    <form
+      className="flex items-center gap-2 flex-wrap mb-2"
+      onSubmit={(event) => { event.preventDefault(); void saveName(); }}
+    >
+      <Input
+        className="flex-1 min-w-0" autoFocus aria-label={t('page.versionName')} placeholder={t('page.versionNamePlaceholder')}
+        value={naming?.name ?? ''} onChange={(event) => setNaming((was) => was && { ...was, name: event.target.value })}
+      />
+      <Input
+        className="flex-1 min-w-0" aria-label={t('page.versionNote')} placeholder={t('page.versionNote')}
+        value={naming?.note ?? ''} onChange={(event) => setNaming((was) => was && { ...was, note: event.target.value })}
+      />
+      <Button type="submit" size="sm" disabled={!naming?.name.trim()}>{t('action.save')}</Button>
+      <Button type="button" variant="ghost" size="sm" onClick={() => setNaming(null)}>{t('action.cancel')}</Button>
+    </form>
+  );
+
   return (
     <Sheet title={t('page.history')} onClose={onClose}>
+      <p className="mt-0 mb-2 text-[12.5px] text-muted">{t('page.versionsHint')}</p>
+      {naming && naming.id === null ? nameForm : (
+        <Button size="sm" className="mb-2" onClick={() => setNaming({ id: null, name: '', note: '' })}>
+          <Icon name="star" size={14} /> {t('page.saveVersion')}
+        </Button>
+      )}
       {failed && <p className="text-[12px] text-danger">{t('page.historyFailed')}</p>}
       {entries === null && !failed && <p className="text-muted">{t('common.loading')}</p>}
       {entries !== null && shown.length === 0 && <p className="text-muted">{t('page.noVersions')}</p>}
@@ -460,14 +556,27 @@ export function PageHistory({ page, onClose, onCompare }: {
               <div className="text-muted text-[12.5px]">{relativeTime(entry.at)}</div>
             </div>
           ) : (
-            <>
+            naming?.id === entry.id ? <div className="flex-1 min-w-0">{nameForm}</div> : <>
               <div className="flex-1 min-w-0">
-                <strong className="text-[13.5px]">{entry.title || t('common.untitled')}</strong>
+                {/* A named version leads with its name: it is the one somebody
+                    said was worth finding again, and the title beside it is
+                    usually the same on every row. */}
+                <span className="flex items-center gap-1.5 flex-wrap">
+                  {entry.name && <span className={chipVariants()}><Icon name="star" size={11} /> {entry.name}</span>}
+                  {entry.id === page.settled_version_id && (
+                    <span className={chipVariants()}>{t('page.versionSettled', { status: settled })}</span>
+                  )}
+                  <strong className="text-[13.5px]">{entry.title || t('common.untitled')}</strong>
+                </span>
+                {entry.note && <div className="text-[12.5px]">{entry.note}</div>}
                 <div className="text-muted text-[12.5px]">
                   {shortDate(entry.at)} · {(entry.who && members.get(entry.who)?.name) || t('common.someone')}
                   {' '}· {t('page.versionSize', { count: entry.size })}
                 </div>
               </div>
+              <Button variant="ghost" size="sm" onClick={() => setNaming({ id: entry.id, name: entry.name ?? '', note: entry.note ?? '' })}>
+                {t('page.versionRename')}
+              </Button>
               <Button variant="ghost" size="sm" onClick={() => onCompare(entry.id)}>{t('page.compare')}</Button>
               <Button
                 size="sm"
@@ -589,10 +698,7 @@ export function useExport(): (page: Page, as: 'markdown' | 'html') => void {
   const toast = useToast();
   const members = useMemberMap();
   const statuses = usePageStatuses();
-  const notice = (one: Page) => {
-    const status = statusOf(one, statuses);
-    return !status || status.kind === 'final' ? null : t('page.statusNotFinal', { status: status.name });
-  };
+  const notice = (one: Page) => outsideNotice(one, statuses, t);
 
   return (page, as) => {
     const author = (one: Page) => {
@@ -665,10 +771,7 @@ export function usePrint(): (page: Page) => void {
         return name ? `${t('page.byAuthor', { name })} · ${shortDate(one.updated_at)}` : null;
       },
       heading: (one) => `${one.icon ?? ''} ${one.title || t('common.untitled')}`.trim(),
-      notice: (one) => {
-        const status = statusOf(one, statuses);
-        return !status || status.kind === 'final' ? null : t('page.statusNotFinal', { status: status.name });
-      },
+      notice: (one) => outsideNotice(one, statuses, t),
     });
 
     const win = window.open('', '_blank');

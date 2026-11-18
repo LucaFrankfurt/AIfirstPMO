@@ -27,6 +27,7 @@ import { all, get, tx, type Row } from '../../../kernel/platform/db/index.ts';
 import { canSeeProject, serialize, writeEntity } from '../../../kernel/write-path/repo.ts';
 import { uid } from '../../../kernel/platform/ids.ts';
 import { env } from '../../../kernel/platform/env.ts';
+import { addSeriesEntry, dayFor, seriesNamed } from '../../../modules/pages/series.ts';
 import { localeOf, translatorFor } from '../../../kernel/i18n/i18n.ts';
 import {
   fileTask, findMember, findProject, McpError, namesOf, requireFeature, requireWrite, resolveUsers, safeList, str, taskView,
@@ -568,17 +569,22 @@ export const meetingTools: ToolDef[] = [
         if (pageId) {
           writeEntity('page', pageId, { content }, opts);
         } else {
-          pageId = uid();
-          writeEntity('page', pageId, {
-            title: t('minutes.title', { title: meeting.title }),
-            icon: '📝',
+          /*
+           * An entry in the meeting's series rather than a page of its own at
+           * the top level. Every weekly's minutes used to be called "Minutes:
+           * Weekly" — the same title every week, which `[[links]]` cannot tell
+           * apart and the tidy screen reports as duplicates — and to land at
+           * the top of the wiki one beside the next. Now they are dated, and
+           * they hang under one page per meeting title, which is a page like
+           * any other to move, type and file once; later entries follow it.
+           */
+          const series = seriesNamed(workspaceId, t('minutes.series', { title: meeting.title }), '📝', opts);
+          pageId = String(addSeriesEntry(series, {
+            day: dayFor(meeting.starts_at ?? Date.now(), ctx.auth.userId),
+            base: t('minutes.title', { title: meeting.title }),
             content,
             format: 'markdown',
-            access: 'workspace',
-            project_id: null,
-            parent_id: null,
-            created_by: ctx.auth.userId,
-          }, opts);
+          }, opts).id);
           writeEntity('meeting', meeting.id, { minutes_page_id: pageId }, opts);
         }
         return { page_id: pageId, url: `${env.publicUrl}/pages/${pageId}`, rewritten: !!existing && !existing.deleted_at };

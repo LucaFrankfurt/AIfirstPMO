@@ -1,4 +1,4 @@
-import { Clock, ENVIRONMENTS, orderKeys, type PageStatusKind, type StateGroup } from '@kolibri/shared';
+import { Clock, ENVIRONMENTS, orderKey, orderKeys, type PageStatusKind, type StateGroup } from '@kolibri/shared';
 import { all, get, run, tx, type Row } from '../platform/db/index.ts';
 import { conflict } from '../platform/http.ts';
 import { translatorFor, type ServerKey } from '../i18n/i18n.ts';
@@ -62,6 +62,8 @@ export const DEFAULT_PAGE_STATUSES: { name: ServerKey; kind: PageStatusKind; col
   { name: 'seed.pageStatusDraft', kind: 'draft', color: '#94a3b8' },
   { name: 'seed.pageStatusReview', kind: 'review', color: '#f59e0b' },
   { name: 'seed.pageStatusFinal', kind: 'final', color: '#10b981' },
+  // Last, below "Final": a page that has been replaced is past finished, not before it.
+  { name: 'seed.pageStatusSuperseded', kind: 'superseded', color: '#a1a1aa' },
 ];
 
 export function seedPageStatuses(workspaceId: string, actorId: string): void {
@@ -99,6 +101,85 @@ export function backfillPageStatuses(): void {
         AND NOT EXISTS (SELECT 1 FROM page_statuses s WHERE s.workspace_id = w.id)`,
   );
   for (const workspace of workspaces) seedPageStatuses(String(workspace.id), String(workspace.owner_id ?? ''));
+
+  /*
+   * The fourth rung, for a ladder written before it existed — once.
+   *
+   * "Once" is the tombstone: a workspace that has *ever* had a `superseded`
+   * row, deleted or not, is left alone, so deleting the rung is an answer that
+   * stays given. And only a workspace with a live ladder — one whose every
+   * rung was deleted said something this would contradict. Appended after the
+   * last rung, which is where `DEFAULT_PAGE_STATUSES` puts it too.
+   */
+  const ladders = all<Row>(
+    `SELECT w.id, w.owner_id FROM workspaces w
+      WHERE w.deleted_at IS NULL
+        AND EXISTS (SELECT 1 FROM page_statuses s WHERE s.workspace_id = w.id AND s.deleted_at IS NULL)
+        AND NOT EXISTS (SELECT 1 FROM page_statuses s WHERE s.workspace_id = w.id AND s.kind = 'superseded')`,
+  );
+  for (const workspace of ladders) {
+    const workspaceId = String(workspace.id);
+    const actorId = String(workspace.owner_id ?? '');
+    const last = get<Row>(
+      `SELECT sort_order FROM page_statuses WHERE workspace_id = ? AND deleted_at IS NULL ORDER BY sort_order DESC LIMIT 1`,
+      workspaceId,
+    );
+    writeEntity('pageStatus', uid(), {
+      workspace_id: workspaceId,
+      name: translatorFor(actorId)('seed.pageStatusSuperseded'),
+      kind: 'superseded',
+      color: '#a1a1aa',
+      sort_order: orderKey((last?.sort_order as string | null) ?? null, null),
+    }, { workspaceId, actorId, hlc: serverClock.now(), system: true });
+  }
+}
+
+/**
+ * The kinds of document a workspace starts with.
+ *
+ * A short list of the kinds the first real wiki turned out to be made of —
+ * concepts, minutes, decisions, guides, runbooks and reports — and only a
+ * start: every one is a row to rename, recolour, delete or add to. Translated
+ * like the ladder above, for the same reason: these are words people read.
+ */
+export const DEFAULT_PAGE_TYPES: { name: ServerKey; icon: string; color: string }[] = [
+  { name: 'seed.pageTypeConcept', icon: '💡', color: '#6366f1' },
+  { name: 'seed.pageTypeMinutes', icon: '📝', color: '#0ea5e9' },
+  { name: 'seed.pageTypeDecision', icon: '⚖️', color: '#f59e0b' },
+  { name: 'seed.pageTypeGuide', icon: '📘', color: '#10b981' },
+  { name: 'seed.pageTypeRunbook', icon: '🛠️', color: '#64748b' },
+  { name: 'seed.pageTypeReport', icon: '📊', color: '#8b5cf6' },
+];
+
+export function seedPageTypes(workspaceId: string, actorId: string): void {
+  const translate = translatorFor(actorId);
+  const orders = orderKeys(DEFAULT_PAGE_TYPES.length);
+  DEFAULT_PAGE_TYPES.forEach((type, index) => {
+    writeEntity('pageType', uid(), {
+      workspace_id: workspaceId,
+      name: translate(type.name),
+      icon: type.icon,
+      color: type.color,
+      sort_order: orders[index],
+    }, { workspaceId, actorId, hlc: serverClock.now(), system: true });
+  });
+}
+
+/**
+ * The same list, for the workspaces that existed before page types did.
+ *
+ * Asked of every row ever written, tombstones included, for the reason the
+ * fourth rung above is: a workspace that deleted every type it was given has
+ * answered, and a restart must not ask again. No page is given a type — which
+ * kind of document an existing page is, is its author's to say.
+ */
+export function backfillPageTypes(): void {
+  const workspaces = all<Row>(
+    `SELECT w.id, w.owner_id FROM workspaces w
+      WHERE w.deleted_at IS NULL
+        AND NOT EXISTS (SELECT 1 FROM page_types t WHERE t.workspace_id = w.id)`,
+  );
+  for (const workspace of workspaces) seedPageTypes(String(workspace.id), String(workspace.owner_id ?? ''));
 }
 
 /**
@@ -161,6 +242,7 @@ export function createWorkspace(name: string, ownerId: string, slugHint?: string
     addMember(id, ownerId, 'owner');
     seedEnvironments(id, ownerId);
     seedPageStatuses(id, ownerId);
+    seedPageTypes(id, ownerId);
     return get<Row>(`SELECT * FROM workspaces WHERE id = ?`, id)!;
   });
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { PRIORITIES, parseQuickAdd, QUICK_ADD_SYNTAX, type Priority } from '@kolibri/shared';
+import { labelApplies, PRIORITIES, parseQuickAdd, QUICK_ADD_SYNTAX, type Priority } from '@kolibri/shared';
 import { list, useQuery } from '../../kernel/sync/store';
 import { createTask, defaultStateId } from '../../kernel/sync/mutations';
 import { api } from '../../kernel/sync/api';
@@ -57,7 +57,7 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
   const states = useStates(projectId);
 
   const labels = useQuery(
-    () => list('label', (row) => row.workspace_id === workspaceId),
+    () => list('label', (row) => row.workspace_id === workspaceId && labelApplies(row, 'task')),
     [workspaceId],
   );
 

@@ -64,3 +64,27 @@ export const kindOf = (
   page: Pick<Page, 'status_id'>,
   statuses: PageStatus[],
 ): PageStatusKind => statusOf(page, statuses)?.kind ?? 'draft';
+
+/**
+ * Whether a page has been replaced, by either of the two ways of saying so.
+ *
+ * The rung is how a workspace says it on the ladder and `superseded_by` is how
+ * it says *by what*; either is enough. Both are asked because a workspace may
+ * have deleted its `superseded` rung — and a page somebody pointed at its
+ * successor is history whether or not the ladder has a word for it.
+ * `superseded_by` is read defensively: a page synced before the column has none.
+ */
+export const isSuperseded = (
+  page: Pick<Page, 'status_id'> & { superseded_by?: string | null },
+  statuses: PageStatus[],
+): boolean => !!page.superseded_by || kindOf(page, statuses) === 'superseded';
+
+/**
+ * The rung a page is moved to when somebody says what replaced it.
+ *
+ * The first of its kind, as `defaultStatus` picks the first draft. Undefined in
+ * a workspace whose ladder has none — `isSuperseded` still answers from the
+ * pointer alone, so nothing has to invent a rung to get there.
+ */
+export const supersededStatus = (statuses: PageStatus[]): PageStatus | undefined =>
+  ladder(statuses).find((status) => status.kind === 'superseded');

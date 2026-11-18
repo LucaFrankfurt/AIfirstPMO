@@ -582,7 +582,20 @@ export function importProject(workspaceId: string, actorId: string, doc: Project
         created_by: who(row.created_by) ?? actorId,
         watchers: whoList(row.watchers),
         labels: list(row.labels).map(to).filter(Boolean),
+        // Named after the page it replaced once that page has a new id, below.
+        superseded_by: null,
+        // The version "Final" was said about stays behind: versions are not
+        // carried, so the id would name another page's history.
+        settled_version_id: null,
+        settled_drift: 0,
       });
+    }
+    // A successor may come later in the tree than the page it replaced, so the
+    // pointer is written once every page has its new id.
+    for (const row of doc.pages ?? []) {
+      const page = to(row.id);
+      const successor = to(row.superseded_by);
+      if (page && successor) writeEntity('page', page, { superseded_by: successor }, opts());
     }
 
     // After the pages they stand on, and before the comments that may be

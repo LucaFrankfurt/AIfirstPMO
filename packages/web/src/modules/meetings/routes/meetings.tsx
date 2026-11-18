@@ -15,7 +15,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
-  carryOver, followUp, meetingsInOrder, minutesMarkdown, nextMeeting, type Meeting,
+  carryOver, findSeries, followUp, localDay, meetingsInOrder, minutesMarkdown, nextMeeting, pageKey, seriesEntryTitle,
+  type Meeting, type Page,
 } from '@kolibri/shared';
 import { Header, Trail } from '../../../kernel/design-system/chrome';
 import { AvatarStack, Empty, Icon, Sheet, useConfirm, useToast } from '../../../kernel/design-system/ui';
@@ -217,7 +218,29 @@ export function MeetingDetail() {
     if (filed) {
       update('page', filed.id, { content });
     } else {
-      const pageId = createPage({ title: t('meeting.minutesTitle', { title: meeting.title }), content, icon: '📝' }, me);
+      /*
+       * A dated entry in the meeting's series, as the server files them
+       * (`modules/pages/series.ts`), with the same shared rules. Every week's
+       * minutes of a weekly used to be one more top-level page called
+       * "Minutes: Weekly" — one title for all of them, which `[[links]]` cannot
+       * tell apart — and the first real wiki had eight such pages under six
+       * naming patterns.
+       */
+      const wiki = list('page', (page) => page.workspace_id === meeting.workspace_id && !page.deleted_at) as Page[];
+      const seriesTitle = t('meeting.minutesSeries', { title: meeting.title });
+      const series = findSeries(wiki, seriesTitle)
+        ?? byId('page', createPage({ title: seriesTitle, icon: '📝', series: 1 }, me)) as Page;
+      const taken = new Set(wiki.map((page) => pageKey(page.title || '')));
+      const pageId = createPage({
+        parent_id: series.id,
+        project_id: series.project_id ?? null,
+        access: series.access,
+        type_id: series.type_id ?? null,
+        labels: series.labels ?? [],
+        title: seriesEntryTitle(t('meeting.minutesTitle', { title: meeting.title }), localDay(meeting.starts_at ?? Date.now()), taken),
+        content,
+        icon: '📝',
+      }, me);
       update('meeting', meeting.id, { minutes_page_id: pageId });
     }
     toast(t('meeting.minutesFiled'));

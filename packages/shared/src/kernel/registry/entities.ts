@@ -48,6 +48,7 @@ export type EntityName =
   | 'meeting'
   | 'agendaItem'
   | 'pageStatus'
+  | 'pageType'
   | 'page'
   | 'artboard'
   | 'comment'
@@ -192,7 +193,7 @@ export const ENTITIES = {
   },
   label: {
     table: 'labels',
-    fields: ['workspace_id', 'project_id', 'name', 'color', 'description'],
+    fields: ['workspace_id', 'project_id', 'name', 'color', 'description', 'applies_to'],
   },
   task: {
     table: 'tasks',
@@ -485,13 +486,24 @@ export const ENTITIES = {
     table: 'page_statuses',
     fields: ['workspace_id', 'name', 'kind', 'color', 'sort_order'],
   },
+  /** What kind of document a page is, in a workspace's own words. See `PageType`. */
+  pageType: {
+    table: 'page_types',
+    fields: ['workspace_id', 'name', 'icon', 'color', 'sort_order'],
+  },
   page: {
     table: 'pages',
     fields: [
       'workspace_id', 'project_id', 'parent_id', 'title', 'icon', 'content', 'format', 'body',
       'sort_order', 'archived', 'access', 'labels', 'watchers', 'is_template', 'public_knowledge',
-      'created_by', 'cover_url', 'status_id',
+      'created_by', 'cover_url', 'status_id', 'type_id', 'pinned', 'superseded_by', 'series',
     ],
+    /*
+     * What "Final" was said about, and whether the text has moved since. The
+     * server's to write: the version it names lives in a table no device
+     * holds, so a client could only ever claim it.
+     */
+    serverOnly: ['settled_version_id', 'settled_drift'],
     json: ['labels', 'watchers', 'body'],
     /**
      * `body` is the page text as a CRDT and `content` is what it reads as.
@@ -938,6 +950,7 @@ export const COLLECTIONS: Record<EntityName, string> = {
   agendaItem: 'agenda-items',
   module: 'modules',
   pageStatus: 'page-statuses',
+  pageType: 'page-types',
   page: 'pages',
   artboard: 'artboards',
   comment: 'comments',

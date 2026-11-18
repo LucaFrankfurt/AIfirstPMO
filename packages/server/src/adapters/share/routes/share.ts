@@ -265,9 +265,14 @@ function pageBody(share: Row, notice?: 'sent' | 'problem'): string {
   const rung = page.status_id
     ? get<Row>(`SELECT name, kind FROM page_statuses WHERE id = ? AND deleted_at IS NULL`, page.status_id)
     : null;
-  const unfinished = rung && rung.kind !== 'final'
-    ? `<p class="status-notice">${escape(String(rung.name))} — this ${isBoardFormat(page.format as PageFormat) ? 'page' : 'text'} has not been signed off.</p>`
-    : '';
+  // A replaced page says so before anything else: on a link somebody was sent,
+  // "this is not the current one" matters more than how finished it ever got.
+  const replaced = rung?.kind === 'superseded' || page.superseded_by;
+  const unfinished = replaced
+    ? `<p class="status-notice">${escape(String(rung?.name ?? 'Superseded'))} — this ${isBoardFormat(page.format as PageFormat) ? 'page' : 'text'} has been replaced by a newer one.</p>`
+    : rung && rung.kind !== 'final'
+      ? `<p class="status-notice">${escape(String(rung.name))} — this ${isBoardFormat(page.format as PageFormat) ? 'page' : 'text'} has not been signed off.</p>`
+      : '';
 
   return [
     target(page, 1),

@@ -227,6 +227,12 @@ export const api = {
   pageVersions: (pageId: string) => request<any[]>(`/api/pages/${pageId}/versions`),
   pageVersion: (pageId: string, versionId: string) => request<any>(`/api/pages/${pageId}/versions/${versionId}`),
   restoreVersion: (pageId: string, versionId: string) => request<any>(`/api/pages/${pageId}/versions`, json({ restore: versionId })),
+  /** Keep what the page says now under a name — see `nameVersion` on the server. */
+  saveVersion: (pageId: string, name: string, note: string | null) =>
+    request<any>(`/api/pages/${pageId}/versions`, json({ name, note })),
+  /** Name a version after the fact, or take its name away with an empty one. */
+  nameVersion: (pageId: string, versionId: string, body: { name?: string | null; note?: string | null }) =>
+    request<any>(`/api/pages/${pageId}/versions/${versionId}`, { ...json(body), method: 'PATCH' }),
   boardVersions: (boardId: string) => request<any[]>(`/api/artboards/${boardId}/versions`),
   boardVersion: (boardId: string, versionId: string) => request<any>(`/api/artboards/${boardId}/versions/${versionId}`),
   restoreBoardVersion: (boardId: string, versionId: string) =>

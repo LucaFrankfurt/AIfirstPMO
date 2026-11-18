@@ -27,7 +27,7 @@
  */
 import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { compareOrder, type Page } from '@kolibri/shared';
+import { comparePages, type Page } from '@kolibri/shared';
 import { useT } from '../../kernel/i18n/i18n';
 import { cn } from '../../kernel/design-system/cn';
 import { Icon } from '../../kernel/design-system/ui';
@@ -42,6 +42,7 @@ import { familyOf, type DropZone } from './page-tree';
 import { movePage } from './page-parts';
 import { PageStatusChip } from './status';
 import { PublicKnowledgeMark } from './public-knowledge';
+import { isPinned, PageTypeChip, useIsSuperseded } from './organise';
 
 /** Which branches this device has folded. Never synced — see the note above. */
 const FOLDED_KEY = 'kolibri.folded-pages';
@@ -146,6 +147,9 @@ function TreeRow({ page, depth, shared }: { page: Page; depth: number; shared: S
   const open = keep ? true : !folds.has(page.id);
   const scaffold = !!matched && !matched.has(page.id);
   const labels = marks ? (page.labels ?? []).map((id) => byId('label', id)).filter(Boolean) : [];
+  // Drawn faint, and kept where it was: a replaced page is still the answer to
+  // an old link, and moving it would make the tree reorder itself under people.
+  const replaced = useIsSuperseded(page);
 
   return (
     <>
@@ -198,11 +202,16 @@ function TreeRow({ page, depth, shared }: { page: Page; depth: number; shared: S
         {selection && <SelectBox id={page.id} order={order} selection={selection} label={page.title || t('common.untitled')} />}
         <button
           className={cn(navItem({ active: activeId === page.id }), 'page-row-main')}
-          style={scaffold ? { opacity: 0.55 } : undefined}
+          style={scaffold || replaced ? { opacity: 0.55 } : undefined}
           onClick={() => navigate(`/pages/${page.id}`)}
         >
           <span style={{ width: 16 }}>{page.icon ?? '📄'}</span>
-          <span className="flex-1 min-w-0 truncate">{page.title || t('common.untitled')}</span>
+          <span className="flex-1 min-w-0 truncate" style={replaced ? { textDecoration: 'line-through' } : undefined}>
+            {page.title || t('common.untitled')}
+          </span>
+          {replaced && <span className="sr-only">{t('page.replacedMark')}</span>}
+          {isPinned(page) && <span aria-label={t('page.pinnedChip')} title={t('page.pinnedChip')}><Icon name="star" size={11} /></span>}
+          {marks && <PageTypeChip page={page} dot />}
           <PublicKnowledgeMark page={page} />
           {/* The rung, as a dot. On every row and not only under `marks`: how
               finished a page is answers the question somebody has while looking
@@ -259,7 +268,7 @@ export function PageTree({ pages, activeId, canWrite, folds, selection, keep, ma
     const here = new Set(pages.map((page) => page.id));
     return pages
       .filter((page) => !page.parent_id || !here.has(page.parent_id))
-      .sort((a, b) => compareOrder(a.sort_order ?? '', b.sort_order ?? ''));
+      .sort(comparePages);
   }, [pages]);
   const drawn = useMemo(
     () => (keep ? roots.filter((page) => keep.has(page.id)) : roots),
