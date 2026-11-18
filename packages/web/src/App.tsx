@@ -48,6 +48,7 @@ const ProductDetail = lazy(() => import('./modules/products/routes/products').th
 // Tidying up is a screen somebody opens when they have decided to tidy up, and
 // not otherwise — the one page in the wiki that is lazy by the rule above.
 const PagesTidy = lazy(() => import('./modules/pages/routes/tidy').then((m) => ({ default: m.PagesTidy })));
+const PagesKnowledge = lazy(() => import('./modules/pages/routes/knowledge').then((m) => ({ default: m.PagesKnowledge })));
 const Help = lazy(() => import('./modules/guide/routes/help').then((m) => ({ default: m.Help })));
 const Settings = lazy(() => import('./modules/operations/routes/settings').then((m) => ({ default: m.Settings })));
 import { backgroundOf, stackDepth, useOpenTask, useTaskRef } from './kernel/design-system/navigation';
@@ -323,6 +324,7 @@ export default function App() {
               has written yet lands. */}
           <Route path="/pages/new" element={<PageFromLink />} />
           <Route path="/pages/tidy" element={<PagesTidy />} />
+          <Route path="/pages/knowledge" element={<PagesKnowledge />} />
           <Route path="/pages/:id" element={<PageDetail />} />
           <Route path="/teams" element={<Teams />} />
           <Route path="/guide" element={<Help />} />

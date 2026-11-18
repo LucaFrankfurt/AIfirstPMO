@@ -149,6 +149,7 @@ export async function walkable(page, base) {
     // Four counts in a row, a path beside every title, and a bar that may be up:
     // the densest row this wiki draws, and the one most likely to come apart.
     ['pages: tidying up', '/pages/tidy'],
+    ['pages: public knowledge base', '/pages/knowledge'],
     ['page', `/pages/${pageId}`],
     ['canvas', `/pages/${canvasId}`],
     ['board page', `/pages/${boardPageId}`],

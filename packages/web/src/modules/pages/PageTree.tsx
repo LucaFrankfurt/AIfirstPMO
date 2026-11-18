@@ -242,7 +242,7 @@ function TreeRow({ page, depth, shared }: { page: Page; depth: number; shared: S
  * reports it as `detached`, which is where the honest version of this sentence
  * lives.
  */
-export function PageTree({ pages, activeId, canWrite, folds, selection, keep, matched, marks }: {
+export function PageTree({ pages, activeId, canWrite, folds, selection, keep, matched, marks, sort }: {
   pages: Page[];
   activeId?: string;
   canWrite: boolean;
@@ -251,9 +251,18 @@ export function PageTree({ pages, activeId, canWrite, folds, selection, keep, ma
   keep?: Set<string>;
   matched?: Set<string>;
   marks?: boolean;
+  /**
+   * Siblings in another order than the one people dragged them into — by age,
+   * on the index. Still a tree: only the order within each level changes.
+   */
+  sort?: (a: Page, b: Page) => number;
 }) {
   const { workspaceId } = useSession();
-  const kin = useMemo(() => familyOf(pages), [pages]);
+  const kin = useMemo(() => {
+    const family = familyOf(pages);
+    if (sort) for (const brood of family.values()) brood.sort(sort);
+    return family;
+  }, [pages, sort]);
   /**
    * The top of the tree: a page with no parent, *or* one whose parent is not in
    * this list.
@@ -268,8 +277,8 @@ export function PageTree({ pages, activeId, canWrite, folds, selection, keep, ma
     const here = new Set(pages.map((page) => page.id));
     return pages
       .filter((page) => !page.parent_id || !here.has(page.parent_id))
-      .sort(comparePages);
-  }, [pages]);
+      .sort(sort ?? comparePages);
+  }, [pages, sort]);
   const drawn = useMemo(
     () => (keep ? roots.filter((page) => keep.has(page.id)) : roots),
     [roots, keep],
