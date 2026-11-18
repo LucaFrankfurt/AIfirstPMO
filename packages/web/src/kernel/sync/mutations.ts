@@ -195,6 +195,8 @@ export function createPage(
     labels?: string[];
     /** A page whose sub-pages are dated entries — see `isSeries`. */
     series?: number;
+    /** Written for people outside the workspace — see `isPublicKnowledge`. */
+    public_knowledge?: number;
   },
   actorId: string,
 ): string {
@@ -215,6 +217,7 @@ export function createPage(
     ...(input.type_id ? { type_id: input.type_id } : {}),
     ...(input.labels?.length ? { labels: input.labels } : {}),
     ...(input.series ? { series: 1 } : {}),
+    ...(input.public_knowledge ? { public_knowledge: 1 } : {}),
   });
 }
 

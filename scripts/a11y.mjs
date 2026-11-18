@@ -413,7 +413,7 @@ for (const [label, options] of MODES) {
   });
   if (!subtaskId) throw new Error('no sub-task to open — the seed built none');
 
-  const SCREENS = ['/', `/projects/${project}`, '/inbox', '/search', '/chat', '/pages', '/pages/tidy', `/pages/${canvasId}`, `/pages/${boardPageId}`, '/teams', '/planner',
+  const SCREENS = ['/', `/projects/${project}`, '/inbox', '/search', '/chat', '/pages', '/pages/tidy', '/pages/knowledge', `/pages/${canvasId}`, `/pages/${boardPageId}`, '/teams', '/planner',
     '/portfolio', '/settings', '/settings?tab=members', '/settings?tab=data', '/settings?tab=instance',
     '/mail', ['/settings?tab=mailboxes', openMailboxEditor],
     '/support', `/support/${conversationId}`, '/settings?tab=widgets', `/w/${widgetId}`, '/decisions', '/meetings', `/meetings/${meetingId}`, '/secrets',

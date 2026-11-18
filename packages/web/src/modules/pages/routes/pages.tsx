@@ -151,6 +151,30 @@ const readGrouping = (): Grouping => {
 /** What the type filter is set to when it asks for pages with none. */
 const NO_TYPE = '__none';
 
+/**
+ * The order within each level: the one people dragged, or by age — when a page
+ * was made. Kept on this device like the grouping.
+ */
+type Sorting = 'manual' | 'newest' | 'oldest';
+const SORT_KEY = 'kolibri.page-sort';
+const SORTINGS: Sorting[] = ['manual', 'newest', 'oldest'];
+const SORT_LABEL: Record<Sorting, TranslationKey> = {
+  manual: 'page.sortManual', newest: 'page.sortNewest', oldest: 'page.sortOldest',
+};
+const BY_AGE: Record<Exclude<Sorting, 'manual'>, (a: Page, b: Page) => number> = {
+  newest: (a, b) => b.created_at - a.created_at || comparePages(a, b),
+  oldest: (a, b) => a.created_at - b.created_at || comparePages(a, b),
+};
+
+const readSorting = (): Sorting => {
+  try {
+    const kept = localStorage.getItem(SORT_KEY) as Sorting | null;
+    return kept && SORTINGS.includes(kept) ? kept : 'manual';
+  } catch {
+    return 'manual';
+  }
+};
+
 export function PagesIndex() {
   useMinute(); // re-reads the ages below once a minute — `design-system/minute.ts`
   const t = useT();
@@ -177,6 +201,18 @@ export function PagesIndex() {
       localStorage.setItem(GROUP_KEY, next);
     } catch { /* blocked storage — the session still works */ }
   };
+  const [sorting, setSortingState] = useState<Sorting>(readSorting);
+  const setSorting = (next: Sorting) => {
+    setSortingState(next);
+    try {
+      localStorage.setItem(SORT_KEY, next);
+    } catch { /* blocked storage — the session still works */ }
+  };
+  const byAge = sorting === 'manual' ? undefined : BY_AGE[sorting];
+  // Dragging decides the manual order, so it is only offered while that is the
+  // order on screen: a drop between two pages sorted by age would land
+  // somewhere else the moment it was made.
+  const canDrag = canWrite && !byAge;
 
   /*
    * The archive is on the tidying screen now, and this is why.
@@ -312,13 +348,13 @@ export function PagesIndex() {
               ? (one as PageType | undefined)?.icon ?? undefined
               : one ? <span className={chipDot} style={{ background: (one as PageStatus).color }} /> : undefined,
             pages: shown.filter((page) => keyOf(page) === id)
-              .sort((a, b) => (a.title || '').localeCompare(b.title || '')),
+              .sort(byAge ?? ((a, b) => (a.title || '').localeCompare(b.title || ''))),
           };
         })
         .filter((section) => section.pages.length > 0);
     }
     return [];
-  }, [grouping, pages, projects, types, statuses, keep, matched, t]);
+  }, [grouping, pages, projects, types, statuses, keep, matched, t, byAge]);
   const flat = grouping === 'type' || grouping === 'status';
 
   const toggleLabel = (id: string) =>
@@ -348,6 +384,14 @@ export function PagesIndex() {
         <Button variant="secondary" size="sm" onClick={() => navigate('/pages/tidy')}>
           <Icon name="archive" size={14} />
           <span className="hide-sm">{t('page.tidy')}</span>
+        </Button>
+        {/* The same pages, gathered: those marked for people outside. */}
+        <Button
+          variant="secondary" size="sm" title={t('page.publicKnowledge')} aria-label={t('page.publicKnowledge')}
+          onClick={() => navigate('/pages/knowledge')}
+        >
+          <Icon name="globe" size={14} />
+          <span className="hide-sm">{t('page.publicKnowledge')}</span>
         </Button>
         {/* One filter button with drawers rather than three buttons. This
             header is one row 52px tall and scrolls sideways when it does not
@@ -491,7 +535,7 @@ export function PagesIndex() {
             </div>
             <div className="flex items-center flex-wrap gap-2 mb-2">
               <h2 className="text-sm font-semibold">{t('page.all')}</h2>
-              {!drawn && canWrite && !picking && !flat && <span className="text-[12px] text-muted hide-sm">{t('page.dragHint')}</span>}
+              {!drawn && canDrag && !picking && !flat && <span className="text-[12px] text-muted hide-sm">{t('page.dragHint')}</span>}
               <span className="flex-1 min-w-0" />
               {!drawn && (
                 <>
@@ -522,6 +566,18 @@ export function PagesIndex() {
                   >
                     <Icon name="folder" size={14} />
                     <span className="hide-sm">{t(GROUP_LABEL[grouping])}</span>
+                  </MenuButton>
+                  <MenuButton
+                    variant="ghost" size="sm"
+                    items={SORTINGS.map((one) => ({
+                      id: `sort-${one}`,
+                      label: t(SORT_LABEL[one]),
+                      hint: sorting === one ? '✓' : undefined,
+                      onSelect: () => setSorting(one),
+                    }))}
+                  >
+                    <Icon name="calendar" size={14} />
+                    <span className="hide-sm">{t(SORT_LABEL[sorting])}</span>
                   </MenuButton>
                   {foldable.length > 0 && !keep && !flat && (
                     <Button
@@ -566,12 +622,13 @@ export function PagesIndex() {
             ) : grouping === 'tree' ? (
               <PageTree
                 pages={pages}
-                canWrite={canWrite}
+                canWrite={canDrag}
                 folds={folds}
                 selection={picking ? selection : undefined}
                 keep={keep}
                 matched={matched}
                 marks
+                sort={byAge}
               />
             ) : (
               sections.map((section) => (
@@ -603,12 +660,13 @@ export function PagesIndex() {
                   )) : (
                     <PageTree
                       pages={section.pages}
-                      canWrite={canWrite}
+                      canWrite={canDrag}
                       folds={folds}
                       selection={picking ? selection : undefined}
                       keep={keep}
                       matched={matched}
                       marks
+                      sort={byAge}
                     />
                   )}
                 </section>
