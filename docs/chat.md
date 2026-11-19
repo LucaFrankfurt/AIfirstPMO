@@ -102,6 +102,13 @@ admins). Per channel rather than per instance, because a team channel and a chan
 see want different answers and the same workspace holds both. Changing the *setting* is itself an
 admin decision, or it protects nothing.
 
+What the room *is* belongs to its owner — whoever opened it, or a workspace owner or admin: whether
+it is private, its name, its topic, the project it sits in, and deleting it. Being in the room is
+not enough, and the server says so rather than leaving it to the screen; before it did, a member of
+an `admins`-only channel who could not invite anybody could still open the whole room to the
+workspace. Archiving stays anybody's in the room. What a conversation is — channel or direct — and
+who opened it are fixed once it exists. In a direct conversation both people are its owners.
+
 Two rules hold whatever the policy says:
 
 - **Leaving is always yours to do.** Taking only your own name off the list is not managing the
@@ -168,6 +175,9 @@ membership on every message is a channel people mute, and a muted channel tells 
 - A **direct message** notifies the other person — being written to directly is exactly the case
   where silence would be wrong.
 - **Muting beats a mention.** Somebody who set a conversation to *nothing* means it.
+- **Only somebody who may read the room hears from it.** A notification carries the words, so naming
+  somebody who is not in a private channel tells them nothing, and neither does a read marker set to
+  *all of it* that outlived being taken off the list.
 
 Per-conversation, in the bell menu at the top of a conversation. The setting lives in a
 `channel_reads` row, which is private to you: where you have got to is nobody else's business, and a

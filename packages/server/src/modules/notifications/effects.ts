@@ -18,7 +18,7 @@ import { translatorFor } from '../../kernel/i18n/i18n.ts';
 
 type Translator = ReturnType<typeof translatorFor>;
 import {
-  canSeeProject, displayName, findMentions, onCommitted, parseIds, writeEntity, type WriteOpts,
+  canSeeChannel, canSeeProject, displayName, findMentions, onCommitted, parseIds, writeEntity, type WriteOpts,
 } from '../../kernel/write-path/repo.ts';
 import { createNotification } from './notify.ts';
 import { hasFeature } from '../../kernel/platform/features.ts';
@@ -135,6 +135,17 @@ function notify(entity: EntityName, row: Row, before: Row | undefined, changed: 
 
       for (const userId of audience) {
         if (!userId || userId === opts.actorId) continue;
+        /*
+         * Only somebody who may read the room hears what was said in it. A
+         * notification carries the message's words, so it is a door onto the
+         * channel like the pull and the REST row are, and it was the one
+         * without the lock: naming `@max` in a private channel he was not in
+         * sent him the line, and so did a read marker set to "all" that
+         * outlived being taken off the list. `findMentions` reads the whole
+         * workspace, and a read marker is nobody's to revoke but its owner's,
+         * so the check belongs here rather than in either of them.
+         */
+        if (!canSeeChannel(userId, String(channel.id))) continue;
         if (notifyLevel(String(channel.id), userId, direct) === 'none') continue;
         if (!direct && !named.has(userId) && notifyLevel(String(channel.id), userId, direct) !== 'all') continue;
         targets.set(userId, {

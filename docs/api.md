@@ -371,8 +371,8 @@ signed visitor's token may carry in `ctx` — or the same as `key: Label` lines.
 never in the row, and is stored sealed:
 
 ```
-GET  /api/widgets/:id/secret              admin; the secret a host signs its visitors' tokens with
-POST /api/widgets/:id/secret              admin; a new one — every token signed with the old one stops
+GET  /api/widgets/:id/secret              admin, write scope; the secret a host signs its visitors' tokens with
+POST /api/widgets/:id/secret              admin, write scope; a new one — every token signed with the old one stops
 POST /api/conversations/:id/task          a task in the widget's project, the transcript as its description
 POST /api/conversations/:id/suggest       a draft from the widget's assistant: { answer, sources, handover }
 GET  /api/conversations/:id/typing        { visitor: boolean }

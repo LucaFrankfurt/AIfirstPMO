@@ -62,7 +62,9 @@ with the instance secret and valid for twelve hours. The token reaches the ifram
 and is never in a URL. The secret is a registry `secret` field, so it never syncs, and it is sealed
 with the instance secret (`seal`, purpose `widget`) so a copied backup cannot sign anybody in; an
 admin reveals it on request and can rotate it, which stops every token signed with the old one at
-once. Keys stored before sealing are sealed at boot (`sealWidgetSecrets`). A restore without the
+once. Both need a credential that may write: unlike a vault secret, which is a key to somebody
+else's system, this one writes into the workspace as any customer, so a read-only token never gets
+it. Keys stored before sealing are sealed at boot (`sealWidgetSecrets`). A restore without the
 instance's `.secret` file leaves every key unreadable: tokens are refused until *New secret*.
 
 **Anonymous visitors** may leave a name and an email, both optional and both shown as unverified. A

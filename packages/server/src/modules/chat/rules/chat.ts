@@ -47,6 +47,13 @@ function followChannelWorkspace(values: Record<string, unknown>, existing: Row |
  * the other device will have derived too.
  */
 function applyChannelInvariants(id: string, values: Record<string, unknown>, existing: Row | undefined, forced: Record<string, unknown>): void {
+  if (existing) {
+    for (const field of CHANNEL_FIXED) {
+      if (values[field] === undefined || values[field] === existing[field]) continue;
+      values[field] = existing[field];
+      forced[field] = existing[field];
+    }
+  }
   const kind = String(values.kind ?? existing?.kind ?? 'channel');
 
   if (kind === 'direct') {
@@ -127,6 +134,39 @@ function guardChannelWrite(id: string, values: Record<string, unknown>, existing
   }
   if (!canSeeChannel(opts.actorId, id)) throw forbidden('You are not in that conversation');
 
+  /*
+   * What a room is, and whether it stands, is its owner's to change: whoever
+   * opened it, or an owner or admin of the workspace. A direct conversation
+   * belongs to both of its people equally.
+   *
+   * The screen has always said so — rename, topic and delete sit behind
+   * `mayRetitle`, and there is no switch for privacy at all — but the server
+   * asked only whether you were in the room. Measured before this: a plain
+   * member of an `admins`-only channel was refused an invite and then set
+   * `is_private: 0`, and the whole history synced to the workspace; another
+   * made an open channel private with only himself in it, and its creator lost
+   * it; another renamed and deleted a channel somebody else had opened.
+   *
+   * Compared rather than present: a client resends what it already has — two
+   * people opening the same direct conversation both send its whole row — and
+   * a field sent back unchanged is not somebody changing it.
+   */
+  const changes = (field: 'is_private' | 'name' | 'topic' | 'project_id'): boolean => {
+    if (values[field] === undefined) return false;
+    if (field === 'is_private') return Number(values.is_private) !== Number(existing.is_private ?? 0);
+    if (field === 'name') return normaliseChannelName(String(values.name ?? '')) !== String(existing.name ?? '');
+    return (values[field] ?? null) !== (existing[field] ?? null);
+  };
+  const reshaping = (['is_private', 'name', 'topic', 'project_id'] as const).some(changes);
+  if ((reshaping || opts.op === 'delete') && !ownsChannel(existing, opts.actorId)) {
+    throw forbidden('Only the person who opened this conversation, or an admin, can change that');
+  }
+  // A room going private keeps the people it names. Made private with nobody
+  // on its list, it would be invisible to everybody, its owner included.
+  if (changes('is_private') && Number(values.is_private) && !parseIds(values.members ?? existing.members).length) {
+    throw badRequest('A private conversation needs at least one person in it');
+  }
+
   // The membership list is the one field with its own rule, set per channel:
   // `members` lets anybody in it invite, `admins` narrows that to its creator
   // and the workspace's owners. Being in the channel is required either way —
@@ -156,12 +196,28 @@ function guardChannelWrite(id: string, values: Record<string, unknown>, existing
     }
   }
   // Who may invite is itself an admin decision, or the setting protects nothing.
-  if (values.invite_policy !== undefined
-    && existing.created_by !== opts.actorId
-    && !isWorkspaceAdmin(String(existing.workspace_id), opts.actorId)) {
+  if (values.invite_policy !== undefined && !ownsChannel(existing, opts.actorId)) {
     throw forbidden('Only the person who opened this conversation, or an admin, can change that');
   }
 }
+
+/** Whoever opened a room, an owner or admin of its workspace, or either person in a direct conversation. */
+function ownsChannel(channel: Row, userId: string): boolean {
+  if (String(channel.kind) === 'direct') return parseIds(channel.members).includes(userId);
+  return channel.created_by === userId || isWorkspaceAdmin(String(channel.workspace_id), userId);
+}
+
+/**
+ * What a conversation is, and who opened it, are fixed once it exists.
+ *
+ * `kind` decides everything else: turned to `direct`, a named channel lost its
+ * workspace and kept one name on its list — measured, and out of the trash's
+ * reach as well. `created_by` decides who owns it, so a client that could
+ * write it could make itself the owner. Both go back to what is stored rather
+ * than refusing the write, for the reason the members of a direct conversation
+ * do: a device resending the row it has is not trying anything.
+ */
+const CHANNEL_FIXED = ['kind', 'created_by'] as const;
 /**
  * Whether this person may say this here.
  *

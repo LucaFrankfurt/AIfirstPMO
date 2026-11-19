@@ -131,6 +131,24 @@ describe('a widget', () => {
     await ok(`/api/widgets/${legacy.id}`, undefined, 'DELETE');
   });
 
+  it('hands its secret only to a credential that may write', async () => {
+    // The secret signs any visitor in as any customer and writes into the
+    // workspace as them, so a read-only token that could fetch it could write.
+    const readOnly = (await ok('/api/tokens', { name: 'reports', scopes: 'read' })).token;
+    const asToken = (method: string) => fetch(`${base}/api/widgets/${widget.id}/secret`, {
+      method, headers: { authorization: `Bearer ${readOnly}`, ...(method === 'POST' ? { 'content-type': 'application/json' } : {}) },
+      body: method === 'POST' ? '{}' : undefined,
+    });
+    assert.equal((await asToken('GET')).status, 403, 'reading it is refused');
+    assert.equal((await asToken('POST')).status, 403, 'rotating it is refused');
+    assert.equal((await ok(`/api/widgets/${widget.id}/secret`)).secret, secret, 'and it was not rotated');
+
+    const writer = (await ok('/api/tokens', { name: 'deploy', scopes: 'read,write' })).token;
+    const revealed = await fetch(`${base}/api/widgets/${widget.id}/secret`, { headers: { authorization: `Bearer ${writer}` } });
+    assert.equal(revealed.status, 200, 'an admin\'s token that may write still can');
+    assert.equal(((await revealed.json()) as { secret: string }).secret, secret);
+  });
+
   it('serves its page to the sites it names, and only those', async () => {
     const response = await fetch(`${base}/w/${widget.id}`);
     assert.equal(response.status, 200);
