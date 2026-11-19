@@ -265,8 +265,10 @@ export function Inbox() {
                   // A point somebody was made responsible for: the meeting it
                   // is on, which carries no project for the branch below.
                   else if (notification.meeting_id) navigate(`/meetings/${notification.meeting_id}`);
-                  // A visitor wrote through a widget: the support inbox, where
-                  // the newest unanswered conversation is at the top.
+                  // A visitor wrote through a widget: their conversation, or —
+                  // on a row from before notifications named one — the inbox,
+                  // where the newest unanswered conversation is at the top.
+                  else if (notification.conversation_id) navigate(`/support/${notification.conversation_id}`);
                   else if (notification.kind === 'support') navigate('/support');
                   // A report from outside is about a project's queue rather
                   // than a row, so it opens the tab that holds it.

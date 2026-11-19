@@ -24,7 +24,7 @@ import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
 
 const { server } = await import('../src/index.ts');
-const { Clock, directChannelId, readStateId } = await import('@kolibri/shared');
+const { CHAT_MESSAGE_MAX, Clock, directChannelId, readStateId } = await import('@kolibri/shared');
 const { canSeeChannel } = await import('../src/kernel/write-path/repo.ts');
 const { searchWorkspace } = await import('../src/kernel/search/search.ts');
 const { all, get, run } = await import('../src/kernel/platform/db/index.ts');
@@ -728,6 +728,39 @@ describe('who may change what a channel is', () => {
     assert.equal(row.created_by, people.ada.id);
     assert.equal(row.workspace_id, workspaceId, 'a named channel does not leave its workspace');
     assert.equal(kept.kind, 'channel');
+  });
+});
+
+describe('a channel in the trash', () => {
+  /** What the trash screen does: a sync push clearing `deleted_at`. */
+  const restore = async (who: Person, channel: string) => {
+    const clock = new Clock(`device-${who.id}`);
+    return as(who, '/api/sync/push', {
+      workspaceId, clientId: `device-${who.id}`,
+      mutations: [{ id: `restore-${channel}-${who.id}-${Date.now()}`, entity: 'channel', entityId: channel, op: 'upsert', patch: { deleted_at: null }, hlc: clock.now() }],
+    });
+  };
+
+  it('comes back for whoever may delete it, and for nobody else', async () => {
+    const channel = (await post(people.ada, 'channels', { name: 'binned' })).id;
+    await as(people.ada, `/api/channels/${channel}`, undefined, 'DELETE');
+
+    const refused = await restore(people.max, channel);
+    assert.equal(refused.rejected.length, 1);
+    assert.ok(get<any>(`SELECT deleted_at FROM channels WHERE id = ?`, channel).deleted_at);
+
+    const back = await restore(people.ada, channel);
+    assert.deepEqual(back.rejected, [], 'the trash promised this, and it was refused for everybody');
+    assert.equal(get<any>(`SELECT deleted_at FROM channels WHERE id = ?`, channel).deleted_at, null);
+  });
+});
+
+describe('a very long message', () => {
+  it('is cut at the limit, and the sender is told what was kept', async () => {
+    const channel = (await post(people.ada, 'channels', { name: 'long-read' })).id;
+    const sent = await post(people.ada, 'messages', { channel_id: channel, body: 'x'.repeat(CHAT_MESSAGE_MAX + 5000) });
+    assert.equal(sent.body.length, CHAT_MESSAGE_MAX);
+    assert.equal(get<any>(`SELECT length(body) AS n FROM messages WHERE id = ?`, sent.id).n, CHAT_MESSAGE_MAX);
   });
 });
 

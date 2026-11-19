@@ -355,7 +355,9 @@ export function VisitorChat() {
       });
       if (response.status === 401) return ended();
       if (!response.ok) throw new Error(`${response.status}`);
-      const { file: stored } = await response.json() as { file: ConversationFile };
+      // Kept whole, `sig` included: the server takes a picture into a message
+      // only with the signature its upload was given, for this conversation.
+      const { file: stored } = await response.json() as { file: ConversationFile & { sig: string } };
       setAttached((now) => [...now, stored]);
     } catch {
       setNotice(words.uploadFailed);
@@ -382,6 +384,8 @@ export function VisitorChat() {
       const opened = await call<{ session: string; expiresAt: number }>(path, session, { method: 'POST', body: '{}' });
       if (config?.identity === 'anonymous') keep(opened);
       setLines([]);
+      // A picture waiting to go was signed for the conversation being left.
+      setAttached([]);
       setAgentRead(null);
       setHandedOver(null);
       setResolved(false);

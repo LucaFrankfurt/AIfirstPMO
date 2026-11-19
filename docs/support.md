@@ -62,7 +62,8 @@ with the instance secret and valid for twelve hours. The token reaches the ifram
 and is never in a URL. The secret is a registry `secret` field, so it never syncs, and it is sealed
 with the instance secret (`seal`, purpose `widget`) so a copied backup cannot sign anybody in; an
 admin reveals it on request and can rotate it, which stops every token signed with the old one at
-once. Both need a credential that may write: unlike a vault secret, which is a key to somebody
+once — and every session made from one: a signed session names the key it came in under (`keyTag`),
+and is refused, its stream ended, once that is no longer the widget's key. Both need a credential that may write: unlike a vault secret, which is a key to somebody
 else's system, this one writes into the workspace as any customer, so a read-only token never gets
 it. Keys stored before sealing are sealed at boot (`sealWidgetSecrets`). A restore without the
 instance's `.secret` file leaves every key unreadable: tokens are refused until *New secret*.
@@ -71,6 +72,23 @@ instance's `.secret` file leaves every key unreadable: tokens are refused until 
 hidden field no person fills in turns a form-filling program away, and the routes have their own
 rate limits (`LIMITS.widget*`). Their session lives thirty days in the iframe's own storage; where a
 browser refuses third-party storage the window still works and simply forgets them on the next page.
+
+**A session holds only while the widget does.** It is signed once and checked against the widget as
+it is *now* on every request, and on the stream at every change: a widget switched off, or switched
+to signed-in visitors under an anonymous session, or its key rotated under a signed one, ends it —
+the window is sent `end` and asks again, as a new visitor would. Each was measured to carry on
+before.
+
+**A conversation is one once somebody writes in it.** A session opens a conversation before a word
+is said — a signed widget's on the first click of the launcher — so one that nobody ever wrote in is
+kept off the team's devices, out of the inbox and out of `list_conversations`, and is removed by the
+hourly sweep once no session could still open it, with a `purge` marker so a device that had one
+drops it.
+
+**What a visitor attaches is a picture they uploaded into this conversation.** The upload route
+signs each one for the conversation (`fileSignature`), and a message takes a picture only with that
+signature. Being stored in the workspace was the test before, and it let a visitor who knew a file's
+hash attach anything a member had uploaded — and then download it through the window.
 
 **One conversation at a time per visitor and widget.** A returning visitor finds their newest
 conversation by widget and `sub`. Resolved is said, not left to be guessed: when the team resolves a
@@ -97,13 +115,17 @@ conversation is an ordinary synced row. "Typing" is kept in memory only; the inb
 three seconds while a conversation is open.
 
 **The team is told once per burst.** A visitor's message notifies the assignee, otherwise the
-widget's agents, otherwise the owners and admins — never anybody who cannot see the project — and
-not again for further lines within five minutes. It counts as urgent for Telegram and Web Push, and
-not for the email digest.
+widget's agents, otherwise the owners and admins — never anybody who cannot see the project, and when
+that leaves a step with nobody, the next step is asked rather than nobody being told — and not again
+for further lines within five minutes. A conversation is only given to somebody who can see its
+project. It counts as urgent for Telegram and Web Push, and not for the email digest. Pressing the
+notification — in the app, on Telegram, in a push or a digest — opens the conversation it is about.
 
 **When nobody answers live, email does — both ways.** An answer the visitor has not read within five
-minutes is emailed to the address they have, through the ordinary mail queue. Reading it in the
-window first withdraws the email. One pending email per conversation.
+minutes is emailed to the address they have, through the ordinary mail queue — a member's, or the
+model's (`onAnswered`, since the model's line is a system write and reaches no write listener), but
+never the model's "a person will reply here", which would hold the place of that person's reply.
+Reading it in the window first withdraws the email. One pending email per conversation.
 
 When the widget names a **reply address** — an inbox the workspace has connected under Mail — the
 email's Reply-To is that inbox and its subject carries a signed tag (`[#a1b2c3d4-9f8e7d]`). The mail
@@ -205,14 +227,18 @@ unread. Where the pages do not cover the question the draft is empty, rather tha
 will answer you" line a colleague would then send.
 
 **Answer first.** The model answers a visitor's line itself, with "typing" while it writes, and names
-the pages it used under the answer. It hands the conversation to a person — goes quiet, and the team
-is told at once — when:
+the pages it used under the answer. It answers one call at a time per conversation: lines that arrive
+while it is answering are answered together once it has, rather than one call a line. It hands the
+conversation to a person — goes quiet, and the team is told at once, and only once however often a
+person is asked for — when:
 
 - it cannot answer from the pages, or the visitor is upset or asks about their own account (it says
   so in one line, in the visitor's language);
 - the visitor presses "Talk to a person";
 - a member answers in the conversation (answering is taking over);
-- the widget's **answers a day** are spent;
+- the widget's **answers a day** are spent — counted as the model being *asked*, a silent hand-over
+  included, and reserved before each call goes out, so visitors writing at once cannot all fit under
+  what is left;
 - the model does not answer, or answers something that cannot be read.
 
 The fences, which are the point: it reads **only the pages the widget names, and of those only the
@@ -220,7 +246,10 @@ ones in the public knowledge base** — never the workspace's search, never a pr
 task — and about the visitor **only what the host's signed token said** (below); it has no tools and writes one line of text
 as itself; it is asked for JSON and argued with (`parseAnswer`), so a source it names that is not one
 of the pages is dropped and an answer it cannot shape is a hand-over; and the conversation is given
-to it as data, with the rule that instructions inside it change nothing. Measured with a fake model
+to it as data — fenced as the customer data is, one JSON object a line with who wrote it in a field
+of its own, so a visitor's own line breaks cannot write a line "from the team" — with the rule that
+instructions inside it change nothing. The pages come first and are offered to the provider for
+caching (`cachePrefix`); everything about the visitor comes after them. Measured with a fake model
 in `support-assistant.test.ts`, including that a private page ticked as knowledge is never sent.
 
 ### What the host says about a visitor
@@ -290,7 +319,7 @@ Per widget:
 |---|---|
 | The assistant | *Off* · *Suggests replies to the team* · *Answers first, hands over when unsure* |
 | What it may read | up to 20 pages from the public knowledge base, in reading order; private pages are never sent |
-| Answers a day | default 50; past it, every conversation goes to a person |
+| Answers a day | default 50 calls to the model, hand-overs included; past it, every conversation goes to a person |
 
 Environment, instead of step 1:
 

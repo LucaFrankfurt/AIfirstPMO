@@ -80,7 +80,20 @@ export interface Session {
   c: string;
   /** Expiry, in milliseconds. */
   exp: number;
+  /**
+   * Which signing key a signed visitor came in under — `keyTag` of the widget's
+   * secret when the session was made. Rotating the secret is how an admin says
+   * a key has been somewhere it should not, and every visitor signed in with it
+   * is then let in no further: without this, a session made a minute before the
+   * rotation carried on for its twelve hours. Absent on an anonymous widget,
+   * which has nobody's word to withdraw.
+   */
+  k?: string;
 }
+
+/** A short, one-way name for a signing key: enough to tell two keys apart, nothing to sign with. */
+export const keyTag = (secret: string): string =>
+  createHmac('sha256', env.secret).update(`widget-key:${secret}`).digest('base64url').slice(0, 16);
 
 const SESSION_PURPOSE = 'widget-session:';
 
@@ -102,3 +115,22 @@ export function readSession(token: string | null | undefined, widgetId: string, 
     return null;
   }
 }
+
+/* ------------------------------------------------------------------- files */
+
+/**
+ * What the upload route hands a visitor beside a picture's hash: proof that
+ * this conversation's session uploaded it.
+ *
+ * A message names its pictures by hash, and the hash alone proved only that
+ * the workspace had stored the file *somewhere* — so a visitor who learned the
+ * hash of anything a member had uploaded could attach it to their own line and
+ * then download it through the window, a PDF as readily as a picture.
+ * Measured. Stateless for the reason the session is: no table for strangers to
+ * fill.
+ */
+export const fileSignature = (conversationId: string, hash: string): string =>
+  createHmac('sha256', env.secret).update(`widget-file:${conversationId}:${hash}`).digest('base64url');
+
+export const fileSigned = (conversationId: string, hash: string, signature: unknown): boolean =>
+  typeof signature === 'string' && sameBytes(Buffer.from(fileSignature(conversationId, hash)), Buffer.from(signature));

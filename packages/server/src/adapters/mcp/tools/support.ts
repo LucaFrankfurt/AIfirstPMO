@@ -192,7 +192,9 @@ export const supportTools: ToolDef[] = [
       const status = STATUS.includes(args.status) ? args.status : 'open';
       const limit = Math.min(200, Math.max(1, Math.round(Number(args.limit) || 50)));
       const rows = all<Row>(
+        // A conversation nobody has written in is not one yet — see the pull.
         `SELECT * FROM conversations WHERE workspace_id = ? AND deleted_at IS NULL AND status = ?
+            AND last_message_at IS NOT NULL
           ${widgetId ? 'AND widget_id = ?' : ''}
           ORDER BY COALESCE(last_message_at, created_at) DESC`,
         ...[workspaceId, status, ...(widgetId ? [widgetId] : [])],

@@ -13,6 +13,13 @@ export interface AiRequest {
   system: string;
   /** The task, as text. Everything that differs between two calls is here. */
   user: string;
+  /**
+   * How many characters at the start of `user` are the same on every call of
+   * this kind — a support widget's knowledge pages, say. A provider that can
+   * cache a prompt's prefix may cache up to here; the rest never is. Leave it
+   * out and nothing of `user` is offered for caching.
+   */
+  cachePrefix?: number;
   /** A ceiling, not a target. A review that hits it was going wrong anyway. */
   maxTokens: number;
   /**

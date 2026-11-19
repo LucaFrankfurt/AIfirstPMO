@@ -89,6 +89,7 @@ Two consequences worth stating:
 | `edited_at` | stamped when the body actually changes, because "edited" is a claim about this server's clock |
 | Who may edit | the author, and nobody else |
 | Channel names | normalised, so `#Design Review` and `#design-review` cannot be two channels that look like one |
+| How long | a message is cut at `CHAT_MESSAGE_MAX` characters and the sender's device is told what was kept; a longer text is a page |
 
 An archived conversation refuses new messages. Deleting a message leaves a tombstone like every
 other delete here, so it disappears on every device rather than only on the one that pressed the
@@ -118,7 +119,7 @@ Two rules hold whatever the policy says:
 
 **Archiving** hides a channel and refuses new messages, and keeps everything said in it.
 **Deleting** hides the room the same way — it does *not* destroy the conversation. Both are
-reversible from the trash until the trash is emptied, which is the point at which anything is
+reversible from the trash — by whoever may delete it, the room's owner — until the trash is emptied, which is the point at which anything is
 actually gone. A chat history is often the record of a decision, so nothing here throws one away on
 a single click.
 

@@ -22,7 +22,7 @@ writeFileSync(`${process.env.KOLIBRI_WEB_DIR}/widget.html`, '<!doctype html><tit
 
 const { server } = await import('../src/index.ts');
 const { all, get, run } = await import('../src/kernel/platform/db/index.ts');
-const { sealWidgetSecrets } = await import('../src/modules/support/support.ts');
+const { pruneEmptyConversations, sealWidgetSecrets } = await import('../src/modules/support/support.ts');
 const { resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
 const { replyTag, replyText, takeReply } = await import('../src/adapters/widget/mail.ts');
 const { writeEntity } = await import('../src/kernel/write-path/repo.ts');
@@ -281,6 +281,8 @@ describe('a signed visitor', () => {
     assert.deepEqual(JSON.parse(row.visitor_context), { plan: 'Pro' }, 'not allowed, not kept; nested, not kept');
     const viaApi = await ok(`/api/conversations/${row.id}`);
     assert.equal('visitor_context' in viaApi, false, 'never in a row a member is sent');
+    // A conversation reaches a device with its first line, so there is one.
+    await visit(`/w/${widget.id}/messages`, { body: 'Which plan am I on?' }, opened.json.session);
     const pulled = await ok(`/api/sync/pull?workspace=${workspaceId}&since=0`);
     const synced = (pulled.changes.conversation ?? []).filter((change: any) => change.id === row.id);
     assert.ok(synced.length, 'the conversation itself does sync');
@@ -692,3 +694,153 @@ describe('the snippet', () => {
     assert.doesNotMatch(widgetSnippet('https://k.example.com', 'w1', 'signed', "red'; alert(1)//"), /alert/, 'only a colour gets in');
   });
 });
+
+/*
+ * What the review measured outliving the change that should have ended it, or
+ * reaching what it should not. Every case here failed before.
+ */
+describe('a session, after the widget changes under it', () => {
+  it('ends a signed visitor\'s session when the secret is rotated', async () => {
+    resetRateLimits();
+    const opened = await visit(`/w/${widget.id}/session`, { token: hostToken(secret, { sub: 'merchant-rotate', exp: inAnHour() }) });
+    assert.equal((await visit(`/w/${widget.id}/messages`, { body: 'before' }, opened.json.session)).status, 200);
+    secret = (await ok(`/api/widgets/${widget.id}/secret`, {})).secret;
+    assert.equal((await visit(`/w/${widget.id}/messages`, { body: 'after' }, opened.json.session)).status, 401,
+      'a withdrawn key does not keep working for the twelve hours a session lasts');
+  });
+
+  it('ends an anonymous session when the widget comes to want signed-in visitors', async () => {
+    resetRateLimits();
+    const open = await ok(`/api/workspaces/${workspaceId}/widgets`, {
+      project_id: projectId, name: 'Switching', identity: 'anonymous', origins: ['example.com'],
+    });
+    const opened = await visit(`/w/${open.id}/session`, { name: 'Ida' });
+    assert.equal((await visit(`/w/${open.id}/messages`, { body: 'hello' }, opened.json.session)).status, 200);
+    await ok(`/api/widgets/${open.id}`, { identity: 'signed' }, 'PATCH');
+    assert.equal((await visit(`/w/${open.id}/messages`, { body: 'still me' }, opened.json.session)).status, 401);
+  });
+
+  it('ends the stream of a widget switched off while it was open', async () => {
+    resetRateLimits();
+    const closing = await ok(`/api/workspaces/${workspaceId}/widgets`, {
+      project_id: projectId, name: 'Closing', identity: 'anonymous', origins: ['example.com'],
+    });
+    const opened = await visit(`/w/${closing.id}/session`, { name: 'Jo' });
+    await visit(`/w/${closing.id}/messages`, { body: 'hi' }, opened.json.session);
+    const control = new AbortController();
+    const response = await fetch(`${base}/w/${closing.id}/stream?session=${encodeURIComponent(opened.json.session)}`, { signal: control.signal });
+    const reader = response.body!.getReader();
+    const timer = setTimeout(() => control.abort(), 3000);
+    let heard = '';
+    try {
+      await ok(`/api/widgets/${closing.id}`, { enabled: 0 }, 'PATCH');
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        heard += new TextDecoder().decode(value);
+      }
+    } catch { /* aborted: the stream never ended */ } finally {
+      clearTimeout(timer);
+    }
+    assert.match(heard, /event: end/, 'the window is told, and stops hearing the team');
+  });
+});
+
+describe('what a visitor can attach', () => {
+  it('is only a picture this conversation uploaded, not a file somebody else did', async () => {
+    resetRateLimits();
+    const pdf = Buffer.from('%PDF-1.4 the internal price list');
+    const uploaded = await fetch(`${base}/api/workspaces/${workspaceId}/files`, {
+      method: 'POST', headers: { cookie, 'content-type': 'application/pdf', 'x-filename': 'internal.pdf' }, body: pdf,
+    });
+    const memberFile = (await uploaded.json() as any);
+    const hash = memberFile.hash ?? memberFile.file?.hash;
+    assert.match(hash, /^[0-9a-f]{64}$/);
+
+    const opened = await visit(`/w/${widget.id}/session`, { token: hostToken(secret, { sub: 'merchant-files', exp: inAnHour() }) });
+    const sent = await visit(`/w/${widget.id}/messages`, { body: 'look', files: [{ hash }] }, opened.json.session);
+    assert.equal(sent.status, 200);
+    assert.deepEqual(sent.json.message.files, [], 'a hash alone is not a file of theirs');
+    const fetched = await fetch(`${base}/w/${widget.id}/files/${hash}`, { headers: { 'x-widget-session': opened.json.session } });
+    assert.equal(fetched.status, 404, 'and so not a way to download one');
+
+    // A picture they uploaded is theirs — in the conversation it was uploaded for, and no other.
+    const { hash: own } = await visitorWithPicture('merchant-files-2', await picture(31));
+    const other = await visit(`/w/${widget.id}/messages`, { body: 'mine?', files: [{ hash: own, sig: 'made-up' }] }, opened.json.session);
+    assert.deepEqual(other.json.message.files, []);
+  });
+});
+
+describe('a conversation nobody wrote in', () => {
+  it('stays out of the team\'s devices, and is pruned once no session can open it', async () => {
+    resetRateLimits();
+    const anonymous = await ok(`/api/workspaces/${workspaceId}/widgets`, {
+      project_id: projectId, name: 'Quiet', identity: 'anonymous', origins: ['example.com'],
+    });
+    const silent = (await visit(`/w/${anonymous.id}/session`, { name: 'Kai' })).json.conversation.id;
+    const spoken = await visit(`/w/${anonymous.id}/session`, { name: 'Lea' });
+    await visit(`/w/${anonymous.id}/messages`, { body: 'hello' }, spoken.json.session);
+
+    const pulled = (await ok(`/api/sync/pull?workspace=${workspaceId}&since=0`)).changes.conversation ?? [];
+    assert.equal(pulled.some((row: any) => row.id === silent), false, 'not in the inbox');
+    assert.equal(pulled.some((row: any) => row.id === spoken.json.conversation.id), true);
+
+    const longAgo = Date.now() - 32 * 86_400_000;
+    run(`UPDATE conversations SET created_at = ? WHERE id IN (?, ?)`, longAgo, silent, spoken.json.conversation.id);
+    assert.ok(pruneEmptyConversations() >= 1);
+    assert.equal(get(`SELECT id FROM conversations WHERE id = ?`, silent), undefined);
+    assert.ok(get(`SELECT id FROM purges WHERE entity = 'conversation' AND row_id = ?`, silent), 'a device that has it drops it');
+    assert.ok(get(`SELECT id FROM conversations WHERE id = ?`, spoken.json.conversation.id), 'one somebody wrote in stays');
+  });
+});
+
+describe('who a conversation reaches', () => {
+  let linId = '';
+  let hidden: any;
+  let conversationId = '';
+  let session = '';
+
+  before(async () => {
+    resetRateLimits();
+    const lin = await fetch(`${base}/api/auth/register`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'lin@example.com', name: 'Lin', password: 'correct horse battery' }),
+    });
+    linId = ((await lin.json()) as any).user.id;
+    run(
+      `INSERT INTO workspace_members (id, workspace_id, user_id, role, created_at, updated_at, seq, clocks)
+       VALUES (?, ?, ?, 'member', ?, ?, 0, '{}')`,
+      `wm-${linId}`, workspaceId, linId, Date.now(), Date.now(),
+    );
+    const secretProject = (await ok(`/api/workspaces/${workspaceId}/projects`, { name: 'Inner', key: 'INN', visibility: 'private' })).id;
+    hidden = await ok(`/api/workspaces/${workspaceId}/widgets`, {
+      project_id: secretProject, name: 'Inner', identity: 'anonymous', origins: ['example.com'],
+    });
+    const opened = await visit(`/w/${hidden.id}/session`, { name: 'Nia' });
+    session = opened.json.session;
+    conversationId = opened.json.conversation.id;
+  });
+
+  it('is not given to somebody who cannot see its project', async () => {
+    await assert.rejects(
+      ok(`/api/conversations/${conversationId}`, { assignee_id: linId }, 'PATCH'),
+      /cannot see this conversation's project/,
+    );
+  });
+
+  it('finds somebody when the person it was given to can no longer see it', async () => {
+    // As if Lin had been taken off the project after being given it.
+    run(`UPDATE conversations SET assignee_id = ? WHERE id = ?`, linId, conversationId);
+    const before = all(`SELECT * FROM notifications WHERE kind = 'support'`).length;
+    await visit(`/w/${hidden.id}/messages`, { body: 'anybody there?' }, session);
+    const told = all<any>(`SELECT * FROM notifications WHERE kind = 'support'`).slice(before);
+    assert.equal(told.length, 1, 'an owner hears it rather than nobody');
+    assert.equal(told[0].conversation_id, conversationId);
+  });
+
+  it('opens the conversation it is about, not the project\'s board', async () => {
+    const latest = await ok('/api/notifications/latest');
+    assert.equal(latest.url, `/support/${conversationId}`);
+  });
+});
+

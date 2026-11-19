@@ -14,7 +14,7 @@
  * to prevent.
  */
 
-import { canManageMembers, directMembers, normaliseChannelName } from '@kolibri/shared';
+import { CHAT_MESSAGE_MAX, canManageMembers, directMembers, normaliseChannelName } from '@kolibri/shared';
 import { get, type Row } from '../../../kernel/platform/db/index.ts';
 import { badRequest, forbidden } from '../../../kernel/platform/http.ts';
 import {
@@ -132,7 +132,18 @@ function guardChannelWrite(id: string, values: Record<string, unknown>, existing
     }
     return;
   }
-  if (!canSeeChannel(opts.actorId, id)) throw forbidden('You are not in that conversation');
+  /*
+   * Coming back from the trash. The write path turns this into `deleted_at:
+   * null`, and the visibility question below found no channel at all for a
+   * deleted one — so "both are undoable from the trash" was true of nobody:
+   * the restore was refused as "you are not in that conversation", measured.
+   * Asked of the channel as it was, and put back by whoever may delete it.
+   */
+  const restoring = !!existing.deleted_at && values.deleted_at === null;
+  if (!canSeeChannel(opts.actorId, id, { deleted: restoring })) throw forbidden('You are not in that conversation');
+  if (restoring && !ownsChannel(existing, opts.actorId)) {
+    throw forbidden('Only the person who opened this conversation, or an admin, can change that');
+  }
 
   /*
    * What a room is, and whether it stands, is its owner's to change: whoever
@@ -320,6 +331,14 @@ export const chatRules = {
   invariants(entity, id, values, existing, forced, opts) {
     if (entity === 'channel') applyChannelInvariants(id, values, existing, forced);
     if (entity === 'message' && existing) settleAuthored('message', values, existing, forced, opts, MESSAGE_FIXED);
+    // Cut rather than refused, as a support line is: the sender's device is
+    // told the stored text (`forced`), and a message lost to a 400 in the
+    // outbox is worse than one shown shorter. Not an import, whose author
+    // decided what to bring and was matched to it already.
+    if (entity === 'message' && !opts.system && typeof values.body === 'string' && values.body.length > CHAT_MESSAGE_MAX) {
+      values.body = values.body.slice(0, CHAT_MESSAGE_MAX);
+      forced.body = values.body;
+    }
     if (entity === 'message' || entity === 'channelRead') followChannelWorkspace(values, existing);
   },
   effects(entity, row, before, changed, opts) {

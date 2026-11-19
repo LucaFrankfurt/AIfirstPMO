@@ -2369,6 +2369,11 @@ export interface Notification extends Base {
   decision_id: ID | null;
   /** The meeting, when somebody was made responsible for a point on it. */
   meeting_id: ID | null;
+  /**
+   * The support conversation, when a visitor wrote through a widget. Missing,
+   * not null, on rows a device synced before it existed — read defensively.
+   */
+  conversation_id?: ID | null;
   actor_id: ID | null;
   read_at: number | null;
   archived_at: number | null;

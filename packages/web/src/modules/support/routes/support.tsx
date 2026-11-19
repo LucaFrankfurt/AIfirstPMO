@@ -59,7 +59,9 @@ export function SupportInbox() {
   const widgetName = useMemo(() => new Map(widgets.map((widget) => [widget.id, widget.name])), [widgets]);
   const terms = useMemo(() => parseTerms(hunt), [hunt]);
   const conversations = useQuery(
-    () => list('conversation', (row) => row.status === filter && (!widgetId || row.widget_id === widgetId)
+    // `last_message_at` first: the server no longer sends a conversation nobody
+    // wrote in, but a device that pulled some before that still holds them.
+    () => list('conversation', (row) => !!row.last_message_at && row.status === filter && (!widgetId || row.widget_id === widgetId)
       // Who it is and where they wrote from: what somebody types to find a conversation.
       && (!terms.length || matchesTerms(`${visitorLabel(row)} ${row.visitor_email ?? ''} ${widgetName.get(row.widget_id) ?? ''}`, terms)))
       .sort((a, b) => (b.last_message_at ?? b.created_at) - (a.last_message_at ?? a.created_at)),

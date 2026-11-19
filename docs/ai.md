@@ -151,7 +151,7 @@ Defaults per provider:
 
 | `KOLIBRI_AI_PROVIDER` | Default model | Endpoint |
 |---|---|---|
-| `anthropic` | `claude-opus-5` | `POST /v1/messages` |
+| `anthropic` | `claude-opus-5-5` | `POST /v1/messages` |
 | `gemini` | `gemini-2.5-flash` | `POST /v1beta/models/{model}:generateContent` |
 | `openrouter` | `anthropic/claude-opus-4.5` | `POST /v1/chat/completions` |
 
@@ -168,7 +168,20 @@ answering second, so a ceiling sized for the answer alone is spent before the an
 what comes back is an empty response, or half a JSON object that reads downstream as a model talking
 nonsense. So the Gemini adapter adds its room to think on top of the room to answer, and all three
 adapters say *ran out of tokens* when that is what happened rather than blaming the model for the
-truncation. Unused room is not billed.
+truncation. Unused room is not billed. The support assistant's ceiling is sized that way too: at 700
+tokens a model that thought first was cut off, and a question the pages answered went to a person.
+
+**A declined request is passed on, not lost.** On a model that takes it — the current Fable, Opus
+and Sonnet, named in `ai-anthropic.ts` rather than guessed from a prefix — the Anthropic adapter asks
+for the API's own fallback (`fallbacks: 'default'`, beta `server-side-fallback-2026-07-01`): a request
+a safety classifier declines is answered by a model suited to it, inside the same call, at that
+model's rates. Any other model is sent neither, because it would refuse the field.
+
+**What every call shares is offered for caching.** A caller may say how much of the start of its
+prompt is the same every time (`cachePrefix`); the Anthropic adapter sends that part as a block of
+its own marked for caching. The support assistant marks its knowledge pages, so from a widget's
+second visitor on they are read at the cached rate. A prefix below the provider's minimum is simply
+not cached.
 
 `thinkingLevel` is a Gemini 3 field and sending it to 2.5 is an error, so the major version is read
 out of the model name. A name that is not a recognisable `gemini-N` — your own gateway, named

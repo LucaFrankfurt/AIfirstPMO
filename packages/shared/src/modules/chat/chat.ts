@@ -80,6 +80,17 @@ export function directMembers(id: string): [string, string] | null {
  */
 export const MAX_DIRECT_MEMBERS = 2;
 
+/**
+ * The longest a chat message may be, in characters.
+ *
+ * Room for a pasted log or a long write-up — five times what a support line
+ * may hold — and not for a novel. There was no limit at all: one message of
+ * nine hundred thousand characters went through (measured), into every
+ * device's mirror of the room and into search, where every member would carry
+ * it for ever. A longer text is a page, and a page can be linked from here.
+ */
+export const CHAT_MESSAGE_MAX = 20_000;
+
 export interface ChannelLike {
   id: string;
   kind: string;

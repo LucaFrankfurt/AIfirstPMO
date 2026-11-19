@@ -1669,6 +1669,10 @@ CREATE TABLE IF NOT EXISTS notifications (
   -- ...or about a meeting: somebody was made responsible for a point on it.
   -- Read before `project_id` for the reason `decision_id` is.
   meeting_id   TEXT,
+  -- ...or about a support conversation: a visitor wrote through a widget.
+  -- Read before `project_id` too: the widget's project is a board, and the
+  -- person was asked to answer somebody, not to look at one.
+  conversation_id TEXT,
   actor_id     TEXT,
   read_at      INTEGER,
   archived_at  INTEGER,
@@ -2318,3 +2322,17 @@ CREATE TABLE IF NOT EXISTS conversation_messages (
 );
 CREATE INDEX IF NOT EXISTS conversation_messages_seq ON conversation_messages (workspace_id, seq);
 CREATE INDEX IF NOT EXISTS conversation_messages_thread ON conversation_messages (conversation_id, created_at);
+
+-- How many times a widget's model was asked today, server time. The widget's
+-- `assistant_budget` is a ceiling on this, and it counts the asking rather than
+-- the answers: a call that ends in a silent hand-over costs the operator's key
+-- as much as one that answers, and counting answers let those through for free.
+-- Reserved before the call goes out, so six visitors at once cannot all fit
+-- under a budget of two. Server-only; never synced.
+CREATE TABLE IF NOT EXISTS assistant_calls (
+  widget_id TEXT NOT NULL,
+  -- YYYY-MM-DD in the server's own time zone, which is what "a day" means here.
+  day       TEXT NOT NULL,
+  calls     INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (widget_id, day)
+);

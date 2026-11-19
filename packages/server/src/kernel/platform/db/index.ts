@@ -221,6 +221,11 @@ for (const [table, column, definition] of [
   ['pages', 'settled_version_id', 'TEXT'],
   ['pages', 'settled_drift', 'INTEGER NOT NULL DEFAULT 0'],
   ['labels', 'applies_to', `TEXT NOT NULL DEFAULT 'all'`],
+  // The support conversation a notification is about, so pressing it opens
+  // that conversation rather than the widget's project board. A notification
+  // is written once and never edited, so an old row simply has none and opens
+  // the inbox, as every support notification did before.
+  ['notifications', 'conversation_id', 'TEXT'],
   // Server-side only, like the table: never synced, so no device holds old rows.
   ['page_versions', 'name', 'TEXT'],
   ['page_versions', 'note', 'TEXT'],

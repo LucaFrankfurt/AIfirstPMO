@@ -1,10 +1,10 @@
 /**
  * The half of "live and asynchronous" that is not live.
  *
- * When a member answers and the visitor has gone, the answer follows them by
- * email — after a few minutes, and only if they have not read it in the window
- * by then. Reading it withdraws the email, so a visitor who is still there is
- * never sent a copy of what is on their screen.
+ * When a member — or the widget's model — answers and the visitor has gone,
+ * the answer follows them by email — after a few minutes, and only if they
+ * have not read it in the window by then. Reading it withdraws the email, so
+ * a visitor who is still there is never sent a copy of what is on their screen.
  *
  * One pending email per conversation: three quick answers are one email about
  * the first, not three. Once that one has gone out, the next answer may queue
@@ -30,7 +30,7 @@ import { displayName, onCommitted } from '../../kernel/write-path/repo.ts';
 import { onMailArrival } from '../../modules/mail/poll.ts';
 import type { FetchedMessage } from '../../modules/mail/store.ts';
 import { liveWidget, postVisitorMessage } from '../../modules/support/support.ts';
-import { respondTo } from '../../modules/support/assistant.ts';
+import { onAnswered, respondTo } from '../../modules/support/assistant.ts';
 import { queueMail } from '../mail/mail.ts';
 
 /** Long enough that somebody still in the window reads it there first. */
@@ -46,9 +46,24 @@ export const replyTag = (conversationId: string): string => `[#${conversationId.
 const TAG = /\[#([0-9a-f]{8})-([0-9a-f]{6})\]/i;
 
 function queueReply(entity: string, row: Row, before: Row | undefined): void {
-  if (entity !== 'conversationMessage' || before || row.deleted_at || row.author !== 'agent') return;
+  if (entity !== 'conversationMessage' || before || row.deleted_at) return;
+  if (row.author !== 'agent' && row.author !== 'bot') return;
   const conversation = get<Row>(`SELECT * FROM conversations WHERE id = ? AND deleted_at IS NULL`, row.conversation_id);
   if (!conversation?.visitor_email) return;
+  /*
+   * The model's answer follows a visitor who left, as a person's does: one who
+   * closed the tab before it came found it only by coming back, and nobody on
+   * the team had been told there was anything to follow up. It arrives through
+   * `onAnswered`, because the model's line is a system write and reaches no
+   * `onCommitted` listener.
+   *
+   * Not its "a person will reply here" line, which `onAnswered` never passes
+   * on — and which, written after the hand-over (see `answerFirst`), is a bot
+   * line in a conversation already handed over: refused here as well. An
+   * email about it would be the one pending email, holding the place of the
+   * person's actual reply.
+   */
+  if (row.author === 'bot' && conversation.handover_at) return;
   if (conversation.pending_mail && get(
     `SELECT 1 FROM email_queue WHERE id = ? AND sent_at IS NULL`, conversation.pending_mail,
   )) return;
@@ -65,7 +80,9 @@ function queueReply(entity: string, row: Row, before: Row | undefined): void {
     replyTo,
     subject: `${translate(locale, 'mail.supportSubject', { widget: name })}${replyTo ? ` ${replyTag(String(conversation.id))}` : ''}`,
     text: [
-      translate(locale, 'mail.supportBody', { agent: displayName(String(row.author_id ?? '')) }),
+      translate(locale, 'mail.supportBody', {
+        agent: row.author === 'bot' ? translate(locale, 'support.assistant') : displayName(String(row.author_id ?? '')),
+      }),
       '',
       String(row.body ?? ''),
       '',
@@ -135,5 +152,6 @@ export function takeReply(workspaceId: string, message: Pick<FetchedMessage, 'su
 
 export function installSupportMail(): void {
   onCommitted((entity, row, before) => queueReply(entity, row, before));
+  onAnswered((conversation, line) => queueReply('conversationMessage', line, undefined));
   onMailArrival((workspaceId, message) => { takeReply(workspaceId, message); });
 }

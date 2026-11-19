@@ -6,7 +6,8 @@
  * conversation, which creates and numbers one; and "typing", which is not
  * stored at all.
  */
-import { get, run, type Row } from '../../../kernel/platform/db/index.ts';
+import { currentSeq, get, run, type Row } from '../../../kernel/platform/db/index.ts';
+import { publish } from '../../../kernel/platform/bus.ts';
 import { HttpError, forbidden, notFound, readJson, type Ctx, type Router } from '../../../kernel/platform/http.ts';
 import { token } from '../../../kernel/platform/ids.ts';
 import { requireAuth, requireWorkspace } from '../../../kernel/identity/auth.ts';
@@ -70,6 +71,11 @@ export function registerSupportRoutes(router: Router): void {
     // A plain UPDATE: the column is `secret` in the registry, which is what
     // keeps it out of every write a client can make — this route's included.
     run(`UPDATE widgets SET secret = ? WHERE id = ?`, sealWidgetSecret(secret), widget.id);
+    // Said on the bus, though no row a device holds has moved: a visitor's
+    // stream asks again at every change whether its session still holds, and
+    // without a change to hear it would go on delivering under the old key
+    // until something else in the workspace happened to be written.
+    publish({ workspaceId: String(widget.workspace_id), seq: currentSeq(), kind: 'widget' });
     return { secret };
   });
 
