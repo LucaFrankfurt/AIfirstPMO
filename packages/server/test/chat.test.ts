@@ -734,6 +734,10 @@ describe('who may change what a channel is', () => {
 describe('a channel in the trash', () => {
   /** What the trash screen does: a sync push clearing `deleted_at`. */
   const restore = async (who: Person, channel: string) => {
+    // A stamp newer than the delete's. One from the same millisecond can lose
+    // the tie-break, and a stale write is dropped before any guard is asked —
+    // the channel stays deleted either way, but nothing would be refused.
+    await new Promise((done) => setTimeout(done, 5));
     const clock = new Clock(`device-${who.id}`);
     return as(who, '/api/sync/push', {
       workspaceId, clientId: `device-${who.id}`,

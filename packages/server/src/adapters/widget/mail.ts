@@ -64,6 +64,16 @@ function queueReply(entity: string, row: Row, before: Row | undefined): void {
    * person's actual reply.
    */
   if (row.author === 'bot' && conversation.handover_at) return;
+  /*
+   * And only to an address somebody vouched for. On an anonymous widget the
+   * address is whatever was typed into the form, and with the model answering
+   * no person stands between a stranger and the outbox: open a session as
+   * `anyone@example.org`, ask one question, and an email goes to them, its
+   * words steered by the question. Measured. A member's answer still goes to
+   * a typed address — a person chose to write it — and a signed visitor's
+   * address is their own site's word.
+   */
+  if (row.author === 'bot' && !Number(conversation.verified)) return;
   if (conversation.pending_mail && get(
     `SELECT 1 FROM email_queue WHERE id = ? AND sent_at IS NULL`, conversation.pending_mail,
   )) return;

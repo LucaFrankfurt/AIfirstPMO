@@ -76,14 +76,18 @@ browser refuses third-party storage the window still works and simply forgets th
 **A session holds only while the widget does.** It is signed once and checked against the widget as
 it is *now* on every request, and on the stream at every change: a widget switched off, or switched
 to signed-in visitors under an anonymous session, or its key rotated under a signed one, ends it —
-the window is sent `end` and asks again, as a new visitor would. Each was measured to carry on
-before.
+the window is sent `end` and asks again, as a new visitor would. A widget switched off sends
+`closed` instead, and the window keeps its session for when the widget is back. Each was measured to
+carry on before. Sessions made before this check existed name no key, so every signed visitor signs
+in again once after the upgrade — the window does it by itself, asking the host page for a token.
 
 **A conversation is one once somebody writes in it.** A session opens a conversation before a word
 is said — a signed widget's on the first click of the launcher — so one that nobody ever wrote in is
-kept off the team's devices, out of the inbox and out of `list_conversations`, and is removed by the
-hourly sweep once no session could still open it, with a `purge` marker so a device that had one
-drops it.
+kept off the team's devices, out of the inbox and out of `list_conversations` (the generic REST
+listing still returns it, as it returns any row), and is removed by the hourly sweep once no session
+could still open it, with a `purge` marker so a device that had one drops it. An empty one older
+than a week is never handed out again, and the visitor's list of earlier chats leaves empty ones out,
+so the sweep cannot take one from under a session.
 
 **What a visitor attaches is a picture they uploaded into this conversation.** The upload route
 signs each one for the conversation (`fileSignature`), and a message takes a picture only with that
@@ -123,8 +127,10 @@ notification — in the app, on Telegram, in a push or a digest — opens the co
 
 **When nobody answers live, email does — both ways.** An answer the visitor has not read within five
 minutes is emailed to the address they have, through the ordinary mail queue — a member's, or the
-model's (`onAnswered`, since the model's line is a system write and reaches no write listener), but
-never the model's "a person will reply here", which would hold the place of that person's reply.
+model's (`onAnswered`, since the model's line is a system write and reaches no write listener). The
+model's only to a **signed-in** visitor: an anonymous visitor's address is whatever was typed, and
+with no person in between that made the server write to any address a stranger chose. And never
+the model's "a person will reply here", which would hold the place of that person's reply.
 Reading it in the window first withdraws the email. One pending email per conversation.
 
 When the widget names a **reply address** — an inbox the workspace has connected under Mail — the
@@ -246,8 +252,8 @@ ones in the public knowledge base** — never the workspace's search, never a pr
 task — and about the visitor **only what the host's signed token said** (below); it has no tools and writes one line of text
 as itself; it is asked for JSON and argued with (`parseAnswer`), so a source it names that is not one
 of the pages is dropped and an answer it cannot shape is a hand-over; and the conversation is given
-to it as data — fenced as the customer data is, one JSON object a line with who wrote it in a field
-of its own, so a visitor's own line breaks cannot write a line "from the team" — with the rule that
+to it as data — fenced as the customer data is, as one JSON object whose lines each say who wrote
+them in a field of their own, so a visitor's own line breaks cannot write a line "from the team" — with the rule that
 instructions inside it change nothing. The pages come first and are offered to the provider for
 caching (`cachePrefix`); everything about the visitor comes after them. Measured with a fake model
 in `support-assistant.test.ts`, including that a private page ticked as knowledge is never sent.

@@ -660,6 +660,14 @@ describe('deleting a conversation, and emptying the trash', () => {
     assert.equal(liveLines(conversation), before, 'restored from the trash, with what was deleted with it');
   });
 
+  it('takes the notifications about it when the trash is emptied, which would open on nothing', async () => {
+    const { conversation } = await visitorWithPicture('trash-notified', await picture(3));
+    assert.ok(all(`SELECT id FROM notifications WHERE conversation_id = ?`, conversation).length > 0, 'the team was told');
+    await ok(`/api/conversations/${conversation}`, undefined, 'DELETE');
+    await ok(`/api/workspaces/${workspaceId}/trash/empty`, {});
+    assert.equal(all(`SELECT id FROM notifications WHERE conversation_id = ?`, conversation).length, 0);
+  });
+
   it('leaves nothing of a stranger behind once the trash is emptied — not the lines, not the picture', async () => {
     const { conversation, hash } = await visitorWithPicture('trash-2', await picture(2));
     const lines = all<any>(`SELECT id FROM conversation_messages WHERE conversation_id = ?`, conversation).map((row) => row.id);
@@ -794,6 +802,18 @@ describe('a conversation nobody wrote in', () => {
     assert.equal(get(`SELECT id FROM conversations WHERE id = ?`, silent), undefined);
     assert.ok(get(`SELECT id FROM purges WHERE entity = 'conversation' AND row_id = ?`, silent), 'a device that has it drops it');
     assert.ok(get(`SELECT id FROM conversations WHERE id = ?`, spoken.json.conversation.id), 'one somebody wrote in stays');
+  });
+
+  it('is not handed out again once it is old enough to be pruned under the session', async () => {
+    resetRateLimits();
+    const token = () => hostToken(secret, { sub: 'merchant-returning', exp: inAnHour() });
+    const first = (await visit(`/w/${widget.id}/session`, { token: token() })).json.conversation.id;
+    assert.equal((await visit(`/w/${widget.id}/session`, { token: token() })).json.conversation.id, first, 'a fresh one is reused');
+    run(`UPDATE conversations SET created_at = ? WHERE id = ?`, Date.now() - 30 * 86_400_000, first);
+    const later = (await visit(`/w/${widget.id}/session`, { token: token() })).json;
+    assert.notEqual(later.conversation.id, first, 'a month-old empty one is left for the sweep');
+    const listed = (await visit(`/w/${widget.id}/conversations`, undefined, later.session)).json.conversations;
+    assert.deepEqual(listed.map((chat: any) => chat.id), [later.conversation.id], 'and is not offered as an earlier chat');
   });
 });
 

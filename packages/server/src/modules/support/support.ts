@@ -145,6 +145,20 @@ function openConversation(widget: Row, visitor: Visitor): Row {
 }
 
 /**
+ * How old an empty conversation may be and still be handed out again.
+ *
+ * Well inside `EMPTY_KEPT_MS`, and that margin is the point: a session is
+ * handed out on a conversation and lasts at most thirty days, and an empty
+ * conversation is pruned at thirty-one. Handing out one already a month old
+ * would let the sweep delete it under a session still open on it — the
+ * visitor's next line refused, measured by reading the two together.
+ */
+const REUSE_EMPTY_MS = 7 * 86_400_000;
+
+const hasLines = (conversationId: unknown): boolean =>
+  !!get(`SELECT 1 FROM conversation_messages WHERE conversation_id = ? LIMIT 1`, conversationId);
+
+/**
  * The visitor's newest conversation with this widget, opened if there is none.
  *
  * Newest, not open: a visitor whose chat the team resolved comes back to it,
@@ -160,7 +174,10 @@ export function conversationFor(widget: Row, visitor: Visitor): Row {
       ORDER BY created_at DESC LIMIT 1`,
     widget.id, visitor.id,
   );
-  if (!found) return openConversation(widget, visitor);
+  // An old empty one is left for the sweep, not handed out again: see `REUSE_EMPTY_MS`.
+  if (!found || (Number(found.created_at) < Date.now() - REUSE_EMPTY_MS && !hasLines(found.id))) {
+    return openConversation(widget, visitor);
+  }
   const patch: Record<string, unknown> = {};
   if (visitor.verified && visitor.name !== found.visitor_name) patch.visitor_name = visitor.name;
   if (visitor.verified && visitor.email !== found.visitor_email) patch.visitor_email = visitor.email;
@@ -181,9 +198,10 @@ export function newConversation(widget: Row, from: Row): Row {
   const empty = get<Row>(
     `SELECT * FROM conversations c
       WHERE c.widget_id = ? AND c.visitor_id = ? AND c.id <> ? AND c.status = 'open' AND c.deleted_at IS NULL
+        AND c.created_at >= ?
         AND NOT EXISTS (SELECT 1 FROM conversation_messages m WHERE m.conversation_id = c.id)
       ORDER BY c.created_at DESC LIMIT 1`,
-    widget.id, from.visitor_id, from.id,
+    widget.id, from.visitor_id, from.id, Date.now() - REUSE_EMPTY_MS,
   );
   if (empty) return empty;
   return openConversation(widget, {
@@ -207,7 +225,8 @@ function storedContext(conversation: Row): Record<string, string | number | bool
 
 /**
  * How long a conversation nobody wrote in is kept: past the longest session a
- * visitor can hold, so nobody is still looking at one when it goes.
+ * visitor can hold, so nobody is still looking at one when it goes — which
+ * holds because none older than `REUSE_EMPTY_MS` is ever handed out again.
  */
 const EMPTY_KEPT_MS = 31 * 86_400_000;
 
@@ -243,18 +262,27 @@ export function pruneEmptyConversations(now = Date.now()): number {
   return doomed.length;
 }
 
-/** The visitor's chats with this widget, newest first: what the window lists as earlier chats. */
+/**
+ * The visitor's chats with this widget, newest first: what the window lists as
+ * earlier chats. An empty one other than the chat they are in has nothing to
+ * go back to, and an old one could be pruned under the session that opened it.
+ */
 export const conversationsOfVisitor = (conversation: Row, limit = 20): Row[] =>
   all<Row>(
-    `SELECT * FROM conversations WHERE widget_id = ? AND visitor_id = ? AND deleted_at IS NULL
+    `SELECT * FROM conversations c WHERE widget_id = ? AND visitor_id = ? AND deleted_at IS NULL
+        AND (c.id = ? OR EXISTS (SELECT 1 FROM conversation_messages m WHERE m.conversation_id = c.id))
       ORDER BY created_at DESC LIMIT ?`,
-    conversation.widget_id, conversation.visitor_id, limit,
+    conversation.widget_id, conversation.visitor_id, conversation.id, limit,
   );
 
-/** One of the visitor's own chats with this widget, by id: never somebody else's, never a deleted one. */
+/**
+ * One of the visitor's own chats with this widget, by id: never somebody
+ * else's, never a deleted one, and — as the list above — never an empty one.
+ */
 export const visitorsOwn = (conversation: Row, id: string): Row | undefined =>
   get<Row>(
-    `SELECT * FROM conversations WHERE id = ? AND widget_id = ? AND visitor_id = ? AND deleted_at IS NULL`,
+    `SELECT * FROM conversations c WHERE id = ? AND widget_id = ? AND visitor_id = ? AND deleted_at IS NULL
+        AND EXISTS (SELECT 1 FROM conversation_messages m WHERE m.conversation_id = c.id)`,
     id, conversation.widget_id, conversation.visitor_id,
   );
 

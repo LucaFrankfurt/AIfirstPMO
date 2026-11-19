@@ -170,12 +170,16 @@ nonsense. So the Gemini adapter adds its room to think on top of the room to ans
 adapters say *ran out of tokens* when that is what happened rather than blaming the model for the
 truncation. Unused room is not billed. The support assistant's ceiling is sized that way too: at 700
 tokens a model that thought first was cut off, and a question the pages answered went to a person.
+It is given at least a minute as well, whatever `KOLIBRI_AI_TIMEOUT_MS` says, because a reply cut
+off by the clock is the same hand-over.
 
 **A declined request is passed on, not lost.** On a model that takes it — the current Fable, Opus
 and Sonnet, named in `ai-anthropic.ts` rather than guessed from a prefix — the Anthropic adapter asks
 for the API's own fallback (`fallbacks: 'default'`, beta `server-side-fallback-2026-07-01`): a request
 a safety classifier declines is answered by a model suited to it, inside the same call, at that
-model's rates. Any other model is sent neither, because it would refuse the field.
+model's rates. Any other model is sent neither, because it would refuse the field. A gateway behind
+`KOLIBRI_AI_BASE_URL` that refuses fields or betas it does not know would refuse every call to those
+models; naming a model outside the list in `KOLIBRI_AI_MODEL` turns it off.
 
 **What every call shares is offered for caching.** A caller may say how much of the start of its
 prompt is the same every time (`cachePrefix`); the Anthropic adapter sends that part as a block of

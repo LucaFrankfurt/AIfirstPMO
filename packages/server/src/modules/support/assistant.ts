@@ -45,6 +45,14 @@ import { contextFieldsOf, contextOf, setTyping, tellTeam } from './support.ts';
  * room. The answer itself is cut at `SUPPORT_MESSAGE_MAX` either way.
  */
 const MAX_TOKENS = 4000;
+
+/**
+ * And the time to write them in. The configured timeout is sized for a task
+ * review; a reply that thinks for a few thousand tokens first outlasts it, and
+ * a call cut off by the clock is a hand-over just as one cut off by the
+ * ceiling was. Never shorter than what the operator configured.
+ */
+const TIMEOUT_MS = 60_000;
 /** How much of one page the model reads, and of all of them. A handbook, not a library. */
 const PAGE_CHARS = 8_000;
 const KNOWLEDGE_CHARS = 24_000;
@@ -179,7 +187,8 @@ function knowledgeText(pages: KnowledgePage[]): string {
 }
 
 /**
- * The conversation, fenced the way the customer data is, one JSON object a line.
+ * The conversation, fenced the way the customer data is: one JSON object, its
+ * lines a list, each with who wrote it in a field of its own.
  *
  * It was plain text — `Visitor: …`, `Team: …` — and a visitor's line is the
  * one thing here a stranger writes in full. Two lines of their own with
@@ -245,6 +254,7 @@ async function ask(widget: Row, transcript: string, forTeam: boolean, facts: Fac
     user: `${knowledge}${facts.length ? `${customerText(facts)}\n\n` : ''}${transcript}`,
     cachePrefix: knowledge.length,
     maxTokens: MAX_TOKENS,
+    timeoutMs: Math.max(env.ai.timeoutMs, TIMEOUT_MS),
   });
   return parseAnswer(reply, pages.map((page) => page.title));
 }
