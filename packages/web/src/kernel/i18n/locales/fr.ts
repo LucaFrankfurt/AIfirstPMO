@@ -3691,7 +3691,7 @@ export const fr: Catalogue = {
   'widgets.customerFields': 'Ce qu’il peut savoir d’un visiteur connecté',
   'widgets.customerFieldsHint': 'Les informations que votre site place dans le claim ctx du jeton, une par ligne sous la forme key: Libellé, p. ex. plan: Offre. Le reste du claim est ignoré.',
   'widgets.budget': 'Réponses par jour',
-  'widgets.budgetHint': 'Au-delà, chaque conversation va à une personne. Cela limite ce qu’un inconnu peut dépenser de la clé du serveur.',
+  'widgets.budgetHint': 'Combien de fois par jour le modèle peut être sollicité, transferts compris. Au-delà, chaque conversation va à une personne. Cela limite ce qu’un inconnu peut dépenser de la clé du serveur.',
   'support.suggest': 'Proposer une réponse',
   'support.suggestNothing': 'Les pages de connaissance n’en disent rien.',
   'support.assistantLabel': 'Assistant IA',

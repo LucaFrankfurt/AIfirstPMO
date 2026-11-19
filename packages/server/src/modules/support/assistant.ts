@@ -432,13 +432,21 @@ export function respondTo(conversation: Row, message: Row): void {
     const slot = { again: false };
     answeringNow.set(id, slot);
     const work = (async () => {
+      let first = true;
       do {
         slot.again = false;
         // Read afresh each round: a person may have taken it, or the widget
         // been switched off, while the last answer was being written.
         const latest = get<Row>(`SELECT * FROM widgets WHERE id = ?`, current.widget_id);
         const now = get<Row>(`SELECT * FROM conversations WHERE id = ?`, id);
-        if (!latest || !now || !answering(latest, now)) break;
+        if (!latest || !now || !answering(latest, now)) {
+          // A line held back for this round, which the model will now not
+          // answer, goes to the team the way it would have without the
+          // model — or it reached nobody at all.
+          if (!first && latest && now && !now.deleted_at) tellAboutNewest(latest, now);
+          break;
+        }
+        first = false;
         await answerFirst(latest, now);
       } while (slot.again);
     })().catch((error) => {
@@ -450,6 +458,16 @@ export function respondTo(conversation: Row, message: Row): void {
   } catch (error) {
     console.error('[support] could not tell the team about a message', error);
   }
+}
+
+/** The team hears about the visitor's newest line, by the ordinary once-a-burst rule. */
+function tellAboutNewest(widget: Row, conversation: Row): void {
+  const newest = get<Row>(
+    `SELECT * FROM conversation_messages WHERE conversation_id = ? AND author = 'visitor' AND deleted_at IS NULL
+      ORDER BY created_at DESC, rowid DESC LIMIT 1`,
+    conversation.id,
+  );
+  if (newest) tellTeam(widget, conversation, newest);
 }
 
 async function answerFirst(widget: Row, conversation: Row): Promise<void> {

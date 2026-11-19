@@ -3697,7 +3697,7 @@ export const de: Catalogue = {
   'widgets.customerFields': 'Was er über angemeldete Besucher wissen darf',
   'widgets.customerFieldsHint': 'Angaben, die deine Seite im ctx-Claim des Tokens mitschickt, eine pro Zeile als key: Bezeichnung, z. B. plan: Tarif. Alles andere im Claim wird verworfen.',
   'widgets.budget': 'Antworten pro Tag',
-  'widgets.budgetHint': 'Danach geht jede Unterhaltung an einen Menschen. Das begrenzt, was ein Fremder vom Key des Servers verbrauchen kann.',
+  'widgets.budgetHint': 'Wie oft das Modell am Tag gefragt werden darf, Übergaben eingeschlossen. Danach geht jede Unterhaltung an einen Menschen. Das begrenzt, was ein Fremder vom Key des Servers verbrauchen kann.',
   'support.suggest': 'Antwort vorschlagen',
   'support.suggestNothing': 'Die Wissensseiten sagen dazu nichts.',
   'support.assistantLabel': 'KI-Assistent',

@@ -345,6 +345,7 @@ export const supportTools: ToolDef[] = [
       'The chat widgets on your websites: who may write in, on which sites, whether the model answers '
       + `(\`assistant\`: off, suggest or answer), and the knowledge pages it reads. ${KNOWLEDGE_RULES} `
       + '`model_ready` is false while no model is configured on the server or AI assistance is off for the workspace. '
+      + '`answers_today` counts the times the model was asked today, a hand-over included, against `answers_a_day`. '
       + '`customer_fields` are the facts a signed-in visitor\'s token may carry in its `ctx` claim for the model.',
     readOnly: true,
     schema: { type: 'object', properties: { workspace_id: { type: 'string' } } },
@@ -361,7 +362,7 @@ export const supportTools: ToolDef[] = [
     title: 'Set up a widget\'s assistant',
     description:
       'Rename a widget, change its greeting, switch its model (`off`, `suggest` drafts replies for the team, '
-      + '`answer` answers visitors first and hands over when unsure), set how many answers a day it may give, '
+      + '`answer` answers visitors first and hands over when unsure), set how many times a day the model may be asked (a hand-over counts), '
       + 'or replace the pages it reads. `knowledge` is the whole list, in the order to read them — page ids or '
       + 'exact titles, at most 20 — and every page must be marked as public knowledge first (`update_page` '
       + 'with `public_knowledge: true`). The name is what the model calls the business, and the window\'s '
@@ -377,7 +378,7 @@ export const supportTools: ToolDef[] = [
         greeting: { type: 'string', description: 'The first line a visitor reads; "" for none' },
         assistant: { type: 'string', enum: [...WIDGET_ASSISTANTS] },
         knowledge: { type: 'array', items: { type: 'string' }, description: 'Page ids or exact titles, in order' },
-        answers_a_day: { type: 'number', description: 'Past it, every conversation goes to a person' },
+        answers_a_day: { type: 'number', description: 'Calls to the model a day, hand-overs included; past it, every conversation goes to a person' },
         customer_fields: {
           type: 'array',
           description: 'The whole list; [] for none',

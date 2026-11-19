@@ -491,6 +491,26 @@ describe('a busy conversation', () => {
     }
   });
 
+  it('tells the team about a line held back for the model, when the model then does not answer it', async () => {
+    reply = () => '{"answer":"Hello!","sources":[],"handover":false}';
+    thinking = 150;
+    try {
+      const target = await freshWidget(50);
+      const session = await openOn(target);
+      await visit(`/w/${target.id}/messages`, { body: 'Hi' }, session);
+      const before = supportNotifications();
+      // While the model answers "Hi": the real question, and the model switched off.
+      await visit(`/w/${target.id}/messages`, { body: 'Can I change my plan?' }, session);
+      await ok(`/api/widgets/${target.id}`, { assistant: 'off' }, 'PATCH');
+      await settled();
+      const told = all<any>(`SELECT * FROM notifications WHERE kind = 'support'`).slice(before);
+      assert.equal(told.length, 1, 'the question reaches somebody');
+      assert.match(told[0].body, /change my plan/);
+    } finally {
+      thinking = 0;
+    }
+  });
+
   it('holds to the day\'s budget when visitors write at once', async () => {
     reply = () => '{"answer":"It is 29 EUR.","sources":[],"handover":false}';
     thinking = 100;

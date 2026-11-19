@@ -742,7 +742,10 @@ describe('a session, after the widget changes under it', () => {
     } catch { /* aborted: the stream never ended */ } finally {
       clearTimeout(timer);
     }
-    assert.match(heard, /event: end/, 'the window is told, and stops hearing the team');
+    assert.match(heard, /event: closed/, 'the window is told, and stops hearing the team');
+    assert.doesNotMatch(heard, /event: end/, 'switched off is not the session ending: the visitor keeps it for when it is back');
+    await ok(`/api/widgets/${closing.id}`, { enabled: 1 }, 'PATCH');
+    assert.equal((await visit(`/w/${closing.id}/messages`, undefined, opened.json.session)).status, 200, 'and it still opens');
   });
 });
 

@@ -260,6 +260,9 @@ export function VisitorChat() {
           if (typing) typingTimer = window.setTimeout(() => setAgentTyping(false), SUPPORT_TYPING_MS);
         });
         source.addEventListener('end', () => { source?.close(); ended(); });
+        // The widget was switched off. Not the end of this session: keep it,
+        // so the conversation is still theirs when the widget is back.
+        source.addEventListener('closed', () => { source?.close(); setStage('unavailable'); });
         /*
          * A closed source is not proof the session is over. Leaving the page
          * closes it too, with an error — and reading that as "ended" wiped an

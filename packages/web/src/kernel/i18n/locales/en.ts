@@ -3703,7 +3703,7 @@ export const en = {
   'widgets.customerFields': 'What it may know about a signed-in visitor',
   'widgets.customerFieldsHint': 'Facts your site puts in the token’s ctx claim, one per line as key: Label, e.g. plan: Plan. Anything else in the claim is dropped.',
   'widgets.budget': 'Answers a day',
-  'widgets.budgetHint': 'Past this, every conversation goes to a person. It bounds what a stranger can spend of the server’s key.',
+  'widgets.budgetHint': 'How often the model may be asked a day, a hand-over included. Past this, every conversation goes to a person. It bounds what a stranger can spend of the server’s key.',
   'support.suggest': 'Suggest a reply',
   'support.suggestNothing': 'The knowledge pages say nothing about this.',
   'support.assistantLabel': 'AI assistant',

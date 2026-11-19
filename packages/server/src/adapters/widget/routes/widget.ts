@@ -418,11 +418,22 @@ export function registerWidgetRoutes(router: Router): void {
       // Asked first, and of the widget as it is now: a stream opened before
       // the widget was switched off — or switched to signed visitors, or its
       // key rotated — went on delivering the team's answers to a window that
-      // could no longer write back. Measured. `end` makes the window ask for a
-      // session again, which is refused or granted as a new one would be.
+      // could no longer write back. Measured.
+      //
+      // Two different endings. `closed` is the widget gone quiet, which may
+      // be for an afternoon: the window says the chat is unavailable and
+      // keeps its session, so the visitor finds their conversation again when
+      // it is back. `end` is this session being over — the conversation
+      // deleted, or a session the widget no longer accepts — and the window
+      // asks for a new one, which is refused or granted as for anybody.
       const now = get<Row>(`SELECT * FROM conversations WHERE id = ?`, id);
       const widget = liveWidget(String(conversation.widget_id));
-      if (!now || now.deleted_at || !widget || !stillHolds(widget, now, session)) {
+      if (!widget) {
+        send('closed', {});
+        stop();
+        return;
+      }
+      if (!now || now.deleted_at || !stillHolds(widget, now, session)) {
         send('end', {});
         stop();
         return;

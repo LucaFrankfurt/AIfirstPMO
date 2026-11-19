@@ -205,7 +205,20 @@ function Answer({ conversation, widget, onBack }: { conversation: Conversation; 
   const canWrite = useCanWrite();
   const { workspaceId } = useSession();
   const members = useMemberMap();
-  const people = useMembers();
+  const everybody = useMembers();
+  /*
+   * Whom the conversation may be given to: everybody who can see its project.
+   * The server refuses anybody else — an assignee who cannot see it was a
+   * conversation that told nobody — so offering them here would be a menu of
+   * names that silently bounce. A private project's members are synced to
+   * whoever can see it, which the person looking at this conversation can.
+   */
+  const project = useQuery(() => byId('project', conversation.project_id), [conversation.project_id]);
+  const insiders = useQuery(
+    () => new Set(list('projectMember', (row) => row.project_id === conversation.project_id).map((row) => row.user_id)),
+    [conversation.project_id],
+  );
+  const people = project?.visibility === 'private' ? everybody.filter((person) => insiders.has(person.id)) : everybody;
   const [typing, setTyping] = useState(false);
   const [attached, setAttached] = useState<ConversationFile[]>([]);
   // Held here rather than in the box, so a suggested reply can be put in it.
