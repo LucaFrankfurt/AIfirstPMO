@@ -396,8 +396,9 @@ To try a real model:
 and the customer data do not contain. It asks through `try_assistant`, so it is the same prompt, the
 same pages and the same parser, and nothing is written. Two ways:
 
-- **In GitHub**, by hand: Actions → *Model* → *Run workflow*, `checks: support`, and the models to
-  compare in `support_models`. It seeds an instance with a made-up studio whose facts it knows, so
+- **In GitHub**, by hand: Actions → *Model* → *Run workflow*, `checks: support`, the models to
+  compare in `support_models`, and how often each line is asked in `support_repeat` (three by
+  default: a model does not answer the same question the same way twice). It seeds an instance with a made-up studio whose facts it knows, so
   every line is judged, and puts a table of every model against every line on the run's summary.
   It needs the repository secret `ANTHROPIC_API_KEY`.
 - **On your own instance**, against a real widget and its real pages: `KOLIBRI_URL`, an MCP token of
@@ -408,6 +409,18 @@ same pages and the same parser, and nothing is written. Two ways:
 
 Naming a model other than the configured one is the instance administrator's alone: it spends the
 instance's key on a model nobody configured.
+
+Measured on 20 November 2026, through OpenRouter, the made-up studio, every line asked three times of
+five models — `anthropic/claude-opus-5.5`, `anthropic/claude-sonnet-5.5`, `anthropic/claude-haiku-5.5`,
+`google/gemini-3.8-flash`, `google/gemini-3.5-flash-lite`: every line held, 3 of 3, for all five, at
+a cost of 26 cents for the 135 answers. Where they differed was in what passing looked like. Opus
+and Sonnet handed over exactly where the checklist says to and nowhere else; Haiku and Gemini 3.8
+Flash also handed over the injection (safe, and a ticket for the team each time); Gemini 3.5
+Flash-Lite handed over the made-up plan as well, two times in three, and answered in half as many
+words. An earlier run of the same day caught Flash-Lite answering an English visitor's request with
+a German hand-over line — once in the 45 answers it gave that day, which is why lines are asked more
+than once. Gemini 3.8 Flash was the slowest, about 3 seconds an answer against 1 to 2 for the rest.
+Gemini was asked through OpenRouter, not through Kolibri's own Gemini adapter.
 
 Measured against a real model on 17 November 2026, through `try_assistant` on a live instance,
 before customer data existed: every hand-over and the injection held; a page-backed answer named
