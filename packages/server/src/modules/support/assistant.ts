@@ -253,6 +253,8 @@ async function ask(widget: Row, transcript: string, forTeam: boolean, facts: Fac
     system: SYSTEM(String(widget.name), forTeam, facts.length > 0),
     user: `${knowledge}${facts.length ? `${customerText(facts)}\n\n` : ''}${transcript}`,
     cachePrefix: knowledge.length,
+    // The support chat's own model, when one is set; otherwise the server's.
+    ...(env.ai.supportModel ? { model: env.ai.supportModel } : {}),
     maxTokens: MAX_TOKENS,
     timeoutMs: Math.max(env.ai.timeoutMs, TIMEOUT_MS),
   });

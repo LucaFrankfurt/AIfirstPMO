@@ -33,14 +33,14 @@ let widget: any;
 let proposal: any;
 
 /** What the fake model was asked, and what it says next. */
-const asked: { system: string; user: string; timeoutMs?: number }[] = [];
+const asked: { system: string; user: string; timeoutMs?: number; model?: string }[] = [];
 let reply: () => string = () => '{"answer":"","sources":[],"handover":true}';
 /** How long the fake model takes, so that two lines can arrive while it is still answering one. */
 let thinking = 0;
 provideModel('anthropic', () => ({
   model: 'fake',
   ask: async (request) => {
-    asked.push({ system: request.system, user: request.user, timeoutMs: request.timeoutMs });
+    asked.push({ system: request.system, user: request.user, timeoutMs: request.timeoutMs, model: request.model });
     if (thinking) await new Promise((done) => setTimeout(done, thinking));
     return reply();
   },
@@ -620,6 +620,69 @@ describe('what the model writes, afterwards', () => {
 
   it('is given the time to use the room it has to think', () => {
     assert.ok((asked.at(-1)!.timeoutMs ?? 0) >= 60_000, 'cut off by the clock is a hand-over as much as by the ceiling');
+  });
+});
+
+/*
+ * The support chat's own model, set where an instance's settings are set.
+ * Reviews and boards keep the server's model; only what the widget asks moves.
+ */
+describe('the support chat\'s own model', () => {
+  const settings = (values: Record<string, string | null>) => ok('/api/instance/settings', { settings: values });
+  let mcpToken = '';
+  const tool = async (name: string, args: Record<string, unknown> = {}): Promise<any> => {
+    const response = await fetch(`${base}/mcp`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${mcpToken}` },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }),
+    });
+    return ((await response.json()) as any).result.structuredContent;
+  };
+
+  before(async () => {
+    mcpToken = (await ok('/api/tokens', { name: 'mcp-model', workspaceId })).token;
+  });
+
+  after(async () => {
+    await settings({ KOLIBRI_AI_SUPPORT_MODEL: null, KOLIBRI_AI_MODEL: null });
+  });
+
+  it('is the server\'s model while none is set', async () => {
+    reply = () => '{"answer":"It is 29 EUR.","sources":[],"handover":false}';
+    await visitorSays('What does it cost?');
+    assert.equal(asked.at(-1)!.model, undefined, 'nothing named: the adapter takes the configured model');
+  });
+
+  it('borrows the server\'s model on the settings screen until one is typed', async () => {
+    const state = await settings({ KOLIBRI_AI_MODEL: 'claude-opus-5-5' });
+    const own = state.settings.find((setting: any) => setting.key === 'KOLIBRI_AI_SUPPORT_MODEL');
+    assert.equal(own.inherits, true);
+    assert.equal(own.value, '', 'not shown as though somebody had typed it');
+    assert.equal(own.inherited, 'claude-opus-5-5', 'the field says which model answers meanwhile');
+  });
+
+  it('is asked for every answer, draft and test question once it is set', async () => {
+    const state = await settings({ KOLIBRI_AI_SUPPORT_MODEL: 'claude-sonnet-5-5' });
+    assert.equal(state.status.ai.supportModel, 'claude-sonnet-5-5');
+
+    reply = () => '{"answer":"It is 29 EUR.","sources":[],"handover":false}';
+    const { conversation } = await visitorSays('What does it cost?');
+    assert.equal(asked.at(-1)!.model, 'claude-sonnet-5-5', 'the visitor\'s answer');
+
+    await ok(`/api/conversations/${conversation.id}/suggest`, {});
+    assert.equal(asked.at(-1)!.model, 'claude-sonnet-5-5', 'a draft for the team');
+
+    await tool('try_assistant', { widget: widget.id, question: 'What does the shop plan cost?' });
+    assert.equal(asked.at(-1)!.model, 'claude-sonnet-5-5', 'a test question over MCP');
+
+    const { widgets } = await tool('list_widgets');
+    assert.equal(widgets.find((one: any) => one.id === widget.id).model, 'claude-sonnet-5-5', 'and list_widgets says which');
+  });
+
+  it('goes back to the server\'s model when it is cleared', async () => {
+    await settings({ KOLIBRI_AI_SUPPORT_MODEL: null });
+    await visitorSays('And now?');
+    assert.equal(asked.at(-1)!.model, undefined);
   });
 });
 

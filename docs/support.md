@@ -311,6 +311,31 @@ no other page.
   had its proposed prices quoted to a visitor as prices, and nothing on the page said a visitor
   would read it.
 
+### What it costs
+
+A support answer's prompt is mostly the widget's knowledge pages: at the limits above, 24,000
+characters, about 6,400 tokens with the rules, against a few hundred for the conversation and a few
+hundred out. So the model's input price is most of what an answer costs, and the cache is most of
+what saves it. On Anthropic the pages are offered for caching (`cachePrefix`): a widget asked again
+within about five minutes reads them at a twentieth of the input price (Opus 5.5, Sonnet 5.5) or a
+tenth (Haiku 5.5); a quiet one writes them each time, at a quarter more.
+
+Worked out on 2026-11-19 from the providers' list prices, for full pages, and an estimate rather
+than a measurement — prices move, and the thinking a model does before it answers varies:
+
+| `KOLIBRI_AI_SUPPORT_MODEL` | an answer, quiet widget | an answer, busy widget |
+|---|---|---|
+| `claude-opus-5-5` | about 4.4 ct | about 1.3 ct |
+| `claude-sonnet-5-5` | about 2.2 ct | about 0.6 ct |
+| `claude-haiku-5-5` | about 0.11 ct | about 0.04 ct |
+| `gemini-3.8-flash` (no explicit cache) | about 0.7 ct | about 0.7 ct |
+
+That is why the support chat can have a model of its own: the answer is a few sentences read off
+pages it was handed, which rarely needs the model a board is drawn with. Whether a smaller model
+keeps to the rules — hand over rather than guess, the visitor's language, nothing invented — is
+worth trying on the real pages before visitors meet it: `try_assistant` over MCP asks the widget's
+model, as configured, without writing anything.
+
 ### Setup
 
 | step | who | where |
@@ -334,7 +359,8 @@ ANTHROPIC_API_KEY=...             # provider read off the key's name
 # or
 KOLIBRI_AI_PROVIDER=anthropic     # anthropic | gemini | openrouter
 KOLIBRI_AI_API_KEY=...
-KOLIBRI_AI_MODEL=claude-sonnet-5-5   # optional; one model for reviews, boards and support
+KOLIBRI_AI_MODEL=claude-opus-5-5     # optional; reviews, boards — and support, unless the next line
+KOLIBRI_AI_SUPPORT_MODEL=claude-sonnet-5-5   # optional; the support chat's own, same provider
 ```
 
 - A value typed into Settings → Server wins over the environment.
@@ -376,7 +402,7 @@ the wrong page as its source, twice. See `TODO.md`.
 |---|---|
 | `list_conversations`, `get_conversation` | the inbox; an assistant's line carries its `sources` |
 | `reply_to_conversation`, `update_conversation`, `create_task_from_conversation` | the inbox's buttons |
-| `list_widgets` | each widget's model setting, and per knowledge page: `read`, `chars`, `chars_read`, `skipped` (`deleted`, `private`, `not_public_knowledge`, `over_budget`) |
+| `list_widgets` | each widget's model setting and the `model` it asks, and per knowledge page: `read`, `chars`, `chars_read`, `skipped` (`deleted`, `private`, `not_public_knowledge`, `over_budget`) |
 | `update_widget` | name, greeting, model setting, answers a day, knowledge pages in order, `customer_fields` — owners and admins; an unmarked page is refused by name |
 | `try_assistant` | a test question, answered from the pages as a visitor would get it, with an optional sample `customer_data`; nothing written, nothing counted — owners and admins |
 | `create_page`, `update_page`, `list_pages` | `public_knowledge` marks, unmarks, filters |

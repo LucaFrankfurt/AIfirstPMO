@@ -29,6 +29,12 @@ export interface AiRequest {
    * every time.
    */
   timeoutMs?: number;
+  /**
+   * Which model to ask, when the caller has one of its own — the support
+   * assistant's `KOLIBRI_AI_SUPPORT_MODEL`. Left out, the configured model
+   * answers, as it always has. Same provider and key either way.
+   */
+  model?: string;
   /** How hard the model should think, where the provider has the dial. Low unless asked. */
   effort?: 'low' | 'medium' | 'high';
 }

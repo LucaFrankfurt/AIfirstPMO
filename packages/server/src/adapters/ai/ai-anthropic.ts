@@ -56,7 +56,7 @@ interface Reply { content?: Block[]; stop_reason?: string; model?: string }
 
 export async function reviewWithAnthropic(request: AiRequest): Promise<string> {
   const base = env.ai.baseUrl || DEFAULT_URL;
-  const model = env.ai.model || DEFAULT_MODEL;
+  const model = request.model || env.ai.model || DEFAULT_MODEL;
   const fallsBack = FALLS_BACK.has(model);
   const response = await askProvider(`${base}/v1/messages`, {
     method: 'POST',

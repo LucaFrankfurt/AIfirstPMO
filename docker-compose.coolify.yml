@@ -176,6 +176,8 @@ services:
       GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
       OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
       KOLIBRI_AI_MODEL: "${KOLIBRI_AI_MODEL:-}"
+      # The support chat's own model, same provider; empty is the one above.
+      KOLIBRI_AI_SUPPORT_MODEL: "${KOLIBRI_AI_SUPPORT_MODEL:-}"
       KOLIBRI_AI_BASE_URL: "${KOLIBRI_AI_BASE_URL:-}"
       KOLIBRI_AI_TIMEOUT_MS: "${KOLIBRI_AI_TIMEOUT_MS:-20000}"
       KOLIBRI_AI_BURST: "${KOLIBRI_AI_BURST:-10}"

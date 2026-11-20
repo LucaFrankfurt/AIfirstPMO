@@ -134,6 +134,10 @@ KOLIBRI_AI_API_KEY=             # or ANTHROPIC_API_KEY / GEMINI_API_KEY / OPENRO
 # Which model. Each provider has a default; this is the cost lever.
 KOLIBRI_AI_MODEL=
 
+# The support chat's assistant, when it should not be the model above — same
+# provider and key, so a model that provider has. Empty: the model above.
+KOLIBRI_AI_SUPPORT_MODEL=
+
 # A gateway, a proxy, or a model on the same docker network. An OpenAI-shaped
 # gateway works through the OpenRouter adapter.
 KOLIBRI_AI_BASE_URL=
@@ -157,6 +161,13 @@ Defaults per provider:
 
 **What it costs.** A review is roughly 1.5k tokens in and under 1k out — a few cents on a large
 model, a fraction of a cent on a small one. `KOLIBRI_AI_MODEL` is there so that is your decision.
+
+**One model, or two.** Reviews, boards and the support chat ask the same model unless
+`KOLIBRI_AI_SUPPORT_MODEL` names another for the support chat — also under Settings → Server →
+Model, where an empty field shows the model it borrows. They want different things: a board is
+design work a large model earns its price on, and a support answer is a few sentences read off the
+pages it was handed. The prompt for a support answer is mostly those pages, so the model's input
+price is most of its cost — see [`support.md`](support.md#what-it-costs).
 
 **Models that think.** Every current model does, and every adapter here asks it to stop: `effort:
 low` on Anthropic, `thinkingLevel: LOW` on Gemini 3 and later. Reviewing a task is not what deep

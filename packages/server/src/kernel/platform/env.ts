@@ -254,6 +254,17 @@ const computeAi = () => ({
     'OPENROUTER_API_KEY',
   ) ?? '',
   model: setting('KOLIBRI_AI_MODEL') ?? '',
+  /**
+   * The model a support widget's assistant asks, when it should not be the one
+   * above. Empty is that one.
+   *
+   * One model served everything, and the three things it serves want different
+   * ones: a board is design work a large model earns its price on, while a
+   * support answer is a few sentences read off pages it was handed — a quarter
+   * of the price, or a fortieth, for the same answer. Same provider and key; only
+   * the name differs, so it has to be a model that provider has.
+   */
+  supportModel: setting('KOLIBRI_AI_SUPPORT_MODEL') ?? '',
   /** For a gateway, a proxy, or a model running on the same docker network. */
   baseUrl: setting('KOLIBRI_AI_BASE_URL')?.replace(/\/$/, '') ?? '',
   timeoutMs: int(process.env.KOLIBRI_AI_TIMEOUT_MS, 20_000),

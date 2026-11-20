@@ -48,7 +48,8 @@ interface SettingView {
 interface Status {
   mail: { enabled: boolean; transport: string; mode: string; from: string; host: string };
   telegram: { enabled: boolean };
-  ai: { provider: string; model: string };
+  /** `supportModel` is missing from a server older than the setting: read as unset. */
+  ai: { provider: string; model: string; supportModel?: string };
   backup: { dir: boolean; places: { kind: 's3' | 'email'; where: string }[]; problems: string[] };
 }
 
@@ -81,6 +82,7 @@ const LABEL: Record<string, TranslationKey> = {
   KOLIBRI_AI_PROVIDER: 'instance.aiProvider',
   KOLIBRI_AI_API_KEY: 'instance.aiKey',
   KOLIBRI_AI_MODEL: 'instance.aiModel',
+  KOLIBRI_AI_SUPPORT_MODEL: 'instance.aiSupportModel',
   KOLIBRI_AI_BASE_URL: 'instance.aiBaseUrl',
   KOLIBRI_BACKUP_HOUR: 'instance.backupHour',
   KOLIBRI_BACKUP_KEEP: 'instance.backupKeep',
@@ -237,6 +239,10 @@ function GroupState({ group, status }: { group: Group; status: Status }) {
     <>
       <Chip tone="on">{status.ai.provider}</Chip>
       {status.ai.model && <span className="mono truncate text-[12px] text-muted">{status.ai.model}</span>}
+      {/* Said only when it differs: the same model twice is one fact. */}
+      {status.ai.supportModel && status.ai.supportModel !== status.ai.model && (
+        <span className="mono truncate text-[12px] text-muted">{t('instance.aiSupportChip')}: {status.ai.supportModel}</span>
+      )}
     </>
   );
 }

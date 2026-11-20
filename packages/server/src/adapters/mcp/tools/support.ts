@@ -25,6 +25,7 @@ import { uid } from '../../../kernel/platform/ids.ts';
 import { isLocale, localeOf } from '../../../kernel/i18n/i18n.ts';
 import { canSeeProject, displayName, parseIds, serialize, writeEntity } from '../../../kernel/write-path/repo.ts';
 import { answersToday, knowledgeOf, tryAssistant, type KnowledgePage } from '../../../modules/support/assistant.ts';
+import { modelFor } from '../../../modules/ai-review/model.ts';
 import { contextFieldsOf, conversationAsTask, messagesOf, parseFiles } from '../../../modules/support/support.ts';
 import {
   findMember, findPage, McpError, requireFeature, requireWrite, str, taskView, type McpCtx, type ToolDef, workspaceOf, writeOpts,
@@ -133,6 +134,10 @@ function widgetView(row: Row) {
     live: !!Number(row.enabled),
     assistant: row.assistant ?? 'off',
     model_ready: env.aiEnabled && hasFeature(String(row.workspace_id), 'ai'),
+    // The model this widget's assistant asks: the support chat's own, or the
+    // server's. Null while there is none — the name of a model nobody calls
+    // would read as one that answers.
+    model: env.aiEnabled ? (env.ai.supportModel || modelFor(env.aiProvider)?.model || null) : null,
     answers_today: answersToday(String(row.id)),
     answers_a_day: Number(row.assistant_budget ?? 0),
     knowledge: knowledgeOf(row).map(knowledgeView),
@@ -346,6 +351,7 @@ export const supportTools: ToolDef[] = [
       + `(\`assistant\`: off, suggest or answer), and the knowledge pages it reads. ${KNOWLEDGE_RULES} `
       + '`model_ready` is false while no model is configured on the server or AI assistance is off for the workspace. '
       + '`answers_today` counts the times the model was asked today, a hand-over included, against `answers_a_day`. '
+      + '`model` is the model the assistant asks: `KOLIBRI_AI_SUPPORT_MODEL` when the server sets one, otherwise the server\'s model. '
       + '`customer_fields` are the facts a signed-in visitor\'s token may carry in its `ctx` claim for the model.',
     readOnly: true,
     schema: { type: 'object', properties: { workspace_id: { type: 'string' } } },

@@ -197,6 +197,38 @@ describe('the Anthropic adapter, for a support widget', () => {
   });
 });
 
+describe('a model the caller names', () => {
+  const reply = () => ({ json: { content: [{ type: 'text', text: '{"answer":"ok"}' }] } });
+
+  it('is asked over the configured one, and decides the fallback by itself', async () => {
+    const smaller = await fakeProvider(reply);
+    await withProvider(smaller, { model: 'claude-opus-5-5' }, async () => {
+      await reviewWithAnthropic({ ...ask, model: 'claude-haiku-5-5' });
+      assert.equal(smaller.seen[0].body.model, 'claude-haiku-5-5');
+      assert.equal('fallbacks' in smaller.seen[0].body, false, 'the model asked takes no fallback, whatever the server\'s does');
+    });
+    const listed = await fakeProvider(reply);
+    await withProvider(listed, { model: 'claude-haiku-4-5' }, async () => {
+      await reviewWithAnthropic({ ...ask, model: 'claude-sonnet-5-5' });
+      assert.equal(listed.seen[0].body.model, 'claude-sonnet-5-5');
+      assert.equal(listed.seen[0].body.fallbacks, 'default');
+    });
+  });
+
+  it('reaches Gemini and OpenRouter too', async () => {
+    const gemini = await fakeProvider(() => ({ json: { candidates: [{ content: { parts: [{ text: '{}' }] } }] } }));
+    await withProvider(gemini, { model: 'gemini-2.5-flash' }, async () => {
+      await reviewWithGemini({ ...ask, model: 'gemini-3.5-flash-lite' });
+      assert.equal(gemini.seen[0].path, '/v1beta/models/gemini-3.5-flash-lite:generateContent');
+    });
+    const router = await fakeProvider(() => ({ json: { choices: [{ message: { content: '{}' } }] } }));
+    await withProvider(router, { model: 'anthropic/claude-opus-4.5' }, async () => {
+      await reviewWithOpenRouter({ ...ask, model: 'anthropic/claude-haiku-4.5' });
+      assert.equal(router.seen[0].body.model, 'anthropic/claude-haiku-4.5');
+    });
+  });
+});
+
 describe('the Gemini adapter', () => {
   it('puts the key in a header and the system prompt in its own field', async () => {
     const fake = await fakeProvider(() => ({
