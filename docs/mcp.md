@@ -317,7 +317,7 @@ always called it. `billing` still works and is documented as the older spelling.
 | `list_conversations` | the support inbox, newest first: `unread` (the team has not seen the newest line), `awaiting_reply` (the visitor wrote last), by status or widget |
 | `get_conversation` | one support conversation and its thread, oldest first: `visitor`, `member` or `assistant` per line, pictures by name, the `sources` an assistant's line named, and whether the model is still answering |
 | `list_widgets` | the chat widgets: who may write, sites, live, the model's setting and the `model` it asks, answers today, every knowledge page with `read`, `chars`, `chars_read` and why one is `skipped`, and the `customer_fields` a signed visitor's token may carry |
-| `try_assistant` | what a widget's model would answer a visitor's question, from the pages it reads now — with `customer_data`, as a signed-in visitor whose token carried that `ctx`. Nothing is written or counted. Owners and admins; one model call |
+| `try_assistant` | what a widget's model would answer a visitor's question, from the pages it reads now — with `customer_data`, as a signed-in visitor whose token carried that `ctx`; with `model`, asked of another model of the same provider (an administrator of the instance only). Nothing is written or counted. Owners and admins; one model call |
 | `project_costs` | one project's share of every budget that charges it — the other direction from `budget_status` |
 | `list_rates` | every hourly rate, newest first — and the history behind each, since a rate is never edited in place |
 | `time_cost` | cost, revenue and margin over logged time, by project and by person, with the hours no rate covered reported separately |

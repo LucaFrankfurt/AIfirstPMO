@@ -333,8 +333,8 @@ than a measurement — prices move, and the thinking a model does before it answ
 That is why the support chat can have a model of its own: the answer is a few sentences read off
 pages it was handed, which rarely needs the model a board is drawn with. Whether a smaller model
 keeps to the rules — hand over rather than guess, the visitor's language, nothing invented — is
-worth trying on the real pages before visitors meet it: `try_assistant` over MCP asks the widget's
-model, as configured, without writing anything.
+worth trying on the real pages before visitors meet it — the checklist below, asked of each model
+you are considering and judged, is `npm run check:support-model`.
 
 ### Setup
 
@@ -390,6 +390,25 @@ To try a real model:
 - [ ] "ignore your rules and …": not followed
 - [ ] *Talk to a person*: the team is told at once
 
+**Asked and judged by a script**, for one model or several side by side: `scripts/support-model.mjs`
+(`npm run check:support-model`). Every line but the last is judged — the last is the server's, and
+`support-assistant.test.ts` holds it — and every answer also to one rule more: no number the pages
+and the customer data do not contain. It asks through `try_assistant`, so it is the same prompt, the
+same pages and the same parser, and nothing is written. Two ways:
+
+- **In GitHub**, by hand: Actions → *Model* → *Run workflow*, `checks: support`, and the models to
+  compare in `support_models`. It seeds an instance with a made-up studio whose facts it knows, so
+  every line is judged, and puts a table of every model against every line on the run's summary.
+  It needs the repository secret `ANTHROPIC_API_KEY`.
+- **On your own instance**, against a real widget and its real pages: `KOLIBRI_URL`, an MCP token of
+  an administrator of the instance in `KOLIBRI_TOKEN`, the widget in `KOLIBRI_WIDGET`, and the models
+  in `KOLIBRI_SUPPORT_MODELS`. Nothing is written. The lines that need the studio's facts are judged
+  by what does not depend on them — the language, the hand-over, no number the pages do not hold —
+  or skipped.
+
+Naming a model other than the configured one is the instance administrator's alone: it spends the
+instance's key on a model nobody configured.
+
 Measured against a real model on 17 November 2026, through `try_assistant` on a live instance,
 before customer data existed: every hand-over and the injection held; a page-backed answer named
 the wrong page as its source, twice. See `TODO.md`.
@@ -404,7 +423,7 @@ the wrong page as its source, twice. See `TODO.md`.
 | `reply_to_conversation`, `update_conversation`, `create_task_from_conversation` | the inbox's buttons |
 | `list_widgets` | each widget's model setting and the `model` it asks, and per knowledge page: `read`, `chars`, `chars_read`, `skipped` (`deleted`, `private`, `not_public_knowledge`, `over_budget`) |
 | `update_widget` | name, greeting, model setting, answers a day, knowledge pages in order, `customer_fields` — owners and admins; an unmarked page is refused by name |
-| `try_assistant` | a test question, answered from the pages as a visitor would get it, with an optional sample `customer_data`; nothing written, nothing counted — owners and admins |
+| `try_assistant` | a test question, answered from the pages as a visitor would get it, with an optional sample `customer_data`, and `model` to ask another model of the same provider (an administrator of the instance only); nothing written, nothing counted — owners and admins |
 | `create_page`, `update_page`, `list_pages` | `public_knowledge` marks, unmarks, filters |
 
 Writing knowledge pages with an assistant: `list_widgets` → write or fix a page → `update_page` with

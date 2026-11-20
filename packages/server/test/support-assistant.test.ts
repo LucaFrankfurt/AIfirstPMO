@@ -291,7 +291,8 @@ describe('the assistant over MCP', () => {
     reply = () => '{"answer":"29 EUR a month.","sources":["Prices"],"handover":false}';
     const before = { conversations: all(`SELECT id FROM conversations`).length, lines: all(`SELECT id FROM conversation_messages`).length };
     const tried = await tool('try_assistant', { widget: 'Prospects', question: 'How much is the shop plan?' });
-    assert.deepEqual(tried, { answer: '29 EUR a month.', sources: ['Prices'], handover: false, pages_read: ['Prices'] });
+    // `model` is the one that answered: the configured one, as none was named.
+    assert.deepEqual(tried, { answer: '29 EUR a month.', sources: ['Prices'], handover: false, pages_read: ['Prices'], model: 'fake' });
     assert.match(asked.at(-1)!.user, /\{"from":"visitor","text":"How much is the shop plan\?"\}/);
     assert.deepEqual(
       { conversations: all(`SELECT id FROM conversations`).length, lines: all(`SELECT id FROM conversation_messages`).length },
@@ -677,6 +678,26 @@ describe('the support chat\'s own model', () => {
 
     const { widgets } = await tool('list_widgets');
     assert.equal(widgets.find((one: any) => one.id === widget.id).model, 'claude-sonnet-5-5', 'and list_widgets says which');
+  });
+
+  it('can be named for one test question — by an administrator of the instance only', async () => {
+    reply = () => '{"answer":"It is 29 EUR.","sources":["Prices"],"handover":false}';
+    const tried = await tool('try_assistant', { widget: widget.id, question: 'What does it cost?', model: 'claude-haiku-5-5' });
+    assert.equal(asked.at(-1)!.model, 'claude-haiku-5-5', 'asked of the model named, not the configured one');
+    assert.equal(tried.model, 'claude-haiku-5-5', 'and the answer says which model gave it');
+
+    // A token confined to the workspace is nobody's administrator: the
+    // operator's key is not its to spend on a model nobody configured.
+    const confined = (await ok('/api/tokens', { name: 'mcp-confined', workspaceId, confined: true })).token;
+    const calls = asked.length;
+    const refused = await fetch(`${base}/mcp`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${confined}` },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'try_assistant', arguments: { widget: widget.id, question: 'What does it cost?', model: 'claude-fable-5-2' } } }),
+    });
+    const body = await refused.json() as any;
+    assert.match(JSON.stringify(body), /administrator of this instance/);
+    assert.equal(asked.length, calls, 'and the model was never asked');
   });
 
   it('goes back to the server\'s model when it is cleared', async () => {

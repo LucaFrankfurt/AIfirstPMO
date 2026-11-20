@@ -50,7 +50,8 @@
     "check:packaged": "node scripts/packaged.mjs",
     "check:menus": "node scripts/menus.mjs",
     "check:engines": "node scripts/engines.mjs",
-    "check:model": "node scripts/model.mjs"
+    "check:model": "node scripts/model.mjs",
+    "check:support-model": "node scripts/support-model.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",

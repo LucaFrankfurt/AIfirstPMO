@@ -455,7 +455,9 @@ export const supportTools: ToolDef[] = [
       + 'Works whatever the widget\'s own setting, so pages can be tried before visitors meet the model. '
       + '`handover: true` means it would hand the visitor to a person, and `answer` is then the line it would '
       + 'say. `customer_data` is a sample `ctx` claim for a signed-in visitor, kept to the widget\'s '
-      + '`customer_fields` as a real token is. One model call on the instance\'s key. Owners and admins only.',
+      + '`customer_fields` as a real token is. `model` asks another model of the same provider instead of the '
+      + 'configured one, to compare them before choosing — an administrator of the instance only, since it spends '
+      + 'the instance\'s key on a model nobody configured. One model call on the instance\'s key. Owners and admins only.',
     readOnly: true,
     schema: {
       type: 'object',
@@ -464,6 +466,7 @@ export const supportTools: ToolDef[] = [
         widget: { type: 'string', description: 'Its id or name' },
         question: { type: 'string', description: 'As a visitor would write it' },
         customer_data: { type: 'object', description: 'A sample `ctx` claim, e.g. {"plan": "Pro"}' },
+        model: { type: 'string', description: 'Another model of the same provider, e.g. claude-haiku-5-5; the instance\'s administrators only' },
         workspace_id: { type: 'string' },
       },
     },
@@ -473,10 +476,16 @@ export const supportTools: ToolDef[] = [
       const row = findWidget(String(args.widget), workspaceId, ctx);
       const question = str(args.question);
       if (!question) throw new McpError('Ask something');
+      const model = str(args.model);
+      // The configured model is the operator's choice; any other is a cost the
+      // operator has not agreed to, so only they may name one.
+      if (model && !ctx.auth.isAdmin) {
+        throw new McpError('Only an administrator of this instance may ask another model', -32000);
+      }
       const read = knowledgeOf(row).filter((page) => !page.skipped);
       try {
-        const answer = await tryAssistant(row, question, args.customer_data);
-        return { ...answer, pages_read: read.map((page) => page.title) };
+        const answer = await tryAssistant(row, question, args.customer_data, model);
+        return { ...answer, pages_read: read.map((page) => page.title), model: model || env.ai.supportModel || modelFor(env.aiProvider)?.model || null };
       } catch (error) {
         throw new McpError(error instanceof Error ? error.message : 'The model did not answer');
       }

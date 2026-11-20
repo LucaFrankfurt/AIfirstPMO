@@ -242,7 +242,7 @@ export function parseAnswer(text: string, titles: string[]): Answer {
   }
 }
 
-async function ask(widget: Row, transcript: string, forTeam: boolean, facts: Fact[] = []): Promise<Answer> {
+async function ask(widget: Row, transcript: string, forTeam: boolean, facts: Fact[] = [], only?: string): Promise<Answer> {
   const model = modelFor(env.aiProvider);
   if (!model) throw new AiError('No model is configured', true);
   const pages = readable(widget);
@@ -253,8 +253,9 @@ async function ask(widget: Row, transcript: string, forTeam: boolean, facts: Fac
     system: SYSTEM(String(widget.name), forTeam, facts.length > 0),
     user: `${knowledge}${facts.length ? `${customerText(facts)}\n\n` : ''}${transcript}`,
     cachePrefix: knowledge.length,
-    // The support chat's own model, when one is set; otherwise the server's.
-    ...(env.ai.supportModel ? { model: env.ai.supportModel } : {}),
+    // A model asked for by name (a test question, see `tryAssistant`), else the
+    // support chat's own when one is set, else the server's.
+    ...(only || env.ai.supportModel ? { model: only || env.ai.supportModel } : {}),
     maxTokens: MAX_TOKENS,
     timeoutMs: Math.max(env.ai.timeoutMs, TIMEOUT_MS),
   });
@@ -270,7 +271,7 @@ async function ask(widget: Row, transcript: string, forTeam: boolean, facts: Fac
  * conversation in the inbox every time. It works whatever the widget's own
  * setting, so the pages can be tried before a visitor ever meets the model.
  */
-export async function tryAssistant(widget: Row, question: string, customer?: unknown): Promise<Answer> {
+export async function tryAssistant(widget: Row, question: string, customer?: unknown, model?: string): Promise<Answer> {
   if (!env.aiEnabled || !hasFeature(String(widget.workspace_id), 'ai')) {
     throw new AiError('A model has to be configured and AI assistance switched on for the workspace', true);
   }
@@ -282,7 +283,7 @@ export async function tryAssistant(widget: Row, question: string, customer?: unk
   const fields = contextFieldsOf(widget);
   const picked = pickContext(customer, fields);
   const facts = fields.filter((field) => field.key in picked).map((field) => ({ label: field.label, value: picked[field.key] }));
-  return ask(widget, conversationText('a visitor', [{ from: 'visitor', text: question.slice(0, 1500) }]), false, facts);
+  return ask(widget, conversationText('a visitor', [{ from: 'visitor', text: question.slice(0, 1500) }]), false, facts, model);
 }
 
 /**
