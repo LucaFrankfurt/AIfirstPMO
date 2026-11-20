@@ -203,6 +203,8 @@ services:
       OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
       # Each provider has a default; this is the cost lever.
       KOLIBRI_AI_MODEL: "${KOLIBRI_AI_MODEL:-}"
+      # The support chat's own model, same provider; empty is the one above.
+      KOLIBRI_AI_SUPPORT_MODEL: "${KOLIBRI_AI_SUPPORT_MODEL:-}"
       # For a gateway, a proxy, or a model on this docker network.
       KOLIBRI_AI_BASE_URL: "${KOLIBRI_AI_BASE_URL:-}"
       KOLIBRI_AI_TIMEOUT_MS: "${KOLIBRI_AI_TIMEOUT_MS:-20000}"

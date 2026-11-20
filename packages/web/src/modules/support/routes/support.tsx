@@ -59,7 +59,9 @@ export function SupportInbox() {
   const widgetName = useMemo(() => new Map(widgets.map((widget) => [widget.id, widget.name])), [widgets]);
   const terms = useMemo(() => parseTerms(hunt), [hunt]);
   const conversations = useQuery(
-    () => list('conversation', (row) => row.status === filter && (!widgetId || row.widget_id === widgetId)
+    // `last_message_at` first: the server no longer sends a conversation nobody
+    // wrote in, but a device that pulled some before that still holds them.
+    () => list('conversation', (row) => !!row.last_message_at && row.status === filter && (!widgetId || row.widget_id === widgetId)
       // Who it is and where they wrote from: what somebody types to find a conversation.
       && (!terms.length || matchesTerms(`${visitorLabel(row)} ${row.visitor_email ?? ''} ${widgetName.get(row.widget_id) ?? ''}`, terms)))
       .sort((a, b) => (b.last_message_at ?? b.created_at) - (a.last_message_at ?? a.created_at)),
@@ -203,7 +205,20 @@ function Answer({ conversation, widget, onBack }: { conversation: Conversation; 
   const canWrite = useCanWrite();
   const { workspaceId } = useSession();
   const members = useMemberMap();
-  const people = useMembers();
+  const everybody = useMembers();
+  /*
+   * Whom the conversation may be given to: everybody who can see its project.
+   * The server refuses anybody else — an assignee who cannot see it was a
+   * conversation that told nobody — so offering them here would be a menu of
+   * names that silently bounce. A private project's members are synced to
+   * whoever can see it, which the person looking at this conversation can.
+   */
+  const project = useQuery(() => byId('project', conversation.project_id), [conversation.project_id]);
+  const insiders = useQuery(
+    () => new Set(list('projectMember', (row) => row.project_id === conversation.project_id).map((row) => row.user_id)),
+    [conversation.project_id],
+  );
+  const people = project?.visibility === 'private' ? everybody.filter((person) => insiders.has(person.id)) : everybody;
   const [typing, setTyping] = useState(false);
   const [attached, setAttached] = useState<ConversationFile[]>([]);
   // Held here rather than in the box, so a suggested reply can be put in it.

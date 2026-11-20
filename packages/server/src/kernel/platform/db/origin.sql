@@ -1675,3 +1675,11 @@ CREATE TABLE page_types (
   seq          INTEGER NOT NULL DEFAULT 0,
   clocks       TEXT NOT NULL DEFAULT '{}'
 );
+
+CREATE TABLE assistant_calls (
+  widget_id TEXT NOT NULL,
+  -- YYYY-MM-DD in the server's own time zone, which is what "a day" means here.
+  day       TEXT NOT NULL,
+  calls     INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (widget_id, day)
+);

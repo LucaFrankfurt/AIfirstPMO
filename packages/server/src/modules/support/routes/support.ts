@@ -6,7 +6,8 @@
  * conversation, which creates and numbers one; and "typing", which is not
  * stored at all.
  */
-import { get, run, type Row } from '../../../kernel/platform/db/index.ts';
+import { currentSeq, get, run, type Row } from '../../../kernel/platform/db/index.ts';
+import { publish } from '../../../kernel/platform/bus.ts';
 import { HttpError, forbidden, notFound, readJson, type Ctx, type Router } from '../../../kernel/platform/http.ts';
 import { token } from '../../../kernel/platform/ids.ts';
 import { requireAuth, requireWorkspace } from '../../../kernel/identity/auth.ts';
@@ -39,20 +40,42 @@ function conversationForMember(ctx: Ctx): Row {
   return conversation;
 }
 
+/**
+ * The widget's secret, to an admin whose credential may write.
+ *
+ * Both routes, reading included, and that is a deliberate difference from the
+ * vault, whose reveal takes a read scope: a vault secret is a key to somebody
+ * else's system, and this one is a key to this one. Whoever holds it signs any
+ * visitor in as any customer and writes into the workspace as them — lines,
+ * pictures, conversations — so a read-only token that could fetch it was a
+ * read-only token that could write. Measured before this: such a token read
+ * the secret, and rotated it, with a 200 each.
+ */
+function widgetForWriter(ctx: Ctx): Row {
+  const widget = widgetForAdmin(ctx);
+  if (!ctx.auth!.scopes.has('write')) throw forbidden('Token is read-only');
+  return widget;
+}
+
 export function registerSupportRoutes(router: Router): void {
   /** The secret a host site signs its visitors' tokens with. Admins only, and only on request. */
-  router.get('/api/widgets/:id/secret', (ctx: Ctx) => ({ secret: widgetSecret(widgetForAdmin(ctx)) }));
+  router.get('/api/widgets/:id/secret', (ctx: Ctx) => ({ secret: widgetSecret(widgetForWriter(ctx)) }));
 
   /**
    * A new secret, for when the old one has been somewhere it should not.
    * Every token signed with the old one stops working at once — which is the point.
    */
   router.post('/api/widgets/:id/secret', (ctx: Ctx) => {
-    const widget = widgetForAdmin(ctx);
+    const widget = widgetForWriter(ctx);
     const secret = token(32);
     // A plain UPDATE: the column is `secret` in the registry, which is what
     // keeps it out of every write a client can make — this route's included.
     run(`UPDATE widgets SET secret = ? WHERE id = ?`, sealWidgetSecret(secret), widget.id);
+    // Said on the bus, though no row a device holds has moved: a visitor's
+    // stream asks again at every change whether its session still holds, and
+    // without a change to hear it would go on delivering under the old key
+    // until something else in the workspace happened to be written.
+    publish({ workspaceId: String(widget.workspace_id), seq: currentSeq(), kind: 'widget' });
     return { secret };
   });
 

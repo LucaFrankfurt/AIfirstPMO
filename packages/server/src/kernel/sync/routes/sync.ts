@@ -131,11 +131,16 @@ function filterFor(entity: EntityName, table: string = ENTITIES[entity].table): 
                                  AND EXISTS (SELECT 1 FROM json_each(c.members) WHERE json_each.value = ?2)))`;
     case 'notification':
       return `AND ${table}.user_id = ?2`;
+    // A conversation nobody has written in yet is not one: every visitor who
+    // opens a widget makes one before saying a word, and the team's inbox
+    // filled with them. It reaches a device with its first line, which moves
+    // its `seq` (`last_message_at` is written then), so nothing is missed.
+    case 'conversation':
+      return `AND ${table}.project_id IN (${VISIBLE_PROJECTS}) AND ${table}.last_message_at IS NOT NULL`;
     case 'intake':
       // A report about a project is only visible to people who can see the
       // project — the same rule the tasks it may become already follow.
     case 'widget':
-    case 'conversation':
       // Support follows its project for the same reason intake does.
     case 'task':
     case 'state':

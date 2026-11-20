@@ -32,9 +32,19 @@ function guardWidget(values: Record<string, unknown>, existing: Row | undefined,
   if (!existing && !values.project_id) throw badRequest('A widget belongs to a project');
 }
 
-function guardConversation(existing: Row | undefined, opts: WriteOpts): void {
+function guardConversation(values: Record<string, unknown>, existing: Row | undefined, opts: WriteOpts): void {
   if (!existing) throw forbidden('A conversation is opened by a visitor, not by a member');
   requireSupport(opts.workspaceId);
+  /*
+   * Given to somebody who can see it, or to nobody. `teamOf` tells only people
+   * who can see the project, so an assignee who cannot was a conversation that
+   * told nobody at all: measured, a visitor's next line woke nobody. The MCP
+   * tool already refused this; the screen and a sync push did not.
+   */
+  if (values.assignee_id != null && values.assignee_id !== '' && values.assignee_id !== existing.assignee_id
+    && !canSeeProject(String(values.assignee_id), String(existing.project_id))) {
+    throw badRequest('That person cannot see this conversation\'s project');
+  }
 }
 
 function guardMessage(values: Record<string, unknown>, existing: Row | undefined, opts: WriteOpts): void {
@@ -142,7 +152,7 @@ export const supportRules = {
 
   guards(entity, id, values, existing, opts) {
     if (entity === 'widget') guardWidget(values, existing, opts);
-    if (entity === 'conversation') guardConversation(existing, opts);
+    if (entity === 'conversation') guardConversation(values, existing, opts);
     if (entity === 'conversationMessage') guardMessage(values, existing, opts);
   },
 

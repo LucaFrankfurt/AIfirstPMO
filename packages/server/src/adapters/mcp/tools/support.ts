@@ -25,6 +25,7 @@ import { uid } from '../../../kernel/platform/ids.ts';
 import { isLocale, localeOf } from '../../../kernel/i18n/i18n.ts';
 import { canSeeProject, displayName, parseIds, serialize, writeEntity } from '../../../kernel/write-path/repo.ts';
 import { answersToday, knowledgeOf, tryAssistant, type KnowledgePage } from '../../../modules/support/assistant.ts';
+import { modelFor } from '../../../modules/ai-review/model.ts';
 import { contextFieldsOf, conversationAsTask, messagesOf, parseFiles } from '../../../modules/support/support.ts';
 import {
   findMember, findPage, McpError, requireFeature, requireWrite, str, taskView, type McpCtx, type ToolDef, workspaceOf, writeOpts,
@@ -133,6 +134,10 @@ function widgetView(row: Row) {
     live: !!Number(row.enabled),
     assistant: row.assistant ?? 'off',
     model_ready: env.aiEnabled && hasFeature(String(row.workspace_id), 'ai'),
+    // The model this widget's assistant asks: the support chat's own, or the
+    // server's. Null while there is none — the name of a model nobody calls
+    // would read as one that answers.
+    model: env.aiEnabled ? (env.ai.supportModel || modelFor(env.aiProvider)?.model || null) : null,
     answers_today: answersToday(String(row.id)),
     answers_a_day: Number(row.assistant_budget ?? 0),
     knowledge: knowledgeOf(row).map(knowledgeView),
@@ -192,7 +197,9 @@ export const supportTools: ToolDef[] = [
       const status = STATUS.includes(args.status) ? args.status : 'open';
       const limit = Math.min(200, Math.max(1, Math.round(Number(args.limit) || 50)));
       const rows = all<Row>(
+        // A conversation nobody has written in is not one yet — see the pull.
         `SELECT * FROM conversations WHERE workspace_id = ? AND deleted_at IS NULL AND status = ?
+            AND last_message_at IS NOT NULL
           ${widgetId ? 'AND widget_id = ?' : ''}
           ORDER BY COALESCE(last_message_at, created_at) DESC`,
         ...[workspaceId, status, ...(widgetId ? [widgetId] : [])],
@@ -343,6 +350,8 @@ export const supportTools: ToolDef[] = [
       'The chat widgets on your websites: who may write in, on which sites, whether the model answers '
       + `(\`assistant\`: off, suggest or answer), and the knowledge pages it reads. ${KNOWLEDGE_RULES} `
       + '`model_ready` is false while no model is configured on the server or AI assistance is off for the workspace. '
+      + '`answers_today` counts the times the model was asked today, a hand-over included, against `answers_a_day`. '
+      + '`model` is the model the assistant asks: `KOLIBRI_AI_SUPPORT_MODEL` when the server sets one, otherwise the server\'s model. '
       + '`customer_fields` are the facts a signed-in visitor\'s token may carry in its `ctx` claim for the model.',
     readOnly: true,
     schema: { type: 'object', properties: { workspace_id: { type: 'string' } } },
@@ -359,7 +368,7 @@ export const supportTools: ToolDef[] = [
     title: 'Set up a widget\'s assistant',
     description:
       'Rename a widget, change its greeting, switch its model (`off`, `suggest` drafts replies for the team, '
-      + '`answer` answers visitors first and hands over when unsure), set how many answers a day it may give, '
+      + '`answer` answers visitors first and hands over when unsure), set how many times a day the model may be asked (a hand-over counts), '
       + 'or replace the pages it reads. `knowledge` is the whole list, in the order to read them — page ids or '
       + 'exact titles, at most 20 — and every page must be marked as public knowledge first (`update_page` '
       + 'with `public_knowledge: true`). The name is what the model calls the business, and the window\'s '
@@ -375,7 +384,7 @@ export const supportTools: ToolDef[] = [
         greeting: { type: 'string', description: 'The first line a visitor reads; "" for none' },
         assistant: { type: 'string', enum: [...WIDGET_ASSISTANTS] },
         knowledge: { type: 'array', items: { type: 'string' }, description: 'Page ids or exact titles, in order' },
-        answers_a_day: { type: 'number', description: 'Past it, every conversation goes to a person' },
+        answers_a_day: { type: 'number', description: 'Calls to the model a day, hand-overs included; past it, every conversation goes to a person' },
         customer_fields: {
           type: 'array',
           description: 'The whole list; [] for none',
@@ -446,7 +455,9 @@ export const supportTools: ToolDef[] = [
       + 'Works whatever the widget\'s own setting, so pages can be tried before visitors meet the model. '
       + '`handover: true` means it would hand the visitor to a person, and `answer` is then the line it would '
       + 'say. `customer_data` is a sample `ctx` claim for a signed-in visitor, kept to the widget\'s '
-      + '`customer_fields` as a real token is. One model call on the instance\'s key. Owners and admins only.',
+      + '`customer_fields` as a real token is. `model` asks another model of the same provider instead of the '
+      + 'configured one, to compare them before choosing — an administrator of the instance only, since it spends '
+      + 'the instance\'s key on a model nobody configured. One model call on the instance\'s key. Owners and admins only.',
     readOnly: true,
     schema: {
       type: 'object',
@@ -455,6 +466,7 @@ export const supportTools: ToolDef[] = [
         widget: { type: 'string', description: 'Its id or name' },
         question: { type: 'string', description: 'As a visitor would write it' },
         customer_data: { type: 'object', description: 'A sample `ctx` claim, e.g. {"plan": "Pro"}' },
+        model: { type: 'string', description: 'Another model of the same provider, e.g. claude-haiku-5-5; the instance\'s administrators only' },
         workspace_id: { type: 'string' },
       },
     },
@@ -464,10 +476,16 @@ export const supportTools: ToolDef[] = [
       const row = findWidget(String(args.widget), workspaceId, ctx);
       const question = str(args.question);
       if (!question) throw new McpError('Ask something');
+      const model = str(args.model);
+      // The configured model is the operator's choice; any other is a cost the
+      // operator has not agreed to, so only they may name one.
+      if (model && !ctx.auth.isAdmin) {
+        throw new McpError('Only an administrator of this instance may ask another model', -32000);
+      }
       const read = knowledgeOf(row).filter((page) => !page.skipped);
       try {
-        const answer = await tryAssistant(row, question, args.customer_data);
-        return { ...answer, pages_read: read.map((page) => page.title) };
+        const answer = await tryAssistant(row, question, args.customer_data, model);
+        return { ...answer, pages_read: read.map((page) => page.title), model: model || env.ai.supportModel || modelFor(env.aiProvider)?.model || null };
       } catch (error) {
         throw new McpError(error instanceof Error ? error.message : 'The model did not answer');
       }

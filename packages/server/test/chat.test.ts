@@ -24,7 +24,7 @@ import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
 
 const { server } = await import('../src/index.ts');
-const { Clock, directChannelId, readStateId } = await import('@kolibri/shared');
+const { CHAT_MESSAGE_MAX, Clock, directChannelId, readStateId } = await import('@kolibri/shared');
 const { canSeeChannel } = await import('../src/kernel/write-path/repo.ts');
 const { searchWorkspace } = await import('../src/kernel/search/search.ts');
 const { all, get, run } = await import('../src/kernel/platform/db/index.ts');
@@ -548,6 +548,34 @@ describe('being told about a message', () => {
     assert.equal(inbox(people.lin).length, before, 'muting has to beat a mention or it is not muting');
   });
 
+  it('does not tell somebody outside a private channel what was said in it, even by name', async () => {
+    const channel = (await post(people.ada, 'channels', {
+      name: 'board-room', is_private: 1, members: [people.ada.id, people.lin.id],
+    })).id;
+    assert.equal(canSeeChannel(people.max.id, channel), false);
+    const before = inbox(people.max).length;
+    await post(people.ada, 'messages', { channel_id: channel, body: 'before we tell @max about the reorg' });
+    assert.equal(inbox(people.max).length, before, 'a notification carries the words; it is a door onto the room');
+    // Lin is in it, so the same mention still reaches Lin.
+    const linBefore = inbox(people.lin).length;
+    await post(people.ada, 'messages', { channel_id: channel, body: 'and @lin, keep it quiet' });
+    assert.equal(inbox(people.lin).length, linBefore + 1);
+  });
+
+  it('stops telling somebody taken off a private channel, whatever their read marker says', async () => {
+    const channel = (await post(people.ada, 'channels', {
+      name: 'deal-room', is_private: 1, members: [people.ada.id, people.lin.id, people.max.id],
+    })).id;
+    await post(people.max, 'channel-reads', {
+      id: readStateId(channel, people.max.id), channel_id: channel, notify: 'all',
+    });
+    await post(people.ada, 'messages', { channel_id: channel, body: 'while Max is still here' });
+    const heard = inbox(people.max).length;
+    await as(people.ada, `/api/channels/${channel}`, { members: [people.ada.id, people.lin.id] }, 'PATCH');
+    await post(people.ada, 'messages', { channel_id: channel, body: 'now that Max is out: the offer' });
+    assert.equal(inbox(people.max).length, heard, 'the marker outlived the membership; the notification must not');
+  });
+
   it('nudges a device about a reply that landed in the same moment as its own message', async () => {
     const heard: number[] = [];
     // What the stream does for one device: its own echo is dropped.
@@ -619,6 +647,124 @@ describe('who may change who is in a channel', () => {
     })).id;
     const refused = await raw(people.lin, `/api/channels/${channel}`, { invite_policy: 'admins' }, 'PATCH');
     assert.equal(refused.status, 403);
+  });
+});
+
+/*
+ * The room itself — whether it is private, what it is called, which project
+ * it is in, whether it stands — is its owner's: whoever opened it, or an admin.
+ * Each case below was a 200 for a plain member before, measured.
+ */
+describe('who may change what a channel is', () => {
+  const channelRow = (id: string) => get<any>(`SELECT * FROM channels WHERE id = ?`, id);
+
+  it('will not let a plain member open a private channel to the workspace', async () => {
+    const channel = (await post(people.ada, 'channels', {
+      name: 'closed-room', is_private: 1, members: [people.ada.id, people.lin.id], invite_policy: 'admins',
+    })).id;
+    await post(people.ada, 'messages', { channel_id: channel, body: 'history that was private' });
+    const refused = await raw(people.lin, `/api/channels/${channel}`, { is_private: 0 }, 'PATCH');
+    assert.equal(refused.status, 403);
+    assert.equal(Number(channelRow(channel).is_private), 1);
+    const pulled = (await pull(people.max)).message ?? [];
+    assert.equal(pulled.some((row) => row.channel_id === channel), false, 'the history stays with the people it was said to');
+  });
+
+  it('will not let a plain member take an open channel private', async () => {
+    const channel = (await post(people.ada, 'channels', { name: 'open-room' })).id;
+    const refused = await raw(people.max, `/api/channels/${channel}`, { is_private: 1, members: [people.max.id] }, 'PATCH');
+    assert.equal(refused.status, 403);
+    assert.equal(canSeeChannel(people.ada.id, channel), true, 'the person who opened it still has it');
+  });
+
+  it('keeps the name, the topic and the project to whoever opened it', async () => {
+    const channel = (await post(people.ada, 'channels', { name: 'named-room' })).id;
+    for (const patch of [{ name: 'taken-over' }, { topic: 'mine now' }, { project_id: secretProject }]) {
+      const refused = await raw(people.max, `/api/channels/${channel}`, patch, 'PATCH');
+      assert.equal(refused.status, 403, `a plain member changed ${Object.keys(patch)[0]}`);
+    }
+    assert.equal(channelRow(channel).name, 'named-room');
+    const renamed = await as(people.ada, `/api/channels/${channel}`, { name: 'Renamed Room', topic: 'ours' }, 'PATCH');
+    assert.equal(renamed.name, 'renamed-room');
+  });
+
+  it('lets a workspace admin change a channel somebody else opened', async () => {
+    const channel = (await post(people.lin, 'channels', { name: 'lins-room' })).id;
+    const renamed = await as(people.ada, `/api/channels/${channel}`, { topic: 'set by an owner' }, 'PATCH');
+    assert.equal(renamed.topic, 'set by an owner');
+  });
+
+  it('does not let a field sent back unchanged count as changing it', async () => {
+    const channel = (await post(people.ada, 'channels', { name: 'resent-room', topic: 'same' })).id;
+    const row = channelRow(channel);
+    const archived = await as(people.max, `/api/channels/${channel}`, {
+      name: row.name, topic: row.topic, is_private: row.is_private, archived_at: Date.now(),
+    }, 'PATCH');
+    assert.ok(archived.archived_at, 'archiving stays every member\'s to do, as the screen offers it');
+  });
+
+  it('keeps deleting a channel to whoever opened it', async () => {
+    const channel = (await post(people.ada, 'channels', { name: 'standing-room' })).id;
+    const refused = await raw(people.max, `/api/channels/${channel}`, undefined, 'DELETE');
+    assert.equal(refused.status, 403);
+    assert.equal(channelRow(channel).deleted_at, null);
+    assert.equal((await raw(people.ada, `/api/channels/${channel}`, undefined, 'DELETE')).status, 200);
+    assert.ok(channelRow(channel).deleted_at);
+  });
+
+  it('will not let a private channel be made private with nobody in it', async () => {
+    // Made open on purpose, which empties its list: an open channel has none.
+    const channel = (await post(people.ada, 'channels', { name: 'empty-private', is_private: 0 })).id;
+    assert.deepEqual(JSON.parse(channelRow(channel).members), []);
+    const refused = await raw(people.ada, `/api/channels/${channel}`, { is_private: 1 }, 'PATCH');
+    assert.equal(refused.status, 400, 'invisible to everybody, its owner included');
+  });
+
+  it('fixes what a channel is and who opened it', async () => {
+    const channel = (await post(people.ada, 'channels', { name: 'kind-room' })).id;
+    const kept = await as(people.max, `/api/channels/${channel}`, { kind: 'direct', created_by: people.max.id }, 'PATCH');
+    const row = channelRow(channel);
+    assert.equal(row.kind, 'channel');
+    assert.equal(row.created_by, people.ada.id);
+    assert.equal(row.workspace_id, workspaceId, 'a named channel does not leave its workspace');
+    assert.equal(kept.kind, 'channel');
+  });
+});
+
+describe('a channel in the trash', () => {
+  /** What the trash screen does: a sync push clearing `deleted_at`. */
+  const restore = async (who: Person, channel: string) => {
+    // A stamp newer than the delete's. One from the same millisecond can lose
+    // the tie-break, and a stale write is dropped before any guard is asked —
+    // the channel stays deleted either way, but nothing would be refused.
+    await new Promise((done) => setTimeout(done, 5));
+    const clock = new Clock(`device-${who.id}`);
+    return as(who, '/api/sync/push', {
+      workspaceId, clientId: `device-${who.id}`,
+      mutations: [{ id: `restore-${channel}-${who.id}-${Date.now()}`, entity: 'channel', entityId: channel, op: 'upsert', patch: { deleted_at: null }, hlc: clock.now() }],
+    });
+  };
+
+  it('comes back for whoever may delete it, and for nobody else', async () => {
+    const channel = (await post(people.ada, 'channels', { name: 'binned' })).id;
+    await as(people.ada, `/api/channels/${channel}`, undefined, 'DELETE');
+
+    const refused = await restore(people.max, channel);
+    assert.equal(refused.rejected.length, 1);
+    assert.ok(get<any>(`SELECT deleted_at FROM channels WHERE id = ?`, channel).deleted_at);
+
+    const back = await restore(people.ada, channel);
+    assert.deepEqual(back.rejected, [], 'the trash promised this, and it was refused for everybody');
+    assert.equal(get<any>(`SELECT deleted_at FROM channels WHERE id = ?`, channel).deleted_at, null);
+  });
+});
+
+describe('a very long message', () => {
+  it('is cut at the limit, and the sender is told what was kept', async () => {
+    const channel = (await post(people.ada, 'channels', { name: 'long-read' })).id;
+    const sent = await post(people.ada, 'messages', { channel_id: channel, body: 'x'.repeat(CHAT_MESSAGE_MAX + 5000) });
+    assert.equal(sent.body.length, CHAT_MESSAGE_MAX);
+    assert.equal(get<any>(`SELECT length(body) AS n FROM messages WHERE id = ?`, sent.id).n, CHAT_MESSAGE_MAX);
   });
 });
 

@@ -1,21 +1,43 @@
 name: Model
 
-# What the model writes when a board is asked to fit a phone, and when one is
-# drawn from a sentence — measured at a phone's width, as `scripts/model.mjs`
-# says. Only by hand, never on a push: it spends real tokens on every run, and
-# what it measures is the model's behaviour, which no diff here changes. Run it
-# after changing the board prompt (`modules/ai-review/board.ts`) or the words
-# *Make it fit phones* sends, and when the configured model changes.
+# What the model writes, measured rather than assumed — two things, either or
+# both:
+#
+# - **boards**: what the model writes when a board is asked to fit a phone, and
+#   when one is drawn from a sentence — measured at a phone's width, as
+#   `scripts/model.mjs` says. Run it after changing the board prompt
+#   (`modules/ai-review/board.ts`) or the words *Make it fit phones* sends.
+# - **support**: the support chat's checklist (`docs/support.md`) asked of each
+#   model in `support_models` and judged, side by side, as
+#   `scripts/support-model.mjs` says — the table lands on the run's summary
+#   page. Run it after changing the assistant's prompt
+#   (`modules/support/assistant.ts`) and before choosing a support model.
+#
+# Only by hand, never on a push: it spends real tokens on every run, and what
+# it measures is the model's behaviour, which no diff here changes.
 #
 # It needs the repository secret `ANTHROPIC_API_KEY`. Without it the run says
 # so and fails: nothing measured is not a pass.
 on:
   workflow_dispatch:
     inputs:
+      checks:
+        description: "What to measure"
+        type: choice
+        options: [both, boards, support]
+        default: both
       model:
-        description: "Model to ask (empty: the server's default)"
+        description: "Model the boards are drawn with (empty: the server's default)"
         required: false
         default: ""
+      support_models:
+        description: "Support chat: models to compare, comma-separated (empty: the server's model)"
+        required: false
+        default: "claude-opus-5-5,claude-sonnet-5-5,claude-haiku-5-5"
+      support_repeat:
+        description: "Support chat: how often each line is asked (a model does not answer twice alike)"
+        required: false
+        default: "3"
 
 permissions:
   contents: read
@@ -24,8 +46,9 @@ jobs:
   model:
     runs-on: ubuntu-latest
     # Five boards, each minutes of writing at worst; the server allows one five
-    # minutes before it gives up on an answer.
-    timeout-minutes: 40
+    # minutes before it gives up on an answer. Then nine questions per support
+    # model and round, a few seconds each when measured, a minute at worst.
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -46,6 +69,7 @@ jobs:
       # and the Playwright version `ci.yml` pins, read from there, so there is
       # still one number to bump.
       - name: A browser to measure with
+        if: inputs.checks != 'support'
         timeout-minutes: 10
         run: |
           PLAYWRIGHT_VERSION=$(sed -n 's/^  PLAYWRIGHT_VERSION: *//p' .github/workflows/ci.yml)
@@ -70,10 +94,21 @@ jobs:
             echo "the server never became healthy"; cat /tmp/kolibri-server.log; exit 1
           }
       - name: What the model writes
+        if: inputs.checks != 'support'
         timeout-minutes: 30
         run: npm run check:model
         env:
           KOLIBRI_URL: http://127.0.0.1:4400
+      # After the boards, and whatever they found: two answers to two
+      # questions, and one failing says nothing about the other.
+      - name: What the support chat answers
+        if: ${{ !cancelled() && inputs.checks != 'boards' }}
+        timeout-minutes: 15
+        run: npm run check:support-model
+        env:
+          KOLIBRI_URL: http://127.0.0.1:4400
+          KOLIBRI_SUPPORT_MODELS: ${{ inputs.support_models }}
+          KOLIBRI_SUPPORT_REPEAT: ${{ inputs.support_repeat }}
       - name: What the server thought, if anything went wrong
         if: failure()
         run: cat /tmp/kolibri-server.log || true

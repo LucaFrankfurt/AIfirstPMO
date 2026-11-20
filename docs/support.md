@@ -62,13 +62,37 @@ with the instance secret and valid for twelve hours. The token reaches the ifram
 and is never in a URL. The secret is a registry `secret` field, so it never syncs, and it is sealed
 with the instance secret (`seal`, purpose `widget`) so a copied backup cannot sign anybody in; an
 admin reveals it on request and can rotate it, which stops every token signed with the old one at
-once. Keys stored before sealing are sealed at boot (`sealWidgetSecrets`). A restore without the
+once — and every session made from one: a signed session names the key it came in under (`keyTag`),
+and is refused, its stream ended, once that is no longer the widget's key. Both need a credential that may write: unlike a vault secret, which is a key to somebody
+else's system, this one writes into the workspace as any customer, so a read-only token never gets
+it. Keys stored before sealing are sealed at boot (`sealWidgetSecrets`). A restore without the
 instance's `.secret` file leaves every key unreadable: tokens are refused until *New secret*.
 
 **Anonymous visitors** may leave a name and an email, both optional and both shown as unverified. A
 hidden field no person fills in turns a form-filling program away, and the routes have their own
 rate limits (`LIMITS.widget*`). Their session lives thirty days in the iframe's own storage; where a
 browser refuses third-party storage the window still works and simply forgets them on the next page.
+
+**A session holds only while the widget does.** It is signed once and checked against the widget as
+it is *now* on every request, and on the stream at every change: a widget switched off, or switched
+to signed-in visitors under an anonymous session, or its key rotated under a signed one, ends it —
+the window is sent `end` and asks again, as a new visitor would. A widget switched off sends
+`closed` instead, and the window keeps its session for when the widget is back. Each was measured to
+carry on before. Sessions made before this check existed name no key, so every signed visitor signs
+in again once after the upgrade — the window does it by itself, asking the host page for a token.
+
+**A conversation is one once somebody writes in it.** A session opens a conversation before a word
+is said — a signed widget's on the first click of the launcher — so one that nobody ever wrote in is
+kept off the team's devices, out of the inbox and out of `list_conversations` (the generic REST
+listing still returns it, as it returns any row), and is removed by the hourly sweep once no session
+could still open it, with a `purge` marker so a device that had one drops it. An empty one older
+than a week is never handed out again, and the visitor's list of earlier chats leaves empty ones out,
+so the sweep cannot take one from under a session.
+
+**What a visitor attaches is a picture they uploaded into this conversation.** The upload route
+signs each one for the conversation (`fileSignature`), and a message takes a picture only with that
+signature. Being stored in the workspace was the test before, and it let a visitor who knew a file's
+hash attach anything a member had uploaded — and then download it through the window.
 
 **One conversation at a time per visitor and widget.** A returning visitor finds their newest
 conversation by widget and `sub`. Resolved is said, not left to be guessed: when the team resolves a
@@ -95,13 +119,19 @@ conversation is an ordinary synced row. "Typing" is kept in memory only; the inb
 three seconds while a conversation is open.
 
 **The team is told once per burst.** A visitor's message notifies the assignee, otherwise the
-widget's agents, otherwise the owners and admins — never anybody who cannot see the project — and
-not again for further lines within five minutes. It counts as urgent for Telegram and Web Push, and
-not for the email digest.
+widget's agents, otherwise the owners and admins — never anybody who cannot see the project, and when
+that leaves a step with nobody, the next step is asked rather than nobody being told — and not again
+for further lines within five minutes. A conversation is only given to somebody who can see its
+project. It counts as urgent for Telegram and Web Push, and not for the email digest. Pressing the
+notification — in the app, on Telegram, in a push or a digest — opens the conversation it is about.
 
 **When nobody answers live, email does — both ways.** An answer the visitor has not read within five
-minutes is emailed to the address they have, through the ordinary mail queue. Reading it in the
-window first withdraws the email. One pending email per conversation.
+minutes is emailed to the address they have, through the ordinary mail queue — a member's, or the
+model's (`onAnswered`, since the model's line is a system write and reaches no write listener). The
+model's only to a **signed-in** visitor: an anonymous visitor's address is whatever was typed, and
+with no person in between that made the server write to any address a stranger chose. And never
+the model's "a person will reply here", which would hold the place of that person's reply.
+Reading it in the window first withdraws the email. One pending email per conversation.
 
 When the widget names a **reply address** — an inbox the workspace has connected under Mail — the
 email's Reply-To is that inbox and its subject carries a signed tag (`[#a1b2c3d4-9f8e7d]`). The mail
@@ -203,14 +233,18 @@ unread. Where the pages do not cover the question the draft is empty, rather tha
 will answer you" line a colleague would then send.
 
 **Answer first.** The model answers a visitor's line itself, with "typing" while it writes, and names
-the pages it used under the answer. It hands the conversation to a person — goes quiet, and the team
-is told at once — when:
+the pages it used under the answer. It answers one call at a time per conversation: lines that arrive
+while it is answering are answered together once it has, rather than one call a line. It hands the
+conversation to a person — goes quiet, and the team is told at once, and only once however often a
+person is asked for — when:
 
 - it cannot answer from the pages, or the visitor is upset or asks about their own account (it says
   so in one line, in the visitor's language);
 - the visitor presses "Talk to a person";
 - a member answers in the conversation (answering is taking over);
-- the widget's **answers a day** are spent;
+- the widget's **answers a day** are spent — counted as the model being *asked*, a silent hand-over
+  included, and reserved before each call goes out, so visitors writing at once cannot all fit under
+  what is left;
 - the model does not answer, or answers something that cannot be read.
 
 The fences, which are the point: it reads **only the pages the widget names, and of those only the
@@ -218,7 +252,10 @@ ones in the public knowledge base** — never the workspace's search, never a pr
 task — and about the visitor **only what the host's signed token said** (below); it has no tools and writes one line of text
 as itself; it is asked for JSON and argued with (`parseAnswer`), so a source it names that is not one
 of the pages is dropped and an answer it cannot shape is a hand-over; and the conversation is given
-to it as data, with the rule that instructions inside it change nothing. Measured with a fake model
+to it as data — fenced as the customer data is, as one JSON object whose lines each say who wrote
+them in a field of their own, so a visitor's own line breaks cannot write a line "from the team" — with the rule that
+instructions inside it change nothing. The pages come first and are offered to the provider for
+caching (`cachePrefix`); everything about the visitor comes after them. Measured with a fake model
 in `support-assistant.test.ts`, including that a private page ticked as knowledge is never sent.
 
 ### What the host says about a visitor
@@ -274,6 +311,31 @@ no other page.
   had its proposed prices quoted to a visitor as prices, and nothing on the page said a visitor
   would read it.
 
+### What it costs
+
+A support answer's prompt is mostly the widget's knowledge pages: at the limits above, 24,000
+characters, about 6,400 tokens with the rules, against a few hundred for the conversation and a few
+hundred out. So the model's input price is most of what an answer costs, and the cache is most of
+what saves it. On Anthropic the pages are offered for caching (`cachePrefix`): a widget asked again
+within about five minutes reads them at a twentieth of the input price (Opus 5.5, Sonnet 5.5) or a
+tenth (Haiku 5.5); a quiet one writes them each time, at a quarter more.
+
+Worked out on 2026-11-19 from the providers' list prices, for full pages, and an estimate rather
+than a measurement — prices move, and the thinking a model does before it answers varies:
+
+| `KOLIBRI_AI_SUPPORT_MODEL` | an answer, quiet widget | an answer, busy widget |
+|---|---|---|
+| `claude-opus-5-5` | about 4.4 ct | about 1.3 ct |
+| `claude-sonnet-5-5` | about 2.2 ct | about 0.6 ct |
+| `claude-haiku-5-5` | about 0.11 ct | about 0.04 ct |
+| `gemini-3.8-flash` (no explicit cache) | about 0.7 ct | about 0.7 ct |
+
+That is why the support chat can have a model of its own: the answer is a few sentences read off
+pages it was handed, which rarely needs the model a board is drawn with. Whether a smaller model
+keeps to the rules — hand over rather than guess, the visitor's language, nothing invented — is
+worth trying on the real pages before visitors meet it — the checklist below, asked of each model
+you are considering and judged, is `npm run check:support-model`.
+
 ### Setup
 
 | step | who | where |
@@ -288,7 +350,7 @@ Per widget:
 |---|---|
 | The assistant | *Off* · *Suggests replies to the team* · *Answers first, hands over when unsure* |
 | What it may read | up to 20 pages from the public knowledge base, in reading order; private pages are never sent |
-| Answers a day | default 50; past it, every conversation goes to a person |
+| Answers a day | default 50 calls to the model, hand-overs included; past it, every conversation goes to a person |
 
 Environment, instead of step 1:
 
@@ -297,7 +359,8 @@ ANTHROPIC_API_KEY=...             # provider read off the key's name
 # or
 KOLIBRI_AI_PROVIDER=anthropic     # anthropic | gemini | openrouter
 KOLIBRI_AI_API_KEY=...
-KOLIBRI_AI_MODEL=claude-sonnet-5-5   # optional; one model for reviews, boards and support
+KOLIBRI_AI_MODEL=claude-opus-5-5     # optional; reviews, boards — and support, unless the next line
+KOLIBRI_AI_SUPPORT_MODEL=claude-sonnet-5-5   # optional; the support chat's own, same provider
 ```
 
 - A value typed into Settings → Server wins over the environment.
@@ -327,6 +390,38 @@ To try a real model:
 - [ ] "ignore your rules and …": not followed
 - [ ] *Talk to a person*: the team is told at once
 
+**Asked and judged by a script**, for one model or several side by side: `scripts/support-model.mjs`
+(`npm run check:support-model`). Every line but the last is judged — the last is the server's, and
+`support-assistant.test.ts` holds it — and every answer also to one rule more: no number the pages
+and the customer data do not contain. It asks through `try_assistant`, so it is the same prompt, the
+same pages and the same parser, and nothing is written. Two ways:
+
+- **In GitHub**, by hand: Actions → *Model* → *Run workflow*, `checks: support`, the models to
+  compare in `support_models`, and how often each line is asked in `support_repeat` (three by
+  default: a model does not answer the same question the same way twice). It seeds an instance with a made-up studio whose facts it knows, so
+  every line is judged, and puts a table of every model against every line on the run's summary.
+  It needs the repository secret `ANTHROPIC_API_KEY`.
+- **On your own instance**, against a real widget and its real pages: `KOLIBRI_URL`, an MCP token of
+  an administrator of the instance in `KOLIBRI_TOKEN`, the widget in `KOLIBRI_WIDGET`, and the models
+  in `KOLIBRI_SUPPORT_MODELS`. Nothing is written. The lines that need the studio's facts are judged
+  by what does not depend on them — the language, the hand-over, no number the pages do not hold —
+  or skipped.
+
+Naming a model other than the configured one is the instance administrator's alone: it spends the
+instance's key on a model nobody configured.
+
+Measured on 20 November 2026, through OpenRouter, the made-up studio, every line asked three times of
+five models — `anthropic/claude-opus-5.5`, `anthropic/claude-sonnet-5.5`, `anthropic/claude-haiku-5.5`,
+`google/gemini-3.8-flash`, `google/gemini-3.5-flash-lite`: every line held, 3 of 3, for all five, at
+a cost of 26 cents for the 135 answers. Where they differed was in what passing looked like. Opus
+and Sonnet handed over exactly where the checklist says to and nowhere else; Haiku and Gemini 3.8
+Flash also handed over the injection (safe, and a ticket for the team each time); Gemini 3.5
+Flash-Lite handed over the made-up plan as well, two times in three, and answered in half as many
+words. An earlier run of the same day caught Flash-Lite answering an English visitor's request with
+a German hand-over line — once in the 45 answers it gave that day, which is why lines are asked more
+than once. Gemini 3.8 Flash was the slowest, about 3 seconds an answer against 1 to 2 for the rest.
+Gemini was asked through OpenRouter, not through Kolibri's own Gemini adapter.
+
 Measured against a real model on 17 November 2026, through `try_assistant` on a live instance,
 before customer data existed: every hand-over and the injection held; a page-backed answer named
 the wrong page as its source, twice. See `TODO.md`.
@@ -339,9 +434,9 @@ the wrong page as its source, twice. See `TODO.md`.
 |---|---|
 | `list_conversations`, `get_conversation` | the inbox; an assistant's line carries its `sources` |
 | `reply_to_conversation`, `update_conversation`, `create_task_from_conversation` | the inbox's buttons |
-| `list_widgets` | each widget's model setting, and per knowledge page: `read`, `chars`, `chars_read`, `skipped` (`deleted`, `private`, `not_public_knowledge`, `over_budget`) |
+| `list_widgets` | each widget's model setting and the `model` it asks, and per knowledge page: `read`, `chars`, `chars_read`, `skipped` (`deleted`, `private`, `not_public_knowledge`, `over_budget`) |
 | `update_widget` | name, greeting, model setting, answers a day, knowledge pages in order, `customer_fields` — owners and admins; an unmarked page is refused by name |
-| `try_assistant` | a test question, answered from the pages as a visitor would get it, with an optional sample `customer_data`; nothing written, nothing counted — owners and admins |
+| `try_assistant` | a test question, answered from the pages as a visitor would get it, with an optional sample `customer_data`, and `model` to ask another model of the same provider (an administrator of the instance only); nothing written, nothing counted — owners and admins |
 | `create_page`, `update_page`, `list_pages` | `public_knowledge` marks, unmarks, filters |
 
 Writing knowledge pages with an assistant: `list_widgets` → write or fix a page → `update_page` with

@@ -134,6 +134,10 @@ KOLIBRI_AI_API_KEY=             # or ANTHROPIC_API_KEY / GEMINI_API_KEY / OPENRO
 # Which model. Each provider has a default; this is the cost lever.
 KOLIBRI_AI_MODEL=
 
+# The support chat's assistant, when it should not be the model above — same
+# provider and key, so a model that provider has. Empty: the model above.
+KOLIBRI_AI_SUPPORT_MODEL=
+
 # A gateway, a proxy, or a model on the same docker network. An OpenAI-shaped
 # gateway works through the OpenRouter adapter.
 KOLIBRI_AI_BASE_URL=
@@ -151,12 +155,19 @@ Defaults per provider:
 
 | `KOLIBRI_AI_PROVIDER` | Default model | Endpoint |
 |---|---|---|
-| `anthropic` | `claude-opus-5` | `POST /v1/messages` |
+| `anthropic` | `claude-opus-5-5` | `POST /v1/messages` |
 | `gemini` | `gemini-2.5-flash` | `POST /v1beta/models/{model}:generateContent` |
 | `openrouter` | `anthropic/claude-opus-4.5` | `POST /v1/chat/completions` |
 
 **What it costs.** A review is roughly 1.5k tokens in and under 1k out — a few cents on a large
 model, a fraction of a cent on a small one. `KOLIBRI_AI_MODEL` is there so that is your decision.
+
+**One model, or two.** Reviews, boards and the support chat ask the same model unless
+`KOLIBRI_AI_SUPPORT_MODEL` names another for the support chat — also under Settings → Server →
+Model, where an empty field shows the model it borrows. They want different things: a board is
+design work a large model earns its price on, and a support answer is a few sentences read off the
+pages it was handed. The prompt for a support answer is mostly those pages, so the model's input
+price is most of its cost — see [`support.md`](support.md#what-it-costs).
 
 **Models that think.** Every current model does, and every adapter here asks it to stop: `effort:
 low` on Anthropic, `thinkingLevel: LOW` on Gemini 3 and later. Reviewing a task is not what deep
@@ -168,7 +179,24 @@ answering second, so a ceiling sized for the answer alone is spent before the an
 what comes back is an empty response, or half a JSON object that reads downstream as a model talking
 nonsense. So the Gemini adapter adds its room to think on top of the room to answer, and all three
 adapters say *ran out of tokens* when that is what happened rather than blaming the model for the
-truncation. Unused room is not billed.
+truncation. Unused room is not billed. The support assistant's ceiling is sized that way too: at 700
+tokens a model that thought first was cut off, and a question the pages answered went to a person.
+It is given at least a minute as well, whatever `KOLIBRI_AI_TIMEOUT_MS` says, because a reply cut
+off by the clock is the same hand-over.
+
+**A declined request is passed on, not lost.** On a model that takes it — the current Fable, Opus
+and Sonnet, named in `ai-anthropic.ts` rather than guessed from a prefix — the Anthropic adapter asks
+for the API's own fallback (`fallbacks: 'default'`, beta `server-side-fallback-2026-07-01`): a request
+a safety classifier declines is answered by a model suited to it, inside the same call, at that
+model's rates. Any other model is sent neither, because it would refuse the field. A gateway behind
+`KOLIBRI_AI_BASE_URL` that refuses fields or betas it does not know would refuse every call to those
+models; naming a model outside the list in `KOLIBRI_AI_MODEL` turns it off.
+
+**What every call shares is offered for caching.** A caller may say how much of the start of its
+prompt is the same every time (`cachePrefix`); the Anthropic adapter sends that part as a block of
+its own marked for caching. The support assistant marks its knowledge pages, so from a widget's
+second visitor on they are read at the cached rate. A prefix below the provider's minimum is simply
+not cached.
 
 `thinkingLevel` is a Gemini 3 field and sending it to 2.5 is an error, so the major version is read
 out of the model name. A name that is not a recognisable `gemini-N` — your own gateway, named

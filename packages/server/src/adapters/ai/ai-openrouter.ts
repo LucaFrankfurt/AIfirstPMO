@@ -33,7 +33,7 @@ export async function reviewWithOpenRouter(request: AiRequest): Promise<string> 
       ...(env.publicUrl ? { 'http-referer': env.publicUrl } : {}),
     },
     body: JSON.stringify({
-      model: env.ai.model || DEFAULT_MODEL,
+      model: request.model || env.ai.model || DEFAULT_MODEL,
       max_tokens: request.maxTokens,
       response_format: { type: 'json_object' },
       messages: [

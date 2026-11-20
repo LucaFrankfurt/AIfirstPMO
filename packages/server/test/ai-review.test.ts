@@ -156,6 +156,79 @@ describe('the Anthropic adapter', () => {
 
 /* ------------------------------------------------------------------ Gemini */
 
+describe('the Anthropic adapter, for a support widget', () => {
+  const reply = () => ({ json: { content: [{ type: 'text', text: '{"answer":"ok"}' }] } });
+
+  it('offers the part every call shares for caching, and nothing after it', async () => {
+    const fake = await fakeProvider(reply);
+    const shared = 'KNOWLEDGE:\n### Prices\n29 EUR\n\n';
+    await withProvider(fake, { model: 'claude-opus-5-5' }, async () => {
+      await reviewWithAnthropic({ ...ask, user: `${shared}CONVERSATION: price?`, cachePrefix: shared.length });
+      const [cached, rest] = fake.seen[0].body.messages[0].content;
+      assert.equal(cached.text, shared);
+      assert.deepEqual(cached.cache_control, { type: 'ephemeral' });
+      assert.equal(rest.text, 'CONVERSATION: price?');
+      assert.equal(rest.cache_control, undefined, 'what differs per visitor is never cached');
+    });
+  });
+
+  it('asks for a fallback on a model that takes one, and never on one that does not', async () => {
+    const taking = await fakeProvider(reply);
+    await withProvider(taking, { model: 'claude-opus-5-5' }, async () => {
+      await reviewWithAnthropic(ask);
+      assert.equal(taking.seen[0].body.fallbacks, 'default');
+      assert.equal(taking.seen[0].headers['anthropic-beta'], 'server-side-fallback-2026-07-01');
+    });
+    const other = await fakeProvider(reply);
+    await withProvider(other, { model: 'claude-haiku-4-5' }, async () => {
+      await reviewWithAnthropic(ask);
+      assert.equal('fallbacks' in other.seen[0].body, false, 'a model outside the list would answer it with a 400');
+      assert.equal(other.seen[0].headers['anthropic-beta'], undefined);
+      assert.equal(other.seen[0].body.messages[0].content, ask.user, 'no prefix asked for, one string as before');
+    });
+  });
+
+  it('defaults to the current Opus', async () => {
+    const fake = await fakeProvider(reply);
+    await withProvider(fake, {}, async () => {
+      await reviewWithAnthropic(ask);
+      assert.equal(fake.seen[0].body.model, 'claude-opus-5-5');
+    });
+  });
+});
+
+describe('a model the caller names', () => {
+  const reply = () => ({ json: { content: [{ type: 'text', text: '{"answer":"ok"}' }] } });
+
+  it('is asked over the configured one, and decides the fallback by itself', async () => {
+    const smaller = await fakeProvider(reply);
+    await withProvider(smaller, { model: 'claude-opus-5-5' }, async () => {
+      await reviewWithAnthropic({ ...ask, model: 'claude-haiku-5-5' });
+      assert.equal(smaller.seen[0].body.model, 'claude-haiku-5-5');
+      assert.equal('fallbacks' in smaller.seen[0].body, false, 'the model asked takes no fallback, whatever the server\'s does');
+    });
+    const listed = await fakeProvider(reply);
+    await withProvider(listed, { model: 'claude-haiku-4-5' }, async () => {
+      await reviewWithAnthropic({ ...ask, model: 'claude-sonnet-5-5' });
+      assert.equal(listed.seen[0].body.model, 'claude-sonnet-5-5');
+      assert.equal(listed.seen[0].body.fallbacks, 'default');
+    });
+  });
+
+  it('reaches Gemini and OpenRouter too', async () => {
+    const gemini = await fakeProvider(() => ({ json: { candidates: [{ content: { parts: [{ text: '{}' }] } }] } }));
+    await withProvider(gemini, { model: 'gemini-2.5-flash' }, async () => {
+      await reviewWithGemini({ ...ask, model: 'gemini-3.5-flash-lite' });
+      assert.equal(gemini.seen[0].path, '/v1beta/models/gemini-3.5-flash-lite:generateContent');
+    });
+    const router = await fakeProvider(() => ({ json: { choices: [{ message: { content: '{}' } }] } }));
+    await withProvider(router, { model: 'anthropic/claude-opus-4.5' }, async () => {
+      await reviewWithOpenRouter({ ...ask, model: 'anthropic/claude-haiku-4.5' });
+      assert.equal(router.seen[0].body.model, 'anthropic/claude-haiku-4.5');
+    });
+  });
+});
+
 describe('the Gemini adapter', () => {
   it('puts the key in a header and the system prompt in its own field', async () => {
     const fake = await fakeProvider(() => ({

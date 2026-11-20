@@ -3227,6 +3227,14 @@
             "description": "The conversation, when it is about something somebody said in one.",
             "readOnly": true
           },
+          "conversation_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The support conversation, when a visitor wrote through a widget. Missing, not null, on rows a device synced before it existed — read defensively.",
+            "readOnly": true
+          },
           "created_at": {
             "type": "number",
             "readOnly": true

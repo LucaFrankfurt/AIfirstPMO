@@ -63,7 +63,7 @@ interface Reply {
 
 export async function reviewWithGemini(request: AiRequest): Promise<string> {
   const base = env.ai.baseUrl || DEFAULT_URL;
-  const model = env.ai.model || DEFAULT_MODEL;
+  const model = request.model || env.ai.model || DEFAULT_MODEL;
   const thinkingConfig = thinkingConfigFor(model);
   const response = await askProvider(`${base}/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: 'POST',

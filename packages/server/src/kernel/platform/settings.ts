@@ -225,6 +225,15 @@ export const SETTINGS: SettingSpec[] = [
     read: () => env.ai.key,
   },
   { key: 'KOLIBRI_AI_MODEL', group: 'ai', set: 'ai', kind: 'text', read: () => env.ai.model },
+  // Borrows the model above while it is empty, and the screen says which.
+  {
+    key: 'KOLIBRI_AI_SUPPORT_MODEL',
+    group: 'ai',
+    set: 'ai',
+    kind: 'text',
+    read: () => env.ai.supportModel || env.ai.model,
+    inherits: true,
+  },
   { key: 'KOLIBRI_AI_BASE_URL', group: 'ai', set: 'ai', kind: 'text', read: () => env.ai.baseUrl, check: httpUrl },
   /*
    * Where the nightly snapshot goes, when it is not only a directory.
@@ -469,7 +478,7 @@ export function instanceStatus() {
         : env.mail.host ? `${env.mail.host}:${env.mail.port}` : '',
     },
     telegram: { enabled: env.telegramEnabled },
-    ai: { provider: env.aiProvider, model: env.ai.model },
+    ai: { provider: env.aiProvider, model: env.ai.model, supportModel: env.ai.supportModel },
   };
 }
 

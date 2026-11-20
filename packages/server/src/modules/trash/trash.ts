@@ -89,6 +89,9 @@ function forgetTrail(entity: EntityName, id: string, named: Set<string>): void {
     for (const version of all<Row>(`SELECT content FROM ${versions[0]} WHERE ${versions[1]} = ?`, id)) hashesIn(version, named);
     run(`DELETE FROM ${versions[0]} WHERE ${versions[1]} = ?`, id);
   }
+  // A support notification opens its conversation now, so it is a link to it
+  // like any other, and goes when the conversation does.
+  if (entity === 'conversation') run(`DELETE FROM notifications WHERE conversation_id = ?`, id);
   const column = entity === 'task' ? 'task_id' : entity === 'page' ? 'page_id' : entity === 'project' ? 'project_id' : null;
   if (!column) return;
   run(`DELETE FROM activities WHERE ${column} = ?`, id);

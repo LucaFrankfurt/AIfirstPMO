@@ -10,7 +10,7 @@ import {
   SUPPORT_MESSAGE_MAX, SUPPORT_TYPING_MS, cleanContextFields, excerpt, pickContext, visitorLabel,
   type Conversation, type ConversationFile, type WidgetContextField,
 } from '@kolibri/shared';
-import { all, get, run, type Row } from '../../kernel/platform/db/index.ts';
+import { all, get, nextSeq, run, type Row } from '../../kernel/platform/db/index.ts';
 import { seal, unseal } from '../../kernel/platform/seal.ts';
 import { hasFeature } from '../../kernel/platform/features.ts';
 import { badRequest } from '../../kernel/platform/http.ts';
@@ -145,6 +145,20 @@ function openConversation(widget: Row, visitor: Visitor): Row {
 }
 
 /**
+ * How old an empty conversation may be and still be handed out again.
+ *
+ * Well inside `EMPTY_KEPT_MS`, and that margin is the point: a session is
+ * handed out on a conversation and lasts at most thirty days, and an empty
+ * conversation is pruned at thirty-one. Handing out one already a month old
+ * would let the sweep delete it under a session still open on it — the
+ * visitor's next line refused, measured by reading the two together.
+ */
+const REUSE_EMPTY_MS = 7 * 86_400_000;
+
+const hasLines = (conversationId: unknown): boolean =>
+  !!get(`SELECT 1 FROM conversation_messages WHERE conversation_id = ? LIMIT 1`, conversationId);
+
+/**
  * The visitor's newest conversation with this widget, opened if there is none.
  *
  * Newest, not open: a visitor whose chat the team resolved comes back to it,
@@ -160,7 +174,10 @@ export function conversationFor(widget: Row, visitor: Visitor): Row {
       ORDER BY created_at DESC LIMIT 1`,
     widget.id, visitor.id,
   );
-  if (!found) return openConversation(widget, visitor);
+  // An old empty one is left for the sweep, not handed out again: see `REUSE_EMPTY_MS`.
+  if (!found || (Number(found.created_at) < Date.now() - REUSE_EMPTY_MS && !hasLines(found.id))) {
+    return openConversation(widget, visitor);
+  }
   const patch: Record<string, unknown> = {};
   if (visitor.verified && visitor.name !== found.visitor_name) patch.visitor_name = visitor.name;
   if (visitor.verified && visitor.email !== found.visitor_email) patch.visitor_email = visitor.email;
@@ -181,9 +198,10 @@ export function newConversation(widget: Row, from: Row): Row {
   const empty = get<Row>(
     `SELECT * FROM conversations c
       WHERE c.widget_id = ? AND c.visitor_id = ? AND c.id <> ? AND c.status = 'open' AND c.deleted_at IS NULL
+        AND c.created_at >= ?
         AND NOT EXISTS (SELECT 1 FROM conversation_messages m WHERE m.conversation_id = c.id)
       ORDER BY c.created_at DESC LIMIT 1`,
-    widget.id, from.visitor_id, from.id,
+    widget.id, from.visitor_id, from.id, Date.now() - REUSE_EMPTY_MS,
   );
   if (empty) return empty;
   return openConversation(widget, {
@@ -205,18 +223,66 @@ function storedContext(conversation: Row): Record<string, string | number | bool
   }
 }
 
-/** The visitor's chats with this widget, newest first: what the window lists as earlier chats. */
+/**
+ * How long a conversation nobody wrote in is kept: past the longest session a
+ * visitor can hold, so nobody is still looking at one when it goes — which
+ * holds because none older than `REUSE_EMPTY_MS` is ever handed out again.
+ */
+const EMPTY_KEPT_MS = 31 * 86_400_000;
+
+/**
+ * Conversations nobody ever wrote in, removed once no session can still open
+ * them. Returns how many.
+ *
+ * Every session opens one before a word is said — a signed widget does it on
+ * the first click of the launcher — and an anonymous visitor gets a new one on
+ * every visit their storage does not survive. They are kept out of the team's
+ * sight already (the pull, the inbox, `list_conversations` skip a conversation
+ * with no line in it); this is the table not growing for ever underneath.
+ *
+ * Removed outright, with a `purge` marker in place of each, the way emptying
+ * the trash does it: a device that pulled one before they were hidden drops
+ * its copy when the marker arrives.
+ */
+export function pruneEmptyConversations(now = Date.now()): number {
+  const doomed = all<Row>(
+    `SELECT id, workspace_id FROM conversations c
+      WHERE c.created_at < ?
+        AND NOT EXISTS (SELECT 1 FROM conversation_messages m WHERE m.conversation_id = c.id)`,
+    now - EMPTY_KEPT_MS,
+  );
+  for (const row of doomed) {
+    run(`DELETE FROM conversations WHERE id = ?`, row.id);
+    run(
+      `INSERT INTO purges (id, workspace_id, entity, row_id, reason, created_at, updated_at, seq, clocks)
+       VALUES (?, ?, 'conversation', ?, 'retention', ?, ?, ?, '{}')`,
+      uid(), row.workspace_id, row.id, now, now, nextSeq(),
+    );
+  }
+  return doomed.length;
+}
+
+/**
+ * The visitor's chats with this widget, newest first: what the window lists as
+ * earlier chats. An empty one other than the chat they are in has nothing to
+ * go back to, and an old one could be pruned under the session that opened it.
+ */
 export const conversationsOfVisitor = (conversation: Row, limit = 20): Row[] =>
   all<Row>(
-    `SELECT * FROM conversations WHERE widget_id = ? AND visitor_id = ? AND deleted_at IS NULL
+    `SELECT * FROM conversations c WHERE widget_id = ? AND visitor_id = ? AND deleted_at IS NULL
+        AND (c.id = ? OR EXISTS (SELECT 1 FROM conversation_messages m WHERE m.conversation_id = c.id))
       ORDER BY created_at DESC LIMIT ?`,
-    conversation.widget_id, conversation.visitor_id, limit,
+    conversation.widget_id, conversation.visitor_id, conversation.id, limit,
   );
 
-/** One of the visitor's own chats with this widget, by id: never somebody else's, never a deleted one. */
+/**
+ * One of the visitor's own chats with this widget, by id: never somebody
+ * else's, never a deleted one, and — as the list above — never an empty one.
+ */
 export const visitorsOwn = (conversation: Row, id: string): Row | undefined =>
   get<Row>(
-    `SELECT * FROM conversations WHERE id = ? AND widget_id = ? AND visitor_id = ? AND deleted_at IS NULL`,
+    `SELECT * FROM conversations c WHERE id = ? AND widget_id = ? AND visitor_id = ? AND deleted_at IS NULL
+        AND EXISTS (SELECT 1 FROM conversation_messages m WHERE m.conversation_id = c.id)`,
     id, conversation.widget_id, conversation.visitor_id,
   );
 
@@ -283,18 +349,27 @@ export function markVisitorRead(conversation: Row): void {
  * Whoever it is assigned to; otherwise the widget's agents; otherwise the
  * workspace's owners and admins, so that a widget nobody configured still
  * reaches somebody who can configure it. Never anybody who cannot see the
- * project, whatever the list says.
+ * project, whatever the list says — and when that leaves a step with nobody
+ * on it, the next step is asked rather than nobody being told. An assignee who
+ * lost access to the project, or an agents list of people who left, used to
+ * mean a visitor's line reached no one.
  */
 export function teamOf(widget: Row, conversation: Row): string[] {
-  const named = conversation.assignee_id ? [String(conversation.assignee_id)] : parseIds(widget.agents);
-  const people = named.length
-    ? named
-    : all<Row>(
+  const canSee = (userId: string) => canSeeProject(userId, String(conversation.project_id));
+  const steps: (() => string[])[] = [
+    () => (conversation.assignee_id ? [String(conversation.assignee_id)] : []),
+    () => parseIds(widget.agents),
+    () => all<Row>(
       `SELECT user_id FROM workspace_members
         WHERE workspace_id = ? AND role IN ('owner', 'admin') AND deleted_at IS NULL`,
       widget.workspace_id,
-    ).map((member) => String(member.user_id));
-  return [...new Set(people)].filter((userId) => canSeeProject(userId, String(conversation.project_id)));
+    ).map((member) => String(member.user_id)),
+  ];
+  for (const step of steps) {
+    const people = [...new Set(step())].filter(canSee);
+    if (people.length) return people;
+  }
+  return [];
 }
 
 /**
@@ -331,6 +406,7 @@ export function tellTeam(widget: Row, conversation: Row, message: Row, now = fal
       title: translatorFor(userId)('notify.support', { name: visitorLabel(conversation as Conversation), widget: String(widget.name) }),
       body,
       projectId: String(conversation.project_id),
+      conversationId: String(conversation.id),
     });
   }
 }
@@ -388,10 +464,14 @@ export function onTyping(listener: (conversationId: string) => void): () => void
  * trash for as long as the task shows them. The visitor's name is prose, not a
  * user — the same as an intake reporter.
  */
-export function transcript(conversation: Row, names: (userId: string) => string, from: string): string {
+export function transcript(conversation: Row, names: (userId: string) => string, from: string, assistant: string): string {
   const visitor = visitorLabel(conversation as Conversation);
   const lines = messagesOf(String(conversation.id), 100).map((message) => {
-    const who = message.author === 'visitor' ? visitor : names(String(message.author_id ?? ''));
+    // The model's lines have no author id, and asking for the name of nobody
+    // answered "Somebody" — a task that said a person wrote what a model did.
+    const who = message.author === 'visitor' ? visitor
+      : message.author === 'bot' ? assistant
+        : names(String(message.author_id ?? ''));
     const at = new Date(Number(message.created_at)).toISOString().slice(0, 16).replace('T', ' ');
     const files = parseFiles(message.files)
       .map((file) => `![${file.name.replace(/[[\]]/g, '')}](/files/${file.hash}/${encodeURIComponent(file.name)})`)
@@ -433,7 +513,7 @@ export function conversationAsTask(conversation: Row, opts: WriteOpts, locale: L
     description: transcript(conversation, displayName, translate(locale, 'support.taskFrom', {
       name: visitorLabel(conversation as Conversation),
       widget: String(widget?.name ?? ''),
-    })),
+    }), translate(locale, 'support.assistant')),
     created_by: opts.actorId,
   }, opts);
   writeEntity('conversation', String(conversation.id), { task_id: task.id }, { ...opts, system: true });

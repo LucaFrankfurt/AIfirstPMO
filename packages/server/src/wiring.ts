@@ -56,6 +56,7 @@ import { webhookRules } from './adapters/webhooks/rules/webhooks.ts';
 import { supportRules } from './modules/support/rules/support.ts';
 import { sealWidgetSecrets } from './modules/support/support.ts';
 import { installSupportMail } from './adapters/widget/mail.ts';
+import { installSupportChores } from './adapters/widget/chores.ts';
 
 let installed = false;
 
@@ -83,6 +84,7 @@ export function installEffects(): void {
   installTelegramChores();
   installWebhookChores();
   installSupportMail();
+  installSupportChores();
   // The two things started at boot on the strength of a setting, told when one
   // changes — a write in Settings → Server, or a restore replacing them all.
   onSettingsChange(() => { stopMailWorker(); startMailWorker(); });

@@ -32,7 +32,7 @@ import {
   visitorsOwn, widgetSecret, type Visitor,
 } from '../../../modules/support/support.ts';
 import { assistantReady, handOver, respondTo } from '../../../modules/support/assistant.ts';
-import { readSession, signSession, verifyHostToken } from '../token.ts';
+import { fileSignature, fileSigned, keyTag, readSession, signSession, verifyHostToken, type Session } from '../token.ts';
 import { withdrawMail } from '../mail.ts';
 
 /** The iframe page, built by Vite beside the app's own `index.html`. */
@@ -134,6 +134,34 @@ const messageView = (message: Row) => ({
 
 const sessionEnded = () => new HttpError(401, 'The chat session has ended', 'session_expired');
 
+/** A session for one conversation of this widget, until `exp` — naming the key a signed visitor came in under. */
+const sessionFor = (widget: Row, conversationId: string, exp: number): string =>
+  signSession({
+    w: String(widget.id), c: conversationId, exp,
+    ...(widget.identity === 'signed' ? { k: keyTag(widgetSecret(widget)) } : {}),
+  });
+
+/**
+ * Whether a session still lets its holder in, given what the widget is now.
+ *
+ * A session is signed once and believed until it expires, so everything that
+ * should end one early is asked again on every request, and on the stream at
+ * every change. Two things, each measured to have done nothing before:
+ *
+ * - **The widget now wants signed-in visitors**, and this one never was: an
+ *   anonymous session went on writing for its thirty days after an admin had
+ *   switched the widget to signed.
+ * - **The secret was rotated** since this visitor signed in. That is what
+ *   rotating is for, and the twelve hours a signed session lasts are twelve
+ *   hours of a withdrawn key still working.
+ *
+ * The widget being switched off is `liveWidget`'s, asked before this.
+ */
+function stillHolds(widget: Row, conversation: Row, session: Session): boolean {
+  if (widget.identity !== 'signed') return true;
+  return !!Number(conversation.verified) && session.k === keyTag(widgetSecret(widget));
+}
+
 function widgetOf(ctx: Ctx): Row {
   const widget = liveWidget(ctx.params.widget);
   if (!widget) throw notFound('No such chat');
@@ -146,7 +174,7 @@ function widgetOf(ctx: Ctx): Row {
  * The session rides in a header, except on the stream, where `EventSource`
  * cannot set one — the reason the app's own stream reads a query too.
  */
-function visitorOf(ctx: Ctx, fromQuery = false): { widget: Row; conversation: Row; expiresAt: number } {
+function visitorOf(ctx: Ctx, fromQuery = false): { widget: Row; conversation: Row; expiresAt: number; session: Session } {
   const widget = widgetOf(ctx);
   const token = String(ctx.req.headers['x-widget-session'] ?? (fromQuery ? ctx.query.get('session') ?? '' : ''));
   const session = readSession(token, String(widget.id));
@@ -155,8 +183,8 @@ function visitorOf(ctx: Ctx, fromQuery = false): { widget: Row; conversation: Ro
     `SELECT * FROM conversations WHERE id = ? AND widget_id = ? AND deleted_at IS NULL`,
     session.c, widget.id,
   );
-  if (!conversation) throw sessionEnded();
-  return { widget, conversation, expiresAt: session.exp };
+  if (!conversation || !stillHolds(widget, conversation, session)) throw sessionEnded();
+  return { widget, conversation, expiresAt: session.exp, session };
 }
 
 const cleanText = (value: unknown, max: number): string | null =>
@@ -168,15 +196,20 @@ const cleanEmail = (value: unknown): string | null => {
 };
 
 /**
- * Files a visitor names must be stored in this workspace already — which they
- * are when they came up through `/w/:widget/files` a moment before.
+ * Files a visitor names must be ones this conversation's session uploaded a
+ * moment before through `/w/:widget/files` — which signed each one for this
+ * conversation (`fileSignature`) — and pictures, as that route only takes.
+ * Being stored in the workspace was the old test, and it let a visitor attach
+ * anything a member had uploaded, given its hash.
  */
-function storedFiles(workspaceId: string, value: unknown): ConversationFile[] {
+function storedFiles(conversation: Row, value: unknown): ConversationFile[] {
+  const conversationId = String(conversation.id);
   return parseFiles(value)
     .filter((file) => file && typeof file.hash === 'string' && /^[0-9a-f]{64}$/.test(file.hash))
+    .filter((file) => fileSigned(conversationId, file.hash, (file as { sig?: unknown }).sig))
     .slice(0, 5)
-    .map((file) => get<Row>(`SELECT * FROM files WHERE hash = ? AND workspace_id = ?`, file.hash, workspaceId))
-    .filter((row): row is Row => !!row)
+    .map((file) => get<Row>(`SELECT * FROM files WHERE hash = ? AND workspace_id = ?`, file.hash, conversation.workspace_id))
+    .filter((row): row is Row => !!row && VISITOR_TYPES.has(String(row.mime)))
     .map((row) => ({
       hash: String(row.hash), name: String(row.name), type: String(row.mime), size: Number(row.size),
       width: row.width ?? null, height: row.height ?? null,
@@ -230,7 +263,7 @@ export function registerWidgetRoutes(router: Router): void {
     const conversation = conversationFor(widget, visitor);
     const expiresAt = Date.now() + (widget.identity === 'anonymous' ? ANONYMOUS_SESSION_MS : SIGNED_SESSION_MS);
     return {
-      session: signSession({ w: String(widget.id), c: String(conversation.id), exp: expiresAt }),
+      session: sessionFor(widget, String(conversation.id), expiresAt),
       expiresAt,
       conversation: conversationView(conversation),
     };
@@ -249,7 +282,7 @@ export function registerWidgetRoutes(router: Router): void {
     enforce(ctx, byAddress(ctx, LIMITS.widgetMessage, 'widget-message'));
     const { conversation } = visitorOf(ctx);
     const body = await readJson<{ body?: string; files?: unknown }>(ctx, 64 * 1024);
-    const message = postVisitorMessage(conversation, String(body.body ?? ''), storedFiles(String(conversation.workspace_id), body.files));
+    const message = postVisitorMessage(conversation, String(body.body ?? ''), storedFiles(conversation, body.files));
     respondTo(conversation, message);
     return { message: messageView(message) };
   });
@@ -278,7 +311,7 @@ export function registerWidgetRoutes(router: Router): void {
     resolveByVisitor(widget, conversation);
     const fresh = newConversation(widget, conversation);
     return {
-      session: signSession({ w: String(widget.id), c: String(fresh.id), exp: expiresAt }),
+      session: sessionFor(widget, String(fresh.id), expiresAt),
       expiresAt,
       conversation: conversationView(fresh),
     };
@@ -304,7 +337,7 @@ export function registerWidgetRoutes(router: Router): void {
     const other = visitorsOwn(conversation, ctx.params.id);
     if (!other) throw notFound('No such chat');
     return {
-      session: signSession({ w: String(widget.id), c: String(other.id), exp: expiresAt }),
+      session: sessionFor(widget, String(other.id), expiresAt),
       expiresAt,
       conversation: conversationView(other),
     };
@@ -348,7 +381,7 @@ export function registerWidgetRoutes(router: Router): void {
    * visitor moved on from is seen while they are still there, not only by email.
    */
   router.get('/w/:widget/stream', (ctx: Ctx) => {
-    const { conversation } = visitorOf(ctx, true);
+    const { conversation, session } = visitorOf(ctx, true);
     const id = String(conversation.id);
     let after = Number(ctx.query.get('after') ?? 0) || 0;
     let read = Number(conversation.agent_read_at ?? 0);
@@ -382,8 +415,25 @@ export function registerWidgetRoutes(router: Router): void {
         if (message.deleted_at) send('gone', { id: message.id });
         else send('message', messageView(message));
       }
-      const now = get<Row>(`SELECT agent_read_at, handover_at, status, deleted_at FROM conversations WHERE id = ?`, id);
-      if (!now || now.deleted_at) {
+      // Asked first, and of the widget as it is now: a stream opened before
+      // the widget was switched off — or switched to signed visitors, or its
+      // key rotated — went on delivering the team's answers to a window that
+      // could no longer write back. Measured.
+      //
+      // Two different endings. `closed` is the widget gone quiet, which may
+      // be for an afternoon: the window says the chat is unavailable and
+      // keeps its session, so the visitor finds their conversation again when
+      // it is back. `end` is this session being over — the conversation
+      // deleted, or a session the widget no longer accepts — and the window
+      // asks for a new one, which is refused or granted as for anybody.
+      const now = get<Row>(`SELECT * FROM conversations WHERE id = ?`, id);
+      const widget = liveWidget(String(conversation.widget_id));
+      if (!widget) {
+        send('closed', {});
+        stop();
+        return;
+      }
+      if (!now || now.deleted_at || !stillHolds(widget, now, session)) {
         send('end', {});
         stop();
         return;
@@ -446,6 +496,8 @@ export function registerWidgetRoutes(router: Router): void {
       file: {
         hash: stored.hash, name: stored.name, type: mime, size: body.length,
         width: stored.width ?? null, height: stored.height ?? null,
+        // Sent back with the message that carries it; never stored on the line.
+        sig: fileSignature(String(conversation.id), String(stored.hash)),
       },
     };
   });

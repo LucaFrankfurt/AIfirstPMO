@@ -260,6 +260,9 @@ export function VisitorChat() {
           if (typing) typingTimer = window.setTimeout(() => setAgentTyping(false), SUPPORT_TYPING_MS);
         });
         source.addEventListener('end', () => { source?.close(); ended(); });
+        // The widget was switched off. Not the end of this session: keep it,
+        // so the conversation is still theirs when the widget is back.
+        source.addEventListener('closed', () => { source?.close(); setStage('unavailable'); });
         /*
          * A closed source is not proof the session is over. Leaving the page
          * closes it too, with an error — and reading that as "ended" wiped an
@@ -355,7 +358,9 @@ export function VisitorChat() {
       });
       if (response.status === 401) return ended();
       if (!response.ok) throw new Error(`${response.status}`);
-      const { file: stored } = await response.json() as { file: ConversationFile };
+      // Kept whole, `sig` included: the server takes a picture into a message
+      // only with the signature its upload was given, for this conversation.
+      const { file: stored } = await response.json() as { file: ConversationFile & { sig: string } };
       setAttached((now) => [...now, stored]);
     } catch {
       setNotice(words.uploadFailed);
@@ -382,6 +387,8 @@ export function VisitorChat() {
       const opened = await call<{ session: string; expiresAt: number }>(path, session, { method: 'POST', body: '{}' });
       if (config?.identity === 'anonymous') keep(opened);
       setLines([]);
+      // A picture waiting to go was signed for the conversation being left.
+      setAttached([]);
       setAgentRead(null);
       setHandedOver(null);
       setResolved(false);

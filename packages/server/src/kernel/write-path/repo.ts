@@ -946,9 +946,13 @@ export const canSeeKpi = (userId: string, kpiId: string | null | undefined): boo
 /** The budget a line, an actual or a scenario hangs off. */
 export const budgetOf = (row: Row): string | null => (row.budget_id as string | null) ?? null;
 
-export function canSeeChannel(userId: string, channelId: string | null | undefined): boolean {
+/**
+ * `deleted` asks about a channel in the trash as it was, for the one caller
+ * that needs to: putting it back. Everybody else is right to find nothing.
+ */
+export function canSeeChannel(userId: string, channelId: string | null | undefined, { deleted = false } = {}): boolean {
   if (!channelId) return false;
-  const channel = get<Row>(`SELECT * FROM channels WHERE id = ? AND deleted_at IS NULL`, channelId);
+  const channel = get<Row>(`SELECT * FROM channels WHERE id = ? ${deleted ? '' : 'AND deleted_at IS NULL'}`, channelId);
   if (!channel) return false;
   // Leaving the workspace does not take your name out of the channels you were
   // in — the member list is a synced field, not a foreign key. Every caller
