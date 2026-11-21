@@ -32,6 +32,8 @@ const en = {
   'support.taskFrom': 'From the support chat with {name} via {widget}',
   // The model in a support widget, as the window and the inbox already call it.
   'support.assistant': 'AI assistant',
+  // What a visitor reads when the model hands over without a word of its own.
+  'support.handoverLine': 'A person from the team will reply here.',
   'notify.sharedNote': 'A note on the shared “{title}”',
   'notify.message': '{name} in {channel}',
   'notify.directMessage': '{name} sent you a message',
@@ -167,6 +169,7 @@ const de: Catalogue = {
   'mail.supportAnswer': 'Du kannst auf diese E-Mail antworten: Deine Antwort landet bei uns im Chat.',
   'support.taskFrom': 'Aus dem Support-Chat mit {name} über {widget}',
   'support.assistant': 'KI-Assistent',
+  'support.handoverLine': 'Eine Person aus dem Team antwortet dir hier.',
   'notify.sharedNote': 'Eine Notiz zur geteilten Seite „{title}“',
   'notify.message': '{name} in {channel}',
   'notify.directMessage': '{name} hat dir geschrieben',
@@ -296,6 +299,7 @@ const fr: Catalogue = {
   'mail.supportAnswer': 'Vous pouvez répondre à cet e-mail : votre réponse nous parvient dans le chat.',
   'support.taskFrom': 'Depuis le chat d’assistance avec {name} via {widget}',
   'support.assistant': 'Assistant IA',
+  'support.handoverLine': 'Une personne de l’équipe vous répondra ici.',
   'notify.sharedNote': 'Une note sur la page partagée « {title} »',
   'notify.message': '{name} dans {channel}',
   'notify.directMessage': '{name} vous a envoyé un message',

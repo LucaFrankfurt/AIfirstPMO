@@ -245,7 +245,22 @@ person is asked for — when:
 - the widget's **answers a day** are spent — counted as the model being *asked*, a silent hand-over
   included, and reserved before each call goes out, so visitors writing at once cannot all fit under
   what is left;
-- the model does not answer, or answers something that cannot be read.
+- the model does not answer, answers something that cannot be read, or leaves its answer empty.
+
+**Nobody is left looking at their own question.** Where the model hands over with a sentence of its
+own, that sentence is the visitor's; where it hands over without one — an empty answer, an answer
+that cannot be read, a call that failed, the day's answers spent — Kolibri writes a fixed one, "A
+person from the team will reply here.", in the visitor's language (`support.handoverLine`). Not when
+a member took the conversation while the model was thinking: they answer, and a sentence saying that
+somebody will would be wrong. Not on "Talk to a person" either: the window answers that itself.
+
+**The visitor's language is decided, not guessed.** `modules/support/language.ts` reads the
+visitor's own lines — the newest first, the two before it only when the newest is a "ok?" — for
+words that belong to one of English, German and French alone, and the prompt then says, after the
+fenced conversation where no visitor can write it: *The visitor writes in German. Write "answer" in
+German, whatever language the pages, the customer data or earlier lines are in.* The team's lines
+and the model's own do not count. Where the words do not decide, nothing is said and the model keeps
+the rule it always had; the fixed hand-over sentence then falls back to the instance's language.
 
 The fences, which are the point: it reads **only the pages the widget names, and of those only the
 ones in the public knowledge base** — never the workspace's search, never a private page, never a
@@ -421,6 +436,13 @@ words. An earlier run of the same day caught Flash-Lite answering an English vis
 a German hand-over line — once in the 45 answers it gave that day, which is why lines are asked more
 than once. Gemini 3.8 Flash was the slowest, about 3 seconds an answer against 1 to 2 for the rest.
 Gemini was asked through OpenRouter, not through Kolibri's own Gemini adapter.
+
+Measured on 21 November 2026, on a live instance through OpenRouter with
+`anthropic/claude-sonnet-5.5` and the instance's own pages, which mix German and English: an English
+question about prices was answered in German, and the first question of a session was handed over
+with nothing said to the visitor. The two paragraphs on language and on nobody being left looking at
+their own question exist because of those two answers; neither has been measured against a real
+model since.
 
 Measured against a real model on 17 November 2026, through `try_assistant` on a live instance,
 before customer data existed: every hand-over and the injection held; a page-backed answer named
