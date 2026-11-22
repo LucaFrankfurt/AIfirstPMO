@@ -69,7 +69,10 @@ export function registerMailRoutes(router: Router): void {
     const auth = requireAuth(ctx);
     if (!env.mailEnabled) throw badRequest('No mail transport is configured on this instance');
     const user = get<Row>(`SELECT email, locale FROM users WHERE id = ?`, auth.userId);
-    queueTestMail(user!.email, user!.locale ?? undefined);
+    // Suppressed — see the same check in `routes/settings.ts`.
+    if (!queueTestMail(user!.email, user!.locale ?? undefined)) {
+      throw badRequest(`Nothing was sent: ${user!.email} is on the suppression list after an earlier refusal — allow it again under Settings → Notifications, then test again`);
+    }
     const { flushQueue } = await import('../mail.ts');
     const result = await flushQueue(5);
     if (!result.sent) {

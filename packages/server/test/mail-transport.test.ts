@@ -283,6 +283,32 @@ describe('scaleway transport', () => {
     }
   });
 
+  it('logs what it sent when refused: the key’s length, never the key', async () => {
+    // A 403 from Scaleway's IAM looks the same for a wrong key, a key without
+    // the permission and a project that is not the key's; the log line is what
+    // tells them apart, so it has to carry everything but the secret.
+    const { url, server, calls } = await startApi(() => ({ status: 403, body: { message: 'insufficient permissions' } }));
+    const logged: string[] = [];
+    const warn = console.warn;
+    console.warn = (...args: unknown[]) => { logged.push(args.join(' ')); };
+    try {
+      await sendViaScaleway({ ...config(url), secretKey: ' scw-secret\n' }, letter).catch(() => undefined);
+    } finally {
+      console.warn = warn;
+      server.close();
+    }
+    // Sent trimmed, and the length logged is the length sent.
+    assert.equal(calls[0].token, 'scw-secret');
+    assert.equal(logged.length, 1);
+    const [line] = logged;
+    assert.ok(line.includes('HTTP 403'), line);
+    assert.ok(line.includes(`url=${url}`), line);
+    assert.ok(line.includes('token=present (10 chars)'), line);
+    assert.ok(line.includes('project_id="project-1"'), line);
+    assert.ok(line.includes('from=kolibri@localhost'), line);
+    assert.ok(!line.includes('scw-secret'), 'the key itself is never logged');
+  });
+
   it('carries a file as the API documents one: a name, a type and base64', async () => {
     const { url, server, calls } = await startApi(() => ({ status: 200, body: { emails: [{ id: 'scw-2' }] } }));
     try {

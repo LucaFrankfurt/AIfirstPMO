@@ -95,12 +95,15 @@ export async function sendViaScaleway(config: ScalewayConfig, mail: Deliverable)
   // A queue worker that blocks forever on one message stops sending all of
   // them, and `fetch` has no timeout of its own.
   const abort = AbortSignal.timeout(timeoutMs);
+  // Trimmed here rather than left to `fetch`, which trims a header value too —
+  // so that the length logged below is the length that was sent.
+  const token = config.secretKey.trim();
 
   let response: Response;
   try {
     response = await fetch(config.url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Auth-Token': config.secretKey },
+      headers: { 'Content-Type': 'application/json', 'X-Auth-Token': token },
       body: JSON.stringify(body),
       signal: abort,
     });
@@ -116,6 +119,22 @@ export async function sendViaScaleway(config: ScalewayConfig, mail: Deliverable)
 
   if (!response.ok) {
     const detail = (await response.text().catch(() => '')).slice(0, 300);
+    /*
+     * What was asked, without the key. A 403 from Scaleway's IAM reads the same
+     * whether the key is a different one, lacks the email permission, or was
+     * asked about a project that is not its own — and those are told apart only
+     * by what was sent, which nothing else on this path records: the key is
+     * sealed in the database and the screen says no more than "stored".
+     *
+     * The key's length rather than any of the key: a secret key is a UUID, 36
+     * characters; the access key pasted in its place is 20. The project id is
+     * quoted, so a stray space or carriage return from a pasted value shows.
+     */
+    console.warn(
+      `[mail] Scaleway answered HTTP ${response.status}: url=${config.url}`
+      + ` token=${token ? `present (${token.length} chars)` : 'missing'}`
+      + ` project_id=${JSON.stringify(config.projectId)} from=${body.from.email}`,
+    );
     /*
      * Which failures are worth retrying, in HTTP's terms rather than SMTP's.
      *

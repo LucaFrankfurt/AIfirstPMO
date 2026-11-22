@@ -62,6 +62,36 @@ const save = (cookie: string, settings: Record<string, string | null>) =>
 
 const valueOf = (state: any, key: string) => state.settings.find((row: any) => row.key === key);
 
+/**
+ * Scaleway's API, answering everything with `status` and keeping what it was
+ * sent. Its address goes in through the environment, the only place
+ * `KOLIBRI_SCALEWAY_EMAIL_URL` is read from.
+ */
+async function fakeScaleway(status: number) {
+  const calls: { token: string | undefined; body: any }[] = [];
+  const api = createServer((req, res) => {
+    let raw = '';
+    req.on('data', (chunk) => { raw += chunk; });
+    req.on('end', () => {
+      calls.push({ token: req.headers['x-auth-token'] as string | undefined, body: JSON.parse(raw || '{}') });
+      res.writeHead(status, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(status < 300
+        ? { emails: [{ id: 'scw-1', message_id: '<test@kolibri>' }] }
+        : { message: 'insufficient permissions', type: 'permissions_denied' }));
+    });
+  });
+  await new Promise<void>((done) => api.listen(0, '127.0.0.1', done));
+  process.env.KOLIBRI_SCALEWAY_EMAIL_URL = `http://127.0.0.1:${(api.address() as AddressInfo).port}/emails`;
+  return {
+    calls,
+    close: () => { api.close(); delete process.env.KOLIBRI_SCALEWAY_EMAIL_URL; },
+  };
+}
+
+/** Whatever earlier tests left due, so a test counts only its own message. */
+const dropDueMail = () =>
+  run(`UPDATE email_queue SET failed_at = ? WHERE sent_at IS NULL AND failed_at IS NULL`, Date.now());
+
 before(async () => {
   await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -246,6 +276,63 @@ describe('the test button', () => {
     const result = await call(adminCookie, '/api/instance/test/mail', {});
     assert.equal(result.status, 400);
     assert.match(String(result.body.message), /ECONNREFUSED|refused|connect/i);
+  });
+
+  it('sends through Scaleway with the key and project stored here, over the environment’s', async () => {
+    // The environment names another key and project, as a container carrying
+    // a neighbouring app's `SCW_*` variables would: what was typed in here has
+    // to be what reaches Scaleway — the project under the body's `project_id`,
+    // where the API reads it, and the key in `X-Auth-Token`.
+    process.env.SCW_SECRET_KEY_EMAIL = 'key-from-the-environment';
+    process.env.SCW_PROJECT_ID = 'project-from-the-environment';
+    const api = await fakeScaleway(200);
+    try {
+      dropDueMail();
+      await save(adminCookie, {
+        KOLIBRI_MAIL_TRANSPORT: 'scaleway',
+        KOLIBRI_SCALEWAY_SECRET_KEY: 'key-typed-in-the-app',
+        KOLIBRI_SCALEWAY_PROJECT_ID: 'project-typed-in-the-app',
+      });
+      const result = await call(adminCookie, '/api/instance/test/mail', {});
+      assert.equal(result.status, 200, JSON.stringify(result.body));
+      assert.equal(api.calls.length, 1);
+      const [sent] = api.calls;
+      assert.equal(sent.token, 'key-typed-in-the-app');
+      assert.equal(sent.body.project_id, 'project-typed-in-the-app');
+      assert.deepEqual(sent.body.from, { email: 'kolibri@example.com', name: 'Kolibri' });
+      assert.deepEqual(sent.body.to, [{ email: 'ada@example.com' }]);
+    } finally {
+      api.close();
+      delete process.env.SCW_SECRET_KEY_EMAIL;
+      delete process.env.SCW_PROJECT_ID;
+    }
+  });
+
+  it('says the address is suppressed, rather than repeating the refusal that put it there', async () => {
+    const api = await fakeScaleway(403);
+    try {
+      dropDueMail();
+      await save(adminCookie, {
+        KOLIBRI_MAIL_TRANSPORT: 'scaleway',
+        KOLIBRI_SCALEWAY_SECRET_KEY: 'a-key-without-the-permission',
+        KOLIBRI_SCALEWAY_PROJECT_ID: 'a-project',
+      });
+      const first = await call(adminCookie, '/api/instance/test/mail', {});
+      assert.equal(first.status, 400);
+      assert.match(first.body.message, /HTTP 403/);
+      // A 403 is final, so the queue put the admin's own address on the list.
+      // The next test sends nothing, and has to say why rather than show the
+      // first one's refusal as its own — from either of the two test buttons.
+      for (const path of ['/api/instance/test/mail', '/api/mail/test']) {
+        const again = await call(adminCookie, path, {});
+        assert.equal(again.status, 400);
+        assert.match(again.body.message, /suppression list/, path);
+      }
+      assert.equal(api.calls.length, 1, 'only the first test reached Scaleway');
+    } finally {
+      api.close();
+      run(`DELETE FROM email_suppressions`);
+    }
   });
 
   it('asks the model a question and says which one answered', async () => {
