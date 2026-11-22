@@ -473,12 +473,18 @@ the wrong page as its source, twice. See `TODO.md`.
 | `list_conversations`, `get_conversation` | the inbox; an assistant's line carries its `sources` |
 | `reply_to_conversation`, `update_conversation`, `create_task_from_conversation` | the inbox's buttons |
 | `list_widgets` | each widget's model setting and the `model` it asks, and per knowledge page: `read`, `chars`, `chars_read`, `skipped` (`deleted`, `private`, `not_public_knowledge`, `over_budget`) |
-| `update_widget` | name, greeting, model setting, answers a day, knowledge pages in order, `customer_fields` — owners and admins; an unmarked page is refused by name |
+| `create_widget` | a widget in a project: who may write, sites, and what `update_widget` takes; answers with its `snippet`, never the secret — owners and admins |
+| `update_widget` | name, who may write, sites, live, greeting, model setting, answers a day, knowledge pages in order, `customer_fields` — owners and admins; an unmarked page or an unreadable site is refused by name |
 | `try_assistant` | a test question, answered from the pages as a visitor would get it, with an optional sample `customer_data`, and `model` to ask another model of the same provider (an administrator of the instance only); nothing written, nothing counted — owners and admins |
 | `create_page`, `update_page`, `list_pages` | `public_knowledge` marks, unmarks, filters |
 
 Writing knowledge pages with an assistant: `list_widgets` → write or fix a page → `update_page` with
 `public_knowledge: true` → `update_widget` → `try_assistant` with the questions visitors ask.
+
+Setting one up for signed-in visitors with an assistant: `create_widget` with `sites` and
+`customer_fields` → `try_assistant` with sample `customer_data` → an admin copies the secret from
+Settings → Widgets into the host's server, which signs the token (above) → the `snippet` on the host's
+page.
 
 ## Not doing
 
