@@ -329,9 +329,11 @@ no other page.
 ### What it costs
 
 A support answer's prompt is mostly the widget's knowledge pages: at the limits above, 24,000
-characters, about 6,400 tokens with the rules, against a few hundred for the conversation and a few
-hundred out. So the model's input price is most of what an answer costs, and the cache is most of
-what saves it. On Anthropic the pages are offered for caching (`cachePrefix`): a widget asked again
+characters, about 6,400 tokens with the rules for plain prose — and more for pages written as tables
+and bold labels: a real widget's eight such pages, 23,800 characters, were 9,450 tokens, about 2.7
+characters a token — against a few hundred for the conversation and a few hundred out. So the model's input price is most of what an answer costs, and the cache is most of
+what saves it. On Anthropic, directly or through OpenRouter, the pages are offered for caching
+(`cachePrefix`): a widget asked again
 within about five minutes reads them at a twentieth of the input price (Opus 5.5, Sonnet 5.5) or a
 tenth (Haiku 5.5); a quiet one writes them each time, at a quarter more.
 
@@ -344,6 +346,20 @@ than a measurement — prices move, and the thinking a model does before it answ
 | `claude-sonnet-5-5` | about 2.2 ct | about 0.6 ct |
 | `claude-haiku-5-5` | about 0.11 ct | about 0.04 ct |
 | `gemini-3.8-flash` (no explicit cache) | about 0.7 ct | about 0.7 ct |
+
+Measured on 22 November 2026 through OpenRouter, with that real widget's eight pages and four
+questions asked one after the other, before and after the OpenRouter adapter marked them
+(`adapters/ai/ai-openrouter.ts`, `anthropic/` and `google/` models):
+
+| model | before: every answer | after: the first answer | after: every answer after it |
+|---|---|---|---|
+| `anthropic/claude-sonnet-5.5` | 2.06–2.22 ct, nothing cached | 2.50 ct, 9,311 tokens written | 0.33–0.41 ct, 9,311 tokens read from the cache |
+| `google/gemini-3.6-flash` | 0.48–0.78 ct, cached by Google itself once in four | 0.38 ct, 6,322 tokens written | 0.22–0.37 ct, 6,321 tokens read from the cache |
+
+The first two Gemini calls that wrote the cache took 22 and 12 seconds against 3 to 4 for the rest,
+once; a second run found the cache still there and answered every question in 3 to 4 seconds.
+Through OpenRouter a widget's cache is the provider's, not Kolibri's: two calls routed to two
+different Google backends each wrote their own.
 
 That is why the support chat can have a model of its own: the answer is a few sentences read off
 pages it was handed, which rarely needs the model a board is drawn with. Whether a smaller model
