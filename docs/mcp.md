@@ -316,7 +316,7 @@ always called it. `billing` still works and is documented as the older spelling.
 | `get_meeting` | the agenda in order: each point's state, projects, who is responsible, who brought it, its notes and the tasks filed from it. A title several meetings share — a weekly — means the next one still open. A task or a project the caller cannot see is left out, not shown as an id |
 | `list_conversations` | the support inbox, newest first: `unread` (the team has not seen the newest line), `awaiting_reply` (the visitor wrote last), by status or widget |
 | `get_conversation` | one support conversation and its thread, oldest first: `visitor`, `member` or `assistant` per line, pictures by name, the `sources` an assistant's line named, and whether the model is still answering |
-| `list_widgets` | the chat widgets: who may write, sites, live, the model's setting and the `model` it asks, answers today, every knowledge page with `read`, `chars`, `chars_read` and why one is `skipped`, and the `customer_fields` a signed visitor's token may carry |
+| `list_widgets` | the chat widgets: who may write, sites, live, the `snippet` for the host's page (null where `KOLIBRI_PUBLIC_URL` is not set), the model's setting and the `model` it asks, answers today, every knowledge page with `read`, `chars`, `chars_read` and why one is `skipped`, and the `customer_fields` a signed visitor's token may carry |
 | `try_assistant` | what a widget's model would answer a visitor's question, from the pages it reads now — with `customer_data`, as a signed-in visitor whose token carried that `ctx`; with `model`, asked of another model of the same provider (an administrator of the instance only). Nothing is written or counted. Owners and admins; one model call |
 | `project_costs` | one project's share of every budget that charges it — the other direction from `budget_status` |
 | `list_rates` | every hourly rate, newest first — and the history behind each, since a rate is never edited in place |
@@ -611,7 +611,8 @@ is inclusive to the end of the day it names.
 | `reply_to_conversation` | a line to a support visitor, as the token's owner — live in the widget, by email if they have left; reopens a resolved conversation and takes over from the model |
 | `update_conversation` | resolve or reopen a support conversation, or assign it to a member who can see its project; `""` unassigns |
 | `create_task_from_conversation` | a support conversation as a task in the widget's project, as the inbox's button makes it. Once, unless that task has been deleted since |
-| `update_widget` | a widget's name, greeting, model setting, answers a day, its knowledge pages — the whole list, in reading order, each in the public knowledge base or refused by name — or its `customer_fields` (`{key, label}`, signed widgets only). Owners and admins |
+| `create_widget` | a chat widget in a project: `who_may_write` (`signed`, the default, or `anonymous`), `sites`, and everything `update_widget` takes. Answers with the widget and its `snippet` — never the signing secret, which an admin copies from Settings → Widgets. A second widget of the same name is refused. Owners and admins |
+| `update_widget` | a widget's name, who may write in (changing it ends every open visitor session), its `sites` (the whole list; one that is no site is refused by name), `live`, greeting, model setting, answers a day, its knowledge pages — the whole list, in reading order, each in the public knowledge base or refused by name — or its `customer_fields` (`{key, label}`, signed widgets only). Owners and admins |
 | `set_rate` | what an hour is worth from a date. Adds a rate rather than editing one, so what last quarter cost stays what last quarter cost |
 | `record_component` | add a server, an instance, a subscription. `parent` puts it on a machine; `line` charges it to a budget |
 | `sync_mailbox` | fetch new mail for one mailbox now. Writes nothing; needs a write scope because it reaches out |
@@ -646,6 +647,8 @@ in the room where the projects are compared. See [`meetings.md`](meetings.md).
 - Knowledge pages: only pages in the public knowledge base (`public_knowledge` on `create_page`,
   `update_page`, `list_pages`). `update_widget` refuses any other.
 - `try_assistant` before switching a widget to `answer`: same pages, same rules, no conversation.
+- The signing secret of a signed widget is never in a tool's answer: it signs any visitor in as anybody,
+  and an answer ends up in a transcript. An admin copies it from Settings → Widgets.
 - See [`support.md`](support.md).
 
 ### The landscape, and the question it will not answer
