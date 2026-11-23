@@ -303,7 +303,9 @@ describe('scaleway transport', () => {
     const [line] = logged;
     assert.ok(line.includes('HTTP 403'), line);
     assert.ok(line.includes(`url=${url}`), line);
-    assert.ok(line.includes('token=present (10 chars)'), line);
+    // What `printf %s scw-secret | shasum -a 256 | cut -c1-8` prints, so the
+    // line can be held against a key elsewhere without showing either.
+    assert.ok(line.includes('token=present (10 chars, sha256:29893be7)'), line);
     assert.ok(line.includes('project_id="project-1"'), line);
     assert.ok(line.includes('from=kolibri@localhost'), line);
     assert.ok(!line.includes('scw-secret'), 'the key itself is never logged');
