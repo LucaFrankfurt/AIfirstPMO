@@ -572,6 +572,55 @@ describe('customer data over MCP', () => {
     assert.doesNotMatch(asked.at(-1)!.user, /"secret"|"x"/);
     await assert.rejects(tool('try_assistant', { widget: 'Prospects', question: 'Plan?', customer_data: { plan: 'Pro' } }), /signed-in visitor/);
   });
+
+  it('creates a signed widget with its sites, fields and pages, and answers with the snippet and never the secret', async () => {
+    const { env } = await import('../src/kernel/platform/env.ts');
+    const before = env.publicUrl;
+    (env as any).publicUrl = 'https://kolibri.example.com';
+    try {
+      const made = await tool('create_widget', {
+        name: 'Dashboard', project: projectId, sites: ['https://app.example.com', 'http://localhost:3000', 'app.example.com'],
+        assistant: 'answer', knowledge: ['Prices'], customer_fields: [{ key: 'plan', label: 'Plan' }],
+      });
+      assert.equal(made.who_may_write, 'signed', 'signed unless said otherwise');
+      assert.deepEqual(made.sites, ['https://app.example.com', 'http://localhost:3000'], 'one origin once, however typed');
+      assert.equal(made.live, true);
+      assert.deepEqual(made.knowledge.map((page: any) => page.title), ['Prices']);
+      assert.deepEqual(made.customer_fields, [{ key: 'plan', label: 'Plan' }]);
+      assert.match(made.snippet, /https:\/\/kolibri\.example\.com\/widget\.js/);
+      assert.match(made.snippet, new RegExp(`widget: '${made.id}'`));
+      assert.match(made.snippet, /token: \(\) => fetch/, 'a signed widget\'s snippet asks the host for a token');
+      const { secret } = await ok(`/api/widgets/${made.id}/secret`);
+      assert.ok(secret.length > 20);
+      assert.ok(!JSON.stringify(made).includes(secret), 'the secret is the one thing a tool never says');
+    } finally {
+      (env as any).publicUrl = before;
+    }
+    const { widgets } = await tool('list_widgets');
+    assert.equal(widgets.find((one: any) => one.name === 'Dashboard').snippet, null, 'no snippet pointing nowhere');
+  });
+
+  it('refuses a second widget of one name, a site that is no site, and customer fields for anyone', async () => {
+    await assert.rejects(tool('create_widget', { name: 'dashboard', project: projectId }), /already a widget called/);
+    await assert.rejects(tool('create_widget', { name: 'Typo', project: projectId, sites: ['https://ok.example.com', 'not a site'] }), /Not a site: "not a site"/);
+    await assert.rejects(
+      tool('create_widget', { name: 'Open', project: projectId, who_may_write: 'anonymous', customer_fields: [{ key: 'plan' }] }),
+      /takes anyone/,
+    );
+    await assert.rejects(tool('create_widget', { name: 'Nowhere', project: 'NOPE' }), /not found/);
+    await assert.rejects(tool('update_widget', { widget: 'Dashboard', name: 'Customers' }), /already a widget called/);
+  });
+
+  it('changes who may write, where, and whether it is live', async () => {
+    const updated = await tool('update_widget', { widget: 'Dashboard', sites: ['https://new.example.com'], live: false });
+    assert.deepEqual(updated.sites, ['https://new.example.com'], 'the whole list, replaced');
+    assert.equal(updated.live, false);
+    await assert.rejects(tool('update_widget', { widget: 'Dashboard', who_may_write: 'anonymous', customer_fields: [{ key: 'plan' }] }), /takes anyone/);
+    const open = await tool('update_widget', { widget: 'Dashboard', who_may_write: 'anonymous', live: true });
+    assert.equal(open.who_may_write, 'anonymous');
+    assert.deepEqual(open.customer_fields, [], 'an open widget carries no customer data, whatever was set before');
+    await assert.rejects(tool('update_widget', { widget: 'Dashboard', live: 'yes' }), /boolean/);
+  });
 });
 
 /*

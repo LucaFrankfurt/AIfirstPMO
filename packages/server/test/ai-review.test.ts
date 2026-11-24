@@ -364,6 +364,33 @@ describe('the OpenRouter adapter', () => {
     });
   });
 
+  it('marks the part that is the same every time for caching, on the models that need telling', async () => {
+    const fake = await fakeProvider(() => ({ json: { choices: [{ message: { content: '{}' } }] } }));
+    const shared = 'KNOWLEDGE: every page of the widget\n\n';
+    const user = `${shared}CONVERSATION: price?`;
+    await withProvider(fake, {}, async () => {
+      for (const model of ['anthropic/claude-sonnet-5.5', 'google/gemini-3.6-flash']) {
+        await reviewWithOpenRouter({ ...ask, user, cachePrefix: shared.length, model });
+        const [cached, rest] = fake.seen.at(-1)!.body.messages[1].content;
+        assert.deepEqual(cached, { type: 'text', text: shared, cache_control: { type: 'ephemeral' } }, model);
+        assert.deepEqual(rest, { type: 'text', text: 'CONVERSATION: price?' }, 'what differs per visitor is never cached');
+      }
+    });
+  });
+
+  it('sends the plain string to every other model, and without a prefix to cache', async () => {
+    const fake = await fakeProvider(() => ({ json: { choices: [{ message: { content: '{}' } }] } }));
+    const shared = 'KNOWLEDGE: every page\n\n';
+    await withProvider(fake, {}, async () => {
+      await reviewWithOpenRouter({ ...ask, user: `${shared}rest`, cachePrefix: shared.length, model: 'openai/gpt-6' });
+      assert.equal(fake.seen.at(-1)!.body.messages[1].content, `${shared}rest`, 'a model that caches by itself is not asked to');
+      await reviewWithOpenRouter({ ...ask, model: 'anthropic/claude-sonnet-5.5' });
+      assert.equal(fake.seen.at(-1)!.body.messages[1].content, ask.user, 'a task review says nothing about caching');
+      await reviewWithOpenRouter({ ...ask, user: shared, cachePrefix: shared.length, model: 'anthropic/claude-sonnet-5.5' });
+      assert.equal(fake.seen.at(-1)!.body.messages[1].content, shared, 'all of it the same is nothing to split');
+    });
+  });
+
   it('calls a truncated answer a ceiling rather than a bad review', async () => {
     const fake = await fakeProvider(() => ({
       json: { choices: [{ finish_reason: 'length', message: { content: '{"verdict":"needs-' } }] },

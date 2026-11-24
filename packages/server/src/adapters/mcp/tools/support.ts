@@ -15,8 +15,8 @@
  * stranger's conversation on the website to find out.
  */
 import {
-  CONTEXT_FIELDS_MAX, SUPPORT_MESSAGE_MAX, WIDGET_ASSISTANTS, awaitsReply, cleanContextFields, excerpt, unreadByTeam,
-  visitorLabel, type Conversation,
+  CONTEXT_FIELDS_MAX, SUPPORT_MESSAGE_MAX, WIDGET_ASSISTANTS, WIDGET_IDENTITIES, awaitsReply, cleanContextFields, cleanOrigins,
+  excerpt, unreadByTeam, visitorLabel, widgetSnippet, type Conversation, type WidgetIdentity,
 } from '@kolibri/shared';
 import { all, get, type Row } from '../../../kernel/platform/db/index.ts';
 import { env } from '../../../kernel/platform/env.ts';
@@ -28,7 +28,7 @@ import { answersToday, knowledgeOf, tryAssistant, type KnowledgePage } from '../
 import { modelFor } from '../../../modules/ai-review/model.ts';
 import { contextFieldsOf, conversationAsTask, messagesOf, parseFiles } from '../../../modules/support/support.ts';
 import {
-  findMember, findPage, McpError, requireFeature, requireWrite, str, taskView, type McpCtx, type ToolDef, workspaceOf, writeOpts,
+  findMember, findPage, findProject, McpError, requireFeature, requireWrite, str, taskView, type McpCtx, type ToolDef, workspaceOf, writeOpts,
 } from '../kit.ts';
 
 const STATUS = ['open', 'resolved'] as const;
@@ -142,8 +142,113 @@ function widgetView(row: Row) {
     answers_a_day: Number(row.assistant_budget ?? 0),
     knowledge: knowledgeOf(row).map(knowledgeView),
     customer_fields: row.identity === 'signed' ? contextFieldsOf(row) : [],
+    // The two script tags for the host's page. Never the secret: that is the
+    // one thing here that signs a visitor in as anybody, and a tool's answer
+    // ends up in a transcript. Null where the instance does not know its own
+    // address, because a snippet pointing nowhere would be pasted all the same.
+    snippet: env.publicUrl
+      ? widgetSnippet(env.publicUrl, String(row.id), row.identity as WidgetIdentity, (row.color as string | null) ?? null)
+      : null,
   };
 }
+
+/** The settings both `create_widget` and `update_widget` take, as one argument list. */
+const WIDGET_SETTINGS = {
+  name: { type: 'string' },
+  who_may_write: {
+    type: 'string', enum: [...WIDGET_IDENTITIES],
+    description: '`signed`: only visitors the host site signs in, with a token signed with the widget\'s secret; `anonymous`: anyone, with an unverified name and email',
+  },
+  sites: { type: 'array', items: { type: 'string' }, description: 'The whole list of sites the widget may be embedded on, e.g. https://app.example.com' },
+  live: { type: 'boolean', description: 'false switches the widget off: the window says so and no visitor can write' },
+  greeting: { type: 'string', description: 'The first line a visitor reads; "" for none' },
+  assistant: { type: 'string', enum: [...WIDGET_ASSISTANTS] },
+  knowledge: { type: 'array', items: { type: 'string' }, description: 'Page ids or exact titles, in order' },
+  answers_a_day: { type: 'number', description: 'Calls to the model a day, hand-overs included; past it, every conversation goes to a person' },
+  customer_fields: {
+    type: 'array',
+    description: 'The whole list; [] for none',
+    items: {
+      type: 'object',
+      properties: { key: { type: 'string' }, label: { type: 'string' } },
+      required: ['key'],
+    },
+  },
+} as const;
+
+/**
+ * The widget's settings from a tool's arguments, refused aloud where the
+ * screen would quietly drop them.
+ *
+ * One function for creating and changing, because the rules are the same and
+ * two copies of them are two chances to disagree. `identity` is what the widget
+ * will be once this is written, which decides whether customer fields mean
+ * anything.
+ */
+function widgetPatch(args: Record<string, any>, workspaceId: string, ctx: McpCtx, identity: unknown): Record<string, unknown> {
+  const patch: Record<string, unknown> = {};
+  if (args.name !== undefined) {
+    if (!str(args.name)) throw new McpError('A widget needs a name');
+    patch.name = str(args.name);
+  }
+  if (args.who_may_write !== undefined) {
+    if (!(WIDGET_IDENTITIES as readonly unknown[]).includes(args.who_may_write)) {
+      throw new McpError('who_may_write is signed or anonymous');
+    }
+    patch.identity = args.who_may_write;
+  }
+  if (args.sites !== undefined) {
+    if (!Array.isArray(args.sites)) throw new McpError('sites is a list of addresses');
+    // Each one said back if it means no site: a typo here is a widget that
+    // refuses its own page, and nothing else would ever say why.
+    const unreadable = args.sites.filter((site: unknown) => !cleanOrigins([site]).length);
+    if (unreadable.length) throw new McpError(`Not a site: ${unreadable.map((site: unknown) => `"${String(site)}"`).join(', ')}`);
+    patch.origins = cleanOrigins(args.sites);
+  }
+  if (args.live !== undefined) {
+    if (typeof args.live !== 'boolean') throw new McpError('live is true or false');
+    patch.enabled = args.live ? 1 : 0;
+  }
+  if (args.greeting !== undefined) patch.greeting = str(args.greeting) ?? null;
+  if (args.assistant !== undefined) {
+    if (!(WIDGET_ASSISTANTS as readonly unknown[]).includes(args.assistant)) {
+      throw new McpError('assistant is off, suggest or answer');
+    }
+    patch.assistant = args.assistant;
+  }
+  if (args.answers_a_day !== undefined) patch.assistant_budget = Number(args.answers_a_day);
+  if (args.customer_fields !== undefined) {
+    if (!Array.isArray(args.customer_fields)) throw new McpError('customer_fields is a list of {key, label}');
+    if (args.customer_fields.length > CONTEXT_FIELDS_MAX) throw new McpError(`At most ${CONTEXT_FIELDS_MAX} fields`);
+    const fields = cleanContextFields(args.customer_fields);
+    // Said rather than dropped: a key the token can never carry is a typo
+    // the caller would otherwise only find when the model knows nothing.
+    if (fields.length !== args.customer_fields.length) {
+      throw new McpError('Each key is lowercase letters, digits and underscores, starts with a letter, and appears once');
+    }
+    if ((patch.identity ?? identity) !== 'signed' && fields.length) {
+      throw new McpError('This widget takes anyone; customer data comes only from a signed-in visitor');
+    }
+    patch.context_fields = fields;
+  }
+  if (args.knowledge !== undefined) {
+    if (!Array.isArray(args.knowledge)) throw new McpError('knowledge is a list of pages');
+    if (args.knowledge.length > 20) throw new McpError('At most 20 pages');
+    const pages = args.knowledge.map((ref: unknown) => findPage(String(ref), workspaceId, ctx));
+    // Refused rather than stored and skipped: the caller asked for the model
+    // to read this page, and the answer to that is no, said now.
+    const unfit = pages.filter((page: Row) => Number(page.public_knowledge) !== 1 || page.access === 'private');
+    if (unfit.length) {
+      throw new McpError(`Not marked as public knowledge${unfit.some((page: Row) => page.access === 'private') ? ', or private' : ''}: `
+        + `${unfit.map((page: Row) => `"${page.title}"`).join(', ')}. Mark a page with update_page and public_knowledge: true once it is fit to be told to a visitor.`);
+    }
+    patch.knowledge = parseIds(pages.map((page: Row) => String(page.id)));
+  }
+  return patch;
+}
+
+const NO_SECRET = 'The signing secret a host site needs for a signed widget is never given here — it signs any visitor in as anybody, '
+  + 'and an answer here ends up in a transcript. An admin copies it from Settings → Widgets.';
 
 const KNOWLEDGE_RULES = 'The model reads a page only while it is marked as public knowledge, not private and not replaced by a newer page, '
   + 'in the order listed, the first 8,000 characters of each and 24,000 in all; `chars_read` below `chars` '
@@ -364,36 +469,60 @@ export const supportTools: ToolDef[] = [
     },
   },
   {
-    name: 'update_widget',
-    title: 'Set up a widget\'s assistant',
+    name: 'create_widget',
+    title: 'Create a support widget',
     description:
-      'Rename a widget, change its greeting, switch its model (`off`, `suggest` drafts replies for the team, '
+      'A new chat widget for a website, in a project: the project is whose inbox its conversations land in. '
+      + '`who_may_write` is `signed` (the default: only visitors the host site signs in, with a token signed with '
+      + 'the widget\'s secret, and only those can carry `customer_fields` for the model) or `anonymous` (anyone). '
+      + '`sites` are the addresses it may be embedded on. Everything else is as in `update_widget`. '
+      + `Answers with the widget and its \`snippet\`, the script tags for the host's page. ${NO_SECRET} Owners and admins only.`,
+    schema: {
+      type: 'object',
+      required: ['name', 'project'],
+      properties: {
+        project: { type: 'string', description: 'Its key, name or id' },
+        ...WIDGET_SETTINGS,
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = enter(args, ctx, true);
+      requireWidgetAdmin(ctx, workspaceId);
+      const project = findProject(String(args.project ?? ''), workspaceId, ctx);
+      if (!str(args.name)) throw new McpError('A widget needs a name');
+      const taken = get<Row>(
+        `SELECT 1 FROM widgets WHERE workspace_id = ? AND deleted_at IS NULL AND lower(name) = lower(?)`, workspaceId, str(args.name),
+      );
+      // The other tools find a widget by its name, so two of one name would be
+      // a coin toss for every call after this one.
+      if (taken) throw new McpError(`There is already a widget called "${str(args.name)}"`);
+      const patch = widgetPatch(args, workspaceId, ctx, args.who_may_write ?? 'signed');
+      const { row } = writeEntity('widget', uid(), {
+        workspace_id: workspaceId, project_id: project.id, identity: 'signed', origins: [], ...patch,
+      }, writeOpts(workspaceId, ctx));
+      return widgetView(row);
+    },
+  },
+  {
+    name: 'update_widget',
+    title: 'Set up a widget',
+    description:
+      'Rename a widget, change who may write in (`who_may_write`: `signed` or `anonymous` — changing it ends every open visitor session), '
+      + 'the `sites` it may be embedded on (the whole list), switch it off or on (`live`), change its greeting, switch its model (`off`, `suggest` drafts replies for the team, '
       + '`answer` answers visitors first and hands over when unsure), set how many times a day the model may be asked (a hand-over counts), '
       + 'or replace the pages it reads. `knowledge` is the whole list, in the order to read them — page ids or '
       + 'exact titles, at most 20 — and every page must be marked as public knowledge first (`update_page` '
       + 'with `public_knowledge: true`). The name is what the model calls the business, and the window\'s '
       + 'title. `customer_fields` replaces the facts a signed-in visitor\'s token may carry in `ctx` — '
       + '`{key, label}`, key lowercase letters, digits and underscores, at most 20; the model is given them '
-      + 'only for a visitor the host signed in. Owners and admins only.',
+      + `only for a visitor the host signed in. ${NO_SECRET} Owners and admins only.`,
     schema: {
       type: 'object',
       required: ['widget'],
       properties: {
         widget: { type: 'string', description: 'Its id or name' },
-        name: { type: 'string' },
-        greeting: { type: 'string', description: 'The first line a visitor reads; "" for none' },
-        assistant: { type: 'string', enum: [...WIDGET_ASSISTANTS] },
-        knowledge: { type: 'array', items: { type: 'string' }, description: 'Page ids or exact titles, in order' },
-        answers_a_day: { type: 'number', description: 'Calls to the model a day, hand-overs included; past it, every conversation goes to a person' },
-        customer_fields: {
-          type: 'array',
-          description: 'The whole list; [] for none',
-          items: {
-            type: 'object',
-            properties: { key: { type: 'string' }, label: { type: 'string' } },
-            required: ['key'],
-          },
-        },
+        ...WIDGET_SETTINGS,
         workspace_id: { type: 'string' },
       },
     },
@@ -401,46 +530,14 @@ export const supportTools: ToolDef[] = [
       const workspaceId = enter(args, ctx, true);
       requireWidgetAdmin(ctx, workspaceId);
       const row = findWidget(String(args.widget), workspaceId, ctx);
-      const patch: Record<string, unknown> = {};
-      if (args.name !== undefined) {
-        if (!str(args.name)) throw new McpError('A widget needs a name');
-        patch.name = str(args.name);
+      if (args.name !== undefined && str(args.name)) {
+        const taken = get<Row>(
+          `SELECT 1 FROM widgets WHERE workspace_id = ? AND deleted_at IS NULL AND lower(name) = lower(?) AND id <> ?`,
+          workspaceId, str(args.name), row.id,
+        );
+        if (taken) throw new McpError(`There is already a widget called "${str(args.name)}"`);
       }
-      if (args.greeting !== undefined) patch.greeting = str(args.greeting) ?? null;
-      if (args.assistant !== undefined) {
-        if (!(WIDGET_ASSISTANTS as readonly unknown[]).includes(args.assistant)) {
-          throw new McpError('assistant is off, suggest or answer');
-        }
-        patch.assistant = args.assistant;
-      }
-      if (args.answers_a_day !== undefined) patch.assistant_budget = Number(args.answers_a_day);
-      if (args.customer_fields !== undefined) {
-        if (!Array.isArray(args.customer_fields)) throw new McpError('customer_fields is a list of {key, label}');
-        if (args.customer_fields.length > CONTEXT_FIELDS_MAX) throw new McpError(`At most ${CONTEXT_FIELDS_MAX} fields`);
-        const fields = cleanContextFields(args.customer_fields);
-        // Said rather than dropped: a key the token can never carry is a typo
-        // the caller would otherwise only find when the model knows nothing.
-        if (fields.length !== args.customer_fields.length) {
-          throw new McpError('Each key is lowercase letters, digits and underscores, starts with a letter, and appears once');
-        }
-        if (row.identity !== 'signed' && fields.length) {
-          throw new McpError('This widget takes anyone; customer data comes only from a signed-in visitor');
-        }
-        patch.context_fields = fields;
-      }
-      if (args.knowledge !== undefined) {
-        if (!Array.isArray(args.knowledge)) throw new McpError('knowledge is a list of pages');
-        if (args.knowledge.length > 20) throw new McpError('At most 20 pages');
-        const pages = args.knowledge.map((ref: unknown) => findPage(String(ref), workspaceId, ctx));
-        // Refused rather than stored and skipped: the caller asked for the model
-        // to read this page, and the answer to that is no, said now.
-        const unfit = pages.filter((page: Row) => Number(page.public_knowledge) !== 1 || page.access === 'private');
-        if (unfit.length) {
-          throw new McpError(`Not marked as public knowledge${unfit.some((page: Row) => page.access === 'private') ? ', or private' : ''}: `
-            + `${unfit.map((page: Row) => `"${page.title}"`).join(', ')}. Mark a page with update_page and public_knowledge: true once it is fit to be told to a visitor.`);
-        }
-        patch.knowledge = parseIds(pages.map((page: Row) => String(page.id)));
-      }
+      const patch = widgetPatch(args, workspaceId, ctx, row.identity);
       if (!Object.keys(patch).length) throw new McpError('Nothing to change');
       const { row: updated } = writeEntity('widget', String(row.id), patch, writeOpts(workspaceId, ctx));
       return widgetView(updated);

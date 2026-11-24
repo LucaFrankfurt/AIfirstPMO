@@ -194,7 +194,10 @@ models; naming a model outside the list in `KOLIBRI_AI_MODEL` turns it off.
 
 **What every call shares is offered for caching.** A caller may say how much of the start of its
 prompt is the same every time (`cachePrefix`); the Anthropic adapter sends that part as a block of
-its own marked for caching. The support assistant marks its knowledge pages, so from a widget's
+its own marked for caching, and so does the OpenRouter adapter for `anthropic/` and `google/`
+models — the two whose models cache through OpenRouter only when told what to. Every other model is
+sent the plain string, so a local gateway speaking the same shape is never asked to understand the
+mark. The support assistant marks its knowledge pages, so from a widget's
 second visitor on they are read at the cached rate. A prefix below the provider's minimum is simply
 not cached.
 
