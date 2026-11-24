@@ -32,6 +32,7 @@ client and the server so a page looks the same whether the browser drew it or a 
 | **Module descriptions** | `modules.description` | Edited on the module's own screen, rendered above its tasks |
 | **Automation rule bodies** | template `description` | What a rule writes into the task it files, so it arrives rendered |
 | **Task review suggestions** | — | A model's proposed replacement is rendered before you accept it |
+| **Support chat** | `conversation_messages.body` | The team's and the assistant's lines, in the inbox and in the visitor's window — with no links and no images (see [Charts](#charts)). A visitor's own line is never rendered: it is shown as typed |
 
 Everything above is stored as **markdown text**, never as HTML. That is the point of the plain
 `<textarea>`: what is in the database is what you typed, so it exports, diffs, greps and outlives
@@ -224,6 +225,37 @@ without the list baked into it.
 A ` ```mermaid ` fence is drawn as a diagram in the app. Everywhere without the app's scripts — a
 shared page carries none, on purpose — it stays readable as its own source text, which is the right
 failure: a diagram nobody can render should still be a diagram somebody can read.
+
+### Charts
+
+A ` ```chart ` fence holding a little JSON is drawn as a bar or line chart — in a page, a chat
+message, a shared page and the support chat alike, because it is drawn by the renderer itself, as
+HTML, with no script (`modules/pages/chart.ts`):
+
+````markdown
+```chart
+{"type": "bar", "title": "Bookings", "unit": "€",
+ "labels": ["Sep", "Oct", "Nov"],
+ "series": [{"name": "2026", "values": [112, 131, 149]}, {"name": "2025", "values": [98, 104, 120]}]}
+```
+````
+
+| Key | | |
+|---|---|---|
+| `type` | `bar` (the default) or `line` | |
+| `labels` | the categories along the bottom | 1 to 24 |
+| `series` | `{name, values}`, one number per label | 1 to 3 |
+| `title`, `unit` | optional | the unit is written after every number |
+
+Every chart carries its numbers as a table underneath (*The same numbers as a table*), and a
+legend for two or three series. Three series because three colours stay apart for every kind of
+colour vision, on both themes — checked with the data-viz palette script; the third is
+`--chart-3`. A block that is not a chart this understands — bad JSON, a fourth series, a value that
+is not a number — stays as the code it is, rather than becoming a chart of what it might have meant.
+Where nothing draws, the support chat's follow-up email, a chart is written out as its numbers.
+
+A page turned into an HTML page keeps a chart's table and loses its drawing: the HTML allowlist has
+no `<figure>` of this kind.
 
 ---
 

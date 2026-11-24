@@ -23,6 +23,7 @@
  * do it this way.
  */
 import { createHmac } from 'node:crypto';
+import { chartsAsText } from '@kolibri/shared';
 import { get, run, type Row } from '../../kernel/platform/db/index.ts';
 import { env } from '../../kernel/platform/env.ts';
 import { defaultLocale, translate } from '../../kernel/i18n/i18n.ts';
@@ -94,7 +95,8 @@ function queueReply(entity: string, row: Row, before: Row | undefined): void {
         agent: row.author === 'bot' ? translate(locale, 'support.assistant') : displayName(String(row.author_id ?? '')),
       }),
       '',
-      String(row.body ?? ''),
+      // A chart is JSON in the line; in a plain-text email it is its numbers.
+      chartsAsText(String(row.body ?? ''), locale),
       '',
       translate(locale, replyTo ? 'mail.supportAnswer' : 'mail.supportOpen'),
     ].join('\n'),

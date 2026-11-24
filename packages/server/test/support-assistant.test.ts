@@ -528,6 +528,8 @@ describe('customer data from the host\'s token', () => {
     const last = asked.at(-1)!;
     assert.doesNotMatch(last.user, /CUSTOMER DATA/);
     assert.match(last.system, /Hand over when the visitor asks for a person, is upset, or asks about their own account\.\n/);
+    assert.match(last.system, /you may use a Markdown table, or a chart: a fenced block ```chart/);
+    assert.match(last.system, /never a table or chart of estimated or invented ones/);
     assert.doesNotMatch(last.system, /CUSTOMER DATA/);
     const thread = await visit(`/w/${widget.id}/messages`, undefined, (await visit(`/w/${widget.id}/session`, {})).json.session);
     assert.deepEqual(thread.json.assistant.sees, []);
@@ -753,6 +755,18 @@ describe('what the model writes, afterwards', () => {
     assert.equal(queued.to_email, 'nia@example.com');
     assert.match(queued.body_text, /AI assistant/);
     assert.match(queued.body_text, /29 EUR a month/);
+
+    // A chart is JSON in the line; the plain-text email carries its numbers instead.
+    reply = () => JSON.stringify({
+      answer: 'Here they are:\n\n```chart\n{"title":"Plans","labels":["Shop","Pro"],"series":[{"name":"EUR","values":[29,59]}]}\n```',
+      sources: [], handover: false,
+    });
+    const charted = await signIn('m-charted');
+    await visit(`/w/${signed.id}/messages`, { body: 'Compare the plans?' }, charted.session);
+    await settled();
+    const chartMail = get<any>(`SELECT * FROM email_queue WHERE id = ?`, pendingMail(charted.id));
+    assert.match(chartMail.body_text, /Plans\nShop: 29\nPro: 59/);
+    assert.doesNotMatch(chartMail.body_text, /```|"series"/);
 
     reply = () => '{"answer":"A colleague will answer you here shortly.","sources":[],"handover":true}';
     const handed = await signIn('m-handed');

@@ -107,6 +107,10 @@ const PATHS = {
   redo: 'M15 14l5-5-5-5M20 9H10a6 6 0 0 0 0 12h3',
   // Four corners pulled out to the edges: show everything there is.
   fit: 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5',
+  // A chat window to the whole screen and back: the diagonal arrows rather than
+  // `fit`'s four corners, which already means "fit this drawing to the view".
+  expand: 'M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7',
+  collapse: 'M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7',
   // Shapes for states that were only a colour (UX-10): late, due today, no connection.
   alert: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 7.5V13M12 16.5h.01',
   clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 7v5l3.5 2',

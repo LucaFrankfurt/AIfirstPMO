@@ -14,7 +14,7 @@ import { DiagramViewer } from './diagram';
 import { HEADING_PREFIX, usePageBody, usePageHref } from './page-links';
 import { backgroundOf } from '../../kernel/design-system/navigation';
 import { useMembers, useSession } from '../../kernel/identity/session';
-import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
+import { useI18n, useT, type TranslationKey } from '../../kernel/i18n/i18n';
 import { buttonVariants } from '../../kernel/design-system/ui/button';
 import { cn } from '../../kernel/design-system/cn';
 import { Avatar, Icon, useLightbox } from '../../kernel/design-system/ui';
@@ -35,6 +35,7 @@ import { Textarea } from '../../kernel/design-system/ui/field';
  */
 export function useMarkdownRefs(asPage = false): MarkdownOptions {
   const t = useT();
+  const { locale } = useI18n();
   const { workspaceId } = useSession();
   const projects = useQuery(
     () => list('project', (project) => project.workspace_id === workspaceId && !project.deleted_at),
@@ -51,6 +52,8 @@ export function useMarkdownRefs(asPage = false): MarkdownOptions {
         return id ? `/projects/${id}` : undefined;
       },
       pageHref,
+      chartTableLabel: t('insights.tableView'),
+      locale,
       // A document, and a message, are not the same thing. Ids on headings and
       // `![[…]]` drawing a whole page belong to the first: a hundred messages
       // in a scroller would be a hundred `#notes` competing for one fragment,
@@ -58,7 +61,7 @@ export function useMarkdownRefs(asPage = false): MarkdownOptions {
       // that meant.
       ...(asPage ? { pageBody, headingPrefix: HEADING_PREFIX, embedLoopNote: t('page.embedLoop') } : {}),
     };
-  }, [projects, pageHref, pageBody, asPage, t]);
+  }, [projects, pageHref, pageBody, asPage, t, locale]);
 }
 
 /**
