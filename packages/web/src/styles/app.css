@@ -153,6 +153,10 @@
      docs/insights.md. Dark mode re-steps them rather than flipping them. */
   --chart-1: #5b5bd6;
   --chart-2: #10b981;
+  /* The third, for a chart in a message (`chart.ts`). Checked with the first two
+     with the data-viz palette script, every pair, light and dark: worst CVD
+     ΔE 10.5 here, 10.2 on the dark surface. One step for both themes. */
+  --chart-3: #d95926;
   --accent-soft: #eeeefc;
   --accent-fg: #ffffff;
 
@@ -185,6 +189,7 @@
     --bg: #0e1014;
     --chart-1: #7a7ae8;
     --chart-2: #059669;
+    --chart-3: #d95926;
     --bg-sunken: #0a0c10;
     --bg-raised: #15181e;
     --bg-hover: #1b1f27;
@@ -220,6 +225,7 @@
   --bg: #0e1014;
   --chart-1: #7a7ae8;
   --chart-2: #059669;
+  --chart-3: #d95926;
   --bg-sunken: #0a0c10;
   --bg-raised: #15181e;
   --bg-hover: #1b1f27;
@@ -1888,6 +1894,51 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 .md th, .md td { border: 1px solid var(--line); padding: 6px 9px; text-align: start; overflow-wrap: normal; }
 .md thead { background: var(--bg-sunken); }
 .md th { font-weight: 600; }
+
+/* A chart in a message — a `chart` fence, drawn as HTML by `chart.ts`.
+
+   Quiet the way the app's other charts are: the data is the only loud thing.
+   Thin bars rounded at the data end and square at the baseline, a 2px gap
+   between neighbours, a line of 2px, dots ringed in the surface so they read
+   where two lines cross. The scale is in HTML beside the plot, not inside a
+   scaled SVG, so its numbers stay 10.5px in a 280px chat bubble. */
+.md-s1 { --s: var(--chart-1); }
+.md-s2 { --s: var(--chart-2); }
+.md-s3 { --s: var(--chart-3); }
+/* Asks for 560px and takes less where there is less: a bubble is as wide as
+   what is in it, and a figure with no width of its own made a chat bubble in
+   full screen as narrow as the table above it. */
+.md .md-chart { margin: 4px 0 12px; width: 560px; max-width: 100%; }
+.md-chart-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.md-chart-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--fg-soft); }
+.md-chart-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-inline-end: 5px; background: var(--s); }
+.md-chart-frame { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 6px; padding-top: 16px; }
+.md-chart-scale, .md-chart-plot { position: relative; height: 140px; }
+.md-chart-scale { min-width: 2.2em; font-size: 10.5px; color: var(--fg-muted); }
+.md-chart-scale span { position: absolute; inset-inline-end: 0; transform: translateY(50%); white-space: nowrap; line-height: 1; }
+.md-chart-plot { display: flex; border-bottom: 1px solid var(--line); }
+.md-chart-zero { position: absolute; inset-inline: 0; border-top: 1px solid var(--line-strong); }
+.md-chart-group { flex: 1; min-width: 0; display: flex; justify-content: center; gap: 2px; padding: 0 3px; }
+.md-chart-group:hover .md-chart-bar { opacity: .82; }
+.md-chart-slot { position: relative; flex: 0 1 18px; min-width: 3px; }
+.md-chart-bar { position: absolute; inset-inline: 0; min-height: 2px; border-radius: 4px 4px 0 0; background: var(--s); }
+.md-chart-bar.md-neg { border-radius: 0 0 4px 4px; }
+.md-chart-bar b, .md-chart-dot b {
+  position: absolute; font-size: 10.5px; font-weight: 500; line-height: 1; color: var(--fg-soft); white-space: nowrap;
+}
+.md-chart-bar b { bottom: 100%; left: 50%; transform: translateX(-50%); padding-bottom: 3px; }
+.md-chart-bar.md-neg b { bottom: auto; top: 100%; padding: 3px 0 0; }
+.md-chart-lines { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.md-chart-lines polyline { fill: none; stroke: var(--s); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.md-chart-dot { position: absolute; width: 8px; height: 8px; margin: 0 0 -4px -4px; border-radius: 50%; background: var(--s); box-shadow: 0 0 0 2px var(--bg); }
+.md-chart-dot b { bottom: 9px; inset-inline-end: -2px; }
+.md-chart-hit { position: absolute; top: 0; bottom: 0; }
+.md-chart-hit:hover { background: color-mix(in srgb, var(--fg) 5%, transparent); }
+.md-chart-axis { grid-column: 2; display: flex; margin-top: 4px; font-size: 10.5px; color: var(--fg-muted); }
+.md-chart-axis span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; }
+.md-chart-table { margin-top: 8px; }
+.md-chart-table summary { font-size: 12px; color: var(--fg-muted); cursor: pointer; }
+.md .md-chart-table table { margin: 6px 0 0; font-size: 12.5px; }
 
 /* A diagram and the source it was drawn from share one <pre>. The code is what
    a shared page shows — those carry no script on purpose — and what stays on

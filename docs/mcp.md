@@ -643,7 +643,7 @@ in the room where the projects are compared. See [`meetings.md`](meetings.md).
 - A conversation is visible to whoever can see its widget's project — the inbox's rule.
 - `reply_to_conversation` is the same write as the inbox's: told to the visitor live, emailed after a
   few minutes unread, reopens, takes over from the model.
-- Plain text: the widget renders no markdown.
+- The widget renders the team's and the assistant's lines as markdown — tables and ` ```chart ` blocks, no links and no images (`docs/markdown.md#charts`). A visitor's own line is shown as typed.
 - Knowledge pages: only pages in the public knowledge base (`public_knowledge` on `create_page`,
   `update_page`, `list_pages`). `update_widget` refuses any other.
 - `try_assistant` before switching a widget to `answer`: same pages, same rules, no conversation.

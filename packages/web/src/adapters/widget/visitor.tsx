@@ -18,6 +18,7 @@ import { Composer, Thread, type ThreadLine } from '../../kernel/design-system/co
 import { Icon } from '../../kernel/design-system/ui/icon';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Input } from '../../kernel/design-system/ui/field';
+import { RichText } from '../../kernel/design-system/rich-text';
 import { widgetLocale, widgetWords } from './words';
 
 interface Config {
@@ -60,7 +61,8 @@ const base = `/w/${encodeURIComponent(widgetId)}`;
 const STORE = `kolibri.chat.${widgetId}`;
 const framed = window.parent !== window;
 /** One language for the life of the page: the visitor's browser's. */
-const words = widgetWords(widgetLocale());
+const locale = widgetLocale();
+const words = widgetWords(locale);
 
 /** To the host page. Nothing here is a secret, so any origin may hear it — the frame decides who may hold it. */
 const tell = (message: Record<string, unknown>) => {
@@ -141,6 +143,14 @@ export function VisitorChat() {
   const [attached, setAttached] = useState<ConversationFile[]>([]);
   const [notice, setNotice] = useState('');
   const [open, setOpen] = useState(true);
+  /**
+   * Whether the host's panel fills the screen, and whether its loader can.
+   * The loader says both: it owns the panel, and a site still serving an older
+   * `widget.js` from a cache has a loader that has never heard of full screen —
+   * a button that did nothing there would be worse than none.
+   */
+  const [full, setFull] = useState(false);
+  const [canExpand, setCanExpand] = useState(false);
   const [images, setImages] = useState<Record<string, string>>({});
   /** Bumped to open the stream again after it closed for a reason that was not the session. */
   const [attempt, setAttempt] = useState(0);
@@ -206,9 +216,15 @@ export function VisitorChat() {
     // The host says whether the panel is showing; an answer that arrives while
     // it is not counts as unread there.
     const heard = (event: MessageEvent) => {
-      if (event.source === window.parent && event.data?.type === 'kolibri-chat:visibility') setOpen(!!event.data.open);
+      if (event.source !== window.parent || event.data?.type !== 'kolibri-chat:visibility') return;
+      setOpen(!!event.data.open);
+      setFull(!!event.data.full);
+      setCanExpand(!!event.data.canExpand);
     };
     window.addEventListener('message', heard);
+    // Asked rather than waited for: the loader's own message, sent when it
+    // opened the panel, may have arrived before this page was listening.
+    tell({ type: 'kolibri-chat:hello' });
     return () => window.removeEventListener('message', heard);
   }, []);
 
@@ -328,6 +344,23 @@ export function VisitorChat() {
     }
   }, [lines, session]);
 
+  /** Fill the host's screen, or stop. Said at once on this side; the loader says it back. */
+  const expand = (on: boolean) => {
+    setFull(on);
+    tell({ type: 'kolibri-chat:fullscreen', on });
+  };
+
+  // Escape leaves full screen, the way every full-screen view is left. Only
+  // then: on the small panel it is the site's key, not the chat's.
+  useEffect(() => {
+    if (!full) return;
+    const key = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') expand(false);
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [full]);
+
   const send = async (body: string, files = attached, replacing?: string) => {
     setAttached([]);
     setNotice('');
@@ -427,7 +460,11 @@ export function VisitorChat() {
       mine: line.author === 'visitor',
       author: line.author === 'bot' ? words.assistant : (line.agent ?? words.team),
       avatar: <TeamMark />,
-      body: line.body,
+      // The team's and the assistant's lines may hold a table or a chart; the
+      // visitor's own stay exactly the text they typed.
+      body: line.author === 'visitor' || !line.body
+        ? line.body
+        : <RichText source={line.body} tableLabel={words.chartTable} locale={locale} />,
       at: line.created_at,
       pending: line.pending,
       below: line.sources?.length
@@ -474,6 +511,18 @@ export function VisitorChat() {
             onClick={resolve}
           >
             <Icon name="check" size={14} /> {words.done}
+          </button>
+        )}
+        {framed && canExpand && (
+          <button
+            type="button"
+            className="inline-flex size-8 items-center justify-center rounded-full hover:bg-black/10"
+            aria-label={full ? words.collapse : words.expand}
+            aria-pressed={full}
+            title={full ? words.collapse : words.expand}
+            onClick={() => expand(!full)}
+          >
+            <Icon name={full ? 'collapse' : 'expand'} size={16} />
           </button>
         )}
         {framed && (

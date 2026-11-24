@@ -15,6 +15,7 @@ import {
 } from '@kolibri/shared';
 import { Header } from '../../../kernel/design-system/chrome';
 import { Composer, Thread, type ThreadLine } from '../../../kernel/design-system/conversation';
+import { RichText } from '../../../kernel/design-system/rich-text';
 import { useThreadWords } from '../../../kernel/design-system/thread-words';
 import { cn } from '../../../kernel/design-system/cn';
 import { briefWhen } from '../../../kernel/design-system/format';
@@ -273,7 +274,11 @@ function Answer({ conversation, widget, onBack }: { conversation: Conversation; 
       avatar: agent
         ? <Avatar user={author} size={26} />
         : <Avatar user={{ id: conversation.visitor_id, name: visitorLabel(conversation) }} size={26} />,
-      body: message.body,
+      // Ours and the assistant's may hold a table or a chart; the visitor's
+      // line stays exactly the text they typed.
+      body: (agent || bot) && message.body
+        ? <RichText source={message.body} tableLabel={t('insights.tableView')} locale={locale} />
+        : message.body,
       at: message.created_at,
       meta: bot ? <span>{t('support.assistantLabel')}</span> : undefined,
       below: sources.length ? <span className="mt-0.5 px-1 text-[11px] text-muted">{t('support.sources')}: {sources.join(', ')}</span> : undefined,

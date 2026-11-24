@@ -20,6 +20,9 @@
  *   position  'right' (default) or 'left'
  *   launcher  false to draw no button; open it with window.KolibriChat.open()
  *
+ * The chat's header has a full-screen button wherever the screen is wider than
+ * a phone; Escape, the same button or closing the chat brings it back.
+ *
  * Plain ES5 on purpose: it runs on other people's pages, in whatever browser
  * their visitors have, and is served as it is written.
  */
@@ -32,7 +35,12 @@
   var frame = null;
   var panel = null;
   var badge = null;
+  var launcher = null;
   var opened = false;
+  // The panel over the whole screen. Asked for from inside the frame — the
+  // button is in the chat's own header — and done here, because only the page
+  // that holds the panel can size it.
+  var full = false;
 
   function config() {
     return window.kolibriChat || {};
@@ -74,14 +82,29 @@
     }
     opened = true;
     panel.hidden = false;
-    post({ type: 'kolibri-chat:visibility', open: true });
+    tellState();
   }
 
   function close() {
     if (!panel) return;
     opened = false;
     panel.hidden = true;
-    post({ type: 'kolibri-chat:visibility', open: false });
+    setFull(false);
+  }
+
+  // What the frame needs to know about its panel: shown or not, full or not,
+  // and whether full screen means anything here — on a phone the panel already
+  // is the whole screen, and a button that changed nothing would be noise.
+  function tellState() {
+    post({ type: 'kolibri-chat:visibility', open: opened, full: full, canExpand: window.innerWidth > 480 });
+  }
+
+  function setFull(on) {
+    full = !!on && opened;
+    if (panel) panel.classList.toggle('full', full);
+    // The button would sit on top of the chat's own send button.
+    if (launcher && config().launcher !== false) launcher.style.display = full ? 'none' : '';
+    tellState();
   }
 
   window.addEventListener('message', function (event) {
@@ -89,6 +112,10 @@
     var data = event.data || {};
     if (data.type === 'kolibri-chat:token-request') giveToken();
     else if (data.type === 'kolibri-chat:close') close();
+    else if (data.type === 'kolibri-chat:fullscreen') setFull(data.on);
+    // The frame asks once it is listening: what is posted before then is lost,
+    // and it would never learn it may go full screen.
+    else if (data.type === 'kolibri-chat:hello') tellState();
     else if (data.type === 'kolibri-chat:unread') setBadge(opened ? 0 : Number(data.count) || 0);
   });
 
@@ -119,8 +146,12 @@
       '.panel{position:fixed;bottom:88px;' + side + ':20px;z-index:2147483000;width:380px;height:600px;max-height:calc(100vh - 108px);' +
       'border-radius:16px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.25);background:#fff}' +
       '.panel[hidden]{display:none}' +
+      '.panel.full{inset:0;width:auto;height:auto;max-height:none;border-radius:0}' +
       'iframe{border:0;width:100%;height:100%;display:block}' +
-      '@media (max-width:480px){.panel{inset:0;width:auto;height:auto;max-height:none;border-radius:0}}' +
+      // On a phone the open panel is the whole screen, and the button sat on top
+      // of the chat's send button; the chat's own header closes it there.
+      '@media (max-width:480px){.panel{inset:0;width:auto;height:auto;max-height:none;border-radius:0}' +
+      '.panel:not([hidden])~.launcher{display:none}}' +
       '</style>' +
       '<div class="panel" hidden></div>' +
       '<button class="launcher" type="button" aria-label="Chat">' +
@@ -129,7 +160,7 @@
       '<span class="badge" hidden></span></button>';
     panel = root.querySelector('.panel');
     badge = root.querySelector('.badge');
-    var launcher = root.querySelector('.launcher');
+    launcher = root.querySelector('.launcher');
     if (options.launcher === false) launcher.style.display = 'none';
     launcher.addEventListener('click', function () {
       if (opened) close();

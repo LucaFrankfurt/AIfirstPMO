@@ -262,6 +262,21 @@ German, whatever language the pages, the customer data or earlier lines are in.*
 and the model's own do not count. Where the words do not decide, nothing is said and the model keeps
 the rule it always had; the fixed hand-over sentence then falls back to the instance's language.
 
+**Tables, charts and full screen.** The team's and the assistant's lines are drawn as markdown in
+the visitor's window and in the inbox — a table, a ` ```chart ` block (`docs/markdown.md#charts`),
+bold, lists, line breaks as typed — and with the renderer's `untrusted` rule: no images, no links,
+both left as the text they were written as. A visitor's own line is shown exactly as typed. Before
+this every line was plain text; images and links stay out because a stranger's line, or a model's
+answer to one, should not load a picture from anywhere or put a link in front of the team. The
+model may use a table or a chart to compare numbers the pages or the customer data hold, and only
+those. In the follow-up email a chart is written out as its numbers.
+
+The window's header has a full-screen button wherever the screen is wider than a phone (on a phone
+the open window already is the screen); Escape, the same button or closing the chat brings it back.
+The loader owns the panel, so the frame asks it (`kolibri-chat:fullscreen`), and shows the button
+only once the loader has said it can — a site still serving an older `widget.js` from a cache has
+none. On a phone the round button no longer sits over the open chat's send button.
+
 The fences, which are the point: it reads **only the pages the widget names, and of those only the
 ones in the public knowledge base** — never the workspace's search, never a private page, never a
 task — and about the visitor **only what the host's signed token said** (below); it has no tools and writes one line of text
@@ -494,9 +509,10 @@ owner were to answer their own end customers, that is a platform of its own, not
 
 ## Open
 
-- **The visitor's window costs about 127 KB gzipped on the first click**, measured from the build
-  when the list of earlier chats was added (`gzip -9` of the five files `widget.html` loads): most
-  of it React and the app's shared chunk, and the app's stylesheet (26 KB). It was 125 KB before
-  that list, and 222 KB until the window stopped importing the app's catalogue and its menus and
+- **The visitor's window costs about 140 KB gzipped on the first click**, measured on 24 November
+  2026 when it learned to draw tables and charts (`gzip -9` of the six files `widget.html` loads):
+  most of it React and the app's shared chunk, and the app's stylesheet (26 KB). The markdown
+  renderer is the 12 KB it grew by — 128 KB the build before. It was 127 KB when the list of earlier
+  chats was added, 125 KB before that list, and 222 KB until the window stopped importing the app's catalogue and its menus and
   dialogs — it now carries its own forty words (`adapters/widget/words.ts`, held to the app's
   wording by a test) and draws icons from `ui/icon.tsx` rather than through `ui.tsx`.

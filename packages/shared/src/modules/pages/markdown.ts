@@ -16,6 +16,7 @@
 import { escapeHtml, safeUrl, unescapeHtml } from './escape.ts';
 import { htmlText, sanitizeHtml } from './html.ts';
 import { headingAt, slugCounter, splitTarget, withoutCode } from './links.ts';
+import { chartHtml, parseChart } from './chart.ts';
 
 /**
  * What this workspace's work is called, so a reference can be recognised.
@@ -101,6 +102,28 @@ export interface MarkdownOptions {
    * ids competing for the same fragment.
    */
   headingPrefix?: string;
+  /**
+   * The text comes from outside the workspace, or from a model a stranger was
+   * talking to: no images and no links, both left as the text they were
+   * written as.
+   *
+   * The support chat's case. A visitor's window and the team's inbox used to
+   * show every line as plain text, and tables and charts are what this file is
+   * asked for there — not an image that loads from wherever a line pointed, nor
+   * a link a prompt-injected answer put in front of the team. Off, everything
+   * renders as it always has.
+   */
+  untrusted?: boolean;
+  /**
+   * Every line break in a paragraph is kept, as a chat line was before this
+   * renderer drew it: "Hi,⏎thanks" from a visitor or a colleague is two lines,
+   * not a soft wrap.
+   */
+  breaks?: boolean;
+  /** What the table under a chart is called, in the reader's language. `Table` when left out. */
+  chartTableLabel?: string;
+  /** How a chart writes its numbers, e.g. `de`. The runtime's own when left out. */
+  locale?: string;
 }
 
 
@@ -269,18 +292,20 @@ function inline(text: string, refs?: MarkdownOptions): string {
   // never matched, and a link or an image carrying a title did not lose its
   // title: it stopped being a link at all and came out as the source text.
   out = out.replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+&quot;(?:(?!&quot;).)*&quot;)?\)/g, (match, alt: string, src: string) => {
+    if (refs?.untrusted) return match;
     const url = safeUrl(src);
     return url ? `<img src="${url}" alt="${alt}" loading="lazy" />` : match;
   });
 
   out = out.replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+&quot;(?:(?!&quot;).)*&quot;)?\)/g, (match, label: string, href: string) => {
+    if (refs?.untrusted) return match;
     const url = safeUrl(href);
     if (!url) return match;
     const external = /^https?:/i.test(url);
     return `<a href="${url}"${external ? ' target="_blank" rel="noopener noreferrer"' : ''}>${label}</a>`;
   });
 
-  out = out.replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, '$1<a href="$2" target="_blank" rel="noopener noreferrer">$2</a>');
+  if (!refs?.untrusted) out = out.replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, '$1<a href="$2" target="_blank" rel="noopener noreferrer">$2</a>');
   // After the links, so a URL that happens to hold braces is already an anchor
   // and is left alone; before the emphasis rules, which have nothing to say
   // about braces either way.
@@ -317,7 +342,7 @@ function inline(text: string, refs?: MarkdownOptions): string {
  * what is left is a soft wrap, and a soft wrap is a space.
  */
 function inlineBlock(lines: string[], refs?: MarkdownOptions): string {
-  return inline(lines.join('\n'), refs).replace(/\n/g, ' ');
+  return inline(lines.join('\n'), refs).replace(/\n/g, refs?.breaks ? '<br />' : ' ');
 }
 
 /* ----------------------------------------------------------------- tables */
@@ -447,8 +472,16 @@ const FENCE_END = /^\s*(`{3,}|~{3,})\s*$/;
  * A fenced block. A `mermaid` fence keeps its source as readable code and takes
  * a class: the app swaps in a drawn diagram, and anywhere without that — a
  * shared page carries no script on purpose — the reader still gets the text.
+ *
+ * A `chart` fence is drawn here, as plain HTML (`chart.ts`), so it is a chart
+ * everywhere this renders — a shared page and the support widget included —
+ * and code when it is not one this understands.
  */
-function code(source: string, language: string): string {
+function code(source: string, language: string, refs?: MarkdownOptions): string {
+  if (language === 'chart') {
+    const spec = parseChart(source);
+    if (spec) return chartHtml(spec, { tableLabel: refs?.chartTableLabel, locale: refs?.locale });
+  }
   return `<pre${language === 'mermaid' ? ' class="md-mermaid"' : ''}>`
     + `<code${language ? ` class="language-${escapeHtml(language)}"` : ''}>${escapeHtml(source)}</code></pre>`;
 }
@@ -562,7 +595,7 @@ function blocks(lines: string[], refs: MarkdownOptions | undefined, state: Rende
       }
       // Past the closing fence, or past the end when the author never wrote one.
       index = end;
-      html.push(code(body.join('\n'), info.trim().split(/\s+/)[0] ?? ''));
+      html.push(code(body.join('\n'), info.trim().split(/\s+/)[0] ?? '', refs));
       continue;
     }
 
