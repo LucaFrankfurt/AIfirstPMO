@@ -268,8 +268,17 @@ bold, lists, line breaks as typed — and with the renderer's `untrusted` rule: 
 both left as the text they were written as. A visitor's own line is shown exactly as typed. Before
 this every line was plain text; images and links stay out because a stranger's line, or a model's
 answer to one, should not load a picture from anywhere or put a link in front of the team. The
-model may use a table or a chart to compare numbers the pages or the customer data hold, and only
-those. In the follow-up email a chart is written out as its numbers.
+model chooses the form itself — a visitor does not have to ask for a chart: several amounts to
+compare, or one over time, become a chart; several items with several details each, a table; one
+number, a yes or no, steps and dates stay sentences. Only numbers the pages or the customer data
+hold. In the follow-up email a chart is written out as its numbers.
+
+Measured on 25 November 2026 with `anthropic/claude-sonnet-5.5` through OpenRouter, a made-up
+studio's four pages and six questions that never name a form, before and after the rule said so:
+the occupancy by month was a chart both times (2 of 2, then 3 of 3); the members per year was a
+table before (2 of 2) and a chart after (17 of 18 — the 18th was handed over, its reply wrapped in a
+json fence, not seen again in 16 more); the price list stayed a table, and one price, the opening
+hours and how to cancel stayed sentences, every time.
 
 The window's header has a full-screen button wherever the screen is wider than a phone (on a phone
 the open window already is the screen); Escape, the same button or closing the chat brings it back.
