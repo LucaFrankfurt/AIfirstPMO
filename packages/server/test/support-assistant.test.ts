@@ -25,6 +25,7 @@ const { resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
 const { provideModel, AiError } = await import('../src/modules/ai-review/model.ts');
 const { knowledgeOf, parseAnswer, settled } = await import('../src/modules/support/assistant.ts');
 const { visitorLanguage } = await import('../src/modules/support/language.ts');
+const { CONTEXT_LONG_VALUE_MAX, contextFieldsText } = await import('@kolibri/shared');
 
 let base = '';
 let cookie = '';
@@ -522,6 +523,40 @@ describe('customer data from the host\'s token', () => {
     await ok(`/api/widgets/${customers.id}`, { context_fields: 'plan: Plan\nrenews: Renews on' }, 'PATCH');
   });
 
+  it('keeps a field marked [long], two at most, and reads it back the way it was typed', async () => {
+    const typed = 'plan: Plan\nbriefing: Briefing [long]\norders: Open orders [long]\nnotes: Notes [long]';
+    await ok(`/api/widgets/${customers.id}`, { context_fields: typed }, 'PATCH');
+    const stored = JSON.parse(get<any>(`SELECT context_fields FROM widgets WHERE id = ?`, customers.id).context_fields);
+    assert.deepEqual(stored, [
+      { key: 'plan', label: 'Plan' },
+      { key: 'briefing', label: 'Briefing', long: true },
+      { key: 'orders', label: 'Open orders', long: true },
+    ], 'a short field stored as it always was; the third long one dropped');
+    assert.equal(contextFieldsText(stored), 'plan: Plan\nbriefing: Briefing [long]\norders: Open orders [long]');
+  });
+
+  it('gives the model a long value whole, in a token the session once refused, and drops one a character longer', async () => {
+    await ok(`/api/widgets/${customers.id}`, { context_fields: 'plan: Plan\nbriefing: Briefing [long]' }, 'PATCH');
+    resetRateLimits();
+    reply = () => '{"answer":"Mondays are quiet.","sources":[],"handover":false}';
+    // Three bytes a character: past the 16 KiB the session route used to read.
+    const briefing = '€'.repeat(CONTEXT_LONG_VALUE_MAX);
+    const kept = await visit(`/w/${customers.id}/session`, { token: hostToken({ sub: 'c-3', ctx: { plan: 'Pro', briefing } }) });
+    assert.equal(kept.status, 200);
+    await visit(`/w/${customers.id}/messages`, { body: 'When is it quiet?' }, kept.json.session);
+    await settled();
+    assert.ok(asked.at(-1)!.user.includes(`{"field":"Briefing","value":"${briefing}"}`), 'whole, not cut');
+
+    resetRateLimits();
+    const dropped = await visit(`/w/${customers.id}/session`, {
+      token: hostToken({ sub: 'c-4', ctx: { plan: 'P'.repeat(201), briefing: `${briefing}€` } }),
+    });
+    await visit(`/w/${customers.id}/messages`, { body: 'When is it quiet?' }, dropped.json.session);
+    await settled();
+    assert.doesNotMatch(asked.at(-1)!.user, /CUSTOMER DATA/, 'a short field still stops at 200, a long one at its own limit');
+    await ok(`/api/widgets/${customers.id}`, { context_fields: 'plan: Plan\nrenews: Renews on' }, 'PATCH');
+  });
+
   it('gives nothing about an anonymous visitor, and keeps the rules word for word', async () => {
     reply = () => '{"answer":"","sources":[],"handover":true}';
     await visitorSays('Which plan am I on?');
@@ -574,6 +609,16 @@ describe('customer data over MCP', () => {
     assert.match(asked.at(-1)!.user, /"Plan","value":"Pro"/);
     assert.doesNotMatch(asked.at(-1)!.user, /"secret"|"x"/);
     await assert.rejects(tool('try_assistant', { widget: 'Prospects', question: 'Plan?', customer_data: { plan: 'Pro' } }), /signed-in visitor/);
+  });
+
+  it('marks a field long, and refuses a third', async () => {
+    const fields = [{ key: 'plan', label: 'Plan' }, { key: 'briefing', label: 'Briefing', long: true }];
+    assert.deepEqual((await tool('update_widget', { widget: 'Customers', customer_fields: fields })).customer_fields, fields);
+    await assert.rejects(
+      tool('update_widget', { widget: 'Customers', customer_fields: ['a', 'b', 'c'].map((key) => ({ key, long: true })) }),
+      /at most 2 fields are long/,
+    );
+    await tool('update_widget', { widget: 'Customers', customer_fields: [{ key: 'plan', label: 'Plan' }, { key: 'renews', label: 'Renews on' }] });
   });
 
   it('creates a signed widget with its sites, fields and pages, and answers with the snippet and never the secret', async () => {

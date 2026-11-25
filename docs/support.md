@@ -313,6 +313,7 @@ host signs, the server keeps, the model only words — it can never choose whose
 |---|---|
 | Allowed fields | `key: Label` per line; key `[a-z][a-z0-9_]*`, at most 20; anything else in `ctx` is dropped |
 | A value | a string up to 200 characters, a number or a yes/no; longer, nested or empty is dropped, not cut |
+| A long field | `key: Label [long]` (`long: true` over MCP), at most 2: a string up to 8,000 characters — a summary the host writes for the model, such as an account's last weeks; longer is dropped, not cut |
 | Kept | `conversations.visitor_context`, a registry `secret` field: never synced, never on a device |
 | Fresh | overwritten by every token — as old as the token the visitor's window asked for |
 | Given to the model | only for a visitor the host signed in, only the fields allowed *now*, in a `CUSTOMER DATA` block fenced by a word drawn per request, after the knowledge and before the conversation |

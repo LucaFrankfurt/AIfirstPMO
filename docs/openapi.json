@@ -6116,6 +6116,13 @@
                 "label": {
                   "type": "string",
                   "description": "What the model and the visitor read, e.g. \"Plan\"."
+                },
+                "long": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
+                  "description": "Up to `CONTEXT_LONG_VALUE_MAX` characters rather than `CONTEXT_VALUE_MAX`; absent on a short field."
                 }
               }
             },

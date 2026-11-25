@@ -15,7 +15,8 @@
  * stranger's conversation on the website to find out.
  */
 import {
-  CONTEXT_FIELDS_MAX, SUPPORT_MESSAGE_MAX, WIDGET_ASSISTANTS, WIDGET_IDENTITIES, awaitsReply, cleanContextFields, cleanOrigins,
+  CONTEXT_FIELDS_MAX, CONTEXT_LONG_FIELDS_MAX, CONTEXT_LONG_VALUE_MAX, CONTEXT_VALUE_MAX, SUPPORT_MESSAGE_MAX,
+  WIDGET_ASSISTANTS, WIDGET_IDENTITIES, awaitsReply, cleanContextFields, cleanOrigins,
   excerpt, unreadByTeam, visitorLabel, widgetSnippet, type Conversation, type WidgetIdentity,
 } from '@kolibri/shared';
 import { all, get, type Row } from '../../../kernel/platform/db/index.ts';
@@ -170,7 +171,11 @@ const WIDGET_SETTINGS = {
     description: 'The whole list; [] for none',
     items: {
       type: 'object',
-      properties: { key: { type: 'string' }, label: { type: 'string' } },
+      properties: {
+        key: { type: 'string' },
+        label: { type: 'string' },
+        long: { type: 'boolean', description: `true for a summary the host writes for the model: up to ${CONTEXT_LONG_VALUE_MAX} characters instead of ${CONTEXT_VALUE_MAX}, at most ${CONTEXT_LONG_FIELDS_MAX} such fields` },
+      },
       required: ['key'],
     },
   },
@@ -218,13 +223,13 @@ function widgetPatch(args: Record<string, any>, workspaceId: string, ctx: McpCtx
   }
   if (args.answers_a_day !== undefined) patch.assistant_budget = Number(args.answers_a_day);
   if (args.customer_fields !== undefined) {
-    if (!Array.isArray(args.customer_fields)) throw new McpError('customer_fields is a list of {key, label}');
+    if (!Array.isArray(args.customer_fields)) throw new McpError('customer_fields is a list of {key, label, long}');
     if (args.customer_fields.length > CONTEXT_FIELDS_MAX) throw new McpError(`At most ${CONTEXT_FIELDS_MAX} fields`);
     const fields = cleanContextFields(args.customer_fields);
     // Said rather than dropped: a key the token can never carry is a typo
     // the caller would otherwise only find when the model knows nothing.
     if (fields.length !== args.customer_fields.length) {
-      throw new McpError('Each key is lowercase letters, digits and underscores, starts with a letter, and appears once');
+      throw new McpError(`Each key is lowercase letters, digits and underscores, starts with a letter, and appears once; at most ${CONTEXT_LONG_FIELDS_MAX} fields are long`);
     }
     if ((patch.identity ?? identity) !== 'signed' && fields.length) {
       throw new McpError('This widget takes anyone; customer data comes only from a signed-in visitor');
@@ -515,7 +520,8 @@ export const supportTools: ToolDef[] = [
       + 'exact titles, at most 20 — and every page must be marked as public knowledge first (`update_page` '
       + 'with `public_knowledge: true`). The name is what the model calls the business, and the window\'s '
       + 'title. `customer_fields` replaces the facts a signed-in visitor\'s token may carry in `ctx` — '
-      + '`{key, label}`, key lowercase letters, digits and underscores, at most 20; the model is given them '
+      + '`{key, label, long}`, key lowercase letters, digits and underscores, at most 20; a value up to '
+      + `${CONTEXT_VALUE_MAX} characters, or ${CONTEXT_LONG_VALUE_MAX} for a \`long\` field (at most ${CONTEXT_LONG_FIELDS_MAX}); the model is given them `
       + `only for a visitor the host signed in. ${NO_SECRET} Owners and admins only.`,
     schema: {
       type: 'object',

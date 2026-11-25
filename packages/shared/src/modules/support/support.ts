@@ -22,18 +22,29 @@ export const isWidgetAssistant = (value: unknown): value is WidgetAssistant =>
  * Few and short on purpose: they are a plan, a status, a date — what a model
  * needs to answer "which plan am I on" — not a record. A value longer than
  * this is dropped rather than cut, because half an address is a wrong one.
+ *
+ * A field an admin marks long is the one exception: a summary the host wrote
+ * for the model — an account's last weeks, its open orders — which a model can
+ * answer "how did my month go" from and no 200 characters can hold. Up to one
+ * knowledge page's length, and two of them at most, so that what a token adds
+ * to the prompt stays smaller than the knowledge it sits beside.
  */
 export const CONTEXT_FIELDS_MAX = 20;
 export const CONTEXT_VALUE_MAX = 200;
+export const CONTEXT_LONG_VALUE_MAX = 8_000;
+export const CONTEXT_LONG_FIELDS_MAX = 2;
 const CONTEXT_KEY = /^[a-z][a-z0-9_]{0,39}$/;
+/** How a line of the settings form marks a field long: `briefing: Briefing [long]`. */
+const LONG_MARK = /\s*\[long\]\s*$/i;
 
 /**
  * A widget's allowed fields, from what an admin typed or a tool sent.
  *
- * Either a list of `{ key, label }` or lines of `key: Label` — the form is a
- * text box, like the allowed sites. A key the token can carry is lowercase
- * letters, digits and underscores; a line that is not one is dropped, and so
- * is a key named twice.
+ * Either a list of `{ key, label, long? }` or lines of `key: Label`, with
+ * `[long]` at the end of a line for a long one — the form is a text box, like
+ * the allowed sites. A key the token can carry is lowercase letters, digits and
+ * underscores; a line that is not one is dropped, and so is a key named twice
+ * and a long field past the second.
  */
 export function cleanContextFields(value: unknown): WidgetContextField[] {
   const entries: unknown[] = typeof value === 'string' ? value.split('\n') : Array.isArray(value) ? value : [];
@@ -41,24 +52,30 @@ export function cleanContextFields(value: unknown): WidgetContextField[] {
   for (const entry of entries) {
     let key = '';
     let label = '';
+    let long = false;
     if (typeof entry === 'string') {
-      const [head, ...rest] = entry.split(':');
+      long = LONG_MARK.test(entry);
+      const [head, ...rest] = entry.replace(LONG_MARK, '').split(':');
       key = head.trim();
       label = rest.join(':').trim();
     } else if (entry && typeof entry === 'object') {
       key = String((entry as Record<string, unknown>).key ?? '').trim();
       label = String((entry as Record<string, unknown>).label ?? '').trim();
+      long = (entry as Record<string, unknown>).long === true;
     }
     if (!CONTEXT_KEY.test(key) || out.some((field) => field.key === key)) continue;
-    out.push({ key, label: (label || key).slice(0, 60) });
+    if (long && out.filter((field) => field.long).length === CONTEXT_LONG_FIELDS_MAX) continue;
+    // `long` only where it is true, so a short field is stored as it always was.
+    out.push({ key, label: (label || key).slice(0, 60), ...(long ? { long: true } : {}) });
     if (out.length === CONTEXT_FIELDS_MAX) break;
   }
   return out;
 }
 
-/** The fields as the settings form shows them: one `key: Label` a line. */
+/** The fields as the settings form shows them: one `key: Label` a line, `[long]` after a long one. */
 export const contextFieldsText = (fields: WidgetContextField[] | undefined): string =>
-  (fields ?? []).map((field) => (field.label === field.key ? field.key : `${field.key}: ${field.label}`)).join('\n');
+  (fields ?? []).map((field) =>
+    `${field.label === field.key ? field.key : `${field.key}: ${field.label}`}${field.long ? ' [long]' : ''}`).join('\n');
 
 /**
  * What a signed token's `ctx` claim says about the visitor, kept to the
@@ -71,10 +88,11 @@ export const contextFieldsText = (fields: WidgetContextField[] | undefined): str
 export function pickContext(raw: unknown, fields: WidgetContextField[]): Record<string, string | number | boolean> {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
   const out: Record<string, string | number | boolean> = {};
-  for (const { key } of fields) {
+  for (const { key, long } of fields) {
     const value = (raw as Record<string, unknown>)[key];
+    const max = long ? CONTEXT_LONG_VALUE_MAX : CONTEXT_VALUE_MAX;
     if (typeof value === 'boolean' || (typeof value === 'number' && Number.isFinite(value))) out[key] = value;
-    if (typeof value === 'string' && value.trim() && value.trim().length <= CONTEXT_VALUE_MAX) out[key] = value.trim();
+    if (typeof value === 'string' && value.trim() && value.trim().length <= max) out[key] = value.trim();
   }
   return out;
 }
