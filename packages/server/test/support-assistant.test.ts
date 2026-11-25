@@ -528,8 +528,9 @@ describe('customer data from the host\'s token', () => {
     const last = asked.at(-1)!;
     assert.doesNotMatch(last.user, /CUSTOMER DATA/);
     assert.match(last.system, /Hand over when the visitor asks for a person, is upset, or asks about their own account\.\n/);
-    assert.match(last.system, /you may use a Markdown table, or a chart: a fenced block ```chart/);
-    assert.match(last.system, /never a table or chart of estimated or invented ones/);
+    assert.match(last.system, /Choose the form of the answer yourself; the visitor does not have to ask for it\./);
+    assert.match(last.system, /one amount over time, are a chart: a fenced block ```chart/);
+    assert.match(last.system, /never a chart or table of estimated or invented ones/);
     assert.doesNotMatch(last.system, /CUSTOMER DATA/);
     const thread = await visit(`/w/${widget.id}/messages`, undefined, (await visit(`/w/${widget.id}/session`, {})).json.session);
     assert.deepEqual(thread.json.assistant.sees, []);
