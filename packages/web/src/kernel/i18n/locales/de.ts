@@ -3697,7 +3697,7 @@ export const de: Catalogue = {
   'widgets.notPublic': 'nicht in der öffentlichen Wissensbasis, wird nicht gelesen',
   'widgets.untitledPage': 'Seite ohne Titel',
   'widgets.customerFields': 'Was er über angemeldete Besucher wissen darf',
-  'widgets.customerFieldsHint': 'Angaben, die deine Seite im ctx-Claim des Tokens mitschickt, eine pro Zeile als key: Bezeichnung, z. B. plan: Tarif. Alles andere im Claim wird verworfen.',
+  'widgets.customerFieldsHint': 'Angaben, die deine Seite im ctx-Claim des Tokens mitschickt, eine pro Zeile als key: Bezeichnung, z. B. plan: Tarif. Alles andere im Claim wird verworfen. Ein Wert darf 200 Zeichen lang sein; mit [long] am Zeilenende 8.000, für eine Zusammenfassung, die deine Seite für das Modell schreibt (höchstens 2 solche Felder).',
   'widgets.budget': 'Antworten pro Tag',
   'widgets.budgetHint': 'Wie oft das Modell am Tag gefragt werden darf, Übergaben eingeschlossen. Danach geht jede Unterhaltung an einen Menschen. Das begrenzt, was ein Fremder vom Key des Servers verbrauchen kann.',
   'support.suggest': 'Antwort vorschlagen',

@@ -250,7 +250,10 @@ export function registerWidgetRoutes(router: Router): void {
   router.post('/w/:widget/session', async (ctx: Ctx) => {
     enforce(ctx, byAddress(ctx, LIMITS.widgetSession, 'widget-session'));
     const widget = widgetOf(ctx);
-    const body = await readJson<{ token?: string; name?: string; email?: string; website?: string }>(ctx, 16 * 1024);
+    // Room for a token carrying two long fields (`CONTEXT_LONG_VALUE_MAX` each)
+    // in a script of three bytes a character, base64url on top: refused whole
+    // past this, so the limit is the worst the fields allow, not a typical one.
+    const body = await readJson<{ token?: string; name?: string; email?: string; website?: string }>(ctx, 128 * 1024);
     let visitor: Visitor;
     if (widget.identity === 'anonymous') {
       if (cleanText(body.website, 200)) throw badRequest('That did not look like a person');

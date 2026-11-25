@@ -367,7 +367,8 @@ address is verified, and both are shown as unverified wherever they appear.
 
 A `widget` is an ordinary entity (`/api/workspaces/:ws/widgets`), written by an owner or admin of a
 workspace with `support` switched on. `context_fields` is a list of `{ key, label }` — the facts a
-signed visitor's token may carry in `ctx` — or the same as `key: Label` lines. Its signing secret is
+signed visitor's token may carry in `ctx`, with `long: true` on a field that may hold a long text —
+or the same as `key: Label` lines, `[long]` at the end of a long one. Its signing secret is
 never in the row, and is stored sealed:
 
 ```
