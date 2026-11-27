@@ -181,6 +181,11 @@ export function searchWorkspace(workspaceId: string, userId: string, query: stri
     ? get<Row>(`SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ? AND deleted_at IS NULL`, workspaceId, userId)?.role
     : undefined;
   const meetings = !!role && role !== 'guest';
+  // Incidents answer the same question about their own switch.
+  const incidentRole = rows.some((row) => row.kind === 'incident') && hasFeature(workspaceId, 'incidents')
+    ? get<Row>(`SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ? AND deleted_at IS NULL`, workspaceId, userId)?.role
+    : undefined;
+  const incidents = !!incidentRole && incidentRole !== 'guest';
 
   const indexed = rows
     .filter((row) => canSeeProject(userId, row.project_id)
@@ -198,7 +203,8 @@ export function searchWorkspace(workspaceId: string, userId: string, query: stri
       && (row.kind !== 'page' || canSeePage(userId, String(row.ref_id)))
       && (row.kind !== 'comment' || canSeeSubject(userId, 'comment', String(row.ref_id)))
       && (row.kind !== 'artboard' || canSeeBoard(userId, String(row.ref_id)))
-      && (row.kind !== 'agendaItem' || meetings))
+      && (row.kind !== 'agendaItem' || meetings)
+      && (row.kind !== 'incident' || incidents))
     .map((row) => ({
       kind: row.kind,
       id: row.ref_id,

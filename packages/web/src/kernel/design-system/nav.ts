@@ -49,6 +49,9 @@ export const WORKSPACE_DESTINATIONS: readonly Destination[] = [
   { to: '/mail', icon: 'mail', label: 'nav.mail', feature: 'mail' },
   // Beside mail: both are where people outside the workspace reach it.
   { to: '/support', icon: 'headset', label: 'nav.support', feature: 'support' },
+  // Beside support rather than under planning: an incident is something the
+  // team works through together, live, and the screen is opened in a hurry.
+  { to: '/incidents', icon: 'alert', label: 'nav.incidents', feature: 'incidents' },
   // With the everyday surfaces rather than under planning: a meeting is
   // somewhere people write together, every week, the way they do in chat and
   // in the pages — not a report somebody opens before a steering committee.

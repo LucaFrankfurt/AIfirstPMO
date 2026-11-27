@@ -41,6 +41,8 @@ const DecisionIndex = lazy(() => import('./modules/decisions/routes/decisions').
 const DecisionDetail = lazy(() => import('./modules/decisions/routes/decisions').then((m) => ({ default: m.DecisionDetail })));
 const MeetingIndex = lazy(() => import('./modules/meetings/routes/meetings').then((m) => ({ default: m.MeetingIndex })));
 const MeetingDetail = lazy(() => import('./modules/meetings/routes/meetings').then((m) => ({ default: m.MeetingDetail })));
+const IncidentIndex = lazy(() => import('./modules/incidents/routes/incidents').then((m) => ({ default: m.IncidentIndex })));
+const IncidentDetail = lazy(() => import('./modules/incidents/routes/incidents').then((m) => ({ default: m.IncidentDetail })));
 const BudgetIndex = lazy(() => import('./modules/budgets/routes/budgets').then((m) => ({ default: m.BudgetIndex })));
 const BudgetDetail = lazy(() => import('./modules/budgets/routes/budgets').then((m) => ({ default: m.BudgetDetail })));
 const ProductIndex = lazy(() => import('./modules/products/routes/products').then((m) => ({ default: m.ProductIndex })));
@@ -314,6 +316,8 @@ export default function App() {
           <Route path="/decisions/:id" element={<DecisionDetail />} />
           <Route path="/meetings" element={<MeetingIndex />} />
           <Route path="/meetings/:id" element={<MeetingDetail />} />
+          <Route path="/incidents" element={<IncidentIndex />} />
+          <Route path="/incidents/:id" element={<IncidentDetail />} />
           <Route path="/budgets" element={<BudgetIndex />} />
           <Route path="/budgets/:id" element={<BudgetDetail />} />
           <Route path="/products" element={<ProductIndex />} />

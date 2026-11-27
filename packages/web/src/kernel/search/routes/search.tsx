@@ -54,6 +54,7 @@ interface Hit {
 const KIND_ICON: Record<string, string> = {
   task: 'check', page: 'page', artboard: 'canvas', project: 'folder',
   comment: 'chat', message: 'chat', cycle: 'cycle', module: 'board', mail: 'mail', agendaItem: 'agenda',
+  incident: 'alert',
 };
 
 const KIND_GROUP: Record<string, TranslationKey> = {
@@ -61,10 +62,11 @@ const KIND_GROUP: Record<string, TranslationKey> = {
   comment: 'search.groupComments', message: 'search.groupMessages',
   cycle: 'search.groupCycles', module: 'search.groupModules', mail: 'search.groupMail',
   agendaItem: 'search.groupMeetings',
+  incident: 'search.groupIncidents',
 };
 
 /** Work first, then what is written about it — and last, what arrived from outside. */
-const KIND_ORDER = ['task', 'page', 'artboard', 'project', 'cycle', 'module', 'agendaItem', 'comment', 'message', 'mail'];
+const KIND_ORDER = ['task', 'page', 'artboard', 'project', 'cycle', 'module', 'agendaItem', 'incident', 'comment', 'message', 'mail'];
 
 /**
  * A row from the server, in the shape the rest of this file uses. The rename
@@ -326,6 +328,8 @@ export function Search() {
       const topic = byId('agendaItem', hit.id);
       if (topic?.meeting_id) navigate(`/meetings/${topic.meeting_id}`);
       else toast(t('search.topicGone'));
+    } else if (hit.kind === 'incident') {
+      navigate(`/incidents/${hit.id}`);
     } else if (hit.kind === 'mail') {
       // A mail is not in the local mirror — messages are deliberately not
       // entities — so there is nothing to look up here and the id goes in the

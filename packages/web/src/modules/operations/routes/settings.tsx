@@ -671,6 +671,26 @@ function WorkspaceSettings() {
         </span>
       </label>
 
+      {/* Incidents are for members too: a record of what broke, what it cost
+          and why is a sentence about the company, and it never reaches a
+          guest's device. Saying so here is cheaper than the surprise. */}
+      <label className="check-row">
+        <input
+          type="checkbox"
+          checked={!!workspace?.features?.incidents}
+          disabled={!canEdit}
+          onChange={async (event) => {
+            await api.patch(`/api/workspaces/${workspaceId}`, { features: { incidents: event.target.checked } });
+            await refresh();
+            toast(t('workspace.updated'));
+          }}
+        />
+        <span>
+          <span>{t('workspace.featureIncidents')}</span>
+          <span className="text-[12px] text-muted">{t('workspace.featureIncidentsHint')}</span>
+        </span>
+      </label>
+
       {/* The switch with the most behind it: turning it on means this instance
           holds a credential to somebody else's mail server and a copy of what
           is in it. Switching it off hides the screens and stops MCP reading;

@@ -204,6 +204,19 @@ function notify(entity: EntityName, row: Row, before: Row | undefined, changed: 
     }
   }
 
+  // An incident tells the people newly put on it, and a P1 tells the room.
+  // Never fatal, for the reason the ballot's announcement above is not: losing
+  // somebody's edit to an outage because telling a colleague failed is the
+  // worse half, and the colleague is about to be told on the call anyway.
+  if (entity === 'incident') {
+    try {
+      tellIncidentPeople(row, before, opts);
+      announceIncident(row, opts);
+    } catch (error) {
+      console.error('[notify] could not tell anybody about an incident', error);
+    }
+  }
+
   // A point on a meeting tells the people newly responsible for it. Never
   // fatal, for the reason the ballot's announcement above is not: this runs
   // inside the write's own transaction, and losing somebody's agenda edit
@@ -350,6 +363,88 @@ function tellResponsible(row: Row, before: Row | undefined, opts: WriteOpts): vo
       actorId: opts.actorId,
     });
   }
+}
+
+/**
+ * Somebody was made the incident's manager, or put on it as a responder.
+ *
+ * Only the people new to the role, and never the person who did it — the rule
+ * a task's assignees follow. Being moved from responder to manager is a new
+ * role and says so; being left where one was says nothing. A workspace that has
+ * switched incidents off tells nobody, and an incident already over tells
+ * nobody either: being put on a closed record is filing, not a call to arms.
+ */
+function tellIncidentPeople(row: Row, before: Row | undefined, opts: WriteOpts): void {
+  if (row.deleted_at || !row.workspace_id || !hasFeature(String(row.workspace_id), 'incidents')) return;
+  if (['resolved', 'closed', 'cancelled'].includes(String(row.status))) return;
+  const tell = (userId: string, key: 'notify.incidentManager' | 'notify.incidentResponder') => {
+    if (userId === opts.actorId) return;
+    createNotification({
+      workspaceId: String(row.workspace_id),
+      userId,
+      kind: 'incident',
+      title: translatorFor(userId)(key, { identifier: String(row.identifier), summary: String(row.summary) }),
+      body: (row.description as string | null) ? excerpt(String(row.description), 200) : null,
+      incidentId: String(row.id),
+      actorId: opts.actorId,
+    });
+  };
+
+  const manager = row.manager_id ? String(row.manager_id) : null;
+  if (manager && manager !== (before?.manager_id ?? null)) tell(manager, 'notify.incidentManager');
+
+  const previous = new Set(parseIds(before?.responders));
+  for (const userId of parseIds(row.responders)) {
+    if (previous.has(userId) || userId === manager) continue;
+    tell(userId, 'notify.incidentResponder');
+  }
+}
+
+/**
+ * A P1 or a major incident tells every member — once.
+ *
+ * The ballot's argument, with more at stake: the rest of this file argues
+ * against telling a whole workspace anything, because a bell that rings for
+ * every page edit teaches people to ignore it. A critical outage is the
+ * opposite shape. It is rare, it is about everybody's day, and the colleague
+ * who keeps telling a customer "everything is fine" because nobody told them
+ * otherwise is the cost of staying quiet.
+ *
+ * It fires when the incident *becomes* critical while still active — opened as
+ * a P1, or escalated to one later — and `announced_at` is what keeps the next
+ * edit from ringing again. A de-escalated incident that is escalated a second
+ * time does not announce twice; the room already knows its name.
+ */
+function announceIncident(row: Row, opts: WriteOpts): void {
+  if (row.deleted_at || row.announced_at || !row.workspace_id) return;
+  if (!(String(row.priority) === 'p1' || Number(row.major) === 1)) return;
+  if (!['new', 'investigating', 'identified', 'monitoring', 'on_hold'].includes(String(row.status))) return;
+  if (!hasFeature(String(row.workspace_id), 'incidents')) return;
+
+  const audience = all<Row>(
+    `SELECT user_id FROM workspace_members
+      WHERE workspace_id = ? AND role <> 'guest' AND deleted_at IS NULL`,
+    row.workspace_id,
+  );
+  for (const member of audience) {
+    const userId = String(member.user_id);
+    if (userId === opts.actorId) continue;
+    createNotification({
+      workspaceId: String(row.workspace_id),
+      userId,
+      kind: 'incident_major',
+      title: translatorFor(userId)('notify.incidentMajor', { identifier: String(row.identifier), summary: String(row.summary) }),
+      body: (row.description as string | null) ? excerpt(String(row.description), 200) : null,
+      incidentId: String(row.id),
+      actorId: opts.actorId,
+    });
+  }
+
+  // Stamped even when nobody else was there to tell, for the ballot's reason:
+  // "nobody was told" is an answer, and null would re-ask on every edit.
+  writeEntity('incident', String(row.id), { announced_at: Date.now() }, {
+    ...opts, op: undefined, system: true, silent: true,
+  });
 }
 
 /** People who asked to hear about everything in this channel. */

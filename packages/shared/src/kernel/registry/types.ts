@@ -601,6 +601,186 @@ export interface AgendaItem extends Base {
   sort_order: string;
 }
 
+/* --------------------------------------------------------------- incidents */
+
+/**
+ * Where an incident has got to.
+ *
+ * Two vocabularies, deliberately merged. ITIL's — new, on hold, resolved,
+ * closed, cancelled — is what an auditor and a service desk speak; the
+ * status-page one — investigating, identified, monitoring — is what the people
+ * fighting the fire say to each other every twenty minutes, and it is the half
+ * a timeline is worth reading for. One list rather than two fields, because two
+ * fields that each say "where it is" disagree the first time somebody updates
+ * only one of them.
+ *
+ * `resolved` is "the service is back"; `closed` is "and the paperwork is done"
+ * — the root cause written down, the follow-ups filed. The gap between the two
+ * is where post-incident reviews go to die, which is why it is a state and not
+ * a checkbox. See `isActive` for which of them count as still burning.
+ */
+export const INCIDENT_STATUS = [
+  'new', 'investigating', 'identified', 'monitoring', 'on_hold', 'resolved', 'closed', 'cancelled',
+] as const;
+export type IncidentStatus = (typeof INCIDENT_STATUS)[number];
+
+/**
+ * How bad it is, as a number a pager understands.
+ *
+ * Four rather than ServiceNow's five: its fifth, "planning", is a change
+ * request wearing an incident's clothes. The order is the order of the list —
+ * `p1` first — and every sort that asks "what next" reads it from here.
+ */
+export const INCIDENT_PRIORITIES = ['p1', 'p2', 'p3', 'p4'] as const;
+export type IncidentPriority = (typeof INCIDENT_PRIORITIES)[number];
+
+/**
+ * The two questions a priority is the answer to: how many are hit, and how fast
+ * it hurts. Kept beside the priority rather than instead of it — see
+ * `priorityFor` for the matrix and for why it is a suggestion.
+ */
+export const INCIDENT_IMPACTS = ['high', 'medium', 'low'] as const;
+export type IncidentImpact = (typeof INCIDENT_IMPACTS)[number];
+export const INCIDENT_URGENCIES = ['high', 'medium', 'low'] as const;
+export type IncidentUrgency = (typeof INCIDENT_URGENCIES)[number];
+
+/** What broke, as a word a report can group by. `other` rather than a free field. */
+export const INCIDENT_CATEGORIES = [
+  'application', 'infrastructure', 'network', 'security', 'data', 'access', 'performance', 'other',
+] as const;
+export type IncidentCategory = (typeof INCIDENT_CATEGORIES)[number];
+
+/**
+ * How it ended, as a code a report can count.
+ *
+ * A workaround and a fix are different promises about next week, and the
+ * difference is the one thing a monthly review of incidents is asking: how
+ * many of these will come back.
+ */
+export const INCIDENT_RESOLUTIONS = [
+  'fixed', 'workaround', 'rolled_back', 'third_party', 'not_reproducible', 'duplicate', 'other',
+] as const;
+export type IncidentResolution = (typeof INCIDENT_RESOLUTIONS)[number];
+
+/** How much an application matters when it is down. Orders the dropdown; suggests nothing on its own. */
+export const APPLICATION_CRITICALITY = ['critical', 'high', 'medium', 'low'] as const;
+export type ApplicationCriticality = (typeof APPLICATION_CRITICALITY)[number];
+
+/**
+ * Something that can break: an application, a service, a system people use.
+ *
+ * Its own short list rather than the infrastructure register's components,
+ * because the two answer different questions — the register says what runs
+ * where and what it costs, this says what the people affected would call the
+ * thing that stopped working. `component_id` is the bridge for a workspace
+ * that keeps both: the CRM here, the three servers it runs on there.
+ */
+export interface Application extends Base {
+  workspace_id: ID;
+  name: string;
+  description: string | null;
+  owner_id: ID | null;
+  criticality: ApplicationCriticality;
+  /** The register's row for it, where the infrastructure register is in use. */
+  component_id: ID | null;
+  archived: number;
+  sort_order: string;
+}
+
+/**
+ * Something that stopped working, and what was done about it.
+ *
+ * `number` and `identifier` are the server's: `INC-1`, `INC-2`, counted per
+ * workspace by the write path, never reused — a tombstoned incident keeps its
+ * number, because a number somebody quoted in an email has to keep meaning the
+ * one thing.
+ *
+ * The three times are three different facts, and conflating any two of them
+ * is how a report ends up flattering itself: `started_at` is when people were
+ * first hurt, `detected_at` when somebody here noticed, `ended_at` when the
+ * hurting stopped. `resolved_at` and `closed_at` are not times anybody types —
+ * they are the moments the status said so, stamped by the write path.
+ */
+export interface Incident extends Base {
+  workspace_id: ID;
+  number: number;
+  identifier: string;
+  summary: string;
+  description: string | null;
+  status: IncidentStatus;
+  priority: IncidentPriority;
+  impact: IncidentImpact;
+  urgency: IncidentUrgency;
+  category: IncidentCategory;
+  /** A major incident: its own call, its own communication, its own review. */
+  major: number;
+  /** Application ids, from the workspace's list. Missing on rows a device synced before it existed. */
+  applications: ID[];
+  /** Who runs it. One person, on purpose — see `docs/incidents.md`. */
+  manager_id: ID | null;
+  /** Who is working on it. */
+  responders: ID[];
+  /** Who reported it, as they would be named: a person, a customer, a monitor. */
+  reported_by: string | null;
+  started_at: number | null;
+  detected_at: number | null;
+  ended_at: number | null;
+  resolved_at: number | null;
+  closed_at: number | null;
+  /** In minor units of `currency`. Null is "nobody has costed it", which is not zero. */
+  financial_impact: Minor | null;
+  currency: string;
+  /** People or customers affected, where somebody has counted. */
+  affected_users: number | null;
+  resolution_code: IncidentResolution | null;
+  resolution: string | null;
+  root_cause: string | null;
+  /** Linked pages: the runbook, the knowledge-base article, the post-incident review. */
+  pages: ID[];
+  /** Linked tasks: the follow-ups that stop it happening again. */
+  tasks: ID[];
+  created_by: ID | null;
+  /** When the workspace was told about a P1. A marker, like a ballot's — see `notifications/effects.ts`. */
+  announced_at: number | null;
+}
+
+/**
+ * What a line on an incident's timeline is.
+ *
+ * `update` is said to whoever is waiting — what is known, what is next.
+ * `note` is said among the people working it. `change` is written by the
+ * server when the status, the priority or the manager moved, so the timeline
+ * is complete without anybody having to remember to say so.
+ */
+export const INCIDENT_UPDATE_KINDS = ['update', 'note', 'change'] as const;
+export type IncidentUpdateKind = (typeof INCIDENT_UPDATE_KINDS)[number];
+
+/**
+ * One line on an incident's timeline.
+ *
+ * Its own row rather than a list on the incident, for the reason an agenda
+ * point is a row: three people write updates during the same outage, from
+ * three devices, and a JSON array would keep whichever synced last.
+ *
+ * `occurred_at` is when it happened rather than when it was typed, so a
+ * timeline can be put together afterwards — "14:02, the alerts fired" written
+ * at five o'clock is still a line at 14:02. A `change` row says what moved in
+ * `field`, `old_value` and `new_value` rather than in a sentence, so every
+ * device reads it in its own language.
+ */
+export interface IncidentUpdate extends Base {
+  workspace_id: ID;
+  incident_id: ID;
+  kind: IncidentUpdateKind;
+  body: string | null;
+  occurred_at: number;
+  field: string | null;
+  old_value: string | null;
+  new_value: string | null;
+  /** Who wrote it. The server's, as a ballot's asker is. */
+  author_id: ID | null;
+}
+
 /**
  * What an hour is worth, in the two senses a team needs at once.
  *
@@ -811,6 +991,16 @@ export interface WorkspaceFeatures {
    * screens and makes MCP refuse; the rows are untouched.
    */
   meetings?: boolean;
+  /**
+   * Incidents: what stopped working, who is running it, what it cost, and what
+   * was done so it does not happen again.
+   *
+   * Off by default like the rest, because a workspace that runs no service has
+   * nothing to page anybody about, and an empty incident screen in its sidebar
+   * reads as a promise of an on-call rota it has not got. Switching it off
+   * hides the screens and makes MCP refuse; the rows are untouched.
+   */
+  incidents?: boolean;
   /**
    * The catalogue: products, packages, campaigns, what they cost and what they
    * earn.
@@ -2374,6 +2564,8 @@ export interface Notification extends Base {
    * not null, on rows a device synced before it existed — read defensively.
    */
   conversation_id?: ID | null;
+  /** The incident, when somebody was put on one or a P1 was opened. Missing on older rows. */
+  incident_id?: ID | null;
   actor_id: ID | null;
   read_at: number | null;
   archived_at: number | null;
@@ -2559,6 +2751,9 @@ export interface EntityMap {
   decisionVote: DecisionVote;
   meeting: Meeting;
   agendaItem: AgendaItem;
+  application: Application;
+  incident: Incident;
+  incidentUpdate: IncidentUpdate;
   pageStatus: PageStatus;
   pageType: PageType;
   page: Page;

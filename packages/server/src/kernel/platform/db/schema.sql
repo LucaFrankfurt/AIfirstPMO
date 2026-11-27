@@ -996,6 +996,100 @@ CREATE TABLE IF NOT EXISTS agenda_items (
 CREATE INDEX IF NOT EXISTS agenda_items_seq ON agenda_items (workspace_id, seq);
 CREATE INDEX IF NOT EXISTS agenda_items_meeting ON agenda_items (meeting_id);
 
+-- Something that can break, as the people affected would name it: the CRM,
+-- the shop, the VPN. The dropdown an incident's affected applications are
+-- chosen from. `component_id` is the infrastructure register's row for it,
+-- where a workspace keeps one.
+CREATE TABLE IF NOT EXISTS applications (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  name         TEXT NOT NULL DEFAULT '',
+  description  TEXT,
+  owner_id     TEXT,
+  criticality  TEXT NOT NULL DEFAULT 'medium',
+  component_id TEXT,
+  archived     INTEGER NOT NULL DEFAULT 0,
+  sort_order   TEXT NOT NULL DEFAULT 'V',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS applications_seq ON applications (workspace_id, seq);
+
+-- Something that stopped working. `number` is counted per workspace by the
+-- write path and never reused — a tombstone keeps its number — so the maximum
+-- over this table, tombstones included, is the whole counter. `identifier` is
+-- `INC-<number>`. Money is integer minor units, as in budgets; null is
+-- "nobody costed it", which a report counts apart from zero.
+CREATE TABLE IF NOT EXISTS incidents (
+  id               TEXT PRIMARY KEY,
+  workspace_id     TEXT NOT NULL,
+  number           INTEGER NOT NULL DEFAULT 0,
+  identifier       TEXT NOT NULL DEFAULT '',
+  summary          TEXT NOT NULL DEFAULT '',
+  description      TEXT,
+  status           TEXT NOT NULL DEFAULT 'new',
+  priority         TEXT NOT NULL DEFAULT 'p3',
+  impact           TEXT NOT NULL DEFAULT 'medium',
+  urgency          TEXT NOT NULL DEFAULT 'medium',
+  category         TEXT NOT NULL DEFAULT 'other',
+  major            INTEGER NOT NULL DEFAULT 0,
+  applications     TEXT NOT NULL DEFAULT '[]',
+  manager_id       TEXT,
+  responders       TEXT NOT NULL DEFAULT '[]',
+  reported_by      TEXT,
+  started_at       INTEGER,
+  detected_at      INTEGER,
+  ended_at         INTEGER,
+  resolved_at      INTEGER,
+  closed_at        INTEGER,
+  financial_impact INTEGER,
+  currency         TEXT NOT NULL DEFAULT 'EUR',
+  affected_users   INTEGER,
+  resolution_code  TEXT,
+  resolution       TEXT,
+  root_cause       TEXT,
+  pages            TEXT NOT NULL DEFAULT '[]',
+  tasks            TEXT NOT NULL DEFAULT '[]',
+  created_by       TEXT,
+  -- When the workspace was told about a P1. A marker, not a date anybody
+  -- reads: what it prevents is telling everybody a second time.
+  announced_at     INTEGER,
+  created_at       INTEGER NOT NULL,
+  updated_at       INTEGER NOT NULL,
+  deleted_at       INTEGER,
+  seq              INTEGER NOT NULL DEFAULT 0,
+  clocks           TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS incidents_seq ON incidents (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS incidents_number ON incidents (workspace_id, number);
+
+-- One line on an incident's timeline: an update, a working note, or a change
+-- the server wrote down because the status, priority or manager moved.
+-- `occurred_at` is when it happened, which a timeline put together afterwards
+-- sets to something earlier than `created_at`.
+CREATE TABLE IF NOT EXISTS incident_updates (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  incident_id  TEXT NOT NULL,
+  kind         TEXT NOT NULL DEFAULT 'update',
+  body         TEXT,
+  occurred_at  INTEGER NOT NULL DEFAULT 0,
+  field        TEXT,
+  old_value    TEXT,
+  new_value    TEXT,
+  author_id    TEXT,
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS incident_updates_seq ON incident_updates (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS incident_updates_incident ON incident_updates (incident_id);
+
 CREATE TABLE IF NOT EXISTS tasks (
   id           TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL,
@@ -1673,6 +1767,9 @@ CREATE TABLE IF NOT EXISTS notifications (
   -- Read before `project_id` too: the widget's project is a board, and the
   -- person was asked to answer somebody, not to look at one.
   conversation_id TEXT,
+  -- ...or about an incident: somebody was put on one, or a P1 was opened. Read
+  -- before `project_id` for the reason the three above are.
+  incident_id  TEXT,
   actor_id     TEXT,
   read_at      INTEGER,
   archived_at  INTEGER,

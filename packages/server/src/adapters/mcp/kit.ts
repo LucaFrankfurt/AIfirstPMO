@@ -784,7 +784,7 @@ export function requireWrite(ctx: McpCtx, workspaceId: string): void {
  */
 export function requireFeature(
   workspaceId: string,
-  name: 'time' | 'budget' | 'products' | 'infrastructure' | 'kpi' | 'decisions' | 'meetings' | 'mail' | 'support',
+  name: 'time' | 'budget' | 'products' | 'infrastructure' | 'kpi' | 'decisions' | 'meetings' | 'incidents' | 'mail' | 'support',
 ): void {
   if (!hasFeature(workspaceId, name)) {
     const what = {
@@ -795,6 +795,7 @@ export function requireFeature(
       kpi: 'KPIs',
       decisions: 'Decisions',
       meetings: 'Meetings',
+      incidents: 'Incidents',
       mail: 'Connected mailboxes',
       support: 'Support chat',
     }[name];

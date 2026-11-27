@@ -262,6 +262,15 @@ function guardMeeting(entity: EntityName, role: WorkspaceRole): void {
   }
 }
 
+/** An incident is for the members of a workspace too — the pull's `case 'incident'`, at the other door. */
+const INCIDENT_ENTITIES = new Set<EntityName>(['application', 'incident', 'incidentUpdate']);
+
+function guardIncident(entity: EntityName, role: WorkspaceRole): void {
+  if (INCIDENT_ENTITIES.has(entity) && !hasRole(role, 'member')) {
+    throw forbidden('Incidents are for members of the workspace');
+  }
+}
+
 const BUDGET_CHILDREN = new Set<EntityName>(['budgetLine', 'budgetActual', 'budgetScenario']);
 const KPI_CHILDREN = new Set<EntityName>(['kpiTarget', 'kpiReading']);
 
@@ -291,6 +300,7 @@ function guardRow(ctx: Ctx, userId: string, entity: EntityName, row: Row, role: 
   guardSecret(userId, entity, row, role);
   guardBudget(userId, entity, row);
   guardMeeting(entity, role);
+  guardIncident(entity, role);
   guardRate(ctx, entity, String(row.workspace_id));
   if (entity === 'notification' && row.user_id !== userId) throw forbidden('Not your notification');
 }
@@ -648,8 +658,9 @@ export function registerEntityRoutes(router: Router): void {
             : row.decision_id ? `/decisions/${row.decision_id}`
               : row.meeting_id ? `/meetings/${row.meeting_id}`
                 : row.conversation_id ? `/support/${row.conversation_id}`
-                  : row.project_id ? `/projects/${row.project_id}?tab=intake`
-                    : '/inbox',
+                  : row.incident_id ? `/incidents/${row.incident_id}`
+                    : row.project_id ? `/projects/${row.project_id}?tab=intake`
+                      : '/inbox',
       unread: Number(get<Row>(
         `SELECT count(*) AS n FROM notifications
           WHERE user_id = ?1 AND read_at IS NULL AND deleted_at IS NULL
@@ -668,6 +679,7 @@ export function registerEntityRoutes(router: Router): void {
     // would read as a fact about the workspace.
     if (entity === 'secret' && !hasRole(role, 'member')) throw forbidden('The vault is for members of the workspace');
     guardMeeting(entity, role);
+    guardIncident(entity, role);
     guardRate(ctx, entity, ctx.params.ws);
     const def = ENTITIES[entity];
     // A direct conversation belongs to no workspace, so listing this one has

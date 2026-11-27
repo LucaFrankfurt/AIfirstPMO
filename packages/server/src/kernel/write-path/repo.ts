@@ -249,6 +249,7 @@ const SCOPED_REFERENCES: Record<string, string> = {
   carried_from: 'agenda_items',
   minutes_page_id: 'pages',
   conversation_id: 'conversations',
+  incident_id: 'incidents',
 };
 
 function guardReferences(entity: EntityName, values: Record<string, unknown>, opts: WriteOpts): void {
@@ -657,6 +658,16 @@ export const SEARCHABLE: Partial<Record<EntityName, (row: Row) => { title: strin
   agendaItem: (row) => ({
     title: row.title ?? '',
     body: [String(row.description ?? ''), String(row.notes ?? '')].filter(Boolean).join('\n\n'),
+  }),
+  /*
+   * An incident, by its number and what it says — so "INC-12", "VPN" and the
+   * error message somebody pasted into the root cause all find it. Not scoped by
+   * project, so `searchWorkspace` asks the meeting's question about each hit: a
+   * member, not a guest, of a workspace with incidents switched on.
+   */
+  incident: (row) => ({
+    title: `${row.identifier ?? ''} ${row.summary ?? ''}`.trim(),
+    body: [row.description, row.root_cause, row.resolution].map((part) => String(part ?? '')).filter(Boolean).join('\n\n'),
   }),
 };
 

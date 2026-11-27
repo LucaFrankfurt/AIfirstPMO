@@ -195,6 +195,76 @@
           }
         }
       },
+      "Application": {
+        "type": "object",
+        "description": "A row of `applications` (table `applications`).",
+        "properties": {
+          "archived": {
+            "type": "number"
+          },
+          "component_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The register's row for it, where the infrastructure register is in use."
+          },
+          "created_at": {
+            "type": "number",
+            "readOnly": true
+          },
+          "criticality": {
+            "type": "string",
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low"
+            ]
+          },
+          "deleted_at": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "readOnly": true
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "readOnly": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "owner_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "seq": {
+            "type": "number",
+            "description": "Server-assigned, workspace-monotonic sync cursor.",
+            "readOnly": true
+          },
+          "sort_order": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "number",
+            "readOnly": true
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        }
+      },
       "Artboard": {
         "type": "object",
         "description": "A row of `artboards` (table `artboards`).",
@@ -415,6 +485,7 @@
               "budget",
               "product",
               "component",
+              "incident",
               null
             ],
             "description": "Anything else a file may hang on — a decision, a budget, a component. Never one of the three above, and never set alongside one of them: `soleLink` reduces whatever a write names to the single link every reader reads, so nobody has to ask which of two fields wins. See `kernel/registry/attachments.ts`."
@@ -2358,6 +2429,324 @@
           }
         }
       },
+      "Incident": {
+        "type": "object",
+        "description": "A row of `incidents` (table `incidents`).",
+        "properties": {
+          "affected_users": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "People or customers affected, where somebody has counted."
+          },
+          "announced_at": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "When the workspace was told about a P1. A marker, like a ballot's — see `notifications/effects.ts`.",
+            "readOnly": true
+          },
+          "applications": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Application ids, from the workspace's list. Missing on rows a device synced before it existed."
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "infrastructure",
+              "other",
+              "network",
+              "application",
+              "security",
+              "data",
+              "access",
+              "performance"
+            ]
+          },
+          "closed_at": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "readOnly": true
+          },
+          "created_at": {
+            "type": "number",
+            "readOnly": true
+          },
+          "created_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "readOnly": true
+          },
+          "currency": {
+            "type": "string"
+          },
+          "deleted_at": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "readOnly": true
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "detected_at": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "ended_at": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "financial_impact": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "In minor units of `currency`. Null is \"nobody has costed it\", which is not zero."
+          },
+          "id": {
+            "type": "string",
+            "readOnly": true
+          },
+          "identifier": {
+            "type": "string",
+            "readOnly": true
+          },
+          "impact": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ]
+          },
+          "major": {
+            "type": "number",
+            "description": "A major incident: its own call, its own communication, its own review."
+          },
+          "manager_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Who runs it. One person, on purpose — see `docs/incidents.md`."
+          },
+          "number": {
+            "type": "number",
+            "readOnly": true
+          },
+          "pages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Linked pages: the runbook, the knowledge-base article, the post-incident review."
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "p1",
+              "p2",
+              "p3",
+              "p4"
+            ]
+          },
+          "reported_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Who reported it, as they would be named: a person, a customer, a monitor."
+          },
+          "resolution": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resolution_code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "other",
+              "fixed",
+              "workaround",
+              "rolled_back",
+              "third_party",
+              "not_reproducible",
+              "duplicate",
+              null
+            ]
+          },
+          "resolved_at": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "readOnly": true
+          },
+          "responders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Who is working on it."
+          },
+          "root_cause": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "seq": {
+            "type": "number",
+            "description": "Server-assigned, workspace-monotonic sync cursor.",
+            "readOnly": true
+          },
+          "started_at": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "cancelled",
+              "closed",
+              "resolved",
+              "new",
+              "investigating",
+              "identified",
+              "monitoring",
+              "on_hold"
+            ]
+          },
+          "summary": {
+            "type": "string"
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Linked tasks: the follow-ups that stop it happening again."
+          },
+          "updated_at": {
+            "type": "number",
+            "readOnly": true
+          },
+          "urgency": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ]
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        }
+      },
+      "IncidentUpdate": {
+        "type": "object",
+        "description": "A row of `incident-updates` (table `incident_updates`).",
+        "properties": {
+          "author_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Who wrote it. The server's, as a ballot's asker is.",
+            "readOnly": true
+          },
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "number",
+            "readOnly": true
+          },
+          "deleted_at": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "readOnly": true
+          },
+          "field": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "readOnly": true
+          },
+          "incident_id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "note",
+              "update",
+              "change"
+            ]
+          },
+          "new_value": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "occurred_at": {
+            "type": "number"
+          },
+          "old_value": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "seq": {
+            "type": "number",
+            "description": "Server-assigned, workspace-monotonic sync cursor.",
+            "readOnly": true
+          },
+          "updated_at": {
+            "type": "number",
+            "readOnly": true
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        }
+      },
       "Intake": {
         "type": "object",
         "description": "A row of `intakes` (table `intakes`).",
@@ -3256,6 +3645,14 @@
           },
           "id": {
             "type": "string",
+            "readOnly": true
+          },
+          "incident_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The incident, when somebody was put on one or a P1 was opened. Missing on older rows.",
             "readOnly": true
           },
           "kind": {
@@ -4635,10 +5032,12 @@
               "budget",
               "product",
               "component",
+              "incident",
               "user",
               "team",
               "member",
               "channel",
+              "application",
               "teamMember",
               "projectMember",
               "state",
@@ -4668,6 +5067,7 @@
               "decisionVote",
               "meeting",
               "agendaItem",
+              "incidentUpdate",
               "pageStatus",
               "pageType",
               "artboard",
@@ -5229,11 +5629,11 @@
           "priority": {
             "type": "string",
             "enum": [
-              "none",
-              "urgent",
               "high",
               "medium",
-              "low"
+              "low",
+              "none",
+              "urgent"
             ]
           },
           "project_id": {
@@ -5466,11 +5866,11 @@
           "priority": {
             "type": "string",
             "enum": [
-              "none",
-              "urgent",
               "high",
               "medium",
-              "low"
+              "low",
+              "none",
+              "urgent"
             ]
           },
           "project_id": {
@@ -5723,11 +6123,11 @@
                 "items": {
                   "type": "string",
                   "enum": [
-                    "none",
-                    "urgent",
                     "high",
                     "medium",
-                    "low"
+                    "low",
+                    "none",
+                    "urgent"
                   ]
                 }
               },
@@ -5856,11 +6256,11 @@
                     "items": {
                       "type": "string",
                       "enum": [
-                        "none",
-                        "urgent",
                         "high",
                         "medium",
-                        "low"
+                        "low",
+                        "none",
+                        "urgent"
                       ]
                     }
                   },
@@ -6806,6 +7206,199 @@
         "description": "Soft: the row keeps its place in the sync log and comes back as deleted.",
         "tags": [
           "agenda-items"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/applications/{id}": {
+      "get": {
+        "operationId": "getApplication",
+        "summary": "Read one application",
+        "tags": [
+          "applications"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The row.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Application"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateApplication",
+        "summary": "Change a application",
+        "description": "Partial: only the fields present are written.",
+        "tags": [
+          "applications"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Application"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The row as it now stands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Application"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body was refused — a rule in the registry, or one the entity keeps for itself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteApplication",
+        "summary": "Delete a application",
+        "description": "Soft: the row keeps its place in the sync log and comes back as deleted.",
+        "tags": [
+          "applications"
         ],
         "parameters": [
           {
@@ -11449,6 +12042,392 @@
           },
           "401": {
             "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/incident-updates/{id}": {
+      "get": {
+        "operationId": "getIncidentUpdate",
+        "summary": "Read one incidentUpdate",
+        "tags": [
+          "incident-updates"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The row.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentUpdate"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateIncidentUpdate",
+        "summary": "Change a incidentUpdate",
+        "description": "Partial: only the fields present are written.",
+        "tags": [
+          "incident-updates"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncidentUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The row as it now stands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentUpdate"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body was refused — a rule in the registry, or one the entity keeps for itself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteIncidentUpdate",
+        "summary": "Delete a incidentUpdate",
+        "description": "Soft: the row keeps its place in the sync log and comes back as deleted.",
+        "tags": [
+          "incident-updates"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/incidents/{id}": {
+      "get": {
+        "operationId": "getIncident",
+        "summary": "Read one incident",
+        "tags": [
+          "incidents"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The row.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Incident"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateIncident",
+        "summary": "Change a incident",
+        "description": "Partial: only the fields present are written.",
+        "tags": [
+          "incidents"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Incident"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The row as it now stands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Incident"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body was refused — a rule in the registry, or one the entity keeps for itself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteIncident",
+        "summary": "Delete a incident",
+        "description": "Soft: the row keeps its place in the sync log and comes back as deleted.",
+        "tags": [
+          "incidents"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
             "content": {
               "application/json": {
                 "schema": {
@@ -21570,6 +22549,174 @@
         }
       }
     },
+    "/api/workspaces/{ws}/applications": {
+      "get": {
+        "operationId": "listApplication",
+        "summary": "List applications",
+        "description": "Filterable by any field of the row: `?project_id=…&priority=urgent`, and `?field=null` for rows that have none.",
+        "tags": [
+          "applications"
+        ],
+        "parameters": [
+          {
+            "name": "ws",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 1000
+            },
+            "description": "At most 1000."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Any field of the row."
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "include_deleted",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The applications this caller may see.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Application"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createApplication",
+        "summary": "Create a application",
+        "tags": [
+          "applications"
+        ],
+        "parameters": [
+          {
+            "name": "ws",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Application"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The row as it was stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Application"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body was refused — a rule in the registry, or one the entity keeps for itself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workspaces/{ws}/artboards": {
       "get": {
         "operationId": "listArtboard",
@@ -25443,6 +26590,342 @@
           },
           "401": {
             "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{ws}/incident-updates": {
+      "get": {
+        "operationId": "listIncidentUpdate",
+        "summary": "List incident-updates",
+        "description": "Filterable by any field of the row: `?project_id=…&priority=urgent`, and `?field=null` for rows that have none.",
+        "tags": [
+          "incident-updates"
+        ],
+        "parameters": [
+          {
+            "name": "ws",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 1000
+            },
+            "description": "At most 1000."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Any field of the row."
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "include_deleted",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The incident-updates this caller may see.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IncidentUpdate"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createIncidentUpdate",
+        "summary": "Create a incidentUpdate",
+        "tags": [
+          "incident-updates"
+        ],
+        "parameters": [
+          {
+            "name": "ws",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncidentUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The row as it was stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentUpdate"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body was refused — a rule in the registry, or one the entity keeps for itself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{ws}/incidents": {
+      "get": {
+        "operationId": "listIncident",
+        "summary": "List incidents",
+        "description": "Filterable by any field of the row: `?project_id=…&priority=urgent`, and `?field=null` for rows that have none.",
+        "tags": [
+          "incidents"
+        ],
+        "parameters": [
+          {
+            "name": "ws",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 1000
+            },
+            "description": "At most 1000."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Any field of the row."
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "include_deleted",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The incidents this caller may see.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Incident"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createIncident",
+        "summary": "Create a incident",
+        "tags": [
+          "incidents"
+        ],
+        "parameters": [
+          {
+            "name": "ws",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Incident"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The row as it was stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Incident"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body was refused — a rule in the registry, or one the entity keeps for itself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
             "content": {
               "application/json": {
                 "schema": {

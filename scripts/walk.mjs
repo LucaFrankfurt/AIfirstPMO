@@ -16,6 +16,7 @@ import { switchOnMail, openMailboxEditor } from './mail-fixture.mjs';
 import { switchOnSupport } from './support-fixture.mjs';
 import { switchOnDecisions } from './ballot-fixture.mjs';
 import { switchOnMeetings } from './meeting-fixture.mjs';
+import { switchOnIncidents } from './incident-fixture.mjs';
 import { switchOnVault } from './vault-fixture.mjs';
 import { switchOnProducts } from './catalogue-fixture.mjs';
 import { switchOnPlanning } from './planning-fixture.mjs';
@@ -59,6 +60,7 @@ export async function walkable(page, base) {
   const { widgetId, conversationId } = await switchOnSupport(page);
   await switchOnDecisions(page);
   const meetingId = await switchOnMeetings(page);
+  const incidentId = await switchOnIncidents(page);
   await switchOnVault(page);
   await switchOnProducts(page);
   const { budgetId, kpiId } = await switchOnPlanning(page);
@@ -209,6 +211,11 @@ export async function walkable(page, base) {
     // decides whether the select squeezes the title to nothing.
     ['meetings', '/meetings'],
     ['meeting', `/meetings/${meetingId}`],
+    // Behind the incidents switch. The detail carries a status select in the
+    // header, four stat tiles, a timeline and a composer whose three selects
+    // and a button share one row — the row that decides 340px.
+    ['incidents', '/incidents'],
+    ['incident', `/incidents/${incidentId}`],
     // Behind the secrets switch, and the widest row on any screen: a name, an
     // environment, a strength pill, a rotation state and two icon buttons, which
     // at 340px is the case that decides whether a table folds or overflows.
