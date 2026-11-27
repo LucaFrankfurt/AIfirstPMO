@@ -136,7 +136,7 @@ export function TaskTime({ taskId, projectId }: { taskId: string; projectId: str
   return (
     <section className="mb-[18px]">
       <div className="flex items-center gap-2 mb-2">
-        <strong className="text-[13.5px]">{t('time.title')}</strong>
+        <strong className="text-body">{t('time.title')}</strong>
         {/* Logged time only. `tasks.estimate` is points, not hours — the app
             calls them "estimate points" — so putting the two side by side would
             be comparing a guess at size with a measurement of time. Showing
@@ -156,13 +156,13 @@ export function TaskTime({ taskId, projectId }: { taskId: string; projectId: str
       </div>
 
       {runningHere && (
-        <p className="text-muted text-[12.5px] mb-2" aria-live="polite">
+        <p className="text-muted text-label mb-2" aria-live="polite">
           {t('time.runningFor', { amount: duration(elapsed) })}
         </p>
       )}
       {running && !runningHere && (
         // Saying where the clock is beats a person hunting for it.
-        <p className="text-[12px] text-danger mb-2">{t('time.runningElsewhere')}</p>
+        <p className="text-label text-danger mb-2">{t('time.runningElsewhere')}</p>
       )}
 
       {open && (
@@ -192,7 +192,7 @@ export function TaskTime({ taskId, projectId }: { taskId: string; projectId: str
       )}
 
       {entries.map((entry) => (
-        <div className="flex items-center gap-2" key={entry.id} style={{ gap: 8, fontSize: 12.5, padding: '5px 0', borderTop: '1px solid var(--line)' }}>
+        <div className="flex items-center gap-2 text-label" key={entry.id} style={{ gap: 8, padding: '5px 0', borderTop: '1px solid var(--line)' }}>
           <Avatar user={members.get(entry.user_id)} size={18} />
           <span style={{ minWidth: 62 }}>
             {entry.started_at ? `${duration(runningMinutes(entry, tick))} ${t('time.running')}` : duration(entry.minutes)}
@@ -227,16 +227,16 @@ export function ProjectTime({ projectId }: { projectId: string }) {
   for (const entry of entries) byPerson.set(entry.user_id, (byPerson.get(entry.user_id) ?? 0) + (entry.minutes ?? 0));
   const people = [...byPerson.entries()].sort((a, b) => b[1] - a[1]);
 
-  if (!entries.length) return <p className="text-muted text-[12.5px]">{t('time.noneYet')}</p>;
+  if (!entries.length) return <p className="text-muted text-label">{t('time.noneYet')}</p>;
 
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-2 text-[13.5px]">
+      <div className="flex items-center gap-2 text-body">
         <strong className="flex-1 min-w-0">{t('time.total')}</strong>
         <span>{duration(total)}</span>
       </div>
       {people.map(([userId, minutes]) => (
-        <div className="flex items-center gap-2" key={userId} style={{ fontSize: 12.5, gap: 7 }}>
+        <div className="flex items-center gap-2 text-label" key={userId} style={{ gap: 7 }}>
           <Avatar user={members.get(userId)} size={18} />
           <span className="flex-1 min-w-0 truncate">{members.get(userId)?.name ?? t('common.someone')}</span>
           <span className="text-muted">{duration(minutes)}</span>

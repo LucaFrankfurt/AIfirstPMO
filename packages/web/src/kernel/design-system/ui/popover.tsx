@@ -23,7 +23,7 @@ export function PopoverContent({ className, sideOffset = 6, ...props }: Componen
         sideOffset={sideOffset}
         collisionPadding={10}
         className={cn(
-          'z-50 rounded-[var(--radius)] border border-line bg-raised p-1 shadow-[var(--shadow)]',
+          'z-50 rounded border border-line bg-raised p-1 shadow',
           'data-[state=open]:animate-in data-[state=closed]:animate-out motion-reduce:animate-none',
           className,
         )}

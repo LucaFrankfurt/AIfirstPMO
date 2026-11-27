@@ -160,7 +160,7 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
 
   return (
     <>
-      {comments.length === 0 && empty && <p className="text-muted text-[12.5px]">{empty}</p>}
+      {comments.length === 0 && empty && <p className="text-muted text-label">{empty}</p>}
       {settleable && settledCount > 0 && (
         <button type="button" className="comment-settled-toggle" aria-expanded={showSettled} onClick={() => setShowSettled(!showSettled)}>
           <Icon name={showSettled ? 'chevronDown' : 'chevronRight'} size={12} />

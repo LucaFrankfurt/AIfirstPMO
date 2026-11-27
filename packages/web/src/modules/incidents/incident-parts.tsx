@@ -147,12 +147,12 @@ export function ActiveIncidents() {
     <section className="mb-[18px]" aria-labelledby="active-incidents">
       <div className="mb-1.5 flex items-center gap-2">
         <Icon name="alert" size={15} />
-        <h2 id="active-incidents" className="text-sm">{t('incident.activeTitle')}</h2>
-        <span className="text-muted text-[12px]">
+        <h2 id="active-incidents" className="text-title">{t('incident.activeTitle')}</h2>
+        <span className="text-muted text-label">
           {t('incident.activeCount', { count: active.length })}
           {critical > 0 && ` · ${t('incident.criticalCount', { count: critical })}`}
         </span>
-        <Link to="/incidents" className="ml-auto inline-flex min-h-6 items-center text-[12px]">{t('incident.showAll')}</Link>
+        <Link to="/incidents" className="ml-auto inline-flex min-h-6 items-center text-label">{t('incident.showAll')}</Link>
       </div>
       <div className="flex flex-col gap-2">
         {active.slice(0, 5).map((incident) => <IncidentRow key={incident.id} incident={incident} compact />)}
@@ -296,7 +296,7 @@ export function IncidentFields({ incident, onChange, disabled }: {
         </span>
         <span>
           <span>{t('incident.majorLabel')}</span>
-          <span className="text-[12px] text-muted">{t('incident.majorHint')}</span>
+          <span className="text-label text-muted">{t('incident.majorHint')}</span>
         </span>
       </label>
       <Label label={t('incident.applications')} hint={apps.length ? undefined : t('incident.applicationsNone')}>

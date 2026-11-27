@@ -238,7 +238,7 @@ export function Portfolio() {
     <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
       {/* The screen had four numbers, three charts and nothing naming any of
           it — the one route in the app with no heading of its own. */}
-      <h1 className="text-base m-0 mb-2.5">{t('portfolio.title')}</h1>
+      <h1 className="text-title m-0 mb-2.5">{t('portfolio.title')}</h1>
       <div className="kpi-row">
         <Stat label={t('portfolio.projects')} value={String(projects.length)} />
         <Stat label={t('portfolio.open')} value={String(totals.open)} hint={t('portfolio.acrossAll')} />
@@ -254,10 +254,10 @@ export function Portfolio() {
       <h2 className="chart-title">{t('portfolio.roadmap')}</h2>
       {bars.length
         ? <Roadmap bars={bars} from={range.from} to={range.to} />
-        : <p className="text-muted text-[13.5px]">{t('portfolio.noDates')}</p>}
+        : <p className="text-muted text-body">{t('portfolio.noDates')}</p>}
 
       {undated.length > 0 && (
-        <p className="text-muted text-[12.5px] mt-2.5">
+        <p className="text-muted text-label mt-2.5">
           <Icon name="calendar" size={12} /> {t('portfolio.undated', { names: undated.map((p) => p.name).join(', ') })}
         </p>
       )}

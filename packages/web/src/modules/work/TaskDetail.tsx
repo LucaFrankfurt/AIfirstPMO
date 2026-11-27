@@ -102,7 +102,8 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
         <ParentTrail task={task} onOpen={onOpen} />
 
         <Input
-          style={{ fontSize: 17, fontWeight: 600, border: 'none', padding: '2px 0', marginBottom: 10, background: 'none' }}
+          className="text-headline sm:text-headline"
+          style={{ fontWeight: 600, border: 'none', padding: '2px 0', marginBottom: 10, background: 'none' }}
           value={title}
           aria-label={t('task.titleLabel')}
           onChange={(event) => setTitle(event.target.value)}
@@ -156,11 +157,11 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
           * label at the start, control at the end, all three ends aligned.
           */}
         <div className="flex flex-col gap-2 mb-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2.5">
-          <label className="flex items-center justify-between gap-1.5 text-[12.5px] sm:justify-start">
+          <label className="flex items-center justify-between gap-1.5 text-label sm:justify-start">
             <span className="text-muted">{t('task.due')}</span>
             <DateField label={t('task.due')} value={task.due_date} onChange={(value) => update('task', task.id, { due_date: value })} />
           </label>
-          <label className="flex items-center justify-between gap-1.5 text-[12.5px] sm:justify-start">
+          <label className="flex items-center justify-between gap-1.5 text-label sm:justify-start">
             <span className="text-muted">{t('task.repeats')}</span>
             <Select className="w-[150px] sm:w-[130px]"
               value={task.recurrence ?? ''}
@@ -173,7 +174,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
               <option value="monthly">{t('task.repeatsMonthly')}</option>
             </Select>
           </label>
-          <label className="flex items-center justify-between gap-1.5 text-[12.5px] sm:justify-start">
+          <label className="flex items-center justify-between gap-1.5 text-label sm:justify-start">
             <span className="text-muted">{t('task.estimate')}</span>
             <Input type="number" min={0} step={1} className="w-[150px] sm:w-[84px]"
               value={task.estimate ?? ''}
@@ -195,7 +196,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
               somebody willing to look at the markdown behind it. Editing is a
               button now, the way it is on a page. */}
           <div className="flex items-center gap-2 mb-1.5">
-            <strong className="text-[13.5px]">{t('task.description')}</strong>
+            <strong className="text-body">{t('task.description')}</strong>
             <span className="flex-1 min-w-0" />
             {!editingDescription && hasDescription && (
               <Button variant="ghost" size="sm" hidden={!canWrite} onClick={() => setEditingDescription(true)}>
@@ -245,8 +246,8 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
         {/* sub-tasks */}
         <section className="mb-[18px]">
           <div className="flex items-center gap-2 mb-1.5">
-            <strong className="text-[13.5px]">{t('task.subtasks')}</strong>
-            <span className="text-muted text-[12.5px]">
+            <strong className="text-body">{t('task.subtasks')}</strong>
+            <span className="text-muted text-label">
               {t('task.subtaskCount', {
                 done: subtasks.filter((child) => stateOf(child)?.group_key === 'completed').length,
                 total: subtasks.length,
@@ -308,9 +309,9 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
             <Comments target={{ task_id: task.id }} />
           ) : (
             <div className="flex flex-col gap-2">
-              {activity.length === 0 && <span className="text-muted text-[12.5px]">{t('task.noActivity')}</span>}
+              {activity.length === 0 && <span className="text-muted text-label">{t('task.noActivity')}</span>}
               {activity.map((entry) => (
-                <div key={entry.id} className="flex items-center gap-2 text-[12.5px]" style={{ gap: 7 }}>
+                <div key={entry.id} className="flex items-center gap-2 text-label" style={{ gap: 7 }}>
                   <Avatar user={members.get(entry.actor_id)} size={18} />
                   <span className="soft flex-1 min-w-0">
                     <strong>{members.get(entry.actor_id)?.name ?? t('common.someone')}</strong>{' '}
@@ -329,7 +330,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
           )}
         </section>
 
-        <div className="text-muted text-[11.5px] mt-[18px]">
+        <div className="text-muted text-caption mt-[18px]">
           {/* Who filed it, where the line already says when. The trail under
               "Protokoll" has said it all along — behind a tab, in the past
               tense, and only for as long as the entry is still in the last

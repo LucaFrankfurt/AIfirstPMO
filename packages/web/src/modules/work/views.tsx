@@ -378,7 +378,7 @@ export function ViewControls({
       {/* Four buttons side by side are right where there is room and too many
           on a phone, where the header also carries saved views, filter, display
           and the add button. Same choice, one button. */}
-      <div className="flex items-center not-sm gap-0.5" style={{ border: '1px solid var(--line-strong)', borderRadius: 7, padding: 2 }}>
+      <div className="flex items-center not-sm gap-0.5 rounded-sm" style={{ border: '1px solid var(--line-strong)', padding: 2 }}>
         {BUILT_LAYOUTS.map((layout) => (
           <button
             key={layout}
@@ -756,7 +756,7 @@ export function BoardView({
               </Fragment>
             ))}
             {overColumn === group.id && overIndex !== null && overIndex >= group.tasks.length && <div className="drop-line" />}
-            {!group.tasks.length && <span className="text-muted text-[12.5px]" style={{ padding: '6px 2px' }}>{t('common.empty')}</span>}
+            {!group.tasks.length && <span className="text-muted text-label" style={{ padding: '6px 2px' }}>{t('common.empty')}</span>}
           </div>
         </div>
       ))}
@@ -779,7 +779,7 @@ export function BoardView({
               <button type="button" onClick={() => setDraftColumn('')}>
                 <Icon name="plus" size={14} /> {t('project.addColumn')}
               </button>
-              <span className="text-muted text-[12px]">{t('project.addColumnHint')}</span>
+              <span className="text-muted text-label">{t('project.addColumnHint')}</span>
             </>
           ) : (
             // In place rather than a dialog. Adding three columns in a row is
@@ -820,7 +820,7 @@ export function BoardView({
                   {t('action.cancel')}
                 </Button>
               </div>
-              <span className="text-muted text-[12px]">{t('project.addColumnHint')}</span>
+              <span className="text-muted text-label">{t('project.addColumnHint')}</span>
             </form>
           )}
         </div>
@@ -898,7 +898,7 @@ export function CalendarView({ tasks, onOpen }: { tasks: Task[]; onOpen: (task: 
                 <Popover open={openDay === key} onOpenChange={(open) => setOpenDay(open ? key : null)}>
                   <PopoverTrigger asChild>
                     <button
-                      type="button" className="text-muted text-[10px] text-start hover:text-fg"
+                      type="button" className="text-muted text-caption text-start hover:text-fg"
                       aria-label={t('view.moreOnDay', { count: items.length - 4, date: shortDate(key) })}
                     >
                       +{items.length - 4}
@@ -908,7 +908,7 @@ export function CalendarView({ tasks, onOpen }: { tasks: Task[]; onOpen: (task: 
                     {items.map((task) => (
                       <button
                         type="button" key={task.id} title={task.title}
-                        className="truncate rounded px-2 py-1 text-start text-[12.5px] hover:bg-hover"
+                        className="truncate rounded-sm px-2 py-1 text-start text-label hover:bg-hover"
                         onClick={() => { setOpenDay(null); onOpen(task); }}
                       >
                         {task.title}
@@ -1120,12 +1120,12 @@ export function CycleProgress({ cycleId }: { cycleId: string }) {
   const cycle = byId('cycle', cycleId);
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-2 text-[12.5px]">
+      <div className="flex items-center gap-2 text-label">
         <span className="flex-1 min-w-0 truncate">{cycle?.name}</span>
         <span className="text-muted">{done}/{tasks.length}</span>
       </div>
       <div className="progress"><i style={{ width: `${tasks.length ? (done / tasks.length) * 100 : 0}%` }} /></div>
-      {cycle?.end_date && <span className="text-muted text-[11.5px]">{t('cycle.endsOn', { date: shortDate(cycle.end_date) })}</span>}
+      {cycle?.end_date && <span className="text-muted text-caption">{t('cycle.endsOn', { date: shortDate(cycle.end_date) })}</span>}
     </div>
   );
 }

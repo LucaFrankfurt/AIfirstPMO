@@ -131,7 +131,7 @@ function Revealed({ value, onDone }: { value: string; onDone: () => void }) {
         </Button>
         <Button size="sm" variant="ghost" onClick={onDone}>{t('secret.hide')}</Button>
         <span className="flex-1 min-w-0" />
-        <span className="text-[12px] text-muted">{t('secret.hidesIn', { count: Math.max(left, 0) })}</span>
+        <span className="text-label text-muted">{t('secret.hidesIn', { count: Math.max(left, 0) })}</span>
       </div>
     </div>
   );
@@ -239,7 +239,7 @@ function SecretSheet({ secret, onClose }: { secret: Secret | null; onClose: () =
           whatever the provider made it, and calling that "weak" would be noise
           about a thing nobody here can change. */}
       {scored && kind === 'password' && (
-        <p className={`text-[12px] ${STRENGTH_CLASS[scored]}`}>{t(STRENGTH_KEY[scored])}</p>
+        <p className={`text-label ${STRENGTH_CLASS[scored]}`}>{t(STRENGTH_KEY[scored])}</p>
       )}
 
       <label className="field-row">
@@ -258,7 +258,7 @@ function SecretSheet({ secret, onClose }: { secret: Secret | null; onClose: () =
           {SECRET_ACCESS.map((one) => <option key={one} value={one}>{t(ACCESS_KEY[one])}</option>)}
         </Select>
       </label>
-      <p className="text-[12px] text-muted mb-2">{t(ACCESS_HINT[access])}</p>
+      <p className="text-label text-muted mb-2">{t(ACCESS_HINT[access])}</p>
 
       {access === 'project' && (
         <label className="field-row">
@@ -277,20 +277,20 @@ function SecretSheet({ secret, onClose }: { secret: Secret | null; onClose: () =
           {environments.map((one) => <option key={one.id} value={one.id}>{one.name}</option>)}
         </Select>
       </label>
-      <p className="text-[12px] text-muted mb-2">{t('secret.environmentHint')}</p>
+      <p className="text-label text-muted mb-2">{t('secret.environmentHint')}</p>
 
       <label className="field-row">
         <span>{t('secret.rotateEvery')}</span>
         <Input type="number" min={0} max={3650} value={days} onChange={(event) => setDays(event.target.value)} />
       </label>
-      <p className="text-[12px] text-muted mb-2">{t('secret.rotateHint')}</p>
+      <p className="text-label text-muted mb-2">{t('secret.rotateHint')}</p>
 
       <label className="field-row">
         <span>{t('secret.description')}</span>
         <Textarea value={description ?? ''} rows={2} placeholder={t('secret.descriptionPlaceholder')} onChange={(event) => setDescription(event.target.value)} />
       </label>
 
-      {failed && <p className="text-[12.5px] text-danger">{failed}</p>}
+      {failed && <p className="text-label text-danger">{failed}</p>}
     </Sheet>
   );
 }

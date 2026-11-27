@@ -278,7 +278,7 @@ export function ComponentForm({ component, onClose }: { component: Component | n
           <Input id="c-until" type="date" value={form.live_until} onChange={(event) => setForm({ ...form, live_until: event.target.value })} />
         </div>
       </div>
-      <p className={`text-[12px] ${inNoLandscape ? 'text-warn' : 'text-muted'}`}>
+      <p className={`text-label ${inNoLandscape ? 'text-warn' : 'text-muted'}`}>
         {inNoLandscape ? t('estate.undatedWarning') : t('estate.datesHint')}
       </p>
 
@@ -308,7 +308,7 @@ export function ComponentForm({ component, onClose }: { component: Component | n
             <option value="">{t('estate.notBudgeted')}</option>
             {lines.map((line) => <option key={line.id} value={line.id}>{lineName(line.id)}</option>)}
           </Select>
-          <span className="text-[12px] text-muted">{t('estate.chargedToHint')}</span>
+          <span className="text-label text-muted">{t('estate.chargedToHint')}</span>
         </div>
       )}
 
@@ -332,7 +332,7 @@ export function ComponentForm({ component, onClose }: { component: Component | n
 
       <div className="field" role="group" aria-labelledby="cmp-depends">
         <label id="cmp-depends">{t('estate.dependsOn')}</label>
-        <span className="text-[12px] text-muted">{t('estate.dependsOnHint')}</span>
+        <span className="text-label text-muted">{t('estate.dependsOnHint')}</span>
         <div className="scope-picker">
           {projects.map((project) => (
             <label className="check-row" key={project.id}>
@@ -458,7 +458,7 @@ export function VendorForm({ vendor, onClose }: { vendor: Vendor | null; onClose
       {/* The date that actually matters, worked out while somebody types the
           two numbers it comes from. A renewal that surprises anybody almost
           always surprised them on this day rather than on the end date. */}
-      <p className="text-[12px] text-muted">
+      <p className="text-label text-muted">
         {notice && form.notice_days ? t('estate.noticeBy', { date: notice }) : t('estate.noticeHint')}
       </p>
 
@@ -502,7 +502,7 @@ export function MoveForm({ move, onClose }: { move: Move | null; onClose: () => 
             />
             <span>
               <span>{component.name}</span>
-              <span className="text-[12px] text-muted">{t(kindKey(component.kind))}</span>
+              <span className="text-label text-muted">{t(kindKey(component.kind))}</span>
             </span>
           </label>
         ))}
@@ -575,7 +575,7 @@ export function MoveForm({ move, onClose }: { move: Move | null; onClose: () => 
 
       {picker(leaving, setLeaving, t('estate.retires'), 'mv-leaving')}
       {picker(arriving, setArriving, t('estate.bringsIn'), 'mv-arriving')}
-      <p className="text-[12px] text-muted">{t('estate.moveHint')}</p>
+      <p className="text-label text-muted">{t('estate.moveHint')}</p>
     </Sheet>
   );
 }

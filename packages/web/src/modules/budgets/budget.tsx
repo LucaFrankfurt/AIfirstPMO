@@ -479,7 +479,7 @@ export function ProjectBudget({ projectId }: { projectId: string }) {
   if (!charged.length) {
     return (
       <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
-        <p className="text-[13px] text-muted">{t('budget.projectNone')}</p>
+        <p className="text-body text-muted">{t('budget.projectNone')}</p>
       </div>
     );
   }
@@ -522,7 +522,7 @@ export function ProjectBudget({ projectId }: { projectId: string }) {
           </tbody>
         </table>
       </div>
-      <p className="mt-2 text-[12px] text-muted">{t('budget.projectHint')}</p>
+      <p className="mt-2 text-label text-muted">{t('budget.projectHint')}</p>
     </div>
   );
 }

@@ -230,7 +230,7 @@ export function MeetingFields({
         </Label>
       </div>
       <div className="flex flex-col gap-1.5">
-        <span className="text-[12.5px] font-medium text-soft">{t('meeting.attendees')}</span>
+        <span className="text-label font-medium text-soft">{t('meeting.attendees')}</span>
         <PeoplePicker
           value={meeting.attendees ?? []}
           onChange={(attendees) => onChange({ attendees })}
@@ -375,7 +375,7 @@ function Writing({ itemId }: { itemId: string }) {
     : who.length === 1 ? t('meeting.writing', { name: name(who[0]) })
     : who.length === 2 ? t('meeting.writingTwo', { first: name(who[0]), second: name(who[1]) })
     : t('meeting.writingMany');
-  return <p className="m-0 h-[15px] truncate text-[11.5px] text-muted"><span aria-live="polite">{text}</span></p>;
+  return <p className="m-0 h-[15px] truncate text-caption text-muted"><span aria-live="polite">{text}</span></p>;
 }
 
 /** The notes of one point, written by everybody in the room at once. */
@@ -425,7 +425,7 @@ function Notes({ item, canWrite }: { item: AgendaItem; canWrite: boolean }) {
         }}
       />
       <Writing itemId={item.id} />
-      {merged && <span className="text-[12px] text-muted">{t('page.mergedIn')}</span>}
+      {merged && <span className="text-label text-muted">{t('page.mergedIn')}</span>}
     </div>
   );
 }
@@ -515,7 +515,7 @@ function PointTask({ task }: { task: Task }) {
   const members = useMemberMap();
   const people = task.assignees.map((id) => members.get(id)).filter(Boolean);
   return (
-    <li className="flex items-center gap-2 text-[13px]">
+    <li className="flex items-center gap-2 text-body">
       <StateDot group={state?.group_key} color={state?.color} />
       <Link to={`/t/${task.id}`} className="block min-w-0 truncate leading-6">
         <span className="text-muted">{task.identifier}</span> {task.title}
@@ -578,7 +578,7 @@ export function AgendaPoint({
               onChange={(event) => update('agendaItem', item.id, { title: event.target.value })}
             />
           ) : (
-            <h3 id={`${heading}-title`} className="m-0 text-[14px] font-semibold">{item.title}</h3>
+            <h3 id={`${heading}-title`} className="m-0 text-title font-semibold">{item.title}</h3>
           )}
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
             <Select
@@ -678,12 +678,12 @@ export function AgendaPoint({
       )}
 
       <div className="flex flex-col gap-1">
-        <span className="text-[12.5px] font-medium text-soft">{t('meeting.notes')}</span>
+        <span className="text-label font-medium text-soft">{t('meeting.notes')}</span>
         <Notes item={item} canWrite={canWrite} />
       </div>
 
       <div className="flex flex-col gap-1">
-        <span className="text-[12.5px] font-medium text-soft">{t('meeting.tasks')}</span>
+        <span className="text-label font-medium text-soft">{t('meeting.tasks')}</span>
         <PointTasks item={item} canWrite={canWrite} />
       </div>
       {dialog}
@@ -726,7 +726,7 @@ export function TaskAgendaOrigin({ agendaItemId }: { agendaItemId: string | null
   const meeting = useRow('meeting', item?.meeting_id);
   if (!enabled || !item || item.deleted_at || !meeting || meeting.deleted_at) return null;
   return (
-    <p className="mb-[18px] flex items-center gap-1.5 text-[12.5px] text-muted">
+    <p className="mb-[18px] flex items-center gap-1.5 text-label text-muted">
       <Icon name="agenda" size={13} />
       <span>{t('meeting.fromMeeting')}</span>
       <Link to={`/meetings/${meeting.id}#point-${item.id}`} className="min-w-0 truncate">

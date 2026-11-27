@@ -126,7 +126,7 @@ function CarrySheet({ meeting, onClose }: { meeting: Meeting; onClose: () => voi
         </>
       ) : undefined}
     >
-      <p className="m-0 text-[13.5px]">
+      <p className="m-0 text-body">
         {count === 0 ? t('meeting.carryNone')
           : target ? t('meeting.carryInto', { count, meeting: target.title, when: meetingWhen(target) || t('meeting.noTime') })
           : t('meeting.carryNew', { count, when: meetingWhen(draft) })}
@@ -274,13 +274,13 @@ export function MeetingDetail() {
 
         <div className="flex flex-wrap items-center gap-2">
           <MeetingState meeting={meeting} />
-          <span className="text-[13px] text-soft">
+          <span className="text-body text-soft">
             {meetingWhen(meeting) || t('meeting.noTime')}
             {meeting.location && ` · ${meeting.location}`}
           </span>
           {attendees.length > 0 && <AvatarStack users={attendees} max={6} />}
         </div>
-        {meeting.description && <p className="m-0 text-[13px]">{meeting.description}</p>}
+        {meeting.description && <p className="m-0 text-body">{meeting.description}</p>}
 
         <div className="flex flex-wrap items-center gap-2">
           {canWrite && (
@@ -293,11 +293,11 @@ export function MeetingDetail() {
               <Icon name="page" size={13} /> {filed ? t('meeting.minutesAgain') : t('meeting.minutes')}
             </Button>
           )}
-          {filed && <Link to={`/pages/${filed.id}`} className="inline-flex min-h-8 items-center text-[13px]">{t('meeting.minutesOpen')}</Link>}
+          {filed && <Link to={`/pages/${filed.id}`} className="inline-flex min-h-8 items-center text-body">{t('meeting.minutesOpen')}</Link>}
         </div>
 
         <SectionHeading>{t('meeting.agenda')}</SectionHeading>
-        {!agenda.length && <p className="m-0 text-[13px] text-muted">{t('meeting.agendaEmpty')}</p>}
+        {!agenda.length && <p className="m-0 text-body text-muted">{t('meeting.agendaEmpty')}</p>}
         <ol className="flex list-none flex-col gap-3 p-0">
           {agenda.map((item, index) => (
             <li key={item.id}>

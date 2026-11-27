@@ -315,6 +315,7 @@ npm run dev:web        # :5173, proxies /api to :4000
 npm test              # API, sync merge, permissions, uploads, injection, MCP, SMTP, S3, translations
 npm run typecheck     # every package, plus the client test project
 npm run check:compose # every setting the server reads is reachable from a deployment
+npm run check:tokens  # every font size, radius and shadow in the client is a step of the scale
 ```
 
 The mail tests run against a real SMTP server implemented in the test, and the storage tests against

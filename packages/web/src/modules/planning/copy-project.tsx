@@ -66,7 +66,7 @@ export function CopyProjectSheet({ projectId, onClose, onCopied }: {
   return (
     <Sheet title={t('copy.title')} onClose={onClose}>
       <form onSubmit={submit}>
-        <p className="text-[12px] text-muted mb-3">{t('copy.hint')}</p>
+        <p className="text-label text-muted mb-3">{t('copy.hint')}</p>
         {error && <div className="error mb-2.5">{error}</div>}
 
         <div className="field">
@@ -79,7 +79,7 @@ export function CopyProjectSheet({ projectId, onClose, onCopied }: {
           <label htmlFor="copy-key">{t('copy.key')}</label>
           <Input id="copy-key" value={key} maxLength={8} style={{ width: 140, textTransform: 'uppercase' }}
             onChange={(event) => setKey(event.target.value.toUpperCase())} />
-          <span className="text-[12px] text-muted">{t('copy.keyAuto')}</span>
+          <span className="text-label text-muted">{t('copy.keyAuto')}</span>
         </div>
 
         <div className="field">
@@ -92,25 +92,25 @@ export function CopyProjectSheet({ projectId, onClose, onCopied }: {
           </Select>
         </div>
 
-        <strong style={{ fontSize: 13, display: 'block', margin: '14px 0 6px' }}>{t('copy.include')}</strong>
+        <strong className="text-body" style={{ display: 'block', margin: '14px 0 6px' }}>{t('copy.include')}</strong>
         {([
           ['members', t('copy.members')],
           ['automations', t('copy.automations')],
           ['pages', t('copy.pages')],
           ['tasks', t('copy.tasks')],
         ] as const).map(([field, label]) => (
-          <label className="flex items-center gap-2" key={field} style={{ gap: 8, padding: '4px 0', fontSize: 13 }}>
+          <label className="flex items-center gap-2 text-body" key={field} style={{ gap: 8, padding: '4px 0' }}>
             <input type="checkbox" checked={include[field]} onChange={() => toggle(field)} />
             {label}
           </label>
         ))}
         {include.tasks && (
           <>
-            <label className="flex items-center gap-2 text-[13.5px]" style={{ padding: '4px 0 4px 24px' }}>
+            <label className="flex items-center gap-2 text-body" style={{ padding: '4px 0 4px 24px' }}>
               <input type="checkbox" checked={include.doneTasks} onChange={() => toggle('doneTasks')} />
               {t('copy.doneTasks')}
             </label>
-            <span className="text-[12px] text-muted mt-1" style={{ display: 'block' }}>{t('copy.tasksHint')}</span>
+            <span className="text-label text-muted mt-1" style={{ display: 'block' }}>{t('copy.tasksHint')}</span>
           </>
         )}
 

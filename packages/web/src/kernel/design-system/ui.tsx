@@ -286,7 +286,7 @@ function DrawerRows({ group }: { group: MenuGroup }) {
     <>
       {group.search && (
         <Input
-          className="mb-1 h-8 text-[13px]"
+          className="mb-1 h-8 text-body"
           placeholder={t('common.filterPlaceholder')}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -296,7 +296,7 @@ function DrawerRows({ group }: { group: MenuGroup }) {
         />
       )}
       {rows.length === 0 && (
-        <div className="px-2 py-2 text-[12.5px] text-muted">{group.empty ?? t('common.nothingHere')}</div>
+        <div className="px-2 py-2 text-label text-muted">{group.empty ?? t('common.nothingHere')}</div>
       )}
       {rows.map((item) => (
         <MenuItemRow key={item.id} item={item} />
@@ -310,7 +310,7 @@ const drawerFace = (group: MenuGroup) => (
   <>
     {group.icon}
     <span className="flex-1 min-w-0 truncate">{group.label}</span>
-    {group.hint && <span className="text-[11.5px] text-muted truncate max-w-[9rem]">{group.hint}</span>}
+    {group.hint && <span className="text-caption text-muted truncate max-w-[9rem]">{group.hint}</span>}
     <Icon name="chevronRight" size={13} />
   </>
 );
@@ -357,7 +357,7 @@ const MenuItemRow = ({ item }: { item: MenuItem }) => (
   >
     {item.icon}
     <span className="flex-1 min-w-0 truncate">{item.label}</span>
-    {item.hint && <span className="text-[11.5px] text-muted">{item.hint}</span>}
+    {item.hint && <span className="text-caption text-muted">{item.hint}</span>}
   </MenuItem>
 );
 
@@ -482,7 +482,7 @@ export function MenuButton({
           <>
             {search && (
               <Input
-                className="mb-1 h-8 text-[13px]"
+                className="mb-1 h-8 text-body"
                 autoFocus
                 placeholder={t('common.filterPlaceholder')}
                 value={query}
@@ -495,7 +495,7 @@ export function MenuButton({
               />
             )}
             {filtered.length === 0 && (
-              <div className="px-2 py-2 text-[12.5px] text-muted">{empty ?? t('common.nothingHere')}</div>
+              <div className="px-2 py-2 text-label text-muted">{empty ?? t('common.nothingHere')}</div>
             )}
             {filtered.map((entry) => {
               if (isGroup(entry)) {
@@ -662,7 +662,7 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
       {typeof children === 'object' && children !== null && 'props' in (children as any)
         ? <div>{children}</div>
         : children}
-      {hint && <span className="text-[12px] text-muted">{hint}</span>}
+      {hint && <span className="text-label text-muted">{hint}</span>}
     </div>
   );
 }

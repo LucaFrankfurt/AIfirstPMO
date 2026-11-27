@@ -85,7 +85,7 @@ function Boot() {
   return (
     <div className="auth">
       <div className="flex flex-col gap-3.5" style={{ alignItems: 'center' }}>
-        <img src="/icon.svg" width={46} height={46} alt="" style={{ borderRadius: 12 }} />
+        <img src="/icon.svg" width={46} height={46} alt="" className="rounded" />
         <div className="skeleton" style={{ width: 160, height: 10 }} />
       </div>
     </div>

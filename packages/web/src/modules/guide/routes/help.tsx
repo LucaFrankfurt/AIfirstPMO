@@ -80,7 +80,7 @@ function Tiles({ items }: { items: (readonly [string, string])[] }) {
   return (
     <div className="guide-roles">
       {items.map(([name, body]) => (
-        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 guide-role" key={name}>
+        <div className="rounded border border-line bg-raised p-3.5 guide-role" key={name}>
           <strong>{t(name as TranslationKey)}</strong>
           <span className="soft">{t(body as TranslationKey)}</span>
         </div>
@@ -92,7 +92,7 @@ function Tiles({ items }: { items: (readonly [string, string])[] }) {
 const Principle = ({ icon, title, body }: { icon: string; title: TranslationKey; body: TranslationKey }) => {
   const t = useT();
   return (
-    <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 guide-principle">
+    <div className="rounded border border-line bg-raised p-3.5 guide-principle">
       <span className="guide-icon"><Icon name={icon} size={16} /></span>
       <strong>{t(title)}</strong>
       <span className="soft">{t(body)}</span>
@@ -137,7 +137,7 @@ function Overview() {
           <Icon name="check" size={13} /> {t('guide.showChecklist')}
         </Button>
       </div>
-      <p className="soft mt-3 text-[12.5px]">{t('guide.helpFromHere')}</p>
+      <p className="soft mt-3 text-label">{t('guide.helpFromHere')}</p>
     </>
   );
 }
@@ -289,7 +289,7 @@ function Features() {
       >
         <div className="guide-roles">
           {(['owner', 'admin', 'member', 'guest'] as const).map((role) => (
-            <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 guide-role" key={role}>
+            <div className="rounded border border-line bg-raised p-3.5 guide-role" key={role}>
               <strong>{t(`members.role${role[0].toUpperCase()}${role.slice(1)}` as TranslationKey)}</strong>
               <span className="soft">{t(`guide.role.${role}` as TranslationKey)}</span>
             </div>
@@ -307,7 +307,7 @@ function Features() {
         steps={['guide.automation.h1', 'guide.automation.h2', 'guide.automation.h3', 'guide.automation.h4']}
       >
         <AutomationDiagram />
-        <p className="soft text-[12.5px] mt-2.5">{t('guide.automation.newProject')}</p>
+        <p className="soft text-label mt-2.5">{t('guide.automation.newProject')}</p>
       </Feature>
 
       <Feature

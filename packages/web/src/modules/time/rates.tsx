@@ -176,7 +176,7 @@ export function Timesheet() {
             </table>
           </div>
           {seesMoney && sheet.totals.unratedMinutes > 0 && (
-            <p className="mt-2 text-[12px] text-muted">{t('rate.unratedHint')}</p>
+            <p className="mt-2 text-label text-muted">{t('rate.unratedHint')}</p>
           )}
         </>
       )}
@@ -357,7 +357,7 @@ export function CostReport() {
           </tbody>
         </table>
       </div>
-      <p className="mt-2 text-[12px] text-muted">{t('rate.targetHint')}</p>
+      <p className="mt-2 text-label text-muted">{t('rate.targetHint')}</p>
     </div>
   );
 }
@@ -417,13 +417,13 @@ export function RateSettings() {
 
   return (
     <>
-      <p className="text-[13px] text-muted">{t('rate.settingsHint')}</p>
+      <p className="text-body text-muted">{t('rate.settingsHint')}</p>
       <Button variant="primary" size="sm" onClick={() => setAdding(true)}>
         <Icon name="plus" size={14} /> {t('rate.add')}
       </Button>
 
       {!groups.length ? (
-        <p className="mt-3 text-[13px] text-muted">{t('rate.none')}</p>
+        <p className="mt-3 text-body text-muted">{t('rate.none')}</p>
       ) : (
         groups.map((group) => {
           const current = resolveRate(rates, {
@@ -563,7 +563,7 @@ function RateForm({ members, projects, onClose }: {
       <div className="field">
         <label htmlFor="r-from">{t('rate.startsOn')}</label>
         <Input id="r-from" type="date" value={form.starts_on} onChange={(event) => setForm({ ...form, starts_on: event.target.value })} />
-        <span className="text-[12px] text-muted">{t('rate.startsOnHint')}</span>
+        <span className="text-label text-muted">{t('rate.startsOnHint')}</span>
       </div>
 
       <div className="field">

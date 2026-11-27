@@ -131,7 +131,7 @@ function Capabilities() {
 
   return (
     <div className="grid gap-3.5">
-      <p className="text-[12px] text-muted">{t('product.capabilitiesTabHint')}</p>
+      <p className="text-label text-muted">{t('product.capabilitiesTabHint')}</p>
       {canWrite && (
         <div>
           <Button variant="primary" size="sm" onClick={() => setEditing(null)}>
@@ -252,13 +252,13 @@ function CapabilityForm(
       <div className="field">
         <label htmlFor="cap-name">{t('product.name')}</label>
         <Input id="cap-name" value={form.name} autoFocus onChange={(event) => setForm({ ...form, name: event.target.value })} />
-        {taken && <span className="text-[12px] text-danger">{t('product.capabilityTaken')}</span>}
+        {taken && <span className="text-label text-danger">{t('product.capabilityTaken')}</span>}
       </div>
       <div className="field">
         <label htmlFor="cap-desc">{t('product.description')}</label>
         <Textarea id="cap-desc" rows={2} value={form.description}
           onChange={(event) => setForm({ ...form, description: event.target.value })} />
-        <span className="text-[12px] text-muted">{t('product.capabilitiesHint')}</span>
+        <span className="text-label text-muted">{t('product.capabilitiesHint')}</span>
       </div>
     </Sheet>
   );
@@ -553,7 +553,7 @@ function Catalogue({ only }: { only: ProductKind }) {
           </div>
         </div>
       ))}
-      <p className="text-[12px] text-muted">{t('product.horizonNote', { months: String(HORIZON.months) })}</p>
+      <p className="text-label text-muted">{t('product.horizonNote', { months: String(HORIZON.months) })}</p>
       {archivedCount > 0 && (
         <label className="check-row">
           <input type="checkbox" checked={showArchived} onChange={(event) => setShowArchived(event.target.checked)} />
@@ -576,7 +576,7 @@ function GroupAdmin({ groups }: { groups: ProductGroup[] }) {
   return (
     <div>
       <SectionHeading>{t('product.groups')}</SectionHeading>
-      <p className="text-[12px] text-muted">{t('product.groupsHint')}</p>
+      <p className="text-label text-muted">{t('product.groupsHint')}</p>
       <div className="flex flex-wrap gap-2 pt-2">
         {groups.map((group) => (
           <span className="flex items-center gap-1" key={group.id}>
@@ -698,7 +698,7 @@ function Promotions() {
                       {promotion.kind === 'percent'
                         ? `${promotion.value / 100}%`
                         : asMoney(promotion.value, promotion.currency, true)}
-                      {' '}<span className="text-[11px] text-muted">{t(promoKindKey(promotion.kind))}</span>
+                      {' '}<span className="text-caption text-muted">{t(promoKindKey(promotion.kind))}</span>
                     </td>
                     <td className="narrow">
                       {/* Both lists empty is the whole catalogue, which is a
@@ -783,7 +783,7 @@ function PromotionDetail({ promotion, onClose }: { promotion: Promotion; onClose
 
   return (
     <Sheet title={promotion.name} onClose={onClose} wide>
-      <p className="text-[12.5px] text-muted">{t('product.promoDetailHint')}</p>
+      <p className="text-label text-muted">{t('product.promoDetailHint')}</p>
       {!reached.length ? (
         <p className="notice-warn">{t('product.promoReachesNothing')}</p>
       ) : (
@@ -821,7 +821,7 @@ function PromotionDetail({ promotion, onClose }: { promotion: Promotion; onClose
           </table>
         </div>
       )}
-      <p className="text-[12.5px] text-muted">
+      <p className="text-label text-muted">
         {t('product.promoAssumption', {
           uplift: String(Math.round(promotion.uplift_bps / 100)),
           spend: asMoney(promotion.spend, promotion.currency, true),
@@ -957,7 +957,7 @@ function PromotionForm({ promotion, products, groups, onClose }: {
       </div>
       <div className="field" role="group" aria-labelledby="pr-applies">
         <label id="pr-applies">{t('product.appliesTo')}</label>
-        <span className="text-[12px] text-muted">{t('product.appliesToHint')}</span>
+        <span className="text-label text-muted">{t('product.appliesToHint')}</span>
         <div className="flex flex-wrap gap-2 pt-1">
           {groups.map((group) => (
             <Chip
@@ -994,7 +994,7 @@ function PromotionForm({ promotion, products, groups, onClose }: {
             value={form.uplift / 100}
             onChange={(event) => setForm({ ...form, uplift: Math.round(Number(event.target.value) * 100) })}
           />
-          <span className="text-[12px] text-muted">{t('product.upliftHint')}</span>
+          <span className="text-label text-muted">{t('product.upliftHint')}</span>
         </div>
       </div>
       <div className="field">
@@ -1004,7 +1004,7 @@ function PromotionForm({ promotion, products, groups, onClose }: {
             <option key={status} value={status}>{t(phaseKey(status))}</option>
           ))}
         </Select>
-        <span className="text-[12px] text-muted">{t('product.statusHint')}</span>
+        <span className="text-label text-muted">{t('product.statusHint')}</span>
       </div>
     </Sheet>
   );
@@ -1023,7 +1023,7 @@ function Scenarios() {
 
   return (
     <div className="grid gap-3.5">
-      <p className="text-[12px] text-muted">{t('product.scenariosHint')}</p>
+      <p className="text-label text-muted">{t('product.scenariosHint')}</p>
       {canWrite && (
         <div>
           <Button variant="primary" size="sm" onClick={() => setEditing(null)}>
@@ -1320,7 +1320,7 @@ function Overview({ product, entry }: { product: Product; entry: CatalogueEntry 
 
   return (
     <div className="grid gap-3.5">
-      {product.description && <p className="text-[13px] text-muted">{product.description}</p>}
+      {product.description && <p className="text-body text-muted">{product.description}</p>}
 
       <div className="kpi-row">
         {/*
@@ -1353,7 +1353,7 @@ function Overview({ product, entry }: { product: Product; entry: CatalogueEntry 
       </div>
 
       {entry.periods.length > 0 && (
-        <p className="text-[12.5px] text-muted">
+        <p className="text-label text-muted">
           {t('product.periods')}: {entry.periods.map((every) => t(billingKey(every))).join(' · ')}
         </p>
       )}
@@ -1362,7 +1362,7 @@ function Overview({ product, entry }: { product: Product; entry: CatalogueEntry 
       <div>
         <SectionHeading>{t('product.unitPicture')}</SectionHeading>
         <UnitBar price={entry.economics.price} unitCost={entry.economics.unitCost} currency={currency} />
-        <p className="text-[12px] text-muted">{t('product.unitPictureHint')}</p>
+        <p className="text-label text-muted">{t('product.unitPictureHint')}</p>
       </div>
 
       <div>
@@ -1371,7 +1371,7 @@ function Overview({ product, entry }: { product: Product; entry: CatalogueEntry 
           <p className="notice-warn">{t(blockedKey(entry.breakEven.blocked ?? 'no_price'))}</p>
         ) : (
           <>
-            <p className="text-[13px]">
+            <p className="text-body">
               {/* `count` is what picks the plural form; the catalogue has had
                   `Intl.PluralRules` all along and this sentence was not using
                   it, so a product covered by one sale read "1 Einheiten". */}
@@ -1393,7 +1393,7 @@ function Overview({ product, entry }: { product: Product; entry: CatalogueEntry 
           {(product.capabilities ?? []).map((capabilityId) => (
             <Chip key={capabilityId}>{capabilities.get(capabilityId) ?? t('product.unknownCapability')}</Chip>
           ))}
-          {!(product.capabilities ?? []).length && <span className="text-[12px] text-muted">{t('product.noCapabilities')}</span>}
+          {!(product.capabilities ?? []).length && <span className="text-label text-muted">{t('product.noCapabilities')}</span>}
         </div>
       </div>
 
@@ -1407,7 +1407,7 @@ function Overview({ product, entry }: { product: Product; entry: CatalogueEntry 
       <div>
         <SectionHeading>{t('product.retention')}</SectionHeading>
         {product.renewal === 'none' ? (
-          <p className="text-[12.5px] text-muted">{t('product.retentionOneOff')}</p>
+          <p className="text-label text-muted">{t('product.retentionOneOff')}</p>
         ) : (
           <>
             <div className="kpi-row">
@@ -1489,7 +1489,7 @@ function Contributors({ product, contributors }: { product: Product; contributor
   return (
     <div>
       <SectionHeading>{t('product.contributors')}</SectionHeading>
-      <p className="text-[12px] text-muted">{t('product.contributorsHint')}</p>
+      <p className="text-label text-muted">{t('product.contributorsHint')}</p>
       {contributors.length > 0 && (
         <div className="table-wrap">
           <table className="task-table">
@@ -1657,7 +1657,7 @@ function Prices({ product }: { product: Product }) {
 
   return (
     <div className="grid gap-3.5">
-      <p className="text-[12px] text-muted">{t('product.pricesHint')}</p>
+      <p className="text-label text-muted">{t('product.pricesHint')}</p>
       {canWrite && (
         <div>
           <Button variant="primary" size="sm" onClick={() => setEditing(null)}>
@@ -1742,7 +1742,7 @@ function Prices({ product }: { product: Product }) {
           {/* Read off the rows rather than out of a versions table: a price is
               never overwritten, so a window that has closed already is the old
               price. See `priceHistory`. */}
-          <p className="text-[12px] text-muted">{t('product.priceHistoryHint')}</p>
+          <p className="text-label text-muted">{t('product.priceHistoryHint')}</p>
           <div className="table-wrap">
             <table className="task-table">
               <thead>
@@ -1758,7 +1758,7 @@ function Prices({ product }: { product: Product }) {
                 {[...history].reverse().map((change) => (
                   <tr key={`${change.from.id}-${change.to.id}`}>
                     <td>{shortDate(change.on)}</td>
-                    <td>{change.to.name || t('product.unnamedPrice')} <span className="text-[11px] text-muted">{t(priceKindKey(change.to.kind))} · {t(billingKey(change.to.recurrence))}</span></td>
+                    <td>{change.to.name || t('product.unnamedPrice')} <span className="text-caption text-muted">{t(priceKindKey(change.to.kind))} · {t(billingKey(change.to.recurrence))}</span></td>
                     <td className="narrow">{asMoney(change.from.amount, product.currency)}</td>
                     <td className="narrow">{asMoney(change.to.amount, product.currency)}</td>
                     {/*
@@ -1853,11 +1853,11 @@ function RaiseForm({ product, price, onClose }: { product: Product; price: Produ
         </Button>
       )}
     >
-      <p className="text-[12.5px] text-muted">{t('product.raisePriceHint')}</p>
+      <p className="text-label text-muted">{t('product.raisePriceHint')}</p>
       <div className="field-row">
         <div className="field flex-1 min-w-0">
           <label>{t('product.wasAmount')}</label>
-          <p className="text-[13px]">{asMoney(price.amount, product.currency)}</p>
+          <p className="text-body">{asMoney(price.amount, product.currency)}</p>
         </div>
         <div className="field flex-1 min-w-0">
           <label htmlFor="rp-amount">{t('product.becameAmount')}</label>
@@ -1869,7 +1869,7 @@ function RaiseForm({ product, price, onClose }: { product: Product; price: Produ
         </div>
       </div>
       {refusal && (
-        <p className="text-[12.5px] money-over">
+        <p className="text-label money-over">
           {t(refusal === 'before-start' ? 'product.raiseBeforeStart' : 'product.raiseAfterEnd', {
             date: shortDate((refusal === 'before-start' ? price.valid_from : price.valid_to) ?? on),
           })}
@@ -1878,7 +1878,7 @@ function RaiseForm({ product, price, onClose }: { product: Product; price: Produ
       {/* What will actually be written, before it is. The closing date is the
           day before, and somebody should see that rather than discover it. */}
       {!refusal && (
-        <p className="text-[12.5px] text-muted">
+        <p className="text-label text-muted">
           {t('product.raisePreview', {
             old: asMoney(price.amount, product.currency),
             until: shortDate(dayBefore(on)),
@@ -1888,7 +1888,7 @@ function RaiseForm({ product, price, onClose }: { product: Product; price: Produ
         </p>
       )}
       {delta !== 0 && (
-        <p className="text-[12.5px]">
+        <p className="text-label">
           <span className="money-flat">
             {delta > 0 ? '+' : ''}{asMoney(delta, product.currency)}
             {price.amount !== 0 && ` (${delta > 0 ? '+' : ''}${Math.round((delta * 100) / price.amount)}%)`}
@@ -1957,7 +1957,7 @@ function PriceForm({ product, price, onClose }: { product: Product; price: Produ
           <Select id="pr-kind" value={form.kind} onChange={(event) => setForm({ ...form, kind: event.target.value as ProductPrice['kind'] })}>
             {PRICE_KINDS.map((kind) => <option key={kind} value={kind}>{t(priceKindKey(kind))}</option>)}
           </Select>
-          <span className="text-[12px] text-muted">{t('product.priceKindHint')}</span>
+          <span className="text-label text-muted">{t('product.priceKindHint')}</span>
         </div>
         <div className="field flex-1 min-w-0">
           <label htmlFor="pr-amount">{t('product.amount')}</label>
@@ -1969,7 +1969,7 @@ function PriceForm({ product, price, onClose }: { product: Product; price: Produ
           <label htmlFor="pr-min">{t('product.minQuantity')}</label>
           <Input id="pr-min" type="number" min={1} value={form.min_quantity}
             onChange={(event) => setForm({ ...form, min_quantity: Math.max(1, Number(event.target.value)) })} />
-          <span className="text-[12px] text-muted">{t('product.minQuantityHint')}</span>
+          <span className="text-label text-muted">{t('product.minQuantityHint')}</span>
         </div>
         <div className="field flex-1 min-w-0">
           <label htmlFor="pr-rec">{t('product.billingLabel')}</label>
@@ -1985,7 +1985,7 @@ function PriceForm({ product, price, onClose }: { product: Product; price: Produ
           <Input id="pr-term" type="number" min={0} value={form.term_months}
             placeholder={String(product.term_months)}
             onChange={(event) => setForm({ ...form, term_months: event.target.value })} />
-          <span className="text-[12px] text-muted">
+          <span className="text-label text-muted">
             {t('product.priceTermHint', { term: String(product.term_months) })}
           </span>
         </div>
@@ -2025,7 +2025,7 @@ function Costs({ product }: { product: Product }) {
 
   return (
     <div className="grid gap-3.5">
-      <p className="text-[12px] text-muted">{t('product.costsHint')}</p>
+      <p className="text-label text-muted">{t('product.costsHint')}</p>
       <div className="kpi-row">
         {BASES.map((basis) => (
           <Stat
@@ -2107,7 +2107,7 @@ function Costs({ product }: { product: Product }) {
                 </div>
               ))}
             </div>
-            <p className="text-[12px] text-muted">{t('product.byCategoryHint')}</p>
+            <p className="text-label text-muted">{t('product.byCategoryHint')}</p>
           </div>
         </>
       )}
@@ -2167,7 +2167,7 @@ function CostForm({ product, cost, onClose }: { product: Product; cost: ProductC
         <Select id="pc-basis" value={form.basis} onChange={(event) => setForm({ ...form, basis: event.target.value as CostBasis })}>
           {COST_BASIS.map((basis) => <option key={basis} value={basis}>{t(basisKey(basis))}</option>)}
         </Select>
-        <span className="text-[12px] text-muted">{t(`product.basisHint.${form.basis}` as TranslationKey)}</span>
+        <span className="text-label text-muted">{t(`product.basisHint.${form.basis}` as TranslationKey)}</span>
       </div>
       <div className="field-row">
         <div className="field flex-1 min-w-0">
@@ -2262,7 +2262,7 @@ function Package({ product, entry }: { product: Product; entry: CatalogueEntry }
       {value.periods.length > 1 && (
         <div>
           <SectionHeading>{t('product.periodsHeading')}</SectionHeading>
-          <p className="text-[12px] text-muted">{t('product.periodsHint')}</p>
+          <p className="text-label text-muted">{t('product.periodsHint')}</p>
           <div className="table-wrap">
             <table className="task-table">
               <thead>
@@ -2388,10 +2388,10 @@ function Package({ product, entry }: { product: Product; entry: CatalogueEntry }
 
       <div>
         <SectionHeading>{t('product.includedCapabilities')}</SectionHeading>
-        <p className="text-[12px] text-muted">{t('product.includedCapabilitiesHint')}</p>
+        <p className="text-label text-muted">{t('product.includedCapabilitiesHint')}</p>
         <div className="flex flex-wrap gap-2 pt-1">
           {included.map((id) => <Chip key={id}>{capabilities.get(id)}</Chip>)}
-          {!included.length && <span className="text-[12px] text-muted">{t('product.noCapabilities')}</span>}
+          {!included.length && <span className="text-label text-muted">{t('product.noCapabilities')}</span>}
         </div>
       </div>
       {dialog}
@@ -2448,7 +2448,7 @@ function SimulationTab({ product }: { product: Product }) {
 
   return (
     <div className="grid gap-3.5">
-      <p className="text-[12px] text-muted">{t('product.simulationHint')}</p>
+      <p className="text-label text-muted">{t('product.simulationHint')}</p>
 
       <div className="field-row">
         <div className="field flex-1 min-w-0">
@@ -2499,10 +2499,10 @@ function SimulationTab({ product }: { product: Product }) {
                   : [...settled.promotions, promotion.id],
               })}
             >
-              {promotion.name} <span className="text-[11px]">{t(phaseKey(promotionPhase(promotion, day)))}</span>
+              {promotion.name} <span className="text-caption">{t(phaseKey(promotionPhase(promotion, day)))}</span>
             </Chip>
           ))}
-          {!promotions.length && <span className="text-[12px] text-muted">{t('product.noPromotionsYet')}</span>}
+          {!promotions.length && <span className="text-label text-muted">{t('product.noPromotionsYet')}</span>}
         </div>
       </div>
 
@@ -2532,7 +2532,7 @@ function SimulationTab({ product }: { product: Product }) {
         <p className="notice-warn">{t('product.turnedAway', { units: String(result.turnedAway) })}</p>
       )}
       {result.price !== null && result.listPrice !== null && result.price !== result.listPrice && (
-        <p className="text-[12.5px] text-muted">
+        <p className="text-label text-muted">
           {t('product.priceAfter', {
             list: asMoney(result.listPrice, result.currency),
             price: asMoney(result.price, result.currency),
@@ -2543,7 +2543,7 @@ function SimulationTab({ product }: { product: Product }) {
       <ProjectionChart simulation={result} caption={t('product.projectionCaption', { name: product.name })} />
 
       {product.renewal !== 'none' && (
-        <p className="text-[12.5px] text-muted">
+        <p className="text-label text-muted">
           {retention.months === null
             ? t('product.noChurn')
             : t('product.retentionSentence', {
@@ -2701,7 +2701,7 @@ function ProductForm({ product, onClose }: { product?: Product; onClose: () => v
               </option>
             ))}
           </Select>
-          <span className="text-[12px] text-muted">
+          <span className="text-label text-muted">
             {parts.length > 0
               ? t('product.kindLocked', { count: String(parts.length) })
               : t(form.kind === 'bundle' ? 'product.kindBundleHint' : 'product.kindSingleHint')}
@@ -2723,7 +2723,7 @@ function ProductForm({ product, onClose }: { product?: Product; onClose: () => v
       </div>
 
       <SectionHeading>{t('product.scope')}</SectionHeading>
-      <p className="text-[12px] text-muted">{t('product.scopeHint')}</p>
+      <p className="text-label text-muted">{t('product.scopeHint')}</p>
       <div className="field-row">
         <div className="field flex-1 min-w-0">
           <label htmlFor="p-unit">{t('product.unitLabel')}</label>
@@ -2779,7 +2779,7 @@ function ProductForm({ product, onClose }: { product?: Product; onClose: () => v
         />
         <span>
           <span>{t('product.capacityApplies')}</span>
-          <span className="text-[12px] text-muted">{t('product.capacityAppliesHint')}</span>
+          <span className="text-label text-muted">{t('product.capacityAppliesHint')}</span>
         </span>
       </label>
       {form.capacity !== null && (
@@ -2796,12 +2796,12 @@ function ProductForm({ product, onClose }: { product?: Product; onClose: () => v
       )}
 
       <SectionHeading>{t('product.retention')}</SectionHeading>
-      <p className="text-[12px] text-muted">{t('product.retentionHint')}</p>
+      <p className="text-label text-muted">{t('product.retentionHint')}</p>
       {/* No billing period here, and the line below says where it went. The
           same product is sold monthly, yearly and two-yearly at once, so one
           select on the product was one answer to a question with several — it
           is a price's business and always was. */}
-      <p className="text-[12px] text-muted">{t('product.billingMovedHint')}</p>
+      <p className="text-label text-muted">{t('product.billingMovedHint')}</p>
       <div className="field-row">
         <div className="field flex-1 min-w-0">
           <label htmlFor="p-renewal">{t('product.renewalLabel')}</label>
@@ -2820,17 +2820,17 @@ function ProductForm({ product, onClose }: { product?: Product; onClose: () => v
           <label htmlFor="p-churn">{t('product.churn')}</label>
           <Input id="p-churn" type="number" min={0} max={100} value={form.churn_bps / 100}
             onChange={(event) => setForm({ ...form, churn_bps: Math.round(Number(event.target.value) * 100) })} />
-          <span className="text-[12px] text-muted">{t('product.churnFieldHint')}</span>
+          <span className="text-label text-muted">{t('product.churnFieldHint')}</span>
         </div>
         <div className="field flex-1 min-w-0">
           <label htmlFor="p-acq">{t('product.acquisitionCost')}</label>
           <MoneyInput id="p-acq" value={form.acquisition_cost} currency={form.currency} onChange={(acquisition_cost) => setForm({ ...form, acquisition_cost })} />
-          <span className="text-[12px] text-muted">{t('product.acquisitionHint')}</span>
+          <span className="text-label text-muted">{t('product.acquisitionHint')}</span>
         </div>
       </div>
 
       <SectionHeading>{t('product.capabilities')}</SectionHeading>
-      <p className="text-[12px] text-muted">{t('product.capabilitiesHint')}</p>
+      <p className="text-label text-muted">{t('product.capabilitiesHint')}</p>
       <div className="flex flex-wrap gap-2 pt-1">
         {capabilities.map((capability: ProductCapability) => (
           <Chip
@@ -2873,7 +2873,7 @@ function ProductForm({ product, onClose }: { product?: Product; onClose: () => v
         </Button>
       </div>
       {duplicateCapability && (
-        <span className="text-[12px] text-danger">{t('product.capabilityTaken')}</span>
+        <span className="text-label text-danger">{t('product.capabilityTaken')}</span>
       )}
     </Sheet>
   );

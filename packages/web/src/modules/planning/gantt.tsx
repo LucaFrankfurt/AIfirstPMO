@@ -261,7 +261,7 @@ export function GanttView({ tasks, onOpen, projectId }: {
   return (
     <div className="gantt">
       <div className="gantt-toolbar flex items-center gap-2 flex-wrap">
-        <span className="text-muted text-[12.5px]">{t('gantt.hint')}</span>
+        <span className="text-muted text-label">{t('gantt.hint')}</span>
         <span className="flex-1 min-w-0" />
         {baselines.length > 0 && (
           <Select
@@ -403,7 +403,7 @@ export function GanttView({ tasks, onOpen, projectId }: {
 
       {undated.length > 0 && (
         <div className="gantt-undated">
-          <strong className="text-[12.5px]">{t('gantt.undated', { count: undated.length })}</strong>
+          <strong className="text-label">{t('gantt.undated', { count: undated.length })}</strong>
           <div className="flex items-center flex-wrap gap-1.5 mt-1.5">
             {undated.slice(0, 40).map((task) => (
               <button key={task.id} className={chipVariants({ interactive: true })} onClick={() => onOpen(task)}>

@@ -57,7 +57,7 @@ export function PublicKnowledgeNotice({ page }: { page: Marked }) {
   const t = useT();
   if (!isPublicKnowledge(page)) return null;
   return (
-    <p className="m-0 mb-2 flex items-center gap-1.5 text-[12px] text-muted">
+    <p className="m-0 mb-2 flex items-center gap-1.5 text-label text-muted">
       <Icon name="globe" size={13} />
       {t('page.publicKnowledgeEditing')}
     </p>

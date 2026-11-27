@@ -17,7 +17,7 @@ import { cn } from '../cn';
  */
 export const chipVariants = cva(
   'inline-flex max-w-full items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 '
-  + 'text-[11.5px] leading-[30px] h-8',
+  + 'text-caption leading-[30px] h-8',
   {
     variants: {
       tone: {

@@ -148,7 +148,7 @@ export function MyWork() {
 
         {recents.length > 0 && (
           <section className="mb-[18px]">
-            <h2 className="text-sm mb-1.5">{t('overview.recent')}</h2>
+            <h2 className="text-title mb-1.5">{t('overview.recent')}</h2>
             <div className="recents">
               {recents.map((project) => (
                 <Link key={project.id} className="recent-card" to={`/projects/${project.id}`}>
@@ -164,7 +164,7 @@ export function MyWork() {
         {(buckets.overdue.length > 0 || buckets.today.length > 0) && (
           <div className="grid gap-3 sm:grid-cols-2 mb-[18px]">
             {buckets.overdue.length > 0 && (
-              <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
+              <div className="rounded border border-line bg-raised p-3.5">
                 <div className="flex items-center gap-2 mb-2">
                   <strong className="text-danger">{t('myWork.overdue')}</strong>
                   <span className="text-muted">{buckets.overdue.length}</span>
@@ -175,7 +175,7 @@ export function MyWork() {
               </div>
             )}
             {buckets.today.length > 0 && (
-              <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
+              <div className="rounded border border-line bg-raised p-3.5">
                 <div className="flex items-center gap-2 mb-2">
                   <strong className="text-warn">{t('myWork.dueToday')}</strong>
                   <span className="text-muted">{buckets.today.length}</span>
@@ -200,7 +200,7 @@ export function MyWork() {
 
         {created.length > 0 && (
           <section className="mt-[26px]">
-            <h2 className="text-sm mb-1.5">{t('myWork.createdByYou')}</h2>
+            <h2 className="text-title mb-1.5">{t('myWork.createdByYou')}</h2>
             {created.map((task) => <TaskRow key={task.id} task={task} onOpen={openTask} showProject />)}
           </section>
         )}
@@ -287,14 +287,14 @@ export function Inbox() {
                 <Avatar user={actor} size={26} />
                 <span className="flex-1 min-w-0">
                   <span className="flex items-center gap-1.5">
-                    <strong className="text-[13.5px]">{notification.title}</strong>
+                    <strong className="text-body">{notification.title}</strong>
                     {!notification.read_at && <span className="size-1.5 flex-none rounded-full bg-accent" />}
                   </span>
                   {/* `block`, or `truncate` has no width to cut at: an inline span runs on,
                       and a support message's first line pushed the row 92px past a phone. */}
-                  {notification.body && <span className="block text-muted truncate text-[12.5px]">{excerpt(notification.body, 90)}</span>}
+                  {notification.body && <span className="block text-muted truncate text-label">{excerpt(notification.body, 90)}</span>}
                 </span>
-                <span className="text-muted text-[11.5px]">{relativeTime(notification.created_at)}</span>
+                <span className="text-muted text-caption">{relativeTime(notification.created_at)}</span>
               </button>
             );
           })
@@ -322,7 +322,7 @@ export function More() {
           <Avatar user={user ?? undefined} size={40} />
           <div className="flex-1 min-w-0">
             <strong>{user?.name}</strong>
-            <div className="text-muted text-[12.5px]">{user?.email}</div>
+            <div className="text-muted text-label">{user?.email}</div>
           </div>
         </div>
 
@@ -336,7 +336,7 @@ export function More() {
         {/* Links rather than buttons that navigate: a long-press to open in a
             new tab is a thing people do, and it also means "can a phone reach
             this?" is a question about hrefs that a test can ask. */}
-        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mb-3.5" style={{ padding: 6 }}>
+        <div className="rounded border border-line bg-raised p-3.5 mb-3.5" style={{ padding: 6 }}>
           {enabled(DESTINATIONS, has).map((item) => (
             <Link key={item.to} className={navItem()} to={item.to}>
               <Icon name={item.icon} size={16} />
@@ -354,7 +354,7 @@ export function More() {
         </div>
 
         <div className="nav-section">{t('nav.projects')}</div>
-        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mb-3.5" style={{ padding: 6 }}>
+        <div className="rounded border border-line bg-raised p-3.5 mb-3.5" style={{ padding: 6 }}>
           {projects.map((project) => (
             <Link key={project.id} className={navItem()} to={`/projects/${project.id}`}>
               <span style={{ width: 18 }}>{project.icon ?? '•'}</span> {project.name}
@@ -370,7 +370,7 @@ export function More() {
         {(session?.workspaces.length ?? 0) > 1 && (
           <>
             <div className="nav-section">{t('nav.workspaces')}</div>
-            <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mb-3.5" style={{ padding: 6 }}>
+            <div className="rounded border border-line bg-raised p-3.5 mb-3.5" style={{ padding: 6 }}>
               {session?.workspaces.map((workspace) => (
                 <button
                   key={workspace.id}

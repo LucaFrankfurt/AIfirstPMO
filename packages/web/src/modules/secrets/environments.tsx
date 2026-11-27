@@ -153,7 +153,7 @@ export function EnvironmentsSheet({ onClose }: { onClose: () => void }) {
         </div>
       )}
 
-      {!mayEdit && <p className="text-[12px] text-muted">{t('environment.adminOnly')}</p>}
+      {!mayEdit && <p className="text-label text-muted">{t('environment.adminOnly')}</p>}
     </Sheet>
   );
 }

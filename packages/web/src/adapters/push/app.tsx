@@ -251,9 +251,9 @@ export function AppPushToggle() {
   return (
     <>
       <SectionHeading>{t('push.title')}</SectionHeading>
-      <p className="text-[12px] text-muted mb-2">{t('push.appHint')}</p>
+      <p className="text-label text-muted mb-2">{t('push.appHint')}</p>
       {state === 'denied' ? (
-        <p className="text-muted text-[12.5px]">{t('push.appDenied')}</p>
+        <p className="text-muted text-label">{t('push.appDenied')}</p>
       ) : (
         <button
           className={buttonVariants({ variant: state === 'on' ? 'secondary' : 'primary' })}

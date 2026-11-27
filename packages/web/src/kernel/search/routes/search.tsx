@@ -358,7 +358,7 @@ export function Search() {
             wrongly, not a sentence that is explained on one screen and silently
             ignored on the other. The rest of the line still searches. */}
         {errors.length > 0 && (
-          <ul className="mb-0 mt-2 list-none p-0 text-[12.5px] text-danger">
+          <ul className="mb-0 mt-2 list-none p-0 text-label text-danger">
             {errors.map((error) => (
               <li key={`${error.at}-${error.message}`} className="mb-1 flex items-start gap-1.5">
                 <Icon name="bolt" size={13} />
@@ -390,10 +390,10 @@ export function Search() {
           )
         ) : (
           <div className="mt-3.5">
-            {workOnly && wanted && <p className="mb-2 text-[12.5px] text-muted">{t('search.workOnly')}</p>}
+            {workOnly && wanted && <p className="mb-2 text-label text-muted">{t('search.workOnly')}</p>}
             {exact.length > 0 && (
               <section className="mb-4">
-                <h2 className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-muted">
+                <h2 className="mb-1 flex items-center gap-2 text-caption font-semibold uppercase tracking-wide text-muted">
                   {t('search.groupExact')}
                 </h2>
                 {exact.map((task) => (
@@ -403,7 +403,7 @@ export function Search() {
             )}
             {sections.map((section) => (
               <section key={section.kind} className="mb-4">
-                <h2 className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-muted">
+                <h2 className="mb-1 flex items-center gap-2 text-caption font-semibold uppercase tracking-wide text-muted">
                   {t(KIND_GROUP[section.kind] ?? 'search.groupOther')}
                   <span className="font-normal normal-case tracking-normal">{section.hits.length}</span>
                 </h2>
@@ -430,9 +430,9 @@ function Result({ hit, onOpen }: { hit: Hit; onOpen: (hit: Hit) => void }) {
       <Icon name={KIND_ICON[hit.kind] ?? 'page'} size={15} />
       <span className="min-w-0 flex-1">
         <span className="block truncate">{hit.title || hit.snippet}</span>
-        {hit.snippet && hit.title && <span className="block truncate text-[12.5px] text-muted">{hit.snippet}</span>}
+        {hit.snippet && hit.title && <span className="block truncate text-label text-muted">{hit.snippet}</span>}
       </span>
-      {project && <span className="truncate text-[11.5px] text-muted">{project.name}</span>}
+      {project && <span className="truncate text-caption text-muted">{project.name}</span>}
     </button>
   );
 }
@@ -480,12 +480,12 @@ function Tips() {
   ];
   return (
     <div className="mx-auto mt-10 max-w-[420px]">
-      <h2 className="mb-1 text-center text-[15px] font-semibold">{t('search.promptTitle')}</h2>
+      <h2 className="mb-1 text-center text-title font-semibold">{t('search.promptTitle')}</h2>
       <p className="mb-4 text-center text-muted">{t('search.promptHint')}</p>
       <ul className="flex flex-col gap-1.5">
         {rows.map((row) => (
-          <li key={row.glyph} className="flex items-center gap-2.5 text-[13px] text-soft">
-            <span className="mono grid size-7 flex-none place-items-center rounded-[var(--radius-sm)] border border-line bg-hover text-[13px]">
+          <li key={row.glyph} className="flex items-center gap-2.5 text-body text-soft">
+            <span className="mono grid size-7 flex-none place-items-center rounded-sm border border-line bg-hover text-body">
               {row.glyph}
             </span>
             {t(row.hint)}

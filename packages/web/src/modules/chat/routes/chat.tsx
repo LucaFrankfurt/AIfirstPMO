@@ -244,7 +244,7 @@ export function Chat() {
             while there is somebody below. Alone, the hint further down says the
             true thing instead, and two hints where one is wrong is worse. */}
         {conversations.length === 0 && (colleagues.size > 1 || !canWrite) && (
-          <p className="text-muted text-[12.5px]">{t('chat.noneYet')}</p>
+          <p className="text-muted text-label">{t('chat.noneYet')}</p>
         )}
 
         {conversations.map(({ channel, last }) => (
@@ -269,7 +269,7 @@ export function Chat() {
             workspace rather than of the list below, which is also empty when
             you are simply already talking to everybody in it. */}
         {canWrite && colleagues.size <= 1 && (
-          <p className="text-muted text-[12.5px]">{t('chat.aloneHint')}</p>
+          <p className="text-muted text-label">{t('chat.aloneHint')}</p>
         )}
         {canWrite && others.map((member) => (
           <button
@@ -643,7 +643,7 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
               spent on a sentence nobody is reading twice. The whole of it is
               in the tooltip and in the settings sheet. */}
           {channel.topic && (
-            <div className="text-muted truncate text-[12.5px]" title={channel.topic}>{channel.topic}</div>
+            <div className="text-muted truncate text-label" title={channel.topic}>{channel.topic}</div>
           )}
         </div>
         {/* Search reaches every message in this conversation and none outside
@@ -676,7 +676,7 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
             onChange={(event) => setNeedle(event.target.value)}
             onKeyDown={(event) => { if (event.key === 'Escape') setNeedle(null); }}
           />
-          <span className="text-muted text-[12px] tabular-nums">
+          <span className="text-muted text-label tabular-nums">
             {hunting ? t('chat.matches', { count: found.length }) : ''}
           </span>
           <Button variant="ghost" size="iconSm" aria-label={t('annotate.clear')} onClick={() => setNeedle(null)}>
@@ -708,11 +708,11 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
                 {/* Three things this box can do that nothing on screen says it
                     can. The empty conversation is the one moment there is room to
                     say them. */}
-                {canWrite && <p className="text-muted m-0 text-[12px]">{t('chat.emptyHint')}</p>}
+                {canWrite && <p className="text-muted m-0 text-label">{t('chat.emptyHint')}</p>}
               </div>
             )}
             {hunting && found.length === 0 && (
-              <p className="text-muted text-[12.5px]">{t('chat.noMatches')}</p>
+              <p className="text-muted text-label">{t('chat.noMatches')}</p>
             )}
             {older && (
               <button className="chat-earlier" onClick={reachBack}>
@@ -880,7 +880,7 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
         /* A guest can read an open channel and cannot write anywhere. Saying so
            here beats a composer that takes a paragraph and then refuses it. */
         <div className="chat-composer flex-none border-t border-line pt-2.5">
-          <p className="text-muted text-[12.5px] m-0">{t('chat.readOnly')}</p>
+          <p className="text-muted text-label m-0">{t('chat.readOnly')}</p>
         </div>
       )}
       {dialog}
@@ -910,7 +910,7 @@ function Typing({ channelId, me, idle }: { channelId: string; me: string; idle?:
     : t('chat.typingMany');
 
   return (
-    <p className="m-0 h-[15px] truncate text-[11.5px] text-muted">
+    <p className="m-0 h-[15px] truncate text-caption text-muted">
       <span aria-live="polite">{text}</span>
       {!text && idle}
     </p>
@@ -1012,10 +1012,10 @@ function RenameChannel({ channel, allowed }: { channel: Channel; allowed: boolea
         onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }}
       />
       {tidy && tidy !== name && (
-        <p className="text-muted m-0 text-[12.5px]">{t('chat.willBeCalled', { name: `#${tidy}` })}</p>
+        <p className="text-muted m-0 text-label">{t('chat.willBeCalled', { name: `#${tidy}` })}</p>
       )}
       {clash && (
-        <p className="m-0 text-[12.5px]" style={{ color: 'var(--warn)' }}>
+        <p className="m-0 text-label" style={{ color: 'var(--warn)' }}>
           {clash.archived_at ? t('chat.nameTakenArchived') : t('chat.nameTaken')}
         </p>
       )}
@@ -1067,7 +1067,7 @@ function ChannelSettings({ channel, me, onClose, onGone }: {
           it — so there is nothing here to manage. */}
       {channel.is_private ? (
         <>
-          <h3 style={{ fontSize: 14, margin: '14px 0 6px' }}>{t('chat.members', { count: inside.length })}</h3>
+          <h3 className="text-title" style={{ margin: '14px 0 6px' }}>{t('chat.members', { count: inside.length })}</h3>
           {inside.map((id) => (
             <div className="flex items-center gap-2" key={id} style={{ gap: 8, padding: '4px 0' }}>
               <Avatar user={members.get(id)} size={22} />
@@ -1092,7 +1092,7 @@ function ChannelSettings({ channel, me, onClose, onGone }: {
 
           {mayManage && !!outside.length && (
             <>
-              <h3 style={{ fontSize: 14, margin: '14px 0 6px' }}>{t('chat.addSomebody')}</h3>
+              <h3 className="text-title" style={{ margin: '14px 0 6px' }}>{t('chat.addSomebody')}</h3>
               {outside.map((member) => (
                 <button
                   key={member.id}
@@ -1110,8 +1110,8 @@ function ChannelSettings({ channel, me, onClose, onGone }: {
             </>
           )}
 
-          <h3 style={{ fontSize: 14, margin: '18px 0 6px' }}>{t('chat.whoCanAdd')}</h3>
-          <p className="text-muted mb-2 text-[12.5px]">{t('chat.whoCanAddHint')}</p>
+          <h3 className="text-title" style={{ margin: '18px 0 6px' }}>{t('chat.whoCanAdd')}</h3>
+          <p className="text-muted mb-2 text-label">{t('chat.whoCanAddHint')}</p>
           <div className="flex items-center flex-wrap gap-1.5">
             {(['members', 'admins'] as const).map((policy) => (
               <button
@@ -1128,11 +1128,11 @@ function ChannelSettings({ channel, me, onClose, onGone }: {
           </div>
         </>
       ) : (
-        <p className="text-muted text-[12.5px]">{t('chat.openChannelHint')}</p>
+        <p className="text-muted text-label">{t('chat.openChannelHint')}</p>
       )}
 
-      <h3 style={{ fontSize: 14, margin: '18px 0 6px' }}>{t('chat.closing')}</h3>
-      <p className="text-muted mb-2 text-[12.5px]">{t('chat.closingHint')}</p>
+      <h3 className="text-title" style={{ margin: '18px 0 6px' }}>{t('chat.closing')}</h3>
+      <p className="text-muted mb-2 text-label">{t('chat.closingHint')}</p>
       <div className="flex items-center flex-wrap gap-1.5">
         <Button size="sm"
           onClick={() => {
@@ -1224,13 +1224,13 @@ function NewChannel({ me, onClose, onCreated }: { me: string; onClose: () => voi
         </div>
         {/* Shown before it is saved, because "#Design Review" quietly becoming
             "#design-review" afterwards is a surprise. */}
-        {tidy && tidy !== name && <p className="text-muted text-[12.5px]">{t('chat.willBeCalled', { name: `#${tidy}` })}</p>}
+        {tidy && tidy !== name && <p className="text-muted text-label">{t('chat.willBeCalled', { name: `#${tidy}` })}</p>}
         {/* A collision with an archived channel used to read as a collision
             with nothing: the name is taken by a room that is not in the list
             and cannot be found from here. Saying which it is turns a dead end
             into a decision. */}
         {taken && (
-          <p className="m-0 text-[12.5px]" style={{ color: 'var(--warn)' }}>
+          <p className="m-0 text-label" style={{ color: 'var(--warn)' }}>
             {taken.archived_at ? t('chat.nameTakenArchived') : t('chat.nameTaken')}
           </p>
         )}
@@ -1247,7 +1247,7 @@ function NewChannel({ me, onClose, onCreated }: { me: string; onClose: () => voi
           <input type="checkbox" checked={isPrivate} onChange={(event) => setPrivate(event.target.checked)} />
           <span>
             <strong>{t('chat.private')}</strong>
-            <span className="text-[12px] text-muted">{t('chat.privateHint')}</span>
+            <span className="text-label text-muted">{t('chat.privateHint')}</span>
           </span>
         </label>
 
@@ -1257,7 +1257,7 @@ function NewChannel({ me, onClose, onCreated }: { me: string; onClose: () => voi
             The same choice belongs where the channel is being made. */}
         {isPrivate && !!others.length && (
           <>
-            <h3 style={{ fontSize: 14, margin: '14px 0 6px' }}>{t('chat.whoElse')}</h3>
+            <h3 className="text-title" style={{ margin: '14px 0 6px' }}>{t('chat.whoElse')}</h3>
             {others.map((member) => {
               const picked = invited.includes(member.id);
               return (
@@ -1330,8 +1330,8 @@ function FindPerson({ me, onClose, onPick }: { me: string; onClose: () => void; 
           onChange={(event) => setQuery(event.target.value)}
         />
       </div>
-      {error && <p className="text-[12px] text-danger">{error}</p>}
-      {!error && people.length === 0 && <p className="text-[12px] text-muted">{t('chat.findNobody')}</p>}
+      {error && <p className="text-label text-danger">{error}</p>}
+      {!error && people.length === 0 && <p className="text-label text-muted">{t('chat.findNobody')}</p>}
       {people.map((person) => (
         <button
           key={person.id}
@@ -1343,7 +1343,7 @@ function FindPerson({ me, onClose, onPick }: { me: string; onClose: () => void; 
         >
           <Avatar user={person} size={22} />
           <span className="flex-1 min-w-0 truncate">{person.name}</span>
-          <span className="text-muted truncate text-[11.5px]">{person.email}</span>
+          <span className="text-muted truncate text-caption">{person.email}</span>
         </button>
       ))}
     </Sheet>

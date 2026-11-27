@@ -668,7 +668,7 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
             {snippets}
             {attach}
             <span className="flex-1 min-w-0" />
-            {busy && <span className="text-muted text-[12.5px]">{t('editor.uploading')}</span>}
+            {busy && <span className="text-muted text-label">{t('editor.uploading')}</span>}
             {previewToggle}
           </div>
         )}
@@ -887,7 +887,7 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
               >
                 <span aria-hidden="true" className="slash-icon">{command.icon}</span>
                 <span className="flex-1 min-w-0 truncate">{t(command.title)}</span>
-                <span className="text-muted truncate text-[11.5px]">{t(command.hint)}</span>
+                <span className="text-muted truncate text-caption">{t(command.hint)}</span>
               </button>
             ))}
           </div>
@@ -906,7 +906,7 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
               >
                 <span aria-hidden="true" style={{ width: 18, textAlign: 'center' }}>{choice.icon}</span>
                 <span className="flex-1 min-w-0 truncate">{choice.label}</span>
-                {choice.hint && <span className="text-muted truncate text-[11.5px]">{choice.hint}</span>}
+                {choice.hint && <span className="text-muted truncate text-caption">{choice.hint}</span>}
               </button>
             ))}
           </div>
@@ -925,7 +925,7 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
               >
                 <span aria-hidden="true" style={{ width: 18, textAlign: 'center' }}>{choice.icon || '#'}</span>
                 <span className="flex-1 min-w-0 truncate">{choice.label}</span>
-                <span className="text-muted mono truncate text-[11.5px]">{choice.hint}</span>
+                <span className="text-muted mono truncate text-caption">{choice.hint}</span>
               </button>
             ))}
           </div>
@@ -945,7 +945,7 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
               >
                 <Avatar user={member} size={18} />
                 <span className="flex-1 min-w-0 truncate">{member.name}</span>
-                <span className="text-muted truncate text-[11.5px]">{member.email}</span>
+                <span className="text-muted truncate text-caption">{member.email}</span>
               </button>
             ))}
           </div>
@@ -966,7 +966,7 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
             Aa
           </button>
           {attach}
-          {busy && <span className="text-muted text-[12px]">{t('editor.uploading')}</span>}
+          {busy && <span className="text-muted text-label">{t('editor.uploading')}</span>}
           <span className="flex-1 min-w-0" />
           {previewToggle}
           {actions}

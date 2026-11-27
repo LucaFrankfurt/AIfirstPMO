@@ -32,8 +32,8 @@ export function Tooltip({ label, children, side = 'bottom' }: {
           sideOffset={6}
           collisionPadding={8}
           className={cn(
-            'z-50 max-w-[16rem] rounded-[var(--radius-sm)] border border-line bg-raised px-2 py-1',
-            'text-[12px] text-soft shadow-[var(--shadow)]',
+            'z-50 max-w-[16rem] rounded-sm border border-line bg-raised px-2 py-1',
+            'text-label text-soft shadow',
             'data-[state=delayed-open]:animate-in motion-reduce:animate-none',
           )}
         >

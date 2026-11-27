@@ -169,9 +169,9 @@ function ProjectCard({ projectId }: { projectId: string }) {
   if (!project) return null;
 
   return (
-    <button className="rounded-[var(--radius)] border border-line bg-raised p-3.5 text-left cursor-pointer" onClick={() => navigate(`/projects/${projectId}`)}>
+    <button className="rounded border border-line bg-raised p-3.5 text-left cursor-pointer" onClick={() => navigate(`/projects/${projectId}`)}>
       <div className="flex items-center gap-2 mb-1.5">
-        <span className="text-lg">{project.icon ?? '📁'}</span>
+        <span className="text-headline">{project.icon ?? '📁'}</span>
         <strong className="flex-1 min-w-0 truncate">{project.name}</strong>
         <Chip className="font-mono">{project.key}</Chip>
       </div>
@@ -180,10 +180,10 @@ function ProjectCard({ projectId }: { projectId: string }) {
           say anything. `excerpt` is the same function the pages index uses for
           the same reason — markdown out, the sentence left. */}
       {project.description && (
-        <p className="text-muted truncate text-[12.5px]">{excerpt(project.description, 140)}</p>
+        <p className="text-muted truncate text-label">{excerpt(project.description, 140)}</p>
       )}
       <Progress value={done} total={tasks.length} />
-      <div className="flex items-center gap-2 text-muted text-[12.5px] mt-1.5">
+      <div className="flex items-center gap-2 text-muted text-label mt-1.5">
         <span>{t('project.doneCount', { done, total: tasks.length })}</span>
         <span className="flex-1 min-w-0" />
         {project.target_date && <span>{t('project.target', { date: shortDate(project.target_date) })}</span>}
@@ -255,7 +255,7 @@ export function ProjectNew() {
                 id="p-key" value={form.key} maxLength={6} placeholder={t('project.keyAuto')}
                 onChange={(event) => setForm({ ...form, key: event.target.value.toUpperCase() })}
               />
-              <span className="text-[12px] text-muted">{t('project.keyHint')}</span>
+              <span className="text-label text-muted">{t('project.keyHint')}</span>
             </div>
           </div>
           <div className="field">
@@ -275,7 +275,7 @@ export function ProjectNew() {
                 <option key={other.id} value={other.id}>{other.icon} {other.name}</option>
               ))}
             </Select>
-            <span className="text-[12px] text-muted">{t('project.parentHint')}</span>
+            <span className="text-label text-muted">{t('project.parentHint')}</span>
           </div>
           <div className="field">
             <label htmlFor="p-vis">{t('project.visibility')}</label>
@@ -331,7 +331,7 @@ function ContainerChildren({ projectId }: { projectId: string }) {
 
   return (
     <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
-      <p className="text-muted text-[12.5px] mb-2.5">{t('project.containerCount', { count: children.length })}</p>
+      <p className="text-muted text-label mb-2.5">{t('project.containerCount', { count: children.length })}</p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {children.map((child) => {
           const mine = tasks.filter((task) => task.project_id === child.id);
@@ -342,20 +342,20 @@ function ContainerChildren({ projectId }: { projectId: string }) {
             <button
               key={child.id}
               type="button"
-              className="rounded-[var(--radius)] border border-line bg-raised p-3.5 text-start"
+              className="rounded border border-line bg-raised p-3.5 text-start"
               onClick={() => navigate(`/projects/${child.id}`)}
             >
               <span className="flex items-center gap-2 mb-2">
-                <span className="text-lg">{child.icon ?? '📁'}</span>
+                <span className="text-headline">{child.icon ?? '📁'}</span>
                 <span className="flex-1 min-w-0 truncate font-semibold">{child.name}</span>
                 {child.is_container ? <Icon name="folder" size={14} /> : <Chip className="font-mono">{child.key}</Chip>}
               </span>
               {child.is_container ? (
-                <span className="text-muted text-[12.5px]">{t('project.isContainer')}</span>
+                <span className="text-muted text-label">{t('project.isContainer')}</span>
               ) : (
                 <>
                   <Progress value={done} total={mine.length} />
-                  <span className="flex items-center gap-2 mt-1.5 text-[12.5px] text-muted">
+                  <span className="flex items-center gap-2 mt-1.5 text-label text-muted">
                     <span>{t('project.doneOf', { done, total: mine.length })}</span>
                     {late > 0 && <span className="text-danger">{t('portfolio.lateCount', { count: late })}</span>}
                   </span>
@@ -509,7 +509,7 @@ export function ProjectPage() {
         A project with no description gets nothing, which is most of them.
       */}
       {tab === 'tasks' && (isContainer || view.layout !== 'board') && project.description && (
-        <div className="mx-auto max-w-[1180px] px-3 pt-4 sm:px-6 sm:pt-5 text-[13px]">
+        <div className="mx-auto max-w-[1180px] px-3 pt-4 sm:px-6 sm:pt-5 text-body">
           <Markdown source={project.description} />
         </div>
       )}
@@ -562,7 +562,7 @@ function Cycles({ projectId }: { projectId: string }) {
   return (
     <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
       <div className="flex items-center gap-2 mb-3">
-        <h2 className="text-[15px]">{t('cycle.title')}</h2>
+        <h2 className="text-title">{t('cycle.title')}</h2>
         <span className="flex-1 min-w-0" />
         {canWrite && <Button size="sm" onClick={() => setEditing('new')}><Icon name="plus" size={14} /> {t('cycle.new')}</Button>}
       </div>
@@ -573,7 +573,7 @@ function Cycles({ projectId }: { projectId: string }) {
         {cycles.map((cycle) => {
           const active = cycle.start_date && cycle.end_date && cycle.start_date <= day && cycle.end_date >= day;
           return (
-            <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5" key={cycle.id}>
+            <div className="rounded border border-line bg-raised p-3.5" key={cycle.id}>
               <div className="flex items-center gap-2 mb-2">
                 <strong className="flex-1 min-w-0 truncate">{cycle.name}</strong>
                 {/* Said on the card rather than only in the editor: deleting a
@@ -930,18 +930,18 @@ export function CyclePage() {
       </Header>
       <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
         <Trail parts={planningCrumbs(cycle.project_id, 'cycles', t('nav.projects'))} />
-        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mb-3.5">
+        <div className="rounded border border-line bg-raised p-3.5 mb-3.5">
           <div className="flex items-center gap-2 mb-2">
             <div className="flex-1 min-w-0">
               <strong>{t('cycle.taskProgress', { done: burndown.done, total: burndown.total })}</strong>
-              <div className="text-muted text-[12.5px]">
+              <div className="text-muted text-label">
                 {t('cycle.pointProgress', { done: burndown.donePoints, total: burndown.points })}
                 {cycle.start_date && cycle.end_date && ` · ${shortDate(cycle.start_date)} – ${shortDate(cycle.end_date)}`}
               </div>
             </div>
           </div>
           <Progress value={burndown.done} total={burndown.total} />
-          {cycle.description && <div className="mt-2 text-[12.5px]"><Markdown source={cycle.description} /></div>}
+          {cycle.description && <div className="mt-2 text-label"><Markdown source={cycle.description} /></div>}
         </div>
         {/* The sprint's own papers: the retro notes, the demo recording, the
             capacity sheet somebody built it from. Above the tasks, because it
@@ -974,8 +974,8 @@ function Modules({ projectId }: { projectId: string }) {
   return (
     <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
       <div className="flex items-center gap-2 mb-3">
-        <h2 className="text-[15px]">{t('module.title')}</h2>
-        <span className="text-muted text-[12.5px]">{t('module.subtitle')}</span>
+        <h2 className="text-title">{t('module.title')}</h2>
+        <span className="text-muted text-label">{t('module.subtitle')}</span>
         <span className="flex-1 min-w-0" />
         {canWrite && <Button size="sm" onClick={() => setEditing('new')}><Icon name="plus" size={14} /> {t('module.new')}</Button>}
       </div>
@@ -988,7 +988,7 @@ function Modules({ projectId }: { projectId: string }) {
           const done = tasks.filter((task) => isDoneGroup(byId('state', task.state_id)?.group_key)).length;
           const lead = members.find((member) => member.id === module.lead_id);
           return (
-            <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5" key={module.id}>
+            <div className="rounded border border-line bg-raised p-3.5" key={module.id}>
               <div className="flex items-center gap-2 mb-1.5">
                 <strong className="flex-1 min-w-0 truncate">{module.name}</strong>
                 {/* Said on the card, because deleting a shared module takes it
@@ -1026,7 +1026,7 @@ function Modules({ projectId }: { projectId: string }) {
                 )}
               </div>
               <Progress value={done} total={tasks.length} />
-              <div className="flex items-center gap-2 text-muted text-[12.5px] mt-1.5">
+              <div className="flex items-center gap-2 text-muted text-label mt-1.5">
                 <span>{done}/{tasks.length}</span>
                 <span className="flex-1 min-w-0" />
                 {canWrite ? (
@@ -1148,7 +1148,7 @@ function ProjectPages({ projectId }: { projectId: string }) {
   return (
     <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
       <div className="flex items-center gap-2 mb-3">
-        <h2 className="text-[15px]">{t('project.pagesTitle')}</h2>
+        <h2 className="text-title">{t('project.pagesTitle')}</h2>
         <span className="flex-1 min-w-0" />
         {canWrite && (
           <Button size="sm" onClick={() => navigate(`/pages/${createPage({ project_id: projectId, title: t('common.untitled') }, me)}`)}>
@@ -1366,8 +1366,8 @@ function ProjectSettings({ projectId }: { projectId: string }) {
                 that refuses to be typed in for no stated reason. This is the
                 reason, said while it is being typed. */}
             {keyTaken
-              ? <span className="text-[12px]" style={{ color: 'var(--danger)' }}>{t('project.keyTaken', { name: keyTaken })}</span>
-              : <span className="text-[12px] text-muted">{t('project.keyChangeHint')}</span>}
+              ? <span className="text-label" style={{ color: 'var(--danger)' }}>{t('project.keyTaken', { name: keyTaken })}</span>
+              : <span className="text-label text-muted">{t('project.keyChangeHint')}</span>}
           </div>
           <div className="field">
             <label htmlFor="s-vis">{t('project.visibility')}</label>
@@ -1391,7 +1391,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
           />
           <span>
             {t('project.isContainer')}
-            <span className="block text-[12px] text-muted">
+            <span className="block text-label text-muted">
               {taskCount > 0 ? t('project.isContainerBusy', { count: taskCount }) : t('project.isContainerHint')}
             </span>
           </span>
@@ -1407,7 +1407,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
               <option value="">{t('project.parentNone')}</option>
               {siblings.map((other) => <option key={other.id} value={other.id}>{other.icon} {other.name}</option>)}
             </Select>
-            <span className="text-[12px] text-muted">{t('project.parentHint')}</span>
+            <span className="text-label text-muted">{t('project.parentHint')}</span>
           </div>
           <div className="field flex-1 min-w-0">
             <label htmlFor="s-start">{t('project.startDate')}</label>
@@ -1455,7 +1455,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
               );
             })}
           </div>
-          <span className="text-[12px] text-muted">{t('project.workingDaysHint')}</span>
+          <span className="text-label text-muted">{t('project.workingDaysHint')}</span>
         </div>
 
         <div className="flex items-center gap-2" style={{ margin: '18px 0 8px' }}>
@@ -1539,8 +1539,8 @@ function ProjectSettings({ projectId }: { projectId: string }) {
             </div>
           </div>
         ))}
-        <p className="text-[12px] text-muted mt-1">{t('state.wipLimitHint')}</p>
-        <p className="text-[12px] text-muted mb-2">{t('state.allowedHint')}</p>
+        <p className="text-label text-muted mt-1">{t('state.wipLimitHint')}</p>
+        <p className="text-label text-muted mb-2">{t('state.allowedHint')}</p>
         <Button size="sm" className="mt-1.5"
           onClick={() => create('state', {
             project_id: projectId, name: t('project.newStateName'), group_key: 'unstarted', color: '#64748b',
@@ -1615,7 +1615,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
           </label>
         )}
       </div>
-      <p className="text-[12px] text-muted mt-1.5">{t('transfer.hint')}</p>
+      <p className="text-label text-muted mt-1.5">{t('transfer.hint')}</p>
       {importing && <ImportSheet projectId={projectId} onClose={() => setImporting(false)} />}
       {landing && (
         <Sheet
@@ -1645,7 +1645,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
               <option value="this">{t('transfer.intoThis')}</option>
             </Select>
           </div>
-          <p className="text-[13px] text-muted">
+          <p className="text-body text-muted">
             {into === 'new' ? t('transfer.intoNewHint') : t('transfer.intoThisHint')}
           </p>
         </Sheet>

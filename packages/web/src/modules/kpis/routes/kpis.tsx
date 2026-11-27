@@ -130,7 +130,7 @@ export function KpiIndex() {
           </div>
 
           <SectionHeading>{t('kpi.summaryTitle')}</SectionHeading>
-          <p className="text-[12px] text-muted">{t('kpi.summaryHint')}</p>
+          <p className="text-label text-muted">{t('kpi.summaryHint')}</p>
           {/* All six, in the order the list is sorted. Showing only the four
               that are judgements would have made the sentence above this row
               false on its own screen — and dropping "not measured" from a count
@@ -238,7 +238,7 @@ function Overview({ kpi, readings, targets, modules }: {
 
   return (
     <div className="grid gap-3.5">
-      {kpi.description && <p className="text-[13px] text-muted">{kpi.description}</p>}
+      {kpi.description && <p className="text-body text-muted">{kpi.description}</p>}
 
       <div className="kpi-row">
         <Stat
@@ -277,7 +277,7 @@ function Overview({ kpi, readings, targets, modules }: {
         <p className="notice-warn">{t('kpi.staleSince', { days: String(progress.age) })}</p>
       )}
       {progress.achieved !== null && progress.expected !== null && progress.health !== 'stale' && (
-        <p className="text-[12.5px] text-muted">
+        <p className="text-label text-muted">
           {progress.achieved < 0
             /* "−100 % of the way there" is arithmetically true and reads as
                nonsense. Going backwards gets its own sentence. */
@@ -290,9 +290,9 @@ function Overview({ kpi, readings, targets, modules }: {
       )}
 
       {readings.length > 0 ? (
-        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
+        <div className="rounded border border-line bg-raised p-3.5">
           <h2 className="chart-title">{t('kpi.chartTitle')}</h2>
-          <p className="text-[12px] text-muted">{t('kpi.chartHint')}</p>
+          <p className="text-label text-muted">{t('kpi.chartHint')}</p>
           <MeasureChart actual={series.actual} target={series.target} kpi={kpi} caption={t('kpi.chartCaption', { name: kpi.name })} />
         </div>
       ) : (
@@ -448,7 +448,7 @@ function ReadingForm({ kpi, entry, onClose }: { kpi: Kpi; entry: KpiReading | nu
         />
         {/* Not a formality. A measurement nobody can trace is a number somebody
             will dispute and nobody can defend. */}
-        <span className="text-[12px] text-muted">{t('kpi.sourceHint')}</span>
+        <span className="text-label text-muted">{t('kpi.sourceHint')}</span>
       </div>
       <div className="field">
         <label htmlFor="r-note">{t('kpi.note')}</label>
@@ -550,7 +550,7 @@ function Targets({ kpi, targets, modules }: {
       {/* Said once, on the screen where it matters: this is what the milestone
           column buys you. */}
       {sorted.some((entry) => entry.module_id) && (
-        <p className="mt-3 text-[12px] text-muted">{t('kpi.milestoneNote')}</p>
+        <p className="mt-3 text-label text-muted">{t('kpi.milestoneNote')}</p>
       )}
 
       {editing && (
@@ -624,7 +624,7 @@ function TargetForm({ kpi, entry, modules, onClose }: {
           <option value="">{t('kpi.noMilestone')}</option>
           {modules.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
         </Select>
-        <span className="text-[12px] text-muted">{t('kpi.milestoneHint')}</span>
+        <span className="text-label text-muted">{t('kpi.milestoneHint')}</span>
       </div>
       <div className="field">
         <label htmlFor="t-due">{t('kpi.due')}</label>
@@ -636,7 +636,7 @@ function TargetForm({ kpi, entry, modules, onClose }: {
         />
         {/* Which of the two dates is actually in force, while somebody is
             choosing — rather than after they have saved and wondered. */}
-        <span className="text-[12px] text-muted">
+        <span className="text-label text-muted">
           {module?.target_date
             ? t('kpi.dueFromMilestone', { name: module.name, when: shortDate(module.target_date) })
             : t('kpi.dueHintPlain')}
@@ -668,7 +668,7 @@ function KpiSettings({ kpi }: { kpi: Kpi }) {
       {canWrite && (
         <>
           <SectionHeading>{t('kpi.dangerTitle')}</SectionHeading>
-          <p className="text-[12px] text-muted mb-2">{t('kpi.dangerHint')}</p>
+          <p className="text-label text-muted mb-2">{t('kpi.dangerHint')}</p>
           <Button
             variant="danger"
             onClick={async () => {
@@ -756,7 +756,7 @@ function KpiFields({ kpi, disabled, onChange }: {
       </div>
       {/* The one field that cannot be changed lightly later, said where it is
           chosen: every value on the KPI is stored at this scale. */}
-      <p className="text-[12px] text-muted -mt-1 mb-3">{t('kpi.decimalsHint')}</p>
+      <p className="text-label text-muted -mt-1 mb-3">{t('kpi.decimalsHint')}</p>
 
       <div className="field-row">
         <div className="field flex-1 min-w-0">
@@ -780,7 +780,7 @@ function KpiFields({ kpi, disabled, onChange }: {
           >
             {MEASURE_CADENCES.map((name) => <option key={name} value={name}>{t(cadenceKey(name))}</option>)}
           </Select>
-          <span className="text-[12px] text-muted">{t('kpi.cadenceHint')}</span>
+          <span className="text-label text-muted">{t('kpi.cadenceHint')}</span>
         </div>
       </div>
 
@@ -793,7 +793,7 @@ function KpiFields({ kpi, disabled, onChange }: {
           value={kpi.baseline ?? null}
           onChange={(value) => onChange({ baseline: value })}
         />
-        <span className="text-[12px] text-muted">{t('kpi.baselineHint')}</span>
+        <span className="text-label text-muted">{t('kpi.baselineHint')}</span>
       </div>
 
       <div className="field">
@@ -888,7 +888,7 @@ export function MilestoneKpis({ moduleId }: { moduleId: string }) {
   return (
     <div className="mt-4">
       <SectionHeading>{t('kpi.onMilestone')}</SectionHeading>
-      <p className="text-[12px] text-muted">{t('kpi.onMilestoneHint')}</p>
+      <p className="text-label text-muted">{t('kpi.onMilestoneHint')}</p>
       <div className="table-wrap">
         <table className="task-table">
           <thead>

@@ -127,7 +127,7 @@ export function TaskReviewPanel({ task }: { task: Task }) {
   return (
     <section className="mb-[18px]">
       <div className="flex items-center gap-2 mb-1.5">
-        <strong className="text-[13.5px]">{t('review.title')}</strong>
+        <strong className="text-body">{t('review.title')}</strong>
         <span className="flex-1 min-w-0" />
         <Button size="sm" disabled={working} onClick={run}>
           <Icon name="bolt" size={13} />
@@ -139,7 +139,7 @@ export function TaskReviewPanel({ task }: { task: Task }) {
         // Said before the first click rather than after it: this is the one
         // button in the app that sends the workspace's own words elsewhere,
         // and who receives them is not a detail to discover afterwards.
-        <p className="text-muted text-[12px] m-0">{t('review.sends', { provider })}</p>
+        <p className="text-muted text-label m-0">{t('review.sends', { provider })}</p>
       )}
 
       {review && (
@@ -163,7 +163,7 @@ export function TaskReviewPanel({ task }: { task: Task }) {
 
           {!!review.questions.length && (
             <div className="review-questions">
-              <strong className="text-[12.5px]">{t('review.questions')}</strong>
+              <strong className="text-label">{t('review.questions')}</strong>
               <ul>
                 {review.questions.map((question) => <li key={question}>{question}</li>)}
               </ul>

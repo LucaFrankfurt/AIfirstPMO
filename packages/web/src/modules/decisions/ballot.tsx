@@ -120,7 +120,7 @@ function Option({
 function Counted({ result }: { result: { counted: 'rows' | 'server'; voters: number } }) {
   const t = useT();
   return (
-    <p className="text-[12px] text-muted">
+    <p className="text-label text-muted">
       {t('decision.turnout', { count: result.voters })}
       {result.counted === 'server' && ` · ${t('decision.countedByServer')}`}
     </p>
@@ -155,7 +155,7 @@ export function Ballot({ decision, compact = false }: { decision: Decision; comp
       </ul>
       {!compact && <Counted result={result} />}
       {why !== 'open' && (
-        <p className="text-[12px] text-muted">
+        <p className="text-label text-muted">
           {why === 'expired' ? t('decision.expired') : t('decision.closed')}
           {/* The leaders rather than the winner: two options level is the
               moment somebody has to talk, and a screen that picked one of them

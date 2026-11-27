@@ -77,7 +77,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
                 around it, in a line of running text. */}
             <Select
               inputSize="sm"
-              className="w-auto h-auto border-none bg-transparent px-1 py-0.5 text-[12.5px] text-muted"
+              className="w-auto h-auto border-none bg-transparent px-1 py-0.5 text-label text-muted"
               aria-label={t('auth.language')}
               value={locale}
               onChange={(event) => setLocale(event.target.value as Locale)}

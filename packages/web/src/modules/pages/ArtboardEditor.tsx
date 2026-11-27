@@ -289,9 +289,9 @@ function BoardHistory({ board, previewing, onPreview, onRestored }: {
   return (
     <section className="artboard-section">
       <h3>{t('canvas.history')}</h3>
-      {failed && <p className="text-[12px] text-danger">{t('page.historyFailed')}</p>}
-      {versions === null && !failed && <p className="text-muted text-[12.5px]">{t('common.loading')}</p>}
-      {versions !== null && versions.length === 0 && <p className="text-muted text-[12.5px]">{t('canvas.noVersions')}</p>}
+      {failed && <p className="text-label text-danger">{t('page.historyFailed')}</p>}
+      {versions === null && !failed && <p className="text-muted text-label">{t('common.loading')}</p>}
+      {versions !== null && versions.length === 0 && <p className="text-muted text-label">{t('canvas.noVersions')}</p>}
       {(versions ?? []).map((version) => (
         <div key={version.id} className={cn('artboard-version', previewing === version.id && 'is-current')}>
           <Avatar user={version.author_id ? members.get(version.author_id) : undefined} size={18} />
@@ -534,7 +534,7 @@ export function ArtboardEditor({ board, canWrite, ai = null, onRename, startAski
             <button type="button" role="tab" aria-selected={tab === 'source'} className={cn('artboard-tab', tab === 'source' && 'is-current')} onClick={() => { flush(); setTab('source'); }}>{t('canvas.source')}</button>
           </div>
           <span className="flex-1" />
-          {merged && <span className="text-[12px] text-muted">{t('page.mergedIn')}</span>}
+          {merged && <span className="text-label text-muted">{t('page.mergedIn')}</span>}
           <Button size="iconSm" variant="ghost" disabled={!undo.current.length} onClick={() => step(undo.current, redo.current)} aria-label={t('canvas.undo')} title={t('canvas.undo')}><Icon name="undo" size={15} /></Button>
           <Button size="iconSm" variant="ghost" disabled={!redo.current.length} onClick={() => step(redo.current, undo.current)} aria-label={t('canvas.redo')} title={t('canvas.redo')}><Icon name="redo" size={15} /></Button>
           {ai && canWrite && (
@@ -635,7 +635,7 @@ export function ArtboardEditor({ board, canWrite, ai = null, onRename, startAski
                   }}
                 />
               ) : (
-                <p className="text-muted text-[12.5px] artboard-section">{canWrite ? t('canvas.selectHint') : t('canvas.readOnly')}</p>
+                <p className="text-muted text-label artboard-section">{canWrite ? t('canvas.selectHint') : t('canvas.readOnly')}</p>
               )}
               <section className="artboard-section">
                 <h3>{t('canvas.board')}</h3>

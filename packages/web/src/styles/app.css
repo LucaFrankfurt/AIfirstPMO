@@ -107,15 +107,63 @@
   --color-warn: var(--warn);
   --color-ok: var(--ok);
 
-  --radius-DEFAULT: var(--radius);
-  --radius-sm: var(--radius-sm);
-  --radius-lg: var(--radius-lg);
-
-  --shadow-sm: var(--shadow-sm);
-  --shadow-DEFAULT: var(--shadow);
-
   --font-sans: var(--font);
   --font-mono: var(--mono);
+}
+
+/*
+ * The scales that do not change with the theme: radius and type. Declared here
+ * and nowhere else, so this block is the one source and `var(--radius-sm)` in
+ * the hand-written rules below reads the same value as `rounded-sm`.
+ *
+ * This replaced two lines that looked right and did nothing. `--radius-DEFAULT`
+ * and `--shadow-DEFAULT` are Tailwind 3's spelling; Tailwind 4 reads `--radius`
+ * for a bare `rounded`, found no such key, and fell back to its own 4px. So the
+ * port wrote `rounded-[var(--radius)]` instead, eighty-one times, and the
+ * `rounded` that two screens did use drew a radius this file says not to use.
+ *
+ * `--*: initial` first, so Tailwind's own steps are gone rather than merely
+ * outnumbered: `rounded-xl` and `text-sm` stop existing, and a class that names
+ * one is reported by `check:css` (it styles nothing) and by `check:tokens`
+ * (which says what to use instead). `static`, because the hand-written rules
+ * read these variables and Tailwind cannot see that from the class names.
+ *
+ * The type steps carry no line height, deliberately. Every one of them replaced
+ * an arbitrary `text-[…px]`, and those set the size alone; a step that also set
+ * the line height would have moved six hundred lines of text by a pixel or two
+ * each, which is a design change and not this one.
+ *
+ * The step names also live in `cn.ts`, because `tailwind-merge` cannot read
+ * this file: without them it takes `text-label` for a colour and drops it next
+ * to `text-muted`. `check:tokens` fails if the two lists disagree.
+ */
+@theme static {
+  --radius-*: initial;
+  --radius: 10px;      /* cards, panels — `rounded` */
+  --radius-sm: 7px;    /* controls — `rounded-sm` */
+  --radius-lg: 16px;   /* sheets — `rounded-lg` */
+
+  --text-*: initial;
+  --text-caption: 11.5px;   /* chips, counts, timestamps */
+  --text-label: 12.5px;     /* labels, secondary rows, hints */
+  --text-body: 13.5px;      /* task titles, menu items, buttons */
+  --text-title: 15px;       /* a sheet title, a section heading */
+  --text-headline: 19px;    /* a screen title, the title being edited */
+  --text-display: 26px;     /* the title of a page being read */
+  --text-input: 16px;       /* anything typed into on a phone: below it, iOS zooms in */
+}
+
+/*
+ * Shadows change with the theme, so their values stay in `:root` and the dark
+ * blocks, and this only points the utilities at them. `inline` so a utility
+ * reads `var(--shadow)` itself; `reference` so Tailwind does not also write
+ * `--shadow: var(--shadow)` into the theme layer, which is a variable defined
+ * as itself and worked only because a later layer happened to win.
+ */
+@theme inline reference {
+  --shadow-*: initial;
+  --shadow: var(--shadow);         /* something floating over the page */
+  --shadow-sm: var(--shadow-sm);   /* a raised control */
 }
 
 /* Kolibri design system.
@@ -169,9 +217,7 @@
   --warn: #9a580d;
   --ok: #097756;
 
-  --radius: 10px;
-  --radius-sm: 7px;
-  --radius-lg: 16px;
+  /* The radii are in `@theme static` above: they do not change with the theme. */
 
   --shadow-sm: 0 1px 2px rgb(15 18 25 / 6%);
   --shadow: 0 8px 28px -12px rgb(15 18 25 / 22%), 0 1px 2px rgb(15 18 25 / 6%);

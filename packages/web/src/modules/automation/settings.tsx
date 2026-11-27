@@ -101,7 +101,7 @@ export function AutomationSettings() {
 
   return (
     <>
-      <p className="text-muted text-[13.5px]">{t('auto.intro')}</p>
+      <p className="text-muted text-body">{t('auto.intro')}</p>
       <GuideHint to="automation" />
 
       {/* ------------------------------------------------------- templates */}
@@ -114,7 +114,7 @@ export function AutomationSettings() {
           </Button>
         )}
       </div>
-      <p className="text-muted text-[12.5px]" style={{ marginTop: 0 }}>{t('tpl.lead')}</p>
+      <p className="text-muted text-label" style={{ marginTop: 0 }}>{t('tpl.lead')}</p>
 
       {!templates.length && <Empty emoji="📋" title={t('tpl.empty')} hint={t('tpl.emptyHint')} guide="automation" />}
       {templates.map((template) => (
@@ -144,7 +144,7 @@ export function AutomationSettings() {
           </Button>
         )}
       </div>
-      <p className="text-muted text-[12.5px]" style={{ marginTop: 0 }}>
+      <p className="text-muted text-label" style={{ marginTop: 0 }}>
         {templates.length ? t('auto.lead') : t('auto.needTemplate')}
       </p>
 
@@ -325,7 +325,7 @@ function TemplateEditor({
       <div className="field">
         <label htmlFor="tpl-title">{t('tpl.taskTitle')}</label>
         <Input id="tpl-title" value={form.title} onChange={(e) => set('title', e.target.value)} />
-        <span className="text-[12px] text-muted">{t('tpl.placeholderHelp')}</span>
+        <span className="text-label text-muted">{t('tpl.placeholderHelp')}</span>
       </div>
 
       <div className="field">
@@ -347,7 +347,7 @@ function TemplateEditor({
             value={form.due_in_days ?? ''}
             onChange={(e) => set('due_in_days', e.target.value === '' ? null : Number(e.target.value))}
           />
-          <span className="text-[12px] text-muted">{t('tpl.dueInDaysHint')}</span>
+          <span className="text-label text-muted">{t('tpl.dueInDaysHint')}</span>
         </div>
       </div>
 
@@ -357,7 +357,7 @@ function TemplateEditor({
           id="tpl-subtasks" style={{ minHeight: 90 }}
           value={form.subtasks} onChange={(e) => set('subtasks', e.target.value)}
         />
-        <span className="text-[12px] text-muted">{t('tpl.subtasksHint')}</span>
+        <span className="text-label text-muted">{t('tpl.subtasksHint')}</span>
       </div>
     </Sheet>
   );
@@ -512,7 +512,7 @@ function RuleEditor({
               <option value="">—</option>
               {states.map((state) => <option key={state.id} value={state.id}>{state.name}</option>)}
             </Select>
-            {!form.project_id && <span className="text-[12px] text-muted">{t('auto.stateNeedsProject')}</span>}
+            {!form.project_id && <span className="text-label text-muted">{t('auto.stateNeedsProject')}</span>}
           </div>
         )}
         {form.trigger_kind === 'due_in' && (
@@ -523,7 +523,7 @@ function RuleEditor({
               value={form.trigger_days}
               onChange={(e) => set('trigger_days', Math.max(0, Number(e.target.value) || 0))}
             />
-            <span className="text-[12px] text-muted">{t('auto.daysBeforeHint')}</span>
+            <span className="text-label text-muted">{t('auto.daysBeforeHint')}</span>
           </div>
         )}
         {form.trigger_kind === 'state_group_entered' && (
@@ -592,12 +592,12 @@ function RuleEditor({
           {/* Still never the state: a rule that moves a task can trigger a rule
               that moves it back, and two rules editing one row is a merge
               problem rather than a feature flag. */}
-          <span className="text-[12px] text-muted">{t('auto.actionSetFieldsHint')}</span>
+          <span className="text-label text-muted">{t('auto.actionSetFieldsHint')}</span>
         </>
       )}
 
       <h4 className="auto-h">{t('auto.recipients')}</h4>
-      <p className="text-[12px] text-muted" style={{ marginTop: -4 }}>{t('auto.recipientsHint')}</p>
+      <p className="text-label text-muted" style={{ marginTop: -4 }}>{t('auto.recipientsHint')}</p>
       {form.recipients.map((recipient, index) => (
         <div className="flex items-center gap-2 auto-recipient mb-1.5" key={index}>
           <Select
@@ -689,7 +689,7 @@ function Toggle({
       <input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked ? 1 : 0)} />
       <span>
         <span>{t(label)}</span>
-        {hint && <span className="text-[12px] text-muted">{t(hint)}</span>}
+        {hint && <span className="text-label text-muted">{t(hint)}</span>}
       </span>
     </label>
   );
@@ -709,7 +709,7 @@ function RunLog({ automationId, onClose }: { automationId: string; onClose: () =
 
   return (
     <Sheet title={t('auto.runs')} onClose={onClose}>
-      <p className="text-muted text-[12.5px]" style={{ marginTop: 0 }}>{t('auto.runsLead')}</p>
+      <p className="text-muted text-label" style={{ marginTop: 0 }}>{t('auto.runsLead')}</p>
       {runs && !runs.length && <p className="text-muted">{t('auto.noRuns')}</p>}
       {runs?.map((entry) => {
         const actor = members.find((member) => member.id === entry.actor_id);

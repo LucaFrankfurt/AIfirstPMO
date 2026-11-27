@@ -386,8 +386,8 @@ export function BoardPageView({ page, canWrite, ai = null, editing, onEditing, o
           </div>
         ) : (
           <div className="board-empty">
-            <h2 className="text-base font-semibold m-0">{t('board.emptyTitle')}</h2>
-            <p className="text-muted text-[13px] m-0">{canWrite ? t('board.emptyHint') : t('board.emptyReader')}</p>
+            <h2 className="text-title font-semibold m-0">{t('board.emptyTitle')}</h2>
+            <p className="text-muted text-body m-0">{canWrite ? t('board.emptyHint') : t('board.emptyReader')}</p>
             {canWrite && (
               <div className="board-empty-choices">
                 {ai && (
@@ -412,7 +412,7 @@ export function BoardPageView({ page, canWrite, ai = null, editing, onEditing, o
       {panel && (
         <aside className="canvas-panel" aria-label={t('canvas.comments')}>
           <div className="flex items-center gap-2 mb-2">
-            <h2 className="flex-1 text-sm font-semibold m-0">{t('canvas.comments')}</h2>
+            <h2 className="flex-1 text-title font-semibold m-0">{t('canvas.comments')}</h2>
             <Button size="iconSm" variant="ghost" onClick={() => setPanel(false)} aria-label={t('action.close')}><Icon name="close" size={14} /></Button>
           </div>
           {thread({

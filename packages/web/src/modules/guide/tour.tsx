@@ -119,7 +119,7 @@ export function WelcomeTour() {
       onClose={finish}
       footer={
         <>
-          <span className="text-muted flex-1 min-w-0 text-[12.5px]">
+          <span className="text-muted flex-1 min-w-0 text-label">
             {t('tour.stepOf', { current: index + 1, total: steps.length })}
           </span>
           {index > 0 && <Button onClick={() => setIndex(index - 1)}>{t('tour.back')}</Button>}
@@ -312,10 +312,10 @@ export function SetupChecklist() {
   if (hidden || done === items.length) return null;
 
   return (
-    <section className="rounded-[var(--radius)] border border-line bg-raised p-3.5 setup" aria-label={t('setup.title')}>
+    <section className="rounded border border-line bg-raised p-3.5 setup" aria-label={t('setup.title')}>
       <div className="flex items-center gap-2 mb-2.5">
-        <strong className="text-[13.5px]">{t('setup.title')}</strong>
-        <span className="text-muted text-[12.5px]">{t('setup.progress', { done, total: items.length })}</span>
+        <strong className="text-body">{t('setup.title')}</strong>
+        <span className="text-muted text-label">{t('setup.progress', { done, total: items.length })}</span>
         <span className="flex-1 min-w-0" />
         <Link className={buttonVariants({ variant: 'ghost', size: 'sm' })} to="/guide"><Icon name="help" size={13} /> <span className="hide-sm">{t('nav.guide')}</span></Link>
         <Button variant="ghost" size="sm"

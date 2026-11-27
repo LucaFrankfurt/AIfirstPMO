@@ -243,7 +243,7 @@ export function BudgetIndex() {
 
           {/* `mt-5` rather than `tight`: this is no longer the top of the page. */}
           <SectionHeading>{t('budget.portfolioTitle')}</SectionHeading>
-          <p className="text-[12px] text-muted">{t('budget.portfolioHint')}</p>
+          <p className="text-label text-muted">{t('budget.portfolioHint')}</p>
           {perCurrency.map((row) => (
             <div className="kpi-row" key={row.currency}>
               <Stat
@@ -263,16 +263,16 @@ export function BudgetIndex() {
 
           <div className="grid gap-3 sm:grid-cols-2">
             {byProject.length > 0 && (
-              <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
+              <div className="rounded border border-line bg-raised p-3.5">
                 <h2 className="chart-title">{t('budget.byProject')}</h2>
-                <p className="text-[12px] text-muted">{t('budget.byProjectHint')}</p>
+                <p className="text-label text-muted">{t('budget.byProjectHint')}</p>
                 <SplitBars rows={byProject} currency={main} caption={t('budget.byProjectCaption')} unit={t('budget.project')} />
               </div>
             )}
             {byCategory.length > 0 && (
-              <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
+              <div className="rounded border border-line bg-raised p-3.5">
                 <h2 className="chart-title">{t('budget.byCategory')}</h2>
-                <p className="text-[12px] text-muted">{t('budget.byCategoryHint')}</p>
+                <p className="text-label text-muted">{t('budget.byCategoryHint')}</p>
                 <SplitBars rows={byCategory} currency={main} caption={t('budget.byCategoryCaption')} unit={t('budget.category')} />
               </div>
             )}
@@ -424,7 +424,7 @@ function Dashboard({ budget, totals }: { budget: Budget; totals: ReturnType<type
       </div>
       {/* The sentence the tile has no room for. A hint long enough to explain
           a figure is a hint that stretches every tile in the row to match it. */}
-      {totals.runRate !== null && <p className="mb-4 text-[12px] text-muted">{t('budget.runRateAside')}</p>}
+      {totals.runRate !== null && <p className="mb-4 text-label text-muted">{t('budget.runRateAside')}</p>}
 
       <div className="kpi-row">
         <Stat label={t('budget.committed')} value={asMoney(totals.committed, currency, true)} />
@@ -440,9 +440,9 @@ function Dashboard({ budget, totals }: { budget: Budget; totals: ReturnType<type
         )}
       </div>
 
-      <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
+      <div className="rounded border border-line bg-raised p-3.5">
         <h2 className="chart-title">{t('budget.burn')}</h2>
-        <p className="text-[12px] text-muted">{t('budget.burnHint')}</p>
+        <p className="text-label text-muted">{t('budget.burnHint')}</p>
         <BurnChart
           labels={totals.byMonth.map((row) => monthLabel(row.month))}
           currency={currency}
@@ -462,9 +462,9 @@ function Dashboard({ budget, totals }: { budget: Budget; totals: ReturnType<type
         />
       </div>
 
-      <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
+      <div className="rounded border border-line bg-raised p-3.5">
         <h2 className="chart-title">{t('budget.monthly')}</h2>
-        <p className="text-[12px] text-muted">{t('budget.monthlyHint')}</p>
+        <p className="text-label text-muted">{t('budget.monthlyHint')}</p>
         <PlanVsActual
           currency={currency}
           caption={t('budget.monthlyCaption')}
@@ -475,9 +475,9 @@ function Dashboard({ budget, totals }: { budget: Budget; totals: ReturnType<type
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
+        <div className="rounded border border-line bg-raised p-3.5">
           <h2 className="chart-title">{t('budget.byCategory')}</h2>
-          <p className="text-[12px] text-muted">{t('budget.byCategoryHint')}</p>
+          <p className="text-label text-muted">{t('budget.byCategoryHint')}</p>
           <SplitBars
             currency={currency}
             caption={t('budget.byCategoryCaption')}
@@ -487,9 +487,9 @@ function Dashboard({ budget, totals }: { budget: Budget; totals: ReturnType<type
             }))}
           />
         </div>
-        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
+        <div className="rounded border border-line bg-raised p-3.5">
           <h2 className="chart-title">{t('budget.byProject')}</h2>
-          <p className="text-[12px] text-muted">{t('budget.byProjectHint')}</p>
+          <p className="text-label text-muted">{t('budget.byProjectHint')}</p>
           <SplitBars
             currency={currency}
             caption={t('budget.byProjectCaption')}
@@ -502,7 +502,7 @@ function Dashboard({ budget, totals }: { budget: Budget; totals: ReturnType<type
             }))}
           />
         </div>
-        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
+        <div className="rounded border border-line bg-raised p-3.5">
           <h2 className="chart-title">{t('budget.byConfidence')}</h2>
           <SplitBars
             currency={currency}
@@ -513,7 +513,7 @@ function Dashboard({ budget, totals }: { budget: Budget; totals: ReturnType<type
             })).filter((row) => row.planned)}
           />
         </div>
-        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
+        <div className="rounded border border-line bg-raised p-3.5">
           <h2 className="chart-title">{t('budget.byKind')}</h2>
           <SplitBars
             currency={currency}
@@ -664,7 +664,7 @@ function Plan({ budget }: { budget: Budget }) {
         </div>
       )}
 
-      {anyRegistered && <p className="mt-2 text-[12px] text-muted">{t('estate.fromRegisterHint')}</p>}
+      {anyRegistered && <p className="mt-2 text-label text-muted">{t('estate.fromRegisterHint')}</p>}
 
       {editing && (
         <LineForm
@@ -750,7 +750,7 @@ function LineForm({ budget, line, last, onClose }: {
             value={form.amount}
             onChange={(amount) => setForm({ ...form, amount })}
           />
-          <span className="text-[12px] text-muted">{t('budget.amountHint')}</span>
+          <span className="text-label text-muted">{t('budget.amountHint')}</span>
         </div>
         <div className="field flex-1 min-w-0">
           <label htmlFor="bl-every">{t('budget.recurrence')}</label>
@@ -1056,7 +1056,7 @@ function ConfirmPlanned({ budget, lines, actuals }: {
             {planned.map((row) => (
               <li key={row.line.id} className={row.confirmed ? 'done' : ''}>
                 <span className="flex-1 min-w-0 truncate">{row.line.name}</span>
-                <span className="text-[12px] text-muted">{shortDate(row.on)}</span>
+                <span className="text-label text-muted">{shortDate(row.on)}</span>
                 <span className="tabular-nums">{asMoney(row.amount, budget.currency)}</span>
                 {row.confirmed ? (
                   /* Already recorded, so no button — and the figure that is
@@ -1077,7 +1077,7 @@ function ConfirmPlanned({ budget, lines, actuals }: {
               <Button variant="primary" size="sm" onClick={() => take(open)}>
                 {t('budget.confirmAll', { count: open.length, amount: asMoney(outstanding, budget.currency) })}
               </Button>
-              <span className="text-[12px] text-muted">{t('budget.confirmHint')}</span>
+              <span className="text-label text-muted">{t('budget.confirmHint')}</span>
             </div>
           )}
         </>
@@ -1212,7 +1212,7 @@ function ActualForm({ budget, entry, lines, onClose }: {
           >
             {SPEND_STAGES.map((stage) => <option key={stage} value={stage}>{t(stageKey(stage))}</option>)}
           </Select>
-          <span className="text-[12px] text-muted">{t('budget.stageHint')}</span>
+          <span className="text-label text-muted">{t('budget.stageHint')}</span>
         </div>
       </div>
 
@@ -1253,7 +1253,7 @@ function Scenarios({ budget, showing, onShow }: {
 
   return (
     <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
-      <p className="text-[12px] text-muted">{t('budget.scenarioHint')}</p>
+      <p className="text-label text-muted">{t('budget.scenarioHint')}</p>
       {canWrite && (
         <div className="mb-3 flex justify-end">
           <Button variant="primary" size="sm" onClick={() => setEditing('new')}>
@@ -1388,7 +1388,7 @@ function ScenarioForm({ budget, scenario, lines, onClose }: {
       </div>
 
       <SectionHeading tight>{t('budget.weights')}</SectionHeading>
-      <p className="text-[12px] text-muted">{t('budget.weightsHint')}</p>
+      <p className="text-label text-muted">{t('budget.weightsHint')}</p>
       <div className="field-row">
         {COST_CONFIDENCE.map((level) => (
           <div className="field flex-1 min-w-0" key={level}>
@@ -1559,7 +1559,7 @@ function BudgetFields({ budget, onChange, disabled }: {
             value={budget.currency ?? 'EUR'}
             onChange={(event) => onChange({ currency: event.target.value.toUpperCase() })}
           />
-          <span className="text-[12px] text-muted">{t('budget.currencyHint')}</span>
+          <span className="text-label text-muted">{t('budget.currencyHint')}</span>
         </div>
         <div className="field flex-1 min-w-0">
           <label htmlFor="b-approved">{t('budget.approved')}</label>
@@ -1569,7 +1569,7 @@ function BudgetFields({ budget, onChange, disabled }: {
             value={budget.approved ?? 0}
             onChange={(approved) => onChange({ approved })}
           />
-          <span className="text-[12px] text-muted">{t('budget.approvedHint')}</span>
+          <span className="text-label text-muted">{t('budget.approvedHint')}</span>
         </div>
       </div>
       <div className="field-row">
@@ -1595,7 +1595,7 @@ function BudgetFields({ budget, onChange, disabled }: {
           {/* What an empty field does, said out loud. It used to mean a period
               one month long, which nobody would have guessed and nothing said
               — the budget simply came out an order of magnitude small. */}
-          <span className="text-[12px] text-muted">{t('budget.periodEndHint')}</span>
+          <span className="text-label text-muted">{t('budget.periodEndHint')}</span>
         </div>
         <div className="field flex-1 min-w-0">
           <label htmlFor="b-status">{t('budget.status')}</label>
@@ -1614,7 +1614,7 @@ function BudgetFields({ budget, onChange, disabled }: {
 
       <div className="field" role="group" aria-labelledby="b-scope">
         <label id="b-scope">{t('budget.scope')}</label>
-        <span className="text-[12px] text-muted">{t('budget.scopeHint')}</span>
+        <span className="text-label text-muted">{t('budget.scopeHint')}</span>
         <div className="scope-picker">
           <label className="check-row">
             <input

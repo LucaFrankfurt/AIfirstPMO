@@ -163,10 +163,10 @@ export function Trash() {
   return (
     <>
       <SectionHeading tight>{t('trash.title')}</SectionHeading>
-      <p className="text-muted text-[13.5px]">{t('trash.intro')}</p>
+      <p className="text-muted text-body">{t('trash.intro')}</p>
 
       <div className="flex items-center flex-wrap gap-1.5" style={{ margin: '12px 0' }}>
-        <div className="flex items-center gap-0.5" style={{ border: '1px solid var(--line-strong)', borderRadius: 7, padding: 2 }}>
+        <div className="flex items-center gap-0.5 rounded-sm" style={{ border: '1px solid var(--line-strong)', padding: 2 }}>
           {(['deleted', 'archived'] as const).map((which) => (
             <button
               key={which}
@@ -202,27 +202,27 @@ export function Trash() {
           hint={t('trash.emptyHint')}
         />
       ) : (
-        <div className="rounded-[var(--radius)] border border-line bg-raised p-0">
+        <div className="rounded border border-line bg-raised p-0">
           {shown.map((entry) => (
             <div className="flex items-center gap-2 trash-row" key={`${entry.entity}-${entry.id}`} style={{ gap: 9 }}>
               <Icon name={entry.icon} size={14} />
-              <span className="text-muted text-[11.5px]" style={{ minWidth: 62 }}>{t(entry.label)}</span>
+              <span className="text-muted text-caption" style={{ minWidth: 62 }}>{t(entry.label)}</span>
               <span className="flex-1 min-w-0 truncate">{entry.title}</span>
-              {entry.where && <span className="text-muted truncate hide-sm text-[12.5px]" style={{ maxWidth: 130 }}>{entry.where}</span>}
-              <span className="text-muted text-[12.5px]">{entry.when ? relativeTime(entry.when) : ''}</span>
+              {entry.where && <span className="text-muted truncate hide-sm text-label" style={{ maxWidth: 130 }}>{entry.where}</span>}
+              <span className="text-muted text-label">{entry.when ? relativeTime(entry.when) : ''}</span>
               <Button size="sm" onClick={() => bring(entry)}>{t('trash.restore')}</Button>
             </div>
           ))}
           {entries.length > shown.length && (
             <div className="flex items-center gap-2 trash-row">
-              <span className="text-muted text-[12.5px]">{t('trash.andMore', { count: entries.length - shown.length })}</span>
+              <span className="text-muted text-label">{t('trash.andMore', { count: entries.length - shown.length })}</span>
             </div>
           )}
         </div>
       )}
 
-      <p className="text-[12px] text-muted mt-2.5">{t('trash.retentionHint')}</p>
-      {mode === 'deleted' && canEmpty && <p className="text-[12px] text-muted">{t('trash.emptyHintWhat')}</p>}
+      <p className="text-label text-muted mt-2.5">{t('trash.retentionHint')}</p>
+      {mode === 'deleted' && canEmpty && <p className="text-label text-muted">{t('trash.emptyHintWhat')}</p>}
       {dialog}
       {/* `members` is read so a future "deleted by" column has it to hand; the
           delete itself is not attributed on the row today. */}

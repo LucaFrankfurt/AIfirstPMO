@@ -126,10 +126,10 @@ export function DecisionDetail() {
           <DecisionState decision={decision} />
           <Chip>{t(modeKey(decision.mode))}</Chip>
           <Chip>{t(visibilityKey(decision.visibility))}</Chip>
-          {decision.task_id && <Link to={`/t/${decision.task_id}`} className="text-[12px]">{byId('task', decision.task_id)?.identifier}</Link>}
+          {decision.task_id && <Link to={`/t/${decision.task_id}`} className="text-label">{byId('task', decision.task_id)?.identifier}</Link>}
         </div>
 
-        {decision.description && <p className="text-[13px]">{decision.description}</p>}
+        {decision.description && <p className="text-body">{decision.description}</p>}
 
         <Ballot decision={decision} />
 

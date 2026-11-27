@@ -45,7 +45,7 @@ export function WorkspaceLabelSettings() {
       <div className="flex items-center gap-2" style={{ margin: '18px 0 8px' }}>
         <SectionHeading tight>{t('labels.workspace')}</SectionHeading>
       </div>
-      <p className="mt-0 mb-2.5 text-[12.5px] text-muted">{t('labels.workspaceHint')}</p>
+      <p className="mt-0 mb-2.5 text-label text-muted">{t('labels.workspaceHint')}</p>
       {labels.map((label) => (
         <div className="stack-card" key={label.id}>
           <div className="flex items-center gap-2 flex-wrap">

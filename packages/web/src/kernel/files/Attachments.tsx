@@ -89,8 +89,8 @@ export function Attachments({ on, heading, empty, className }: {
   return (
     <section className={className}>
       <div className="flex items-center gap-2 mb-1.5">
-        <strong className="text-[13.5px]">{heading ?? t('attachment.files')}</strong>
-        {files.length > 0 && <span className="text-muted text-[12.5px]">{files.length}</span>}
+        <strong className="text-body">{heading ?? t('attachment.files')}</strong>
+        {files.length > 0 && <span className="text-muted text-label">{files.length}</span>}
         <span className="flex-1 min-w-0" />
         {canWrite && (
           <>
@@ -126,7 +126,7 @@ export function Attachments({ on, heading, empty, className }: {
         } : undefined}
       >
         {files.length === 0 && (
-          <span className="text-muted text-[12.5px]">
+          <span className="text-muted text-label">
             {empty ?? (canWrite ? t('attachment.noneYet') : t('attachment.none'))}
           </span>
         )}

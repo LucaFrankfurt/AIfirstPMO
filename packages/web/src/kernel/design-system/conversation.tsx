@@ -204,9 +204,9 @@ export function Thread({
                   </div>
                 )}
                 {/* A line that is only a picture still says when. */}
-                {!said && <span className="mt-0.5 flex gap-1.5 px-1 text-[11px] text-muted">{line.meta}{line.pending ? words.sending : words.clock(line.at)}</span>}
-                {line.failed && <div className="mt-1 px-1 text-[11.5px] text-danger">{line.failed}</div>}
-                {line.id === seen && <span className="mt-0.5 px-1 text-[11px] text-muted">{words.seen}</span>}
+                {!said && <span className="mt-0.5 flex gap-1.5 px-1 text-caption text-muted">{line.meta}{line.pending ? words.sending : words.clock(line.at)}</span>}
+                {line.failed && <div className="mt-1 px-1 text-caption text-danger">{line.failed}</div>}
+                {line.id === seen && <span className="mt-0.5 px-1 text-caption text-muted">{words.seen}</span>}
                 {line.below}
                 {line.actions && (
                   <>
@@ -242,7 +242,7 @@ function Files({ files, mine }: { files: ThreadFile[]; mine: boolean }) {
   return (
     <div className={cn('mb-1 flex flex-wrap gap-1.5', mine ? 'justify-end' : 'justify-start')}>
       {files.map((file) => (file.type.startsWith('image/') && file.src ? (
-        <a key={file.key} href={file.src} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl border border-line">
+        <a key={file.key} href={file.src} target="_blank" rel="noreferrer" className="block overflow-hidden rounded border border-line">
           <img
             src={file.src}
             alt={file.name}
@@ -257,7 +257,7 @@ function Files({ files, mine }: { files: ThreadFile[]; mine: boolean }) {
           href={file.src ?? undefined}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex max-w-[240px] items-center gap-1.5 rounded-xl border border-line bg-raised px-2.5 py-1.5 text-[12.5px] text-fg"
+          className="inline-flex max-w-[240px] items-center gap-1.5 rounded border border-line bg-raised px-2.5 py-1.5 text-label text-fg"
         >
           <Icon name="attach" size={13} />
           <span className="truncate">{file.name}</span>
@@ -270,7 +270,7 @@ function Files({ files, mine }: { files: ThreadFile[]; mine: boolean }) {
 /** Three dots, breathing. Still when somebody asked for less motion. */
 export function TypingDots() {
   return (
-    <span className="inline-flex items-center gap-1 rounded-2xl border border-line bg-raised px-3 py-2.5">
+    <span className="inline-flex items-center gap-1 rounded-lg border border-line bg-raised px-3 py-2.5">
       {[0, 1, 2].map((dot) => (
         <span
           key={dot}
@@ -435,8 +435,13 @@ export function Composer({
             disabled={disabled}
             placeholder={placeholder ?? words.placeholder}
             aria-label={placeholder ?? words.placeholder}
+            // `text-body`, not the `text-input sm:text-body` that `Input` uses,
+            // although under 16px iOS zooms the page in when this is tapped.
+            // At 16px the placeholder wraps on a 340px screen and the one-row
+            // field scrolls (`check:responsive`, the support conversation).
+            // Both are true; choosing between them is a design decision.
             className={cn(
-              'max-h-40 min-h-9 min-w-0 flex-1 resize-none rounded-[18px] border border-line-strong bg-raised px-3.5 py-2 text-[14px] leading-[1.4] text-fg placeholder:text-muted',
+              'max-h-40 min-h-9 min-w-0 flex-1 resize-none rounded-lg border border-line-strong bg-raised px-3.5 py-2 text-body leading-[1.4] text-fg placeholder:text-muted',
               'focus-visible:border-[var(--thread-accent,var(--accent))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--thread-accent,var(--accent))]',
             )}
             onChange={(event) => typed(event.target.value)}

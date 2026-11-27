@@ -103,7 +103,7 @@ export function ProjectScopeField({
         <option value="some">{labels.some}</option>
         <option value="all">{labels.all}</option>
       </Select>
-      <span className="text-[12px] text-muted mt-1">
+      <span className="text-label text-muted mt-1">
         {scope === 'this' ? labels.thisHint : scope === 'all' ? labels.allHint : labels.someHint}
       </span>
 
@@ -123,7 +123,7 @@ export function ProjectScopeField({
               <span>{project.icon} {project.name}</span>
             </label>
           ))}
-          {!picked.length && <span className="text-[12px] text-danger">{labels.pickOne}</span>}
+          {!picked.length && <span className="text-label text-danger">{labels.pickOne}</span>}
         </div>
       )}
 
@@ -133,17 +133,17 @@ export function ProjectScopeField({
           removed, because "stranded" otherwise reads as "deleted" to the person
           about to press Save. */}
       {stranded.length > 0 && (
-        <div className="mt-2.5 rounded-[var(--radius-sm)] border border-line bg-sunken p-2.5">
-          <strong className="block text-[12.5px] text-danger">{labels.strandTitle}</strong>
+        <div className="mt-2.5 rounded-sm border border-line bg-sunken p-2.5">
+          <strong className="block text-label text-danger">{labels.strandTitle}</strong>
           <span className="mt-1 flex flex-wrap items-center gap-1.5">
             {stranded.slice(0, 12).map((task) => (
               <span className={chipVariants()} key={task.id} title={task.title}>
                 <span className="mono">{task.identifier}</span>
               </span>
             ))}
-            {stranded.length > 12 && <span className="text-[12px] text-muted">{labels.strandMore}</span>}
+            {stranded.length > 12 && <span className="text-label text-muted">{labels.strandMore}</span>}
           </span>
-          <span className="mt-1.5 block text-[12px] text-muted">{labels.strandHint}</span>
+          <span className="mt-1.5 block text-label text-muted">{labels.strandHint}</span>
         </div>
       )}
     </div>

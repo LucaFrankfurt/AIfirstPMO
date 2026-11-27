@@ -41,7 +41,7 @@ export function AuditLog() {
     return (
       <>
         <SectionHeading>{t('audit.title')}</SectionHeading>
-        <p className="text-[12px] text-muted">{t('audit.empty')}</p>
+        <p className="text-label text-muted">{t('audit.empty')}</p>
       </>
     );
   }
@@ -49,8 +49,8 @@ export function AuditLog() {
   return (
     <>
       <SectionHeading>{t('audit.title')}</SectionHeading>
-      <p className="text-[12px] text-muted mb-2">{t('audit.hint')}</p>
-      <div className="rounded-[var(--radius)] border border-line bg-raised p-0">
+      <p className="text-label text-muted mb-2">{t('audit.hint')}</p>
+      <div className="rounded border border-line bg-raised p-0">
         {entries.map((entry) => (
           <div className="flex items-center gap-2 trash-row" key={entry.id} style={{ gap: 9 }}>
             <Avatar user={members.get(entry.actor_id)} size={18} />
@@ -63,8 +63,8 @@ export function AuditLog() {
               {' · '}
               {entry.task_identifier ? `${entry.task_identifier} ${entry.task_title ?? ''}` : entry.page_title ?? entry.project_name ?? ''}
             </span>
-            <span className="text-muted hide-sm text-[12.5px]">{shortDate(entry.created_at)}</span>
-            <span className="text-muted text-[12.5px]">{relativeTime(entry.created_at)}</span>
+            <span className="text-muted hide-sm text-label">{shortDate(entry.created_at)}</span>
+            <span className="text-muted text-label">{relativeTime(entry.created_at)}</span>
           </div>
         ))}
       </div>
@@ -97,7 +97,7 @@ export function Webhooks() {
   return (
     <>
       <SectionHeading>{t('hooks.title')}</SectionHeading>
-      <p className="text-[12px] text-muted mb-2">{t('hooks.hint')}</p>
+      <p className="text-label text-muted mb-2">{t('hooks.hint')}</p>
 
       {hooks.map((hook) => <Hook key={hook.id} hook={hook} onRemove={async (id, name) => {
         if (await confirm(t('hooks.remove') + ` — ${name || hook.url}?`, t('hooks.remove'))) remove('webhook', id);
@@ -130,7 +130,7 @@ export function Webhooks() {
       </form>
 
       <SectionHeading>{t('hooks.inTitle')}</SectionHeading>
-      <p className="text-[12px] text-muted mb-2">{t('hooks.inHint')}</p>
+      <p className="text-label text-muted mb-2">{t('hooks.inHint')}</p>
       {incoming.map((hook) => <Hook key={hook.id} hook={hook} onRemove={async (id, name) => {
         if (await confirm(t('hooks.remove') + ` — ${name}?`, t('hooks.remove'))) remove('webhook', id);
       }} />)}
@@ -175,13 +175,13 @@ function Hook({ hook, onRemove }: { hook: Webhook; onRemove: (id: string, name: 
   };
 
   return (
-    <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mb-2">
+    <div className="rounded border border-line bg-raised p-3.5 mb-2">
       <div className="flex items-center gap-2">
         <Input
           className="flex-1 min-w-0" value={hook.name ?? ''} placeholder={t('hooks.name')} aria-label={t('hooks.name')}
           onChange={(event) => update('webhook', hook.id, { name: event.target.value })}
         />
-        <label className="flex items-center gap-[5px] text-[12.5px]">
+        <label className="flex items-center gap-[5px] text-label">
           <input
             type="checkbox" checked={!!hook.enabled}
             onChange={(event) => update('webhook', hook.id, { enabled: event.target.checked ? 1 : 0 })}
@@ -276,7 +276,7 @@ function Hook({ hook, onRemove }: { hook: Webhook; onRemove: (id: string, name: 
 
       {!inbound && (
         <div className="flex items-center gap-2 mb-1.5">
-          <label className="flex items-center gap-1.5 text-[12.5px]">
+          <label className="flex items-center gap-1.5 text-label">
             <span className="text-muted">{t('hooks.format')}</span>
             <Select style={{ width: 150 }} value={hook.format ?? 'kolibri'}
               onChange={(event) => update('webhook', hook.id, { format: event.target.value })}
@@ -307,7 +307,7 @@ function Hook({ hook, onRemove }: { hook: Webhook; onRemove: (id: string, name: 
           </label>
         ))}
       </div>
-      <div className="text-muted text-[11.5px] mt-1.5">
+      <div className="text-muted text-caption mt-1.5">
         {t('hooks.lastResult')}:{' '}
         {hook.last_sent_at
           ? `${hook.last_status ?? '—'} ${hook.last_error ? `· ${hook.last_error}` : ''} · ${relativeTime(hook.last_sent_at)}`
@@ -364,9 +364,9 @@ function Deliveries({ hookId }: { hookId: string }) {
       </Button>
       {open && (
         <ul className="list-none p-0 m-0 mt-1">
-          {rows?.length === 0 && <li className="text-muted text-[11.5px]">{t('hooks.deliveriesEmpty')}</li>}
+          {rows?.length === 0 && <li className="text-muted text-caption">{t('hooks.deliveriesEmpty')}</li>}
           {(rows ?? []).map((row) => (
-            <li key={row.id} className="flex items-center gap-2 text-[11.5px]" style={{ padding: '3px 0' }}>
+            <li key={row.id} className="flex items-center gap-2 text-caption" style={{ padding: '3px 0' }}>
               <span className="flex-1 min-w-0 truncate">{row.event}</span>
               <span className="text-muted whitespace-nowrap">
                 {row.sent_at

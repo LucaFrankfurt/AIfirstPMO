@@ -191,7 +191,7 @@ export function IncidentDetail() {
           <StatusChip status={incident.status} />
           {!!incident.major && <Chip tone="on">{t('incident.major')}</Chip>}
           <Chip>{t(categoryKey(incident.category))}</Chip>
-          {hit.length > 0 && <span className="text-[12px] text-muted">{hit.join(', ')}</span>}
+          {hit.length > 0 && <span className="text-label text-muted">{hit.join(', ')}</span>}
         </div>
 
         {/* The three clocks a review is about. Each says "—" when one of its
@@ -310,7 +310,7 @@ function Resolution({ incident, disabled }: { incident: Incident; disabled: bool
           >
             {t('incident.resolve')}
           </Button>
-          {!incident.resolution_code && <span className="ml-2 text-[12px] text-muted">{t('incident.resolveNeedsCode')}</span>}
+          {!incident.resolution_code && <span className="ml-2 text-label text-muted">{t('incident.resolveNeedsCode')}</span>}
         </div>
       )}
     </div>
@@ -342,12 +342,12 @@ function Links({ incident, disabled }: { incident: Incident; disabled: boolean }
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1.5">
-        <span className="text-[12px] text-muted">{t('incident.linkedPages')}</span>
+        <span className="text-label text-muted">{t('incident.linkedPages')}</span>
         <ul className="flex list-none flex-col gap-1 p-0">
           {linkedPages.map((pageId) => {
             const page = byId('page', pageId) as Page | undefined;
             return (
-              <li key={pageId} className="flex items-center gap-2 text-[13px]">
+              <li key={pageId} className="flex items-center gap-2 text-body">
                 {page && !page.deleted_at
                   ? <Link to={`/pages/${pageId}`} className="inline-flex min-h-6 items-center">{page.icon ? `${page.icon} ` : ''}{page.title}</Link>
                   : <span className="text-muted">{t('incident.pageUnavailable')}</span>}
@@ -363,12 +363,12 @@ function Links({ incident, disabled }: { incident: Incident; disabled: boolean }
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <span className="text-[12px] text-muted">{t('incident.followUps')}</span>
+        <span className="text-label text-muted">{t('incident.followUps')}</span>
         <ul className="flex list-none flex-col gap-1 p-0">
           {linkedTasks.map((taskId) => {
             const task = byId('task', taskId) as Task | undefined;
             return (
-              <li key={taskId} className="flex items-center gap-2 text-[13px]">
+              <li key={taskId} className="flex items-center gap-2 text-body">
                 {task && !task.deleted_at
                   ? <Link to={`/t/${taskId}`} className="inline-flex min-h-6 items-center">{task.identifier} {task.title}{task.completed_at ? ` ✓` : ''}</Link>
                   : <span className="text-muted">{t('incident.taskUnavailable')}</span>}

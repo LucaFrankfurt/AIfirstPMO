@@ -11,7 +11,7 @@ import { cn } from '../cn';
  */
 const control = cva(
   'w-full bg-raised text-fg placeholder:text-muted transition-shadow '
-  + 'border border-line-strong rounded-[var(--radius-sm)] '
+  + 'border border-line-strong rounded-sm '
   + 'outline-none focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/25 '
   + 'disabled:opacity-60 disabled:cursor-not-allowed aria-invalid:border-danger aria-invalid:ring-danger/25',
   {
@@ -19,8 +19,8 @@ const control = cva(
       inputSize: {
         // 16px on a phone, because anything smaller makes iOS zoom the page in
         // on focus and never zoom back out.
-        default: 'h-9 px-2.5 text-[16px] sm:text-[13.5px]',
-        sm: 'h-8 px-2 text-[16px] sm:text-[12.5px]',
+        default: 'h-9 px-2.5 text-input sm:text-body',
+        sm: 'h-8 px-2 text-input sm:text-label',
       },
     },
     defaultVariants: { inputSize: 'default' },
@@ -62,9 +62,9 @@ export const Textarea = ({ className, ...props }: ComponentProps<'textarea'>) =>
 export function Label({ className, label, hint, children, ...props }: ComponentProps<'label'> & { label: ReactNode; hint?: string }) {
   return (
     <label className={cn('flex flex-col gap-1.5', className)} {...props}>
-      <span className="text-[12.5px] font-medium text-soft">{label}</span>
+      <span className="text-label font-medium text-soft">{label}</span>
       {children}
-      {hint && <span className="text-[12px] text-muted">{hint}</span>}
+      {hint && <span className="text-label text-muted">{hint}</span>}
     </label>
   );
 }

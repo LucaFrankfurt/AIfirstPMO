@@ -30,7 +30,7 @@ export function ApplicationsPanel() {
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-[13px] text-muted">{t('incident.applicationsIntro')}</p>
+      <p className="text-body text-muted">{t('incident.applicationsIntro')}</p>
       {canWrite && (
         <form
           className="flex items-center gap-2"
@@ -100,7 +100,7 @@ export function ApplicationsPanel() {
                   <option value="">{t('incident.noOwner')}</option>
                   {people.map((user) => <option key={user.id} value={user.id}>{user.name ?? user.email}</option>)}
                 </Select>
-                <span className="text-[12px] text-danger">{open > 0 ? t('incident.activeCount', { count: open }) : ''}</span>
+                <span className="text-label text-danger">{open > 0 ? t('incident.activeCount', { count: open }) : ''}</span>
                 {canWrite && (
                   <Button size="sm" onClick={() => update('application', app.id, { archived: app.archived ? 0 : 1 })}>
                     {app.archived ? t('action.unarchive') : t('action.archive')}

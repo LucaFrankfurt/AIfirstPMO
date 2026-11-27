@@ -31,11 +31,11 @@ export const buttonVariants = cva(
       size: {
         // 36px and 32px: comfortably above the 24px target that makes a phone
         // frustrating, without the chunkiness of a touch-only design.
-        default: 'h-9 rounded-[var(--radius-sm)] px-3.5 text-[13.5px]',
-        sm: 'h-8 rounded-[var(--radius-sm)] px-2.5 text-[12.5px]',
-        lg: 'h-11 rounded-[var(--radius)] px-5 text-sm',
-        icon: 'size-9 rounded-[var(--radius-sm)]',
-        iconSm: 'size-8 rounded-[var(--radius-sm)]',
+        default: 'h-9 rounded-sm px-3.5 text-body',
+        sm: 'h-8 rounded-sm px-2.5 text-label',
+        lg: 'h-11 rounded px-5 text-body',
+        icon: 'size-9 rounded-sm',
+        iconSm: 'size-8 rounded-sm',
       },
       block: { true: 'w-full', false: '' },
     },

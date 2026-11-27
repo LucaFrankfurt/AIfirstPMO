@@ -71,7 +71,7 @@ export function PagesKnowledge() {
       </Header>
       <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
         <Trail parts={[{ to: '/pages', label: t('page.listTitle'), icon: <Icon name="page" size={13} /> }]} />
-        <p className="text-muted text-[13.5px]" style={{ marginTop: 0 }}>{t('page.knowledgeIntro')}</p>
+        <p className="text-muted text-body" style={{ marginTop: 0 }}>{t('page.knowledgeIntro')}</p>
         {!marked ? (
           <Empty
             emoji="🌐" title={t('page.knowledgeEmpty')} hint={t('page.knowledgeEmptyHint')}
@@ -84,7 +84,7 @@ export function PagesKnowledge() {
               placeholder={t('page.filterTree')} aria-label={t('page.filterTree')}
               value={query} onChange={(event) => setQuery(event.target.value)}
             />
-            {!articles.length && <p className="text-muted text-[12.5px]">{t('page.filterNone')}</p>}
+            {!articles.length && <p className="text-muted text-label">{t('page.filterNone')}</p>}
             {articles.map((page) => {
               const replaced = isSuperseded(page, statuses);
               const trail = trails.get(page.id) ?? [];
@@ -100,7 +100,7 @@ export function PagesKnowledge() {
                       <span className="tidy-where hide-sm">{trail.map((parent) => parent.title || t('common.untitled')).join(' › ')}</span>
                     )}
                     <PageStatusChip page={page} dot />
-                    <span className="text-[11.5px] text-muted hide-sm">{t('page.updated', { time: relativeTime(page.updated_at) })}</span>
+                    <span className="text-caption text-muted hide-sm">{t('page.updated', { time: relativeTime(page.updated_at) })}</span>
                   </span>
                 </Link>
               );

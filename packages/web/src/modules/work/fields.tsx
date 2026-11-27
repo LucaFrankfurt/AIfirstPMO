@@ -116,7 +116,7 @@ function FieldInput({ field, value, onChange }: { field: Field; value: unknown; 
               {option}
             </button>
           ))}
-          {!field.options.length && <span className="text-muted text-[12.5px]">{t('field.noOptions')}</span>}
+          {!field.options.length && <span className="text-muted text-label">{t('field.noOptions')}</span>}
         </div>
       );
     }
@@ -145,7 +145,7 @@ export function TaskFields({ task }: { task: Task }) {
 
   return (
     <section className="mb-[18px]">
-      <strong style={{ fontSize: 13, display: 'block', marginBottom: 8 }}>{t('field.sectionTitle')}</strong>
+      <strong className="text-body" style={{ display: 'block', marginBottom: 8 }}>{t('field.sectionTitle')}</strong>
       <div className="field-grid">
         {fields.map((field) => {
           const value = readFieldValue(field.kind, values.get(field.id));
@@ -162,7 +162,7 @@ export function TaskFields({ task }: { task: Task }) {
               {canWrite
                 ? <FieldInput field={field} value={value} onChange={(next) => setFieldValue(task, field, next)} />
                 : <span>{field.kind === 'checkbox' ? (value ? '✓' : '—') : String(value || '—')}</span>}
-              {field.help && <span className="text-[12px] text-muted">{field.help}</span>}
+              {field.help && <span className="text-label text-muted">{field.help}</span>}
             </div>
           );
         })}
@@ -181,7 +181,7 @@ export function ProjectFields({ projectId }: { projectId: string }) {
 
   return (
     <>
-      <p className="text-[12px] text-muted mb-2">{t('field.settingsHint')}</p>
+      <p className="text-label text-muted mb-2">{t('field.settingsHint')}</p>
 
       {fields.map((field) => (
         <div key={field.id} className="stack-card">
@@ -232,16 +232,16 @@ export function ProjectFields({ projectId }: { projectId: string }) {
                 />
               </div>
 
-              <label className="flex items-center gap-2 text-[13.5px]" style={{ gap: 7 }}>
+              <label className="flex items-center gap-2 text-body" style={{ gap: 7 }}>
                 <input
                   type="checkbox" checked={!!field.required}
                   onChange={(event) => update('field', field.id, { required: event.target.checked ? 1 : 0 })}
                 />
                 {t('field.required')}
               </label>
-              <span className="text-[12px] text-muted mb-2" style={{ display: 'block' }}>{t('field.requiredHint')}</span>
+              <span className="text-label text-muted mb-2" style={{ display: 'block' }}>{t('field.requiredHint')}</span>
 
-              <label className="flex items-center gap-2 text-[13.5px]" style={{ gap: 7 }}>
+              <label className="flex items-center gap-2 text-body" style={{ gap: 7 }}>
                 <input
                   type="checkbox" checked={!!field.show_in_table}
                   onChange={(event) => update('field', field.id, { show_in_table: event.target.checked ? 1 : 0 })}

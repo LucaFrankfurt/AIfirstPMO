@@ -13,8 +13,8 @@ import { cva } from 'class-variance-authority';
  * apart. `NavLink` sets it for free.
  */
 export const navItem = cva(
-  'flex w-full min-h-[34px] cursor-pointer select-none items-center gap-2.5 rounded-[var(--radius-sm)] '
-  + 'border-none bg-transparent px-2.5 py-1.5 text-left text-[13.5px] text-soft transition-colors '
+  'flex w-full min-h-[34px] cursor-pointer select-none items-center gap-2.5 rounded-sm '
+  + 'border-none bg-transparent px-2.5 py-1.5 text-left text-body text-soft transition-colors '
   + 'hover:bg-hover hover:text-fg outline-none focus-visible:ring-2 focus-visible:ring-accent/60 '
   + 'aria-[current=page]:bg-active aria-[current=page]:font-medium aria-[current=page]:text-fg',
   {
@@ -26,7 +26,7 @@ export const navItem = cva(
 );
 
 /** The number at the end of a nav row — unread, open, whatever it counts. */
-export const navCount = 'ms-auto text-[11.5px] text-muted tabular-nums';
+export const navCount = 'ms-auto text-caption text-muted tabular-nums';
 
 /**
  * The same row with the words taken away: one square, for the folded sidebar.
@@ -40,6 +40,6 @@ export const navCount = 'ms-auto text-[11.5px] text-muted tabular-nums';
  */
 export const navRailItem =
   'relative flex size-9 shrink-0 cursor-pointer select-none items-center justify-center '
-  + 'rounded-[var(--radius-sm)] border-none bg-transparent p-0 text-soft transition-colors '
+  + 'rounded-sm border-none bg-transparent p-0 text-soft transition-colors '
   + 'hover:bg-hover hover:text-fg outline-none focus-visible:ring-2 focus-visible:ring-accent/60 '
   + 'aria-[current=page]:bg-active aria-[current=page]:text-fg';

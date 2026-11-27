@@ -402,16 +402,16 @@ export function ProjectInsights({ projectId }: { projectId: string }) {
         )}
       </div>
 
-      <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
+      <div className="rounded border border-line bg-raised p-3.5">
         <h2 className="chart-title">{t('insights.throughput')}</h2>
-        <p className="text-[12px] text-muted">{t('insights.throughputHint')}</p>
+        <p className="text-label text-muted">{t('insights.throughputHint')}</p>
         <Columns data={throughput} caption={t('insights.throughputCaption')} />
       </div>
 
       {burnUp && (
-        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
+        <div className="rounded border border-line bg-raised p-3.5">
           <h2 className="chart-title">{t('insights.burnUp', { name: burnUp.name })}</h2>
-          <p className="text-[12px] text-muted">{t('insights.burnUpHint')}</p>
+          <p className="text-label text-muted">{t('insights.burnUpHint')}</p>
           <Lines
             labels={burnUp.labels}
             caption={t('insights.burnUpCaption', { name: burnUp.name })}
@@ -425,16 +425,16 @@ export function ProjectInsights({ projectId }: { projectId: string }) {
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {byLabel.length > 0 && (
-          <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
+          <div className="rounded border border-line bg-raised p-3.5">
             <h2 className="chart-title">{t('insights.byLabel')}</h2>
-            <p className="text-[12px] text-muted">{t('insights.byLabelHint')}</p>
+            <p className="text-label text-muted">{t('insights.byLabelHint')}</p>
             <Bars data={byLabel} caption={t('insights.byLabel')} />
           </div>
         )}
         {byPerson.length > 0 && (
-          <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
+          <div className="rounded border border-line bg-raised p-3.5">
             <h2 className="chart-title">{t('insights.byPerson')}</h2>
-            <p className="text-[12px] text-muted">{t('insights.byPersonHint')}</p>
+            <p className="text-label text-muted">{t('insights.byPersonHint')}</p>
             <Bars data={byPerson} caption={t('insights.byPerson')} />
           </div>
         )}

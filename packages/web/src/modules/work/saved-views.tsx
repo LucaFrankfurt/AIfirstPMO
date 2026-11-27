@@ -308,7 +308,7 @@ function ViewNameSheet({
           onChange={(event) => setName(event.target.value)}
           onKeyDown={(event) => { if (event.key === 'Enter' && trimmed && !duplicate) done(); }}
         />
-        {duplicate && <span className="text-[12px] text-danger">{t('view.nameTaken')}</span>}
+        {duplicate && <span className="text-label text-danger">{t('view.nameTaken')}</span>}
       </div>
 
       {/* A dozen shapes, not a picker: the icon is here to make one row in a
@@ -331,14 +331,14 @@ function ViewNameSheet({
             </button>
           ))}
         </div>
-        <span className="text-[12px] text-muted">{t('view.iconHint')}</span>
+        <span className="text-label text-muted">{t('view.iconHint')}</span>
       </div>
 
       <label className="check-row">
         <input type="checkbox" checked={shared} onChange={(event) => setShared(event.target.checked)} />
         <span>
           <span>{t('view.shareWithTeam')}</span>
-          <span className="text-[12px] text-muted">{shared ? t('view.sharedHint') : t('view.privateHint')}</span>
+          <span className="text-label text-muted">{shared ? t('view.sharedHint') : t('view.privateHint')}</span>
         </span>
       </label>
     </Sheet>

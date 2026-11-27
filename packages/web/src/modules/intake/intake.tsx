@@ -72,7 +72,7 @@ export function Triage({ projectId }: { projectId: string }) {
   return (
     <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
       <div className="flex items-center flex-wrap gap-1.5 mb-3.5">
-        <div className="flex items-center gap-0.5" style={{ border: '1px solid var(--line-strong)', borderRadius: 7, padding: 2 }}>
+        <div className="flex items-center gap-0.5 rounded-sm" style={{ border: '1px solid var(--line-strong)', padding: 2 }}>
           {(['new', 'handled'] as const).map((which) => (
             <button
               key={which}
@@ -103,11 +103,11 @@ export function Triage({ projectId }: { projectId: string }) {
       ) : (
         <div className="grid gap-2.5">
           {shown.map((intake) => (
-            <article className="rounded-[var(--radius)] border border-line bg-raised p-3.5" key={intake.id}>
+            <article className="rounded border border-line bg-raised p-3.5" key={intake.id}>
               <div className="flex items-start gap-2">
                 <div className="flex-1 min-w-0">
-                  <strong style={{ fontSize: 14.5 }}>{intake.title}</strong>
-                  <div className="text-muted text-[12.5px] mt-0.5">
+                  <strong className="text-title">{intake.title}</strong>
+                  <div className="text-muted text-label mt-0.5">
                     {/* Neither the name nor the address was verified, and saying
                         so once is better than a screen that quietly implies it. */}
                     {intake.reporter || intake.email
@@ -124,7 +124,7 @@ export function Triage({ projectId }: { projectId: string }) {
                 )}
               </div>
               {intake.body && (
-                <p style={{ margin: '10px 0 0', fontSize: 13.5, whiteSpace: 'pre-wrap' }}>{intake.body}</p>
+                <p className="text-body" style={{ margin: '10px 0 0', whiteSpace: 'pre-wrap' }}>{intake.body}</p>
               )}
               {intake.status === 'new' && canWrite && (
                 <div className="flex items-center gap-1.5 mt-3">
@@ -206,7 +206,7 @@ function AcceptSheet({
       <div className="field">
         <label htmlFor="intake-title">{t('task.title')}</label>
         <Input id="intake-title" autoFocus value={title} onChange={(event) => setTitle(event.target.value)} />
-        <span className="text-[12px] text-muted">{t('intake.titleHint')}</span>
+        <span className="text-label text-muted">{t('intake.titleHint')}</span>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="field">
@@ -219,8 +219,8 @@ function AcceptSheet({
       {intake.body && (
         <div className="field">
           <label>{t('intake.whatTheySaid')}</label>
-          <p className="text-muted text-[13.5px] m-0" style={{ whiteSpace: 'pre-wrap' }}>{intake.body}</p>
-          <span className="text-[12px] text-muted">{t('intake.bodyHint')}</span>
+          <p className="text-muted text-body m-0" style={{ whiteSpace: 'pre-wrap' }}>{intake.body}</p>
+          <span className="text-label text-muted">{t('intake.bodyHint')}</span>
         </div>
       )}
     </Sheet>

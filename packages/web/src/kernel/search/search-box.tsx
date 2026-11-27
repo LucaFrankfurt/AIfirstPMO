@@ -221,7 +221,7 @@ export function SearchBox({
         ref={panelRef}
         {...props}
         className={cn(
-          'z-30 overflow-hidden rounded-[var(--radius)] border border-line bg-raised p-1 shadow-[var(--shadow)]',
+          'z-30 overflow-hidden rounded border border-line bg-raised p-1 shadow',
           loose ? 'fixed' : 'absolute inset-x-0 top-full mt-1',
         )}
         style={loose ? anchor : undefined}
@@ -246,7 +246,7 @@ export function SearchBox({
         aria-label={label ?? t('search.title')}
         placeholder={placeholder ?? t('search.placeholder')}
         value={value}
-        className="text-base"
+        className="text-input"
         onChange={(event) => {
           setDismissed(false);
           onChange(event.target.value);
@@ -261,7 +261,7 @@ export function SearchBox({
       />
       {suggestion && panel(
         <>
-          <div className="px-2 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
+          <div className="px-2 pb-1 pt-1.5 text-caption font-semibold uppercase tracking-wide text-muted">
             {t(FACET_HEADING[suggestion.trigger.kind])}
           </div>
           {suggestion.options.map((option, index) => (
@@ -272,7 +272,7 @@ export function SearchBox({
               role="option"
               aria-selected={index === active}
               className={cn(
-                'flex w-full cursor-pointer items-center gap-2.5 rounded-[var(--radius-sm)] px-2 py-1.5 text-left text-[13.5px] text-fg',
+                'flex w-full cursor-pointer items-center gap-2.5 rounded-sm px-2 py-1.5 text-left text-body text-fg',
                 index === active && 'bg-hover',
               )}
               // The field keeps the focus, so the list does not close under the
@@ -283,7 +283,7 @@ export function SearchBox({
             >
               <FacetGlyph option={option} />
               <span className="min-w-0 flex-1 truncate">{option.name}</span>
-              {option.hint && <span className="mono truncate text-[11.5px] text-muted">{option.hint}</span>}
+              {option.hint && <span className="mono truncate text-caption text-muted">{option.hint}</span>}
             </button>
           ))}
         </>,

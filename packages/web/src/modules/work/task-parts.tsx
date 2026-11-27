@@ -216,7 +216,7 @@ export function LabelPicker({ task }: { task: Task }) {
     id: label.id,
     label: label.name,
     hint: applied.has(label.id) ? '✓' : undefined,
-    icon: <span className={chipDot} style={{ background: label.color, width: 8, height: 8, borderRadius: 4 }} />,
+    icon: <span className={chipDot} style={{ background: label.color, width: 8, height: 8 }} />,
     onSelect: () => toggleLabel(task, label.id),
   }));
   return (

@@ -269,7 +269,7 @@ export function HtmlEditor({ value, onChange, minHeight = 420, attachTo }: {
         )}
         {source && button('tidy', 'editor.tidy', <Icon name="sparkle" size={14} />, () => onChange(formatHtml(value)))}
         <span className="flex-1 min-w-0" />
-        {busy && <span className="text-muted text-[12.5px]">{t('editor.uploading')}</span>}
+        {busy && <span className="text-muted text-label">{t('editor.uploading')}</span>}
         <button
           type="button"
           className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), source && 'bg-active text-fg')}
@@ -352,7 +352,7 @@ export function HtmlEditor({ value, onChange, minHeight = 420, attachTo }: {
           }}
         />
       )}
-      <p className="text-[12px] text-muted mt-1.5">{source ? t('editor.htmlHint') : t('editor.visualHint')}</p>
+      <p className="text-label text-muted mt-1.5">{source ? t('editor.htmlHint') : t('editor.visualHint')}</p>
     </div>
   );
 }

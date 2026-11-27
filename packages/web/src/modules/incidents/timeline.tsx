@@ -74,7 +74,7 @@ export function Timeline({ incident }: { incident: Incident }) {
     <div className="flex flex-col gap-3">
       {canWrite && <Composer incident={incident} />}
       {!lines.length ? (
-        <p className="text-[13px] text-muted">{t('incident.timelineEmpty')}</p>
+        <p className="text-body text-muted">{t('incident.timelineEmpty')}</p>
       ) : (
         <ol className="incident-timeline">
           {[...lines].reverse().map((line) => {
@@ -91,7 +91,7 @@ export function Timeline({ incident }: { incident: Incident }) {
               <li key={line.id} className="incident-line">
                 <div className="flex flex-wrap items-center gap-2">
                   {author && <Avatar user={author} size={20} />}
-                  <strong className="text-[13px]">{author?.name ?? t('incident.someone')}</strong>
+                  <strong className="text-body">{author?.name ?? t('incident.someone')}</strong>
                   <Chip>{line.kind === 'note' ? t('incident.kind.note') : t('incident.kind.update')}</Chip>
                   <time className="incident-line-time" dateTime={new Date(line.occurred_at).toISOString()}>{exactTime(line.occurred_at)}</time>
                   {line.author_id === me && (
@@ -108,7 +108,7 @@ export function Timeline({ incident }: { incident: Incident }) {
                     </Button>
                   )}
                 </div>
-                <p className="mt-1 whitespace-pre-wrap text-[13px]">{line.body}</p>
+                <p className="mt-1 whitespace-pre-wrap text-body">{line.body}</p>
               </li>
             );
           })}

@@ -19,5 +19,5 @@ export function SectionHeading({ className, tight, ...props }: ComponentProps<'h
   // nothing in between, so an `h3` here left a hole in the outline — and an
   // outline with a hole in it is what a screen reader's heading list is made
   // of. The size comes from the utilities either way; only the level changed.
-  return <h2 className={cn('mb-2 text-sm font-semibold', tight ? 'mt-0' : 'mt-5', className)} {...props} />;
+  return <h2 className={cn('mb-2 text-title font-semibold', tight ? 'mt-0' : 'mt-5', className)} {...props} />;
 }

@@ -181,7 +181,7 @@ function Register() {
                   <td>{t(envKey(component.environment))}</td>
                   <td>{vendors.get(component.vendor_id ?? '')?.name ?? <span className="text-muted">—</span>}</td>
                   <td><Lifecycles status={component.status} /></td>
-                  <td className="text-[12px] text-muted">
+                  <td className="text-label text-muted">
                     {component.live_from ? shortDate(component.live_from) : '—'}
                     {component.live_until ? ` → ${shortDate(component.live_until)}` : ''}
                   </td>
@@ -242,8 +242,8 @@ function Landscape() {
       {rows.map((component) => (
         <li key={component.id}>
           <span className="flex-1 min-w-0 truncate">{component.name}</span>
-          <span className="text-[12px] text-muted">{t(kindKey(component.kind))}</span>
-          <span className="text-[12px] text-muted">{vendors.get(component.vendor_id ?? '')?.name ?? ''}</span>
+          <span className="text-label text-muted">{t(kindKey(component.kind))}</span>
+          <span className="text-label text-muted">{vendors.get(component.vendor_id ?? '')?.name ?? ''}</span>
           <ComponentCost component={component} />
         </li>
       ))}
@@ -290,25 +290,25 @@ function Landscape() {
         <div className="notice-strip">
           <Icon name="help" size={14} />
           <span>{t('estate.undatedCount', { count: diff.undated.length })}</span>
-          <span className="text-[12px] text-muted truncate">
+          <span className="text-label text-muted truncate">
             {diff.undated.map((component) => component.name).join(', ')}
           </span>
         </div>
       )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
+        <div className="rounded border border-line bg-raised p-3.5">
           <SectionHeading tight>{t('estate.leaving', { count: diff.leaving.length })}</SectionHeading>
-          {diff.leaving.length ? brief(diff.leaving, 'leaving') : <p className="text-[13px] text-muted">{t('estate.nothingLeaves')}</p>}
+          {diff.leaving.length ? brief(diff.leaving, 'leaving') : <p className="text-body text-muted">{t('estate.nothingLeaves')}</p>}
         </div>
-        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
+        <div className="rounded border border-line bg-raised p-3.5">
           <SectionHeading tight>{t('estate.arriving', { count: diff.arriving.length })}</SectionHeading>
-          {diff.arriving.length ? brief(diff.arriving, 'arriving') : <p className="text-[13px] text-muted">{t('estate.nothingArrives')}</p>}
+          {diff.arriving.length ? brief(diff.arriving, 'arriving') : <p className="text-body text-muted">{t('estate.nothingArrives')}</p>}
         </div>
       </div>
 
-      <p className="mt-3 text-[12px] text-muted">{t('estate.stayingCount', { count: diff.staying.length })}</p>
-      <p className="text-[12px] text-muted">{t('estate.landscapeHint')}</p>
+      <p className="mt-3 text-label text-muted">{t('estate.stayingCount', { count: diff.staying.length })}</p>
+      <p className="text-label text-muted">{t('estate.landscapeHint')}</p>
     </div>
   );
 }
@@ -332,7 +332,7 @@ function Moves() {
 
   return (
     <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
-      <p className="text-[12px] text-muted">{t('estate.movesHint')}</p>
+      <p className="text-label text-muted">{t('estate.movesHint')}</p>
       {canWrite && (
         <div className="mb-3 flex justify-end">
           <Button variant="primary" size="sm" onClick={() => setEditing('new')}>
@@ -352,7 +352,7 @@ function Moves() {
                 <div className="move-head">
                   <strong className="flex-1 min-w-0 truncate">{move.name}</strong>
                   <Chip>{t(moveStatusKey(move.status))}</Chip>
-                  {move.target_date && <span className="text-[12px] text-muted">{shortDate(move.target_date)}</span>}
+                  {move.target_date && <span className="text-label text-muted">{shortDate(move.target_date)}</span>}
                   {canWrite && (
                     <>
                       <Button variant="ghost" size="icon" aria-label={t('action.edit')} onClick={() => setEditing(move)}>
@@ -395,7 +395,7 @@ function Moves() {
                         <span className="bar-fill" style={{ width: `${progress.done * 100}%`, background: 'var(--chart-2)' }} />
                       )}
                     </span>
-                    <span className="text-[12px] text-muted">
+                    <span className="text-label text-muted">
                       {t('estate.moveDone', { done: progress.retired + progress.arrived, total: progress.retiring + progress.arriving })}
                     </span>
                   </div>
@@ -441,7 +441,7 @@ function Vendors() {
         <div className="notice-strip warn">
           <Icon name="bell" size={14} />
           <span>{t('estate.noticeDue', { count: due.length })}</span>
-          <span className="text-[12px] truncate">
+          <span className="text-label truncate">
             {due.map((row) => `${row.vendor.name} — ${shortDate(row.by)}`).join(' · ')}
           </span>
         </div>

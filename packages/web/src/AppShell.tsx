@@ -72,7 +72,7 @@ const RailButton = ({ icon, label, accent, onClick }: {
 }) => (
   <button type="button" className={navRailItem} onClick={onClick} title={label} aria-label={label}>
     {accent ? (
-      <span style={{ background: 'var(--accent)', color: 'var(--accent-fg)', width: 28, height: 28, borderRadius: 'var(--radius-sm)', display: 'grid', placeItems: 'center' }}>
+      <span className="rounded-sm" style={{ background: 'var(--accent)', color: 'var(--accent-fg)', width: 28, height: 28, display: 'grid', placeItems: 'center' }}>
         <Icon name={icon} size={16} />
       </span>
     ) : (
@@ -337,7 +337,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 key={project.id} to={`/projects/${project.id}`} className={navRailItem}
                 title={project.name} aria-label={project.name}
               >
-                <span style={{ fontSize: 15, lineHeight: 1 }}>{project.icon ?? '•'}</span>
+                <span className="text-title leading-none">{project.icon ?? '•'}</span>
               </NavLink>
             ))}
 
@@ -351,7 +351,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <>
             <div className="flex items-center gap-0.5">
               <MenuButton items={workspaceItems} className={navItem()} title={t('nav.switchWorkspace')}>
-                <img src="/icon.svg" alt="" width={20} height={20} style={{ borderRadius: 5 }} />
+                <img src="/icon.svg" alt="" width={20} height={20} className="rounded-sm" />
                 <span className="flex-1 min-w-0 truncate font-semibold">
                   {session?.workspaces.find((w) => w.id === workspaceId)?.name ?? t('app.name')}
                 </span>
@@ -496,7 +496,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             onClick={() => setAdding(true)} aria-label={t('nav.newTask')}
             hidden={!canWrite}
           >
-            <span style={{ background: 'var(--accent)', color: 'var(--accent-fg)', width: 34, height: 34, borderRadius: 12, display: 'grid', placeItems: 'center' }}>
+            <span className="rounded" style={{ background: 'var(--accent)', color: 'var(--accent-fg)', width: 34, height: 34, display: 'grid', placeItems: 'center' }}>
               <Icon name="plus" size={19} />
             </span>
           </button>

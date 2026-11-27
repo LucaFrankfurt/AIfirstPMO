@@ -58,7 +58,7 @@ export function PageTypeChip({ page, dot }: { page: Pick<Page, 'type_id'>; dot?:
   const type = typeOf(page, types);
   if (!type) return null;
   if (dot) {
-    return <span aria-label={type.name} title={type.name} style={{ fontSize: 12 }}>{type.icon ?? '•'}</span>;
+    return <span aria-label={type.name} title={type.name} className="text-label">{type.icon ?? '•'}</span>;
   }
   return (
     <Chip title={type.name}>
@@ -113,7 +113,7 @@ export function PageTypeSettings() {
       <div className="flex items-center gap-2" style={{ margin: '18px 0 8px' }}>
         <SectionHeading tight>{t('page.types')}</SectionHeading>
       </div>
-      <p className="mt-0 mb-2.5 text-[12.5px] text-muted">{t('page.typesHint')}</p>
+      <p className="mt-0 mb-2.5 text-label text-muted">{t('page.typesHint')}</p>
       {types.map((type, at) => (
         <div className="stack-card" key={type.id}>
           <div className="flex items-center gap-2">
@@ -427,13 +427,13 @@ export function SeriesEntries({ page, entries }: { page: Page; entries: Page[] }
           </Button>
         ))}
       </div>
-      <p className="mt-0 mb-2 text-[12.5px] text-muted">{t('page.seriesHint')}</p>
-      {!newest.length && <p className="text-muted text-[12.5px]">{t('page.seriesNone')}</p>}
+      <p className="mt-0 mb-2 text-label text-muted">{t('page.seriesHint')}</p>
+      {!newest.length && <p className="text-muted text-label">{t('page.seriesNone')}</p>}
       {newest.map((entry) => (
         <Link key={entry.id} to={`/pages/${entry.id}`} className="task-row text-left" style={{ width: '100%' }}>
           <span aria-hidden="true">{entry.icon ?? '📄'}</span>
           <span className="flex-1 min-w-0 truncate">{entry.title || t('common.untitled')}</span>
-          <span className="text-[11.5px] text-muted">{entryDay(entry)}</span>
+          <span className="text-caption text-muted">{entryDay(entry)}</span>
         </Link>
       ))}
     </section>

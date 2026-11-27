@@ -108,9 +108,9 @@ function WebPushToggle() {
   return (
     <>
       <SectionHeading>{t('push.title')}</SectionHeading>
-      <p className="text-[12px] text-muted mb-2">{t('push.hint')}</p>
+      <p className="text-label text-muted mb-2">{t('push.hint')}</p>
       {state === 'denied' ? (
-        <p className="text-muted text-[12.5px]">{t('push.denied')}</p>
+        <p className="text-muted text-label">{t('push.denied')}</p>
       ) : (
         <button
           className={buttonVariants({ variant: state === 'on' ? 'secondary' : 'primary' })}

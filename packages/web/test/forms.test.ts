@@ -17,7 +17,7 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
-import { twMerge } from 'tailwind-merge';
+import { cn } from '../src/kernel/design-system/cn.ts';
 import { en } from '../src/kernel/i18n/locales/en.ts';
 
 const SRC = new URL('../src', import.meta.url).pathname;
@@ -133,6 +133,11 @@ describe('every label', () => {
  * `cn()` — which is `twMerge` — resolves exactly this, last one wins. So the
  * check is: does merging the string change it? If it does, the string is
  * asking for two things at once and only one of them is happening.
+ *
+ * It merges through `cn` itself and not through a bare `twMerge`, because the
+ * two disagree about the type steps: a bare one files `text-label` under
+ * colour and would report every `text-label text-muted` in the app as a
+ * conflict. What matters is what the app's own merge does with the string.
  */
 describe('every className literal', () => {
   it('does not contain a utility that another one in the same string overrides', () => {
@@ -144,7 +149,7 @@ describe('every className literal', () => {
         // what it will contain, and those call sites go through `cn()` anyway.
         if (raw.includes('${')) continue;
         const tokens = raw.split(/\s+/).filter(Boolean);
-        const merged = twMerge(tokens.join(' ')).split(/\s+/).filter(Boolean);
+        const merged = cn(tokens.join(' ')).split(/\s+/).filter(Boolean);
         if (merged.length === tokens.length) continue;
         const lost = tokens.filter((token) => !merged.includes(token));
         const line = text.slice(0, match.index).split('\n').length;
@@ -502,7 +507,7 @@ describe('a create or edit sheet with typed input', () => {
 
   it('creates a task on a plain Enter in the title', () => {
     const quick = functionBody('modules/work/QuickAdd.tsx', 'QuickAdd');
-    const handler = quick.slice(quick.indexOf('onKeyDown='), quick.indexOf('className="text-base'));
+    const handler = quick.slice(quick.indexOf('onKeyDown='), quick.indexOf('className="text-input'));
     assert.match(handler, /event\.key === 'Enter'/);
     assert.doesNotMatch(handler, /metaKey|ctrlKey/, 'Enter only submits with a modifier held');
   });

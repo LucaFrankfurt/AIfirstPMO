@@ -130,9 +130,22 @@ looked like a 35px row and answered to 19px of it.
 
 ## Tokens
 
-Everything visual comes from a CSS custom property in `styles/app.css`. They are aliased into
-Tailwind with `@theme inline`, so `bg-raised` and `var(--bg-raised)` are the same value and always
-will be.
+Everything visual comes from a CSS custom property in `styles/app.css`, in one of two ways, and
+which one depends on a single question: does the value change with the theme?
+
+- **Colours and shadows do.** Their values live in `:root` and the two dark blocks, and
+  `@theme inline` points Tailwind at them, so `bg-raised` and `var(--bg-raised)` are the same value
+  and always will be.
+- **Radius and type do not.** They are declared in `@theme static` and nowhere else, which makes
+  that block the one source: `rounded-sm` in a component and `var(--radius-sm)` in a hand-written
+  rule read the same line. The block starts with `--radius-*: initial` and `--text-*: initial`, so
+  Tailwind's own steps (`rounded-xl`, `text-sm`) do not exist at all rather than sitting beside
+  ours as an easier option.
+
+The radii used to be aliased like the colours, under Tailwind 3's names. `--radius-DEFAULT` is not
+a key Tailwind 4 reads, so a bare `rounded` fell back to Tailwind's own 4px and the port wrote
+`rounded-[var(--radius)]` instead, everywhere. Nothing reported it, because nothing was broken in a
+way a check could see: the class existed and drew a corner.
 
 The consequence is worth stating once, because it is what made a gradual port possible: **dark mode
 needs no `dark:` variants.** The variables are redefined under `[data-theme='dark']` and under
@@ -179,12 +192,20 @@ Charts get `--chart-1` and `--chart-2`, re-stepped rather than flipped for dark.
 
 ### Radius, shadow, motion
 
-`--radius-sm` (7px) for controls, `--radius` (10px) for cards, `--radius-lg` (16px) for sheets.
-Pills use `999px`. **Nothing else** — `border-radius: 4px` and `5px` and `6px` all appear in the
-current stylesheet, which is a thing to remove as screens are ported, not a set of choices.
+| Class | Token | Where |
+|---|---|---|
+| `rounded-sm` | `--radius-sm`, 7px | controls |
+| `rounded` | `--radius`, 10px | cards, panels |
+| `rounded-lg` | `--radius-lg`, 16px | sheets |
+| `rounded-full` | — | pills, dots, avatars |
 
-Two shadows: `--shadow-sm` for a raised control, `--shadow` for something floating over the page.
-A card in a list gets a border, not a shadow.
+**Nothing else.** In the client's TypeScript that is enforced: `npm run check:tokens` refuses an
+arbitrary `rounded-[…]`, one of Tailwind's own steps, and a `borderRadius` written as a number in a
+style object. The hand-written rules in `app.css` still use `4px`, `5px` and `6px` here and there,
+which is a thing to remove as screens are ported, not a set of choices.
+
+Two shadows: `shadow-sm` (`--shadow-sm`) for a raised control, `shadow` (`--shadow`) for something
+floating over the page. A card in a list gets a border, not a shadow.
 
 Motion is short and only ever confirms something happened: the enter and exit of a menu or a sheet.
 Everything honours `prefers-reduced-motion`, and the Radix components carry `motion-reduce:animate-none`.
@@ -195,22 +216,42 @@ The system stack — `-apple-system`, `Segoe UI`, `Roboto` — because a project
 the machine it is running on, and a webfont is a second network request before anybody can read
 anything.
 
-**The scale, for anything ported:**
+**The scale.** Each step is a class, declared in `@theme static`:
 
-| Size | Where |
-|---|---|
-| 11.5px | chips, counts, timestamps |
-| 12.5px | labels, secondary rows, hints |
-| 13.5px | body: task titles, menu items, buttons |
-| 15px | a sheet title, a section heading |
-| 19px | a screen title |
+| Class | Size | Where |
+|---|---|---|
+| `text-caption` | 11.5px | chips, counts, timestamps |
+| `text-label` | 12.5px | labels, secondary rows, hints |
+| `text-body` | 13.5px | body: task titles, menu items, buttons |
+| `text-title` | 15px | a sheet title, a section heading |
+| `text-headline` | 19px | a screen title, the title being edited |
+| `text-display` | 26px | the title of a page being read |
+| `text-input` | 16px | anything typed into on a phone — see below |
 
-Five sizes. The current stylesheet has fourteen, from 9px to 26px, which is not a scale but an
-accumulation — half a pixel of difference is a decision nobody made on purpose. Ported screens use
-the table above.
+Five sizes for the interface, and two that are not a matter of taste: a page read as a document
+has a title larger than any screen's, and a field on a phone has a floor set by iOS. The
+hand-written rules in `app.css` still carry sizes of their own, from 8px to 26px, which is not a
+scale but an accumulation — half a pixel of difference is a decision nobody made on purpose.
+
+**In the TypeScript there is nothing else.** `npm run check:tokens` refuses an arbitrary
+`text-[…px]`, Tailwind's own `text-sm` and its siblings, and a `fontSize` written as a number in a
+style object. When the steps became classes, every arbitrary size was folded onto the nearest one:
+`12px` became `text-label`, `13px` became `text-body`, `11px` and `10px` became `text-caption`, and a
+`14px` heading became `text-title`. A half-pixel either way, on purpose this time.
+
+**The steps carry no line height.** Every one of them replaced an arbitrary size, and those set the
+size alone; a step that also set a line height would have moved every line of text it touched,
+which is a design change of its own and not this one.
+
+**`cn.ts` has to know the steps by name.** `tailwind-merge` recognises Tailwind's own sizes and an
+arbitrary length, and files every other `text-*` under colour — so `cn('text-label', 'text-muted')`
+would come back as `text-muted`, the size deleted without a word. `TYPE_STEPS` in `cn.ts` tells it,
+and `check:tokens` fails when that list and the stylesheet disagree.
 
 **16px is the floor for anything typed into on a phone.** Below it iOS zooms the page in on focus
-and never zooms back out. The `Input` component handles this: `text-[16px] sm:text-[13.5px]`.
+and never zooms back out. The `Input` component handles this with `text-input sm:text-body`. The
+chat composer does not, yet: at 16px its placeholder wraps on a 340px screen and the one-row field
+scrolls, which `check:responsive` reports. It is `text-body`, and iOS zooms in when it is tapped.
 
 ## Layout
 
@@ -256,7 +297,7 @@ hamburgers that did different things**.
 
 The rule this leaves: **if two controls can appear in one row, they need two glyphs.** Adding a path
 that duplicates an existing one is a decision to make deliberately, and there is exactly one place
-to check — `PATHS` in `components/ui.tsx`.
+to check — `PATHS` in `kernel/design-system/ui/icon.tsx`.
 
 **A property that is not set spends no words on a phone.** The task sheet's optional pickers —
 labels, cycle, module — used to say *No cycle*, *No module*, *Labels* whether or not anything was
@@ -270,8 +311,8 @@ tidiness. Below `sm` they get one row each, label at the start, control at the e
 
 ## Components
 
-The interactive primitives are Radix underneath, in `components/ui/`. Their wrappers in
-`components/ui.tsx` keep the API the screens already use.
+The interactive primitives are Radix underneath, in `kernel/design-system/ui/`. Their wrappers in
+`kernel/design-system/ui.tsx` keep the API the screens already use.
 
 | | Built on | Why not by hand |
 |---|---|---|
@@ -287,8 +328,8 @@ filter and display controls.
 
 ### Icons
 
-45 hand-drawn paths in `ui.tsx`, typed as `IconName` so a shape that does not exist is a compile
-error rather than three quiet dots. `lucide-react` is now available and is the right source for
+Hand-drawn paths in `kernel/design-system/ui/icon.tsx`, typed as `IconName` so a shape that does
+not exist is a compile error rather than three quiet dots. `lucide-react` is now available and is the right source for
 anything new; the hand-drawn set stays until a screen that uses it is ported.
 
 One stroke weight, one size per context: 16px inline, 15px in the sidebar, 13–14px inside a small
@@ -362,20 +403,24 @@ indicator was an empty circle.
 The port is deliberately incremental. The order inside one screen:
 
 1. Replace `.btn`, `.input`, `.card` with the components. Do not re-style them inline.
-2. Replace `style={{ … }}` with Tailwind classes. There are ~575 inline style props left, and they
-   are the main reason two screens that should look the same do not.
-3. Fold odd font sizes into the five-step scale and odd radii into the three tokens.
+2. Replace `style={{ … }}` with Tailwind classes. The inline style props that are left are the main
+   reason two screens that should look the same do not. A value that comes from data — a label's
+   colour, a bar's width — stays a style; a size or a corner never does.
+3. Sizes, radii and shadows are already steps — `check:tokens` sees to it in the TypeScript. What is
+   left to fold is the hand-written rule the screen leaned on in `app.css`.
 4. Delete the CSS class from `app.css` **once the last screen stops using it, and not before** —
    `node scripts/unstyled.mjs` after a build is how you know. This is the step that went wrong: the
    commit that added the field components deleted `.field` while seventy-six `<div class="field">`
    were still on screen, and every form in the app lost its spacing without a single error.
 5. Walk the screen with the keyboard only, and once at 390px wide.
 6. Run `npm test` — the source-level checks in `packages/web/test/forms.test.ts` catch the four
-   things a codemod breaks silently — then `npm run check:css`, `npm run check:responsive`,
-   `npm run check:contrast` and `npm run check:a11y`.
+   things a codemod breaks silently — then `npm run check:tokens`, `npm run check:css`,
+   `npm run check:responsive`, `npm run check:contrast` and `npm run check:a11y`.
 
-`app.css` is the progress bar: **1,862 lines** when the port started, **1,847** now — up from 1,713,
-because four rules the port had deleted too early came back.
+`app.css` was meant to be the progress bar: **1,862 lines** when the port started. It stopped being
+one, because the screens that arrived after the port began brought hand-written rules of their own
+faster than ported screens removed old ones, and the file grew. A line count measures the file, not
+the port. What a screen being ported can be held to is the list above, and the checks in step 6.
 
 ## What stays in CSS, and why
 

@@ -166,7 +166,7 @@ export function PageStatusSettings() {
       <div className="flex items-center gap-2" style={{ margin: '18px 0 8px' }}>
         <SectionHeading tight>{t('page.statuses')}</SectionHeading>
       </div>
-      <p className="mt-0 mb-2.5 text-[12.5px] text-muted">{t('page.statusesHint')}</p>
+      <p className="mt-0 mb-2.5 text-label text-muted">{t('page.statusesHint')}</p>
 
       {statuses.map((status, at) => (
         <div className="stack-card" key={status.id}>

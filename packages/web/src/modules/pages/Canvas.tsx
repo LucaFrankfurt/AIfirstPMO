@@ -803,7 +803,7 @@ export function CanvasView({ page, canWrite, thread, ai = null, printRequest = 0
       {panel && (
         <aside className="canvas-panel" aria-label={t('canvas.comments')}>
           <div className="flex items-center gap-2 mb-2">
-            <h2 className="flex-1 text-sm font-semibold m-0">{t('canvas.comments')}</h2>
+            <h2 className="flex-1 text-title font-semibold m-0">{t('canvas.comments')}</h2>
             <Button size="iconSm" variant="ghost" onClick={() => setPanel(false)} aria-label={t('action.close')}><Icon name="close" size={14} /></Button>
           </div>
           {thread({
@@ -834,7 +834,7 @@ export function CanvasView({ page, canWrite, thread, ai = null, printRequest = 0
         <Dialog open onOpenChange={(open) => { if (!open) setPlaying(null); }}>
           <DialogContent full closeLabel={t('action.close')} className="canvas-play" aria-describedby={undefined}>
             <header className="artboard-bar">
-              <DialogTitle className="flex-1 text-sm">{playingBoard.title || t('common.untitled')}</DialogTitle>
+              <DialogTitle className="flex-1 text-title">{playingBoard.title || t('common.untitled')}</DialogTitle>
             </header>
             <div className="canvas-play-stage">
               <ArtboardFrame

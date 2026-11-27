@@ -67,9 +67,9 @@ export function Teams() {
             const done = tasks.filter((task) => isDoneGroup(byId('state', task.state_id)?.group_key)).length;
 
             return (
-              <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5" key={team.id}>
+              <div className="rounded border border-line bg-raised p-3.5" key={team.id}>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-lg">{team.icon ?? '👥'}</span>
+                  <span className="text-headline">{team.icon ?? '👥'}</span>
                   {/* Borderless, so it does not look like a field — which is
                       the point visually and the problem otherwise: nothing on
                       it said what typing here would change. */}
@@ -122,11 +122,11 @@ export function Teams() {
                       <Avatar user={person} size={16} /> {person.name}
                     </span>
                   ))}
-                  {!people.length && <span className="text-muted text-[12.5px]">{t('team.noMembers')}</span>}
+                  {!people.length && <span className="text-muted text-label">{t('team.noMembers')}</span>}
                 </div>
 
                 <Progress value={done} total={tasks.length} />
-                <div className="flex items-center gap-2 text-muted text-[12.5px] mt-1.5">
+                <div className="flex items-center gap-2 text-muted text-label mt-1.5">
                   <span>{t('team.projectCount', { count: teamProjects.length })}</span>
                   <span className="flex-1 min-w-0" />
                   <span>{t('team.tasksDone', { done, total: tasks.length })}</span>

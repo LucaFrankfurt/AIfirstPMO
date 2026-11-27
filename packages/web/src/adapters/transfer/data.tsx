@@ -130,14 +130,14 @@ export function WorkspaceTransfer() {
   return (
     <>
       <SectionHeading tight>{t('data.exportWorkspace')}</SectionHeading>
-      <p className="text-muted text-[13.5px]">{t('data.exportWorkspaceHint')}</p>
+      <p className="text-muted text-body">{t('data.exportWorkspaceHint')}</p>
 
       {!mayExport ? (
-        <p className="text-[12px] text-muted mb-3">{t('data.exportAdminOnly')}</p>
+        <p className="text-label text-muted mb-3">{t('data.exportAdminOnly')}</p>
       ) : (
         <>
           {preview && (
-            <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mb-3.5 text-[13.5px]">
+            <div className="rounded border border-line bg-raised p-3.5 mb-3.5 text-body">
               <div className="flex items-center gap-2">
                 <span className="flex-1 min-w-0">{t('data.exportContents')}</span>
                 <strong>
@@ -169,12 +169,12 @@ export function WorkspaceTransfer() {
               <Icon name="table" size={14} /> {t('data.exportCsv')}
             </Button>
           </div>
-          <p className="text-[12px] text-muted mt-1.5">{t('data.exportFormatsHint')}</p>
+          <p className="text-label text-muted mt-1.5">{t('data.exportFormatsHint')}</p>
         </>
       )}
 
       <SectionHeading>{t('data.importWorkspace')}</SectionHeading>
-      <p className="text-muted text-[13.5px]">{t('data.importWorkspaceHint')}</p>
+      <p className="text-muted text-body">{t('data.importWorkspaceHint')}</p>
       <label className={cn(buttonVariants({}), 'cursor-pointer')}>
         <Icon name="plus" size={14} /> {t('data.importChoose')}
         <input
@@ -201,8 +201,8 @@ export function WorkspaceTransfer() {
           }
         >
           <p>{t('data.importAbout', { name: arriving.name })}</p>
-          <p className="text-[13px] text-muted">{t('data.importNewWorkspace')}</p>
-          <p className="text-[13px] text-muted">{t('data.importPeople')}</p>
+          <p className="text-body text-muted">{t('data.importNewWorkspace')}</p>
+          <p className="text-body text-muted">{t('data.importPeople')}</p>
         </Sheet>
       )}
     </>
@@ -216,7 +216,7 @@ export function PersonalExport() {
   return (
     <>
       <SectionHeading>{t('data.mine')}</SectionHeading>
-      <p className="text-muted text-[13.5px]">{t('data.mineHint')}</p>
+      <p className="text-muted text-body">{t('data.mineHint')}</p>
       <Button onClick={() => void saveFromServer('/api/me/export?download=1', `my-kolibri-data-${fileDate()}.json`)}>
         <Icon name="page" size={14} /> {t('data.mineDownload')}
       </Button>
@@ -423,18 +423,18 @@ export function Backups() {
   return (
     <>
       <SectionHeading>{t('backup.title')}</SectionHeading>
-      <p className="text-muted text-[13.5px]">{t('backup.hint')}</p>
+      <p className="text-muted text-body">{t('backup.hint')}</p>
 
       {!status.enabled ? (
         <>
           <Empty emoji="🗄️" title={t('backup.off')} hint={t('backup.offHint')} />
           {places.map((place) => (
-            <p key={place.kind} className="text-[12px] text-danger">{t(PLACE_NAME[place.kind])}: {place.problem}</p>
+            <p key={place.kind} className="text-label text-danger">{t(PLACE_NAME[place.kind])}: {place.problem}</p>
           ))}
         </>
       ) : (
         <>
-          <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mb-3.5 text-[13.5px]">
+          <div className="rounded border border-line bg-raised p-3.5 mb-3.5 text-body">
             <div className="flex items-center gap-2">
               <span className="flex-1 min-w-0">{t('backup.schedule')}</span>
               <strong>
@@ -469,19 +469,19 @@ export function Backups() {
           </div>
 
           {status.dir && (status.snapshots.length === 0 ? (
-            <p className="text-[12px] text-muted">{t('backup.none')}</p>
+            <p className="text-label text-muted">{t('backup.none')}</p>
           ) : (
-            <div className="rounded-[var(--radius)] border border-line bg-raised p-0">
+            <div className="rounded border border-line bg-raised p-0">
               {status.snapshots.map((snapshot) => (
                 <div className="flex items-center gap-2 trash-row" key={snapshot.name} style={{ gap: 9 }}>
                   <Icon name="archive" size={15} className="text-muted" />
                   <span style={{ minWidth: 110 }}>{snapshot.name}</span>
-                  <span className="flex-1 min-w-0 truncate text-muted text-[12.5px]">
+                  <span className="flex-1 min-w-0 truncate text-muted text-label">
                     {Object.entries(snapshot.counts).map(([table, n]) => `${n} ${table}`).join(', ')}
                   </span>
-                  <span className="text-muted text-[12.5px] hide-sm">{mb(snapshot.size)}</span>
+                  <span className="text-muted text-label hide-sm">{mb(snapshot.size)}</span>
                   {snapshot.intact !== undefined && (
-                    <span className={cn('text-[12.5px]', snapshot.intact ? 'text-muted' : 'text-danger')}>
+                    <span className={cn('text-label', snapshot.intact ? 'text-muted' : 'text-danger')}>
                       {snapshot.intact ? t('backup.intact') : t('backup.damaged')}
                     </span>
                   )}
@@ -520,13 +520,13 @@ export function Backups() {
               the old one is the only list there is. */}
           {bucket && (
             <>
-              <p className="text-[12.5px] font-medium text-soft mt-3 mb-1.5">{t('backup.inBucket', { where: bucket.where ?? '' })}</p>
+              <p className="text-label font-medium text-soft mt-3 mb-1.5">{t('backup.inBucket', { where: bucket.where ?? '' })}</p>
               {bucket.problem ? (
-                <p className="text-[12px] text-danger">{bucket.problem}</p>
+                <p className="text-label text-danger">{bucket.problem}</p>
               ) : bucket.names.length === 0 ? (
-                <p className="text-[12px] text-muted">{t('backup.bucketEmpty')}</p>
+                <p className="text-label text-muted">{t('backup.bucketEmpty')}</p>
               ) : (
-                <div className="rounded-[var(--radius)] border border-line bg-raised p-0">
+                <div className="rounded border border-line bg-raised p-0">
                   {bucket.names.map((name) => (
                     <div className="flex items-center gap-2 trash-row" key={name} style={{ gap: 9 }}>
                       <Icon name="archive" size={15} className="text-muted" />
@@ -541,7 +541,7 @@ export function Backups() {
             </>
           )}
 
-          <p className="text-[12px] text-muted mt-2">{t('backup.restoreHint')}</p>
+          <p className="text-label text-muted mt-2">{t('backup.restoreHint')}</p>
         </>
       )}
 
@@ -549,7 +549,7 @@ export function Backups() {
           instance deployed somewhere new has none of its own yet, and this is
           the file it has instead. */}
       <SectionHeading>{t('restore.upload')}</SectionHeading>
-      <p className="text-muted text-[13.5px]">{t('restore.uploadHint')}</p>
+      <p className="text-muted text-body">{t('restore.uploadHint')}</p>
       <label className={cn(buttonVariants({}), 'cursor-pointer')}>
         <Icon name="refresh" size={14} /> {t('restore.choose')}
         <input
@@ -586,7 +586,7 @@ export function Backups() {
           </p>
 
           {restoring.held && (
-            <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 my-2 text-[13.5px]">
+            <div className="rounded border border-line bg-raised p-3.5 my-2 text-body">
               <div className="flex items-center gap-2">
                 <span className="flex-1 min-w-0">{t('restore.arriving')}</span>
                 <strong>
@@ -609,12 +609,12 @@ export function Backups() {
 
           {/* Said in this order on purpose: the irreversible part, then the
               thing that makes it survivable, then what happens next. */}
-          <p className="text-[13px] text-danger">
+          <p className="text-body text-danger">
             {restoring.held?.replacing.unused ? t('restore.emptyInstance') : t('restore.replaces')}
           </p>
-          <p className="text-[13px] text-muted">{status.keeps ? t('restore.safety') : t('restore.noSafety')}</p>
-          <p className="text-[13px] text-muted">{t('restore.signedOut')}</p>
-          <p className="text-[13px] text-muted">{t('restore.secret')}</p>
+          <p className="text-body text-muted">{status.keeps ? t('restore.safety') : t('restore.noSafety')}</p>
+          <p className="text-body text-muted">{t('restore.signedOut')}</p>
+          <p className="text-body text-muted">{t('restore.secret')}</p>
 
           <div className="field">
             <label htmlFor="restore-confirm">{t('restore.typeToConfirm', { word: t('restore.word') })}</label>
@@ -648,15 +648,15 @@ function PlaceRow({ place }: { place: Place }) {
       <span className="flex-1 min-w-0 text-right">
         <strong className="block truncate">{place.where}</strong>
         {place.problem ? (
-          <span className="block text-[12px] text-danger">{place.problem}</span>
+          <span className="block text-label text-danger">{place.problem}</span>
         ) : !last ? (
-          <span className="block text-[12px] text-muted">{t('backup.notYet')}</span>
+          <span className="block text-label text-muted">{t('backup.notYet')}</span>
         ) : last.ok ? (
-          <span className="block text-[12px] text-muted">{t('backup.arrived', { name: last.snapshot, when: relativeTime(last.attempted_at) })}</span>
+          <span className="block text-label text-muted">{t('backup.arrived', { name: last.snapshot, when: relativeTime(last.attempted_at) })}</span>
         ) : (
           <>
-            <span className="block text-[12px] text-danger">{t('backup.failedAt', { when: relativeTime(last.attempted_at), detail: last.detail })}</span>
-            <span className="block text-[12px] text-muted">
+            <span className="block text-label text-danger">{t('backup.failedAt', { when: relativeTime(last.attempted_at), detail: last.detail })}</span>
+            <span className="block text-label text-muted">
               {last.delivered_at ? t('backup.lastArrived', { when: relativeTime(last.delivered_at) }) : t('backup.neverArrived')}
             </span>
           </>

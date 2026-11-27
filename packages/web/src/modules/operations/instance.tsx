@@ -165,7 +165,7 @@ export function InstanceSettings() {
 
   return (
     <>
-      <p className="text-muted text-[13.5px]">{t('instance.intro')}</p>
+      <p className="text-muted text-body">{t('instance.intro')}</p>
 
       {GROUPS.map(({ group, title, hint }) => {
         const settings = state.settings.filter((setting) => setting.group === group);
@@ -176,9 +176,9 @@ export function InstanceSettings() {
             <div className="mb-2 flex items-center gap-2">
               <GroupState group={group} status={state.status} />
             </div>
-            <p className="mb-2.5 text-[12px] text-muted">{t(hint)}</p>
+            <p className="mb-2.5 text-label text-muted">{t(hint)}</p>
 
-            <div className="flex flex-col gap-2.5 rounded-[var(--radius)] border border-line bg-raised p-3.5">
+            <div className="flex flex-col gap-2.5 rounded border border-line bg-raised p-3.5">
               {settings.map((setting) => (
                 <Field
                   key={setting.key}
@@ -196,7 +196,7 @@ export function InstanceSettings() {
               <Button disabled={busy === group} onClick={() => void test(group)}>
                 <Icon name="send" size={14} /> {t('instance.test')}
               </Button>
-              {changed && <span className="text-[12px] text-muted">{t('instance.unsaved')}</span>}
+              {changed && <span className="text-label text-muted">{t('instance.unsaved')}</span>}
             </div>
           </section>
         );
@@ -217,7 +217,7 @@ function GroupState({ group, status }: { group: Group; status: Status }) {
           ? places.map((place) => <Chip key={place} tone="on">{t(PLACE[place])}</Chip>)
           : <Chip>{t('instance.off')}</Chip>}
         {status.backup.problems.map((problem) => (
-          <span key={problem} className="truncate text-[12px] text-danger">{problem}</span>
+          <span key={problem} className="truncate text-label text-danger">{problem}</span>
         ))}
       </>
     );
@@ -227,7 +227,7 @@ function GroupState({ group, status }: { group: Group; status: Status }) {
     return (
       <>
         <Chip tone="on">{status.mail.transport}</Chip>
-        <span className="mono truncate text-[12px] text-muted">{status.mail.host}</span>
+        <span className="mono truncate text-label text-muted">{status.mail.host}</span>
       </>
     );
   }
@@ -238,10 +238,10 @@ function GroupState({ group, status }: { group: Group; status: Status }) {
   return (
     <>
       <Chip tone="on">{status.ai.provider}</Chip>
-      {status.ai.model && <span className="mono truncate text-[12px] text-muted">{status.ai.model}</span>}
+      {status.ai.model && <span className="mono truncate text-label text-muted">{status.ai.model}</span>}
       {/* Said only when it differs: the same model twice is one fact. */}
       {status.ai.supportModel && status.ai.supportModel !== status.ai.model && (
-        <span className="mono truncate text-[12px] text-muted">{t('instance.aiSupportChip')}: {status.ai.supportModel}</span>
+        <span className="mono truncate text-label text-muted">{t('instance.aiSupportChip')}: {status.ai.supportModel}</span>
       )}
     </>
   );
@@ -261,16 +261,16 @@ function Field({
   return (
     <label className="flex flex-col gap-1">
       <span className="flex flex-wrap items-baseline gap-2">
-        <span className="text-[12.5px] font-medium text-soft">{t(LABEL[setting.key])}</span>
+        <span className="text-label font-medium text-soft">{t(LABEL[setting.key])}</span>
         {/* The variable's own name, because it is what the documentation, the
             compose file and `.env.example` all call this — and somebody moving
             a setting from one to the other should not have to guess. */}
-        <span className="mono text-[11px] text-muted">{setting.key}</span>
+        <span className="mono text-caption text-muted">{setting.key}</span>
         {setting.source === 'environment' && !edited && (
-          <span className="text-[11px] text-muted">{t('instance.fromEnvironment')}</span>
+          <span className="text-caption text-muted">{t('instance.fromEnvironment')}</span>
         )}
         {setting.inherits && setting.source === 'default' && setting.set && !edited && (
-          <span className="text-[11px] text-muted">{t('instance.inherited')}</span>
+          <span className="text-caption text-muted">{t('instance.inherited')}</span>
         )}
       </span>
 
@@ -296,7 +296,7 @@ function Field({
                 type="button"
                 aria-pressed={active}
                 className={cn(
-                  'rounded-[var(--radius-sm)] border border-line px-2.5 py-1 text-[12.5px]',
+                  'rounded-sm border border-line px-2.5 py-1 text-label',
                   active ? 'border-accent bg-accent-soft text-accent' : 'text-soft',
                 )}
                 onClick={() => onChange(option)}
@@ -341,7 +341,7 @@ function Field({
           typed — while the bucket it belonged to quietly stopped taking
           backups. */}
       {setting.unreadable && !edited && (
-        <span className="text-[12px] text-danger">{t('instance.unreadable')}</span>
+        <span className="text-label text-danger">{t('instance.unreadable')}</span>
       )}
     </label>
   );
