@@ -71,7 +71,13 @@ export function registerSettingsRoutes(router: Router): void {
 
     if (ctx.params.group === 'mail') {
       if (!env.mailEnabled) throw badRequest('No mail transport is configured');
-      queueTestMail(String(me.email), me.locale ?? undefined);
+      // With mail on, nothing queued means the address is suppressed — and a
+      // refused test is what suppresses it. Unchecked, every later test sent
+      // nothing and repeated the first refusal below, so a key corrected in
+      // the meantime still read as wrong.
+      if (!queueTestMail(String(me.email), me.locale ?? undefined)) {
+        throw badRequest(`Nothing was sent: ${me.email} is on the suppression list after an earlier refusal — allow it again under Settings → Notifications, then test again`);
+      }
       const result = await flushQueue(5);
       if (!result.sent) {
         const failure = get<Row>(

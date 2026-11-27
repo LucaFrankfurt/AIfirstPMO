@@ -34,6 +34,7 @@
  * default URL rather than assembled from a region name that has one legal
  * value.
  */
+import { createHash } from 'node:crypto';
 import { assertEmailAddress } from '../../kernel/mail/address.ts';
 import { headerSafe, isHeaderName } from './headers.ts';
 import { DeliveryError, safeContentType, safeFilename, type Deliverable } from './delivery.ts';
@@ -95,12 +96,15 @@ export async function sendViaScaleway(config: ScalewayConfig, mail: Deliverable)
   // A queue worker that blocks forever on one message stops sending all of
   // them, and `fetch` has no timeout of its own.
   const abort = AbortSignal.timeout(timeoutMs);
+  // Trimmed here rather than left to `fetch`, which trims a header value too —
+  // so that the length logged below is the length that was sent.
+  const token = config.secretKey.trim();
 
   let response: Response;
   try {
     response = await fetch(config.url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Auth-Token': config.secretKey },
+      headers: { 'Content-Type': 'application/json', 'X-Auth-Token': token },
       body: JSON.stringify(body),
       signal: abort,
     });
@@ -116,6 +120,28 @@ export async function sendViaScaleway(config: ScalewayConfig, mail: Deliverable)
 
   if (!response.ok) {
     const detail = (await response.text().catch(() => '')).slice(0, 300);
+    /*
+     * What was asked, without the key. A 403 from Scaleway's IAM reads the same
+     * whether the key is a different one, lacks the email permission, or was
+     * asked about a project that is not its own — and those are told apart only
+     * by what was sent, which nothing else on this path records: the key is
+     * sealed in the database and the screen says no more than "stored".
+     *
+     * The key's length and fingerprint rather than any of the key. The length
+     * tells a secret key (a UUID, 36 characters) from the access key pasted in
+     * its place (20). The fingerprint — the first eight hex digits of its
+     * SHA-256 — answers "is this the key the other app uses?" without either
+     * side showing one: `printf %s "$KEY" | shasum -a 256 | cut -c1-8` next to
+     * the other app prints the same eight. Thirty-two bits of a hash say nothing
+     * useful about a key with 122 random ones. The project id is quoted, so a
+     * stray space or carriage return from a pasted value shows.
+     */
+    const fingerprint = createHash('sha256').update(token).digest('hex').slice(0, 8);
+    console.warn(
+      `[mail] Scaleway answered HTTP ${response.status}: url=${config.url}`
+      + ` token=${token ? `present (${token.length} chars, sha256:${fingerprint})` : 'missing'}`
+      + ` project_id=${JSON.stringify(config.projectId)} from=${body.from.email}`,
+    );
     /*
      * Which failures are worth retrying, in HTTP's terms rather than SMTP's.
      *
