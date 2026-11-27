@@ -308,8 +308,14 @@ describe('the test button', () => {
     }
   });
 
-  it('says the address is suppressed, rather than repeating the refusal that put it there', async () => {
+  it('leaves the admin’s address alone when Scaleway refuses the key, and asks again next time', async () => {
+    // A 403 is the key's problem — its permission, or a project that is not
+    // its own — and used to put the admin's own address on the suppression
+    // list, so every later test sent nothing at all. It is final for that one
+    // message and says nothing about the person it was for.
     const api = await fakeScaleway(403);
+    const warn = console.warn;
+    console.warn = () => undefined;
     try {
       dropDueMail();
       await save(adminCookie, {
@@ -317,12 +323,36 @@ describe('the test button', () => {
         KOLIBRI_SCALEWAY_SECRET_KEY: 'a-key-without-the-permission',
         KOLIBRI_SCALEWAY_PROJECT_ID: 'a-project',
       });
+      for (const path of ['/api/instance/test/mail', '/api/mail/test']) {
+        const refused = await call(adminCookie, path, {});
+        assert.equal(refused.status, 400);
+        assert.match(refused.body.message, /HTTP 403/, path);
+      }
+      assert.equal(api.calls.length, 2, 'the second test did not reach Scaleway');
+      assert.equal(get(`SELECT 1 FROM email_suppressions`), undefined, 'a refused key suppressed the recipient');
+    } finally {
+      console.warn = warn;
+      api.close();
+      run(`DELETE FROM email_suppressions`);
+    }
+  });
+
+  it('says the address is suppressed, rather than repeating the refusal that put it there', async () => {
+    // A 400 is the one Scaleway refusal still read as the address's: final,
+    // and it puts the address on the list. The next test sends nothing, and
+    // has to say why rather than show the first one's refusal as its own —
+    // from either of the two test buttons.
+    const api = await fakeScaleway(400);
+    try {
+      dropDueMail();
+      await save(adminCookie, {
+        KOLIBRI_MAIL_TRANSPORT: 'scaleway',
+        KOLIBRI_SCALEWAY_SECRET_KEY: 'a-key',
+        KOLIBRI_SCALEWAY_PROJECT_ID: 'a-project',
+      });
       const first = await call(adminCookie, '/api/instance/test/mail', {});
       assert.equal(first.status, 400);
-      assert.match(first.body.message, /HTTP 403/);
-      // A 403 is final, so the queue put the admin's own address on the list.
-      // The next test sends nothing, and has to say why rather than show the
-      // first one's refusal as its own — from either of the two test buttons.
+      assert.match(first.body.message, /HTTP 400/);
       for (const path of ['/api/instance/test/mail', '/api/mail/test']) {
         const again = await call(adminCookie, path, {});
         assert.equal(again.status, 400);

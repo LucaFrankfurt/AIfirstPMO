@@ -185,6 +185,25 @@ reading HTTP `500` as a hard bounce would walk an entire user list off the maili
 outage — one address at a time, with nobody to notice. Each transport therefore states what its own
 failure means rather than leaving it to be guessed from the message text.
 
+It states a second thing too: **whose failure it is.** "Final" is not the same as "this address is
+dead". A rejected password (SMTP `535`), a From address the relay will not relay for, a relay that
+turns the connection away, a missing STARTTLS, and Scaleway's `401`, `403` and `404` are all final
+for the message and say nothing about the person it was for — they are about the key, the
+permission, the project or the relay. Those end the message without retrying and leave the address
+alone, so the next message reaches it once the configuration is fixed. Only a refusal of the
+address itself — `RCPT TO` answering `5xx`, a `5xx` after the body, the rest of Scaleway's `4xx` —
+puts it on the suppression list.
+
+This used to be one flag, and a wrong Scaleway key suppressed every recipient the queue touched,
+starting with the admin who pressed "Send a test". On upgrade the server releases, once, every
+address that was suppressed for a failure that was the sender's; a real bounce, a complaint and an
+address somebody suppressed by hand stay where they are.
+
+A failed SMTP command is named by its verb and never by its line. It used to be the line's first
+word, and for `AUTH LOGIN` that line is the user name or the password in base64 — a relay answering
+`535` put the password into the queue, the suppression list, the test button's answer and the log.
+The same upgrade rewrites any stored error that still carries one.
+
 ### Trying it without a mail provider
 
 The dev overlay adds **Mailpit**, a capture inbox, and wires the app to it in one command:

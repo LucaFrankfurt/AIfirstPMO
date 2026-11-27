@@ -12,7 +12,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { all, get, run, type Row } from '../../kernel/platform/db/index.ts';
 import { env } from '../../kernel/platform/env.ts';
-import { isPermanentFailure } from './delivery.ts';
+import { isPermanentFailure, suppressesRecipient } from './delivery.ts';
 import { deliver } from './transport.ts';
 import { uid } from '../../kernel/platform/ids.ts';
 import { isLocale, defaultLocale, translate, type Locale } from '../../kernel/i18n/i18n.ts';
@@ -105,6 +105,64 @@ export function suppress(email: string, reason: SuppressionReason, detail?: stri
   );
 }
 
+/**
+ * The failures that are the sender's, read back out of what was stored.
+ *
+ * For the rows written before `DeliveryError.about` existed, which is the only
+ * thing this reads text for: a new failure says whose it is. Every pattern is a
+ * message this server's own transports produced — the command before `RCPT TO`
+ * that a relay refused, the Scaleway statuses that are about the key, and the
+ * two refusals the client makes itself before saying a password.
+ *
+ * `SMTP <anything else> failed` is the leaked form: the "command" was a line of
+ * `AUTH LOGIN`, which is a user name or a password in base64.
+ */
+const SMTP_VERBS = new Set(['EHLO', 'HELO', 'STARTTLS', 'AUTH', 'MAIL', 'RCPT', 'DATA', 'QUIT', 'RSET']);
+
+function senderSide(detail: string): boolean {
+  if (/^Scaleway refused the message \(HTTP (?:401|403|404)\)/.test(detail)) return true;
+  if (/^Refusing to send credentials to /.test(detail) || / does not offer STARTTLS /.test(detail)) return true;
+  if (/^Unexpected SMTP greeting:/.test(detail)) return true;
+  const command = /^SMTP (\S+) failed:/.exec(detail)?.[1];
+  if (!command) return false;
+  return command !== 'RCPT' && command !== 'DATA';
+}
+
+/** `SMTP <base64 line> failed: …` as the label it should always have had. */
+function scrubbed(text: string): string {
+  return text.replace(/^SMTP (\S+) failed:/, (whole, command: string) => (SMTP_VERBS.has(command) ? whole : 'SMTP AUTH failed:'));
+}
+
+/**
+ * Undo what the old rule did, once, at boot: release every address that was
+ * suppressed for a failure that was the sender's, and take the base64 out of
+ * any stored error that carried an `AUTH LOGIN` line.
+ *
+ * Releasing rather than leaving them is the repair the bug calls for: those
+ * addresses never bounced, and nothing would ever have told anybody to clear
+ * them — a wrong key fixed on Tuesday left everybody it had touched on Monday
+ * unreachable for good. A real bounce, a complaint and a hand-made entry are
+ * left exactly where they are. Idempotent; answers how many it released.
+ */
+export function releaseSenderSuppressions(): number {
+  let released = 0;
+  for (const row of all<Row>(`SELECT email, detail FROM email_suppressions WHERE reason = 'bounce' AND detail IS NOT NULL`)) {
+    if (!senderSide(String(row.detail))) continue;
+    run(`DELETE FROM email_suppressions WHERE email = ?`, row.email);
+    released++;
+  }
+  for (const row of all<Row>(`SELECT id, last_error FROM email_queue WHERE last_error LIKE 'SMTP % failed:%'`)) {
+    const clean = scrubbed(String(row.last_error));
+    if (clean !== row.last_error) run(`UPDATE email_queue SET last_error = ? WHERE id = ?`, clean, row.id);
+  }
+  for (const row of all<Row>(`SELECT email, detail FROM email_suppressions WHERE detail LIKE 'SMTP % failed:%'`)) {
+    const clean = scrubbed(String(row.detail));
+    if (clean !== row.detail) run(`UPDATE email_suppressions SET detail = ? WHERE email = ?`, clean, row.email);
+  }
+  if (released) console.info(`[mail] released ${released} address(es) suppressed for a failure that was the sender's`);
+  return released;
+}
+
 export const isSuppressed = (email: string): boolean =>
   !!get<Row>(`SELECT email FROM email_suppressions WHERE email = ?`, email.trim().toLowerCase());
 
@@ -156,9 +214,10 @@ export async function flushQueue(limit = 20): Promise<{ sent: number; failed: nu
       // `DeliveryError` says what reading the text costs.
       const permanent = isPermanentFailure(error);
       const giveUp = permanent || attempts >= env.mail.maxAttempts;
-      // A permanent refusal is the address's problem, not this message's: the
-      // address stops being written to at all.
-      if (permanent) suppress(String(row.to_email), 'bounce', message);
+      // A permanent refusal *of the address* stops it being written to at all.
+      // One of the sender — the password, the key, the From address — ends this
+      // message and leaves the person alone; see `DeliveryError.about`.
+      if (suppressesRecipient(error)) suppress(String(row.to_email), 'bounce', message);
       run(
         `UPDATE email_queue SET attempts = ?, last_error = ?, send_after = ?, failed_at = ? WHERE id = ?`,
         attempts, message.slice(0, 500),

@@ -66,11 +66,25 @@ export type Transport = (mail: Deliverable) => Promise<string>;
  */
 export class DeliveryError extends Error {
   readonly permanent: boolean;
+  /**
+   * Whose problem it is: the address the message was for, or this server's
+   * way of sending.
+   *
+   * `permanent` alone was read as "this address is dead", which is right for
+   * `RCPT TO` answering 550 and wrong for everything that fails before the
+   * recipient is even named — a rejected password, a From address the relay
+   * will not relay for, a Scaleway key without the email permission. Those are
+   * final for the message and say nothing about the person it was for, and
+   * reading them as a bounce put every recipient on the suppression list one
+   * message at a time, the admin's own address first. See `suppressesRecipient`.
+   */
+  readonly about: 'recipient' | 'sender';
 
-  constructor(message: string, permanent: boolean) {
+  constructor(message: string, permanent: boolean, about: 'recipient' | 'sender' = 'recipient') {
     super(message);
     this.name = 'DeliveryError';
     this.permanent = permanent;
+    this.about = about;
   }
 }
 
@@ -86,3 +100,14 @@ export const isPermanentFailure = (error: unknown): boolean => {
   if (error instanceof DeliveryError) return error.permanent;
   return /\b5\d\d\b/.test(error instanceof Error ? error.message : String(error));
 };
+
+/**
+ * Whether a failure should put the *address* on the suppression list.
+ *
+ * Only a permanent failure that is about the recipient. A permanent failure
+ * that is about the sender stops this message — retrying a wrong password every
+ * few minutes tells nobody anything — and leaves the person it was for alone,
+ * so the next message reaches them once the configuration is fixed.
+ */
+export const suppressesRecipient = (error: unknown): boolean =>
+  (error instanceof DeliveryError ? error.permanent && error.about === 'recipient' : isPermanentFailure(error));
