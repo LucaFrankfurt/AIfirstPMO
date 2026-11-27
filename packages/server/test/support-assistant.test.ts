@@ -25,6 +25,7 @@ const { resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
 const { provideModel, AiError } = await import('../src/modules/ai-review/model.ts');
 const { knowledgeOf, parseAnswer, settled } = await import('../src/modules/support/assistant.ts');
 const { visitorLanguage } = await import('../src/modules/support/language.ts');
+const { CONTEXT_LONG_VALUE_MAX, contextFieldsText } = await import('@kolibri/shared');
 
 let base = '';
 let cookie = '';
@@ -522,12 +523,49 @@ describe('customer data from the host\'s token', () => {
     await ok(`/api/widgets/${customers.id}`, { context_fields: 'plan: Plan\nrenews: Renews on' }, 'PATCH');
   });
 
+  it('keeps a field marked [long], two at most, and reads it back the way it was typed', async () => {
+    const typed = 'plan: Plan\nbriefing: Briefing [long]\norders: Open orders [long]\nnotes: Notes [long]';
+    await ok(`/api/widgets/${customers.id}`, { context_fields: typed }, 'PATCH');
+    const stored = JSON.parse(get<any>(`SELECT context_fields FROM widgets WHERE id = ?`, customers.id).context_fields);
+    assert.deepEqual(stored, [
+      { key: 'plan', label: 'Plan' },
+      { key: 'briefing', label: 'Briefing', long: true },
+      { key: 'orders', label: 'Open orders', long: true },
+    ], 'a short field stored as it always was; the third long one dropped');
+    assert.equal(contextFieldsText(stored), 'plan: Plan\nbriefing: Briefing [long]\norders: Open orders [long]');
+  });
+
+  it('gives the model a long value whole, in a token the session once refused, and drops one a character longer', async () => {
+    await ok(`/api/widgets/${customers.id}`, { context_fields: 'plan: Plan\nbriefing: Briefing [long]' }, 'PATCH');
+    resetRateLimits();
+    reply = () => '{"answer":"Mondays are quiet.","sources":[],"handover":false}';
+    // Three bytes a character: past the 16 KiB the session route used to read.
+    const briefing = '€'.repeat(CONTEXT_LONG_VALUE_MAX);
+    const kept = await visit(`/w/${customers.id}/session`, { token: hostToken({ sub: 'c-3', ctx: { plan: 'Pro', briefing } }) });
+    assert.equal(kept.status, 200);
+    await visit(`/w/${customers.id}/messages`, { body: 'When is it quiet?' }, kept.json.session);
+    await settled();
+    assert.ok(asked.at(-1)!.user.includes(`{"field":"Briefing","value":"${briefing}"}`), 'whole, not cut');
+
+    resetRateLimits();
+    const dropped = await visit(`/w/${customers.id}/session`, {
+      token: hostToken({ sub: 'c-4', ctx: { plan: 'P'.repeat(201), briefing: `${briefing}€` } }),
+    });
+    await visit(`/w/${customers.id}/messages`, { body: 'When is it quiet?' }, dropped.json.session);
+    await settled();
+    assert.doesNotMatch(asked.at(-1)!.user, /CUSTOMER DATA/, 'a short field still stops at 200, a long one at its own limit');
+    await ok(`/api/widgets/${customers.id}`, { context_fields: 'plan: Plan\nrenews: Renews on' }, 'PATCH');
+  });
+
   it('gives nothing about an anonymous visitor, and keeps the rules word for word', async () => {
     reply = () => '{"answer":"","sources":[],"handover":true}';
     await visitorSays('Which plan am I on?');
     const last = asked.at(-1)!;
     assert.doesNotMatch(last.user, /CUSTOMER DATA/);
     assert.match(last.system, /Hand over when the visitor asks for a person, is upset, or asks about their own account\.\n/);
+    assert.match(last.system, /Choose the form of the answer yourself; the visitor does not have to ask for it\./);
+    assert.match(last.system, /one amount over time, are a chart: a fenced block ```chart/);
+    assert.match(last.system, /never a chart or table of estimated or invented ones/);
     assert.doesNotMatch(last.system, /CUSTOMER DATA/);
     const thread = await visit(`/w/${widget.id}/messages`, undefined, (await visit(`/w/${widget.id}/session`, {})).json.session);
     assert.deepEqual(thread.json.assistant.sees, []);
@@ -571,6 +609,16 @@ describe('customer data over MCP', () => {
     assert.match(asked.at(-1)!.user, /"Plan","value":"Pro"/);
     assert.doesNotMatch(asked.at(-1)!.user, /"secret"|"x"/);
     await assert.rejects(tool('try_assistant', { widget: 'Prospects', question: 'Plan?', customer_data: { plan: 'Pro' } }), /signed-in visitor/);
+  });
+
+  it('marks a field long, and refuses a third', async () => {
+    const fields = [{ key: 'plan', label: 'Plan' }, { key: 'briefing', label: 'Briefing', long: true }];
+    assert.deepEqual((await tool('update_widget', { widget: 'Customers', customer_fields: fields })).customer_fields, fields);
+    await assert.rejects(
+      tool('update_widget', { widget: 'Customers', customer_fields: ['a', 'b', 'c'].map((key) => ({ key, long: true })) }),
+      /at most 2 fields are long/,
+    );
+    await tool('update_widget', { widget: 'Customers', customer_fields: [{ key: 'plan', label: 'Plan' }, { key: 'renews', label: 'Renews on' }] });
   });
 
   it('creates a signed widget with its sites, fields and pages, and answers with the snippet and never the secret', async () => {
@@ -753,6 +801,18 @@ describe('what the model writes, afterwards', () => {
     assert.equal(queued.to_email, 'nia@example.com');
     assert.match(queued.body_text, /AI assistant/);
     assert.match(queued.body_text, /29 EUR a month/);
+
+    // A chart is JSON in the line; the plain-text email carries its numbers instead.
+    reply = () => JSON.stringify({
+      answer: 'Here they are:\n\n```chart\n{"title":"Plans","labels":["Shop","Pro"],"series":[{"name":"EUR","values":[29,59]}]}\n```',
+      sources: [], handover: false,
+    });
+    const charted = await signIn('m-charted');
+    await visit(`/w/${signed.id}/messages`, { body: 'Compare the plans?' }, charted.session);
+    await settled();
+    const chartMail = get<any>(`SELECT * FROM email_queue WHERE id = ?`, pendingMail(charted.id));
+    assert.match(chartMail.body_text, /Plans\nShop: 29\nPro: 59/);
+    assert.doesNotMatch(chartMail.body_text, /```|"series"/);
 
     reply = () => '{"answer":"A colleague will answer you here shortly.","sources":[],"handover":true}';
     const handed = await signIn('m-handed');

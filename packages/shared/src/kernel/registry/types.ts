@@ -2428,6 +2428,8 @@ export interface WidgetContextField {
   key: string;
   /** What the model and the visitor read, e.g. "Plan". */
   label: string;
+  /** Up to `CONTEXT_LONG_VALUE_MAX` characters rather than `CONTEXT_VALUE_MAX`; absent on a short field. */
+  long?: boolean;
 }
 
 /**

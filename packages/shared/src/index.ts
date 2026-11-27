@@ -23,6 +23,7 @@ export * from './modules/secrets/secret.ts';
 export * from './modules/pages/escape.ts';
 export * from './modules/pages/html.ts';
 export * from './modules/pages/markdown.ts';
+export * from './modules/pages/chart.ts';
 export * from './modules/pages/links.ts';
 export * from './modules/pages/status.ts';
 export * from './modules/pages/organise.ts';

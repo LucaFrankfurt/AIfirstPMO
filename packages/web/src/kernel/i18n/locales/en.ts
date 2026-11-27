@@ -3703,7 +3703,7 @@ export const en = {
   'widgets.notPublic': 'not in the public knowledge base, so not read',
   'widgets.untitledPage': 'Untitled page',
   'widgets.customerFields': 'What it may know about a signed-in visitor',
-  'widgets.customerFieldsHint': 'Facts your site puts in the token’s ctx claim, one per line as key: Label, e.g. plan: Plan. Anything else in the claim is dropped.',
+  'widgets.customerFieldsHint': 'Facts your site puts in the token’s ctx claim, one per line as key: Label, e.g. plan: Plan. Anything else in the claim is dropped. A value may be 200 characters long; with [long] at the end of the line 8,000, for a summary your site writes for the model (at most 2 such fields).',
   'widgets.budget': 'Answers a day',
   'widgets.budgetHint': 'How often the model may be asked a day, a hand-over included. Past this, every conversation goes to a person. It bounds what a stranger can spend of the server’s key.',
   'support.suggest': 'Suggest a reply',

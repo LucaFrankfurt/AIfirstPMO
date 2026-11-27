@@ -53,6 +53,9 @@ const CATALOGUE = {
     yesterday: 'Yesterday',
     actions: 'What to do with this message',
     typingNamed: '{name} is typing',
+    chartTable: 'The same numbers as a table',
+    expand: 'Full screen',
+    collapse: 'Exit full screen',
   },
   de: {
     assistant: 'KI-Assistent',
@@ -96,6 +99,9 @@ const CATALOGUE = {
     yesterday: 'Gestern',
     actions: 'Was mit dieser Nachricht geschehen soll',
     typingNamed: '{name} schreibt',
+    chartTable: 'Dieselben Zahlen als Tabelle',
+    expand: 'Vollbild',
+    collapse: 'Vollbild beenden',
   },
   fr: {
     assistant: 'Assistant IA',
@@ -139,6 +145,9 @@ const CATALOGUE = {
     yesterday: 'Hier',
     actions: 'Que faire de ce message',
     typingNamed: '{name} écrit',
+    chartTable: 'Les mêmes chiffres sous forme de tableau',
+    expand: 'Plein écran',
+    collapse: 'Quitter le plein écran',
   },
 } as const;
 
@@ -187,6 +196,7 @@ export const COPIED_FROM = {
   today: 'chat.today',
   yesterday: 'chat.yesterday',
   actions: 'chat.messageActions',
+  chartTable: 'insights.tableView',
 } as const;
 
 export const WIDGET_CATALOGUE = CATALOGUE;

@@ -3691,7 +3691,7 @@ export const fr: Catalogue = {
   'widgets.notPublic': 'pas dans la base de connaissances publique, donc pas lue',
   'widgets.untitledPage': 'Page sans titre',
   'widgets.customerFields': 'Ce qu’il peut savoir d’un visiteur connecté',
-  'widgets.customerFieldsHint': 'Les informations que votre site place dans le claim ctx du jeton, une par ligne sous la forme key: Libellé, p. ex. plan: Offre. Le reste du claim est ignoré.',
+  'widgets.customerFieldsHint': 'Les informations que votre site place dans le claim ctx du jeton, une par ligne sous la forme key: Libellé, p. ex. plan: Offre. Le reste du claim est ignoré. Une valeur peut faire 200 caractères ; avec [long] en fin de ligne 8 000, pour un résumé que votre site rédige pour le modèle (2 champs de ce type au plus).',
   'widgets.budget': 'Réponses par jour',
   'widgets.budgetHint': 'Combien de fois par jour le modèle peut être sollicité, transferts compris. Au-delà, chaque conversation va à une personne. Cela limite ce qu’un inconnu peut dépenser de la clé du serveur.',
   'support.suggest': 'Proposer une réponse',
