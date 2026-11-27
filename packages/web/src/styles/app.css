@@ -580,6 +580,10 @@ p { margin: 0 0 0.75em; }
 /* The label and its explanation are one stacked block beside the box, so the
    explanation lines up under the label rather than under the checkbox. */
 .check-row > span { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+/* A checkbox in its 24px box inside a check row. The rule above is for the
+   label's text and, being more specific than `.select-box`, collapsed the box
+   back to its 15px input — which `check:a11y` measured on the incident form. */
+.check-row > .select-box { flex-direction: row; min-width: 24px; }
 
 /* Choosing the icon a project, a page or a template wears. The trigger is a
    square the size of a small button, so it sits on a form row beside a name
@@ -4104,6 +4108,72 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 }
 .pick-remove:hover { background: var(--bg-active); }
 .pick-remove:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* -------------------------------------------------------------- incidents */
+
+/*
+ * An incident in a list: the card a ballot and an agenda are, so the three
+ * read as one family. A critical one that is still active carries a red edge
+ * on its start side — a second channel beside the "P1 · Critical" chip, for a
+ * list somebody is scanning in a hurry, never the only one.
+ */
+.incident-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+}
+.incident-critical { border-inline-start: 3px solid var(--danger); }
+
+/* The incident's number and summary. 24px tall, so it is a target on its own. */
+.incident-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 24px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.incident-number {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-muted);
+  font-weight: 600;
+}
+
+/* The timeline, newest first, with a rule down its start side. */
+.incident-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0 0 0 14px;
+  list-style: none;
+  border-inline-start: 2px solid var(--line);
+}
+.incident-line { position: relative; }
+.incident-line::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: -20px;
+  top: 7px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 2px solid var(--accent);
+}
+/* A change the server wrote down: the skeleton, not something anybody said. */
+.incident-line-change { display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; color: var(--fg-muted); }
+.incident-line-change::before { border-color: var(--line-strong); top: 4px; width: 8px; height: 8px; inset-inline-start: -19px; }
+.incident-line-time { font-size: 12px; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+
+.incident-composer {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  background: var(--bg-raised, var(--bg));
+}
 
 /* ------------------------------------------------------------------- KPIs */
 

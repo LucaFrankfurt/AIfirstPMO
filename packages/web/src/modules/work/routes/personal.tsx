@@ -23,6 +23,7 @@ import { DESTINATIONS, enabled } from '../../../kernel/design-system/nav';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { navCount, navItem } from '../../../kernel/design-system/ui/nav';
 import { SetupChecklist } from '../../guide/tour';
+import { ActiveIncidents } from '../../incidents/incident-parts';
 import { useTabStrip } from '../../../kernel/design-system/tab-strip';
 import { TabButton, TabList } from '../../../kernel/design-system/ui/tabs';
 import { useMinute } from '../../../kernel/design-system/minute';
@@ -117,6 +118,11 @@ export function MyWork() {
         {name && <h2 className="greeting mb-3.5">{t(greetingKey(new Date().getHours()), { name })}</h2>}
 
         <SetupChecklist />
+
+        {/* What is still burning, above everybody's own list: an outage is
+            the one thing on this page that is more urgent than their work.
+            Absent when nothing is active — see `ActiveIncidents`. */}
+        <ActiveIncidents />
 
         {mine.length > 0 && (
           <div className="kpi-row">
@@ -270,6 +276,9 @@ export function Inbox() {
                   // where the newest unanswered conversation is at the top.
                   else if (notification.conversation_id) navigate(`/support/${notification.conversation_id}`);
                   else if (notification.kind === 'support') navigate('/support');
+                  // Put on an incident, or a P1 opened: the incident itself.
+                  // Read defensively — older rows have no such field.
+                  else if (notification.incident_id) navigate(`/incidents/${notification.incident_id}`);
                   // A report from outside is about a project's queue rather
                   // than a row, so it opens the tab that holds it.
                   else if (notification.project_id) navigate(`/projects/${notification.project_id}?tab=intake`);

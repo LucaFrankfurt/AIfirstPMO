@@ -229,6 +229,12 @@ for (const [table, column, definition] of [
   // Server-side only, like the table: never synced, so no device holds old rows.
   ['page_versions', 'name', 'TEXT'],
   ['page_versions', 'note', 'TEXT'],
+  // The incident a notification is about — somebody was put on it, or a P1 was
+  // opened. In the list in the same commit as the code that writes it, for the
+  // reason `decision_id` gives above: an INSERT naming a column an upgraded
+  // database lacks throws inside the write that set the manager, and takes the
+  // incident's edit down with it.
+  ['notifications', 'incident_id', 'TEXT'],
 ] as const) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!columns.some((c) => c.name === column)) {

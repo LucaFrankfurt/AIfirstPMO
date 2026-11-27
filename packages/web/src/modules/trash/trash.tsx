@@ -47,6 +47,10 @@ const KINDS: { entity: EntityName; label: TranslationKey; icon: string }[] = [
   // entry back. Listed for the same reason a project is: it is the row somebody
   // deletes by mistake and the one they most want to undo.
   { entity: 'product', label: 'trash.kindProduct', icon: 'tag' },
+  // An incident is a record a review, a report and somebody's email all quote
+  // by number, and the number is never handed out again — so the deleted one
+  // is the only `INC-7` there will ever be, and putting it back is the undo.
+  { entity: 'incident', label: 'trash.kindIncident', icon: 'alert' },
 ];
 
 interface Entry {
@@ -85,7 +89,9 @@ function useRecoverable(workspaceId: string, mode: 'deleted' | 'archived'): Entr
           label,
           icon,
           id: record.id,
-          title: String(record.title ?? record.name ?? record.body ?? '').slice(0, 120) || '—',
+          title: String(record.title ?? record.name
+            ?? (record.summary !== undefined ? `${record.identifier ?? ''} ${record.summary}`.trim() : null)
+            ?? record.body ?? '').slice(0, 120) || '—',
           when: Number(mode === 'deleted' ? record.deleted_at : record.updated_at) || 0,
           where: project?.name ?? null,
         });

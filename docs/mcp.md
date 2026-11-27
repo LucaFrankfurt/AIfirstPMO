@@ -618,6 +618,14 @@ is inclusive to the end of the day it names.
 | `sync_mailbox` | fetch new mail for one mailbox now. Writes nothing; needs a write scope because it reaches out |
 | `file_mail_as_task` | turn a connected mailbox's message into a task, carrying its sender, date and text |
 | `plan_move` | document a step from one landscape to the next: what it retires, what it brings in |
+| `create_incident` | open an incident; the server assigns `INC-n`. Priority is suggested from `impact` × `urgency` when left out, `detected_at` defaults to now, applications named that the list lacks are added to it. A P1 or a major incident tells every member once |
+| `update_incident` | change only what is passed. A status, priority or manager move writes its own timeline line; resolving stamps `resolved_at` and ends the impact if nobody said when |
+| `add_incident_update` | a line on the timeline — `update` for whoever is waiting, `note` among the people fixing it — optionally backdated with `occurred_at` and optionally moving the status in the same call |
+| `resolve_incident` | resolved, or closed with `close: true`, with how it ended, what was done and the root cause if known |
+| `link_to_incident` | link a page (runbook, knowledge-base article, review) or a task (a follow-up), or unlink with `remove: true` |
+| `create_incident_follow_up` | file a task in a project that names the incident, and link it |
+| `write_incident_review` | the post-incident review as a page, linked from the incident: what the record knows filled in, what only a person can write left under its heading. Called again, the same page is rewritten |
+| `create_application` | add something that can break to the list incidents are filed against; matched without case |
 
 Writes are attributed to the token owner and appear in the activity trail and everyone's live sync
 like any other change. A read-only token gets `This token is read-only` from every write tool.
@@ -636,6 +644,22 @@ is in.
 Meetings are for members. A guest's token is refused by every tool here, read-only ones included,
 for the reason the sync filter keeps the agenda off a guest's device: a guest is on a project, not
 in the room where the projects are compared. See [`meetings.md`](meetings.md).
+
+### Incidents, and the record nobody may claim
+
+`list_incidents`, `get_incident`, `incident_report` and `list_applications` read; the tools in the
+table above write. Every one takes an incident as `INC-12`, `12`, `#12` or its id.
+
+Three things on an incident are the server's and no tool can set them: the number, the moments it
+was resolved and closed, and the `change` lines on the timeline. A tool that moves the status gets
+the line for free; none of them can backdate a resolution. `incident_report` counts an incident
+nobody put a cost on as `unpriced` rather than as free, and gives the mean times to detect and to
+resolve over the incidents that have both ends — never one guessed from when the record was opened.
+
+`write_incident_review` leaves the impact in words and the lessons for a person. Do not fill them in.
+
+Incidents are for members, like meetings: a guest's token is refused by every tool here. See
+[`incidents.md`](incidents.md).
 
 ### Support conversations
 

@@ -59,6 +59,9 @@ export const ATTACHMENT_SUBJECTS = [
   'budget',
   'product',
   'component',
+  // The log excerpt, the screenshot of the error, the graph from the minute it
+  // fell over — the evidence a post-incident review is written from.
+  'incident',
 ] as const;
 
 export type AttachmentSubject = (typeof ATTACHMENT_SUBJECTS)[number];

@@ -33,6 +33,7 @@ import { switchOnMail, openMailboxEditor } from './mail-fixture.mjs';
 import { switchOnSupport } from './support-fixture.mjs';
 import { switchOnDecisions } from './ballot-fixture.mjs';
 import { switchOnMeetings } from './meeting-fixture.mjs';
+import { switchOnIncidents } from './incident-fixture.mjs';
 import { switchOnVault } from './vault-fixture.mjs';
 import { switchOnProducts } from './catalogue-fixture.mjs';
 import { switchOnPlanning } from './planning-fixture.mjs';
@@ -375,6 +376,7 @@ for (const [label, options] of MODES) {
   const { widgetId, conversationId } = await switchOnSupport(page);
   await switchOnDecisions(page);
   const meetingId = await switchOnMeetings(page);
+  const incidentId = await switchOnIncidents(page);
   await switchOnVault(page);
   await switchOnProducts(page);
   const { budgetId, kpiId } = await switchOnPlanning(page);
@@ -416,7 +418,7 @@ for (const [label, options] of MODES) {
   const SCREENS = ['/', `/projects/${project}`, '/inbox', '/search', '/chat', '/pages', '/pages/tidy', '/pages/knowledge', `/pages/${canvasId}`, `/pages/${boardPageId}`, '/teams', '/planner',
     '/portfolio', '/settings', '/settings?tab=members', '/settings?tab=data', '/settings?tab=instance',
     '/mail', ['/settings?tab=mailboxes', openMailboxEditor],
-    '/support', `/support/${conversationId}`, '/settings?tab=widgets', `/w/${widgetId}`, '/decisions', '/meetings', `/meetings/${meetingId}`, '/secrets',
+    '/support', `/support/${conversationId}`, '/settings?tab=widgets', `/w/${widgetId}`, '/decisions', '/meetings', `/meetings/${meetingId}`, '/incidents', `/incidents/${incidentId}`, '/secrets',
     // Behind the products switch, and reached only because the fixture above
     // turned it on. The catalogue is the widest table here and the simulation
     // tab the densest form; between them they carry every rule these checks

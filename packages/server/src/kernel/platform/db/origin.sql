@@ -1683,3 +1683,79 @@ CREATE TABLE assistant_calls (
   calls     INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (widget_id, day)
 );
+
+CREATE TABLE applications (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  name         TEXT NOT NULL DEFAULT '',
+  description  TEXT,
+  owner_id     TEXT,
+  criticality  TEXT NOT NULL DEFAULT 'medium',
+  component_id TEXT,
+  archived     INTEGER NOT NULL DEFAULT 0,
+  sort_order   TEXT NOT NULL DEFAULT 'V',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE TABLE incident_updates (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  incident_id  TEXT NOT NULL,
+  kind         TEXT NOT NULL DEFAULT 'update',
+  body         TEXT,
+  occurred_at  INTEGER NOT NULL DEFAULT 0,
+  field        TEXT,
+  old_value    TEXT,
+  new_value    TEXT,
+  author_id    TEXT,
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE TABLE incidents (
+  id               TEXT PRIMARY KEY,
+  workspace_id     TEXT NOT NULL,
+  number           INTEGER NOT NULL DEFAULT 0,
+  identifier       TEXT NOT NULL DEFAULT '',
+  summary          TEXT NOT NULL DEFAULT '',
+  description      TEXT,
+  status           TEXT NOT NULL DEFAULT 'new',
+  priority         TEXT NOT NULL DEFAULT 'p3',
+  impact           TEXT NOT NULL DEFAULT 'medium',
+  urgency          TEXT NOT NULL DEFAULT 'medium',
+  category         TEXT NOT NULL DEFAULT 'other',
+  major            INTEGER NOT NULL DEFAULT 0,
+  applications     TEXT NOT NULL DEFAULT '[]',
+  manager_id       TEXT,
+  responders       TEXT NOT NULL DEFAULT '[]',
+  reported_by      TEXT,
+  started_at       INTEGER,
+  detected_at      INTEGER,
+  ended_at         INTEGER,
+  resolved_at      INTEGER,
+  closed_at        INTEGER,
+  financial_impact INTEGER,
+  currency         TEXT NOT NULL DEFAULT 'EUR',
+  affected_users   INTEGER,
+  resolution_code  TEXT,
+  resolution       TEXT,
+  root_cause       TEXT,
+  pages            TEXT NOT NULL DEFAULT '[]',
+  tasks            TEXT NOT NULL DEFAULT '[]',
+  created_by       TEXT,
+  -- When the workspace was told about a P1. A marker, not a date anybody
+  -- reads: what it prevents is telling everybody a second time.
+  announced_at     INTEGER,
+  created_at       INTEGER NOT NULL,
+  updated_at       INTEGER NOT NULL,
+  deleted_at       INTEGER,
+  seq              INTEGER NOT NULL DEFAULT 0,
+  clocks           TEXT NOT NULL DEFAULT '{}'
+);

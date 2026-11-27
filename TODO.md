@@ -1674,7 +1674,7 @@ confused later.
       bound. Nothing is wrong today and nothing has been measured. The options when it does start to
       hurt: a windowed sync, an age-based local prune, or paging the stream. The measurement to take
       first is the size of one device's mirror after a busy year.
-- [ ] **An assistant cannot read a conversation.** MCP exposes 148 tools over tasks, pages, time and
+- [ ] **An assistant cannot read a conversation.** MCP exposes 160 tools over tasks, pages, time and
       cycles, and none of them touch chat — so "what did we decide about the pricing page" finds the
       task and the page and misses the room the decision was actually made in. The permission story
       is already settled: a token acts as the person it belongs to, so it would see exactly what they
@@ -1777,7 +1777,7 @@ follows is what was deliberately *not* built, and why, so that none of it is re-
       that one column and can never invent one — and both the terminal and a comment above the table
       say so rather than leaving it to be inferred. Doing it properly means rebuilding the table
       instead of altering it, in a generator that so far only ever adds. It is one column out of the
-      **90** the list carries; the other undroppable-looking eight turned out to be something else
+      **91** the list carries; the other undroppable-looking eight turned out to be something else
       entirely, list entries for columns `CREATE TABLE` never creates at all, which is the shape
       everything here is trying to reach. The shape comparison inherits the same blind spot: the
       recorded table carries the `UNIQUE`, so the check believes an upgraded instance has it, while
@@ -1891,6 +1891,45 @@ two screens, a line on the task detail, and nine MCP tools. See [`docs/meetings.
       a workspace document, as decisions and KPIs do.
 - [ ] **`kolibri doctor --fix` does not compact agenda notes.** It folds the tombstones out of page
       bodies only. A point's notes are a few hundred characters.
+
+## Incidents: what was decided, and what is left open
+
+Built as its own capability behind the `incidents` switch — an incident, its timeline, and the list
+of applications it is filed against; two screens, a panel on the start page, a line in the trash, and
+MCP tools for running an outage and writing it up. See [`docs/incidents.md`](docs/incidents.md).
+
+- [x] **The number is the server's, and never reused.** `INC-n` per workspace, the maximum ever
+      handed out plus one, tombstones included — counted inside the create, so two offline devices
+      cannot both mint the same one.
+- [x] **Priority is suggested, not computed.** ServiceNow's impact × urgency matrix fills in a new
+      incident's priority and the form follows it until somebody picks one; after that it is the
+      manager's word. A column nobody may correct is one people route around.
+- [x] **Three times, and the clocks say "—" rather than guess.** The time to resolve runs to
+      `ended_at` before the resolution stamp — measured, not chosen: the first walk through the
+      screens reported a mean time to resolve of a day for a three-hour outage written up the next
+      morning.
+- [x] **The timeline writes itself, and nobody can forge it.** Status, priority and manager moves are
+      `change` lines written by the write path; a client sending or editing one is refused, and a
+      person's update is theirs alone to edit.
+- [x] **For members, not scoped by project.** The meeting's line: `case 'incident'` in the sync
+      filter, the REST guard, search, and every MCP tool. The manager and responders are narrowed to
+      members by the write path.
+- [x] **Being put on one tells you; a P1 tells the room, once.** `incident` is important;
+      `incident_major` is instant-only, because a digest announces an outage after it is over.
+      `notifications.incident_id` went into the upgrade list in the same commit as the code that
+      writes it.
+- [x] **The review is a page, half filled in.** Everything the record knows; the impact in words and
+      the lessons left for a person.
+- [ ] **Not in the workspace export.** `exportWorkspace` carries meetings and nothing else of this
+      kind — no decisions, KPIs or budgets either. An incident names applications, pages and tasks by
+      id, so carrying it means remapping three lists on the way in.
+- [ ] **Nothing opens one on its own.** No alert integration: a monitor cannot page anybody here. An
+      incoming webhook that names an application would be the shape; wait for a workspace that has
+      a monitor to point at it.
+- [ ] **No status page.** Updates are for the workspace. Publishing one to customers is a share link
+      of a new kind, with a visibility rule per line, and that is a design rather than a column.
+- [ ] **Not in the calendar feed, and no SLA.** A response or resolution target per priority would
+      need working hours per workspace, which nothing here has yet.
 
 ## Canvas pages: what was decided, and what is left open
 

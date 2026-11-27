@@ -23,6 +23,7 @@ import {
   type AgendaItem, type AgendaStatus, type Meeting, type MinutesWords, type Task, type User,
 } from '@kolibri/shared';
 import { AvatarStack, Icon, MenuButton, Sheet, StateDot, useConfirm, useToast } from '../../kernel/design-system/ui';
+import { PickChips } from '../../kernel/design-system/pick-chips';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Chip } from '../../kernel/design-system/ui/chip';
 import { Input, Label, Select, Textarea } from '../../kernel/design-system/ui/field';
@@ -131,57 +132,6 @@ export function MeetingState({ meeting }: { meeting: Meeting }) {
 }
 
 /* ------------------------------------------------------------------ forms */
-
-/**
- * Chips for what is chosen, a menu for the rest.
- *
- * One shape for the two lists a meeting has — the people expected, and the
- * projects a point is about — because both are "any number of these, from a
- * list that grows with the workspace", and the menu's own search is what
- * makes forty names usable.
- */
-function PickChips({
-  chosen, options, onChange, addLabel, removeLabel, disabled,
-}: {
-  chosen: string[];
-  options: { id: string; label: string }[];
-  onChange: (next: string[]) => void;
-  addLabel: string;
-  removeLabel: (label: string) => string;
-  disabled?: boolean;
-}) {
-  const named = new Map(options.map((option) => [option.id, option.label]));
-  const rest = options.filter((option) => !chosen.includes(option.id));
-  return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      {chosen.filter((id) => named.has(id)).map((id) => (
-        <Chip key={id} className="gap-1 pr-0.5">
-          {named.get(id)}
-          {!disabled && (
-            <button
-              type="button"
-              className="pick-remove"
-              aria-label={removeLabel(named.get(id) ?? '')}
-              onClick={() => onChange(chosen.filter((one) => one !== id))}
-            >
-              <Icon name="close" size={11} />
-            </button>
-          )}
-        </Chip>
-      ))}
-      {!disabled && rest.length > 0 && (
-        <MenuButton
-          size="sm"
-          label={addLabel}
-          search={rest.length > 8}
-          items={rest.map((option) => ({ id: option.id, label: option.label, onSelect: () => onChange([...chosen, option.id]) }))}
-        >
-          <Icon name="plus" size={13} /> <span>{addLabel}</span>
-        </MenuButton>
-      )}
-    </div>
-  );
-}
 
 /**
  * The people a meeting can name: the workspace's members, and not its guests.

@@ -47,6 +47,9 @@ export type EntityName =
   | 'decisionVote'
   | 'meeting'
   | 'agendaItem'
+  | 'application'
+  | 'incident'
+  | 'incidentUpdate'
   | 'pageStatus'
   | 'pageType'
   | 'page'
@@ -465,6 +468,41 @@ export const ENTITIES = {
     json: ['projects', 'assignees', 'notes_body'],
     crdt: ['notes_body'],
   },
+  /** Something that can break, as the people affected would name it. See `Application`. */
+  application: {
+    table: 'applications',
+    fields: ['workspace_id', 'name', 'description', 'owner_id', 'criticality', 'component_id', 'archived', 'sort_order'],
+  },
+  /**
+   * Something that stopped working.
+   *
+   * `number` and `identifier` are the write path's, as a task's are: a client
+   * offline cannot know which number is next, and two devices that both guessed
+   * would mint the same `INC-7` twice. `resolved_at` and `closed_at` are stamped
+   * when the status says so, and `announced_at` is the marker that stops a P1
+   * from telling the workspace twice — none of them a client's to claim.
+   */
+  incident: {
+    table: 'incidents',
+    fields: [
+      'workspace_id', 'summary', 'description', 'status', 'priority', 'impact', 'urgency', 'category',
+      'major', 'applications', 'manager_id', 'responders', 'reported_by',
+      'started_at', 'detected_at', 'ended_at', 'financial_impact', 'currency', 'affected_users',
+      'resolution_code', 'resolution', 'root_cause', 'pages', 'tasks',
+    ],
+    serverOnly: ['number', 'identifier', 'resolved_at', 'closed_at', 'created_by', 'announced_at'],
+    json: ['applications', 'responders', 'pages', 'tasks'],
+  },
+  /**
+   * One line on an incident's timeline. `author_id` is whoever the write
+   * arrived as — the vote's rule — and a `change` line is only ever the
+   * server's: see the incident rules.
+   */
+  incidentUpdate: {
+    table: 'incident_updates',
+    fields: ['workspace_id', 'incident_id', 'kind', 'body', 'occurred_at', 'field', 'old_value', 'new_value'],
+    serverOnly: ['author_id'],
+  },
   module: {
     table: 'modules',
     fields: [
@@ -717,8 +755,8 @@ export const ENTITIES = {
   },
   notification: {
     table: 'notifications',
-    fields: ['workspace_id', 'user_id', 'kind', 'title', 'body', 'task_id', 'page_id', 'project_id', 'channel_id', 'decision_id', 'meeting_id', 'conversation_id', 'actor_id', 'read_at', 'archived_at'],
-    serverOnly: ['workspace_id', 'user_id', 'kind', 'title', 'body', 'task_id', 'page_id', 'channel_id', 'decision_id', 'meeting_id', 'conversation_id', 'actor_id'],
+    fields: ['workspace_id', 'user_id', 'kind', 'title', 'body', 'task_id', 'page_id', 'project_id', 'channel_id', 'decision_id', 'meeting_id', 'conversation_id', 'incident_id', 'actor_id', 'read_at', 'archived_at'],
+    serverOnly: ['workspace_id', 'user_id', 'kind', 'title', 'body', 'task_id', 'page_id', 'channel_id', 'decision_id', 'meeting_id', 'conversation_id', 'incident_id', 'actor_id'],
     private: true,
     // A notification about a direct message has no workspace either: it has to
     // reach somebody who may not be in the one it was written from.
@@ -948,6 +986,9 @@ export const COLLECTIONS: Record<EntityName, string> = {
   decisionVote: 'decision-votes',
   meeting: 'meetings',
   agendaItem: 'agenda-items',
+  application: 'applications',
+  incident: 'incidents',
+  incidentUpdate: 'incident-updates',
   module: 'modules',
   pageStatus: 'page-statuses',
   pageType: 'page-types',

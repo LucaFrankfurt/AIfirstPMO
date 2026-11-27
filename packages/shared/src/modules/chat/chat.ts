@@ -248,7 +248,7 @@ export const namesMe = (people: Mentionable[], text: string, me: string): boolea
  * channel is a rule nobody can predict — that sentence was in the code while
  * two sets quietly disagreed, which is how this came to be written down.
  */
-export const IMPORTANT_KINDS = ['assigned', 'mention', 'invite', 'due_soon', 'agenda'] as const;
+export const IMPORTANT_KINDS = ['assigned', 'mention', 'invite', 'due_soon', 'agenda', 'incident'] as const;
 
 /**
  * ...and the one kind the *instant* channels add.
@@ -261,8 +261,13 @@ export const IMPORTANT_KINDS = ['assigned', 'mention', 'invite', 'due_soon', 'ag
  *
  * A message from a support widget is the same case with more at stake: the
  * person on the other end is a customer, and may still be looking at the window.
+ *
+ * A critical incident is the third: an outage announced in tomorrow morning's
+ * digest is an outage announced after it is over. Being *put on* an incident is
+ * in `IMPORTANT_KINDS` instead, everywhere — it is addressed to one person, the
+ * way an assignment is.
  */
-export const INSTANT_ONLY_KINDS = ['message', 'support'] as const;
+export const INSTANT_ONLY_KINDS = ['message', 'support', 'incident_major'] as const;
 
 export const isImportantFor = (channel: 'email' | 'instant', kind: string): boolean =>
   (IMPORTANT_KINDS as readonly string[]).includes(kind)

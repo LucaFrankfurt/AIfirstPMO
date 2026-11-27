@@ -277,6 +277,24 @@ function filterFor(entity: EntityName, table: string = ENTITIES[entity].table): 
      */
     case 'meeting':
       return `AND ${IS_MEMBER}`;
+    /*
+     * An incident goes to the members of the workspace, and not to its guests.
+     *
+     * The meeting's line, for a reason of its own: an incident record says what
+     * broke, what it cost and whose fault the root cause was, which is a
+     * sentence about the company a client or a contractor on one project has no
+     * business mirroring. Not scoped by project — an outage hits applications,
+     * not boards — and drawn here, at the pull, for the reason every such line
+     * is: a screen that hid it would leave it in the guest's IndexedDB.
+     */
+    case 'application':
+    case 'incident':
+      return `AND ${IS_MEMBER}`;
+    /* A timeline line inherits its incident's answer, `deleted_at` included. */
+    case 'incidentUpdate':
+      return `AND ${IS_MEMBER}
+              AND EXISTS (SELECT 1 FROM incidents i
+                           WHERE i.id = ${table}.incident_id AND i.deleted_at IS NULL)`;
     /* A point inherits its meeting's answer, `deleted_at` included. */
     case 'agendaItem':
       return `AND ${IS_MEMBER}

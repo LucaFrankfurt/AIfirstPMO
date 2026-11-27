@@ -143,6 +143,12 @@ const REFERENCES: [table: string, column: string][] = [
   ['pages', 'cover_url'],
   ['workspaces', 'logo_url'],
   ['decisions', 'description'],
+  // The screenshot of the error and the graph from the minute it fell over,
+  // pasted into the description or into an update during the outage.
+  ['incidents', 'description'],
+  ['incidents', 'resolution'],
+  ['incidents', 'root_cause'],
+  ['incident_updates', 'body'],
   ['kpis', 'description'],
   ['budgets', 'description'],
   ['products', 'description'],
