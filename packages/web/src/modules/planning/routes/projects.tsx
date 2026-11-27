@@ -37,7 +37,13 @@ const MilestoneKpis = lazy(() => import('../../kpis/routes/kpis').then((m) => ({
 const ProjectBudget = lazy(() => import('../../budgets/budget').then((m) => ({ default: m.ProjectBudget })));
 import { Markdown, MarkdownEditor } from '../../pages/Markdown';
 import { PageTree, usePageFolds } from '../../pages/PageTree';
-import { Avatar, Empty, Icon, MenuButton, Progress, Sheet, useConfirm, useToast } from '../../../kernel/design-system/ui';
+import { Avatar } from '../../../kernel/design-system/ui/avatar';
+import { Empty } from '../../../kernel/design-system/ui/empty';
+import { Icon } from '../../../kernel/design-system/ui/icon';
+import { MenuButton } from '../../../kernel/design-system/ui/menu-button';
+import { Progress } from '../../../kernel/design-system/ui/progress';
+import { Sheet, useConfirm } from '../../../kernel/design-system/ui/sheet';
+import { useToast } from '../../../kernel/design-system/ui/toast';
 import { GuideHint } from '../../guide/hint';
 import { api } from '../../../kernel/sync/api';
 import { shortDate, today } from '../../../kernel/design-system/format';
@@ -56,13 +62,14 @@ import { configOf, useProjectDefaultView } from '../../work/saved-views';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { buttonVariants } from '../../../kernel/design-system/ui/button';
 import { cn } from '../../../kernel/design-system/cn';
-import { Input, Select } from '../../../kernel/design-system/ui/field';
+import { Input, Select, checkRow, formField, formRow } from '../../../kernel/design-system/ui/field';
 import { EmojiPicker } from '../../../kernel/design-system/ui/emoji-picker';
 import { SectionHeading } from '../../../kernel/design-system/ui/section';
 import { Chip, chipDot, chipVariants } from '../../../kernel/design-system/ui/chip';
 import { Triage, useNewIntakeCount } from '../../intake/intake';
 import { Attachments } from '../../../kernel/files/Attachments';
 import { fileDate, saveBlob, saveFromServer } from '../../../kernel/files/save';
+import { pageBody } from '../../../kernel/design-system/ui/page';
 
 const VIEW_KEY = (projectId: string) => `kolibri.view.${projectId}`;
 
@@ -143,7 +150,7 @@ export function ProjectList() {
           <Button variant="primary" size="sm" onClick={() => navigate('/projects/new')}><Icon name="plus" size={14} /> {t('action.create')}</Button>
         )}
       </Header>
-      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+      <div className={pageBody}>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {projects.map((project) => <ProjectCard key={project.id} projectId={project.id} />)}
         </div>
@@ -231,9 +238,9 @@ export function ProjectNew() {
   return (
     <>
       <Header title={t('project.new')} />
-      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5" style={{ maxWidth: 560 }}>
+      <div className={pageBody} style={{ maxWidth: 560 }}>
         <form onSubmit={submit}>
-          <div className="field">
+          <div className={formField}>
             <label htmlFor="p-name">{t('project.name')}</label>
             <Input
               id="p-name" required autoFocus value={form.name}
@@ -242,14 +249,14 @@ export function ProjectNew() {
             />
           </div>
           <div className="flex items-start gap-2.5">
-            <div className="field" style={{ width: 60 }}>
+            <div className={formField} style={{ width: 60 }}>
               <label htmlFor="p-icon">{t('project.icon')}</label>
               <EmojiPicker
                 id="p-icon" value={form.icon} fallback="🚀"
                 onChange={(next) => setForm({ ...form, icon: next ?? '' })}
               />
             </div>
-            <div className="field flex-1 min-w-0">
+            <div className={cn(formField, 'flex-1 min-w-0')}>
               <label htmlFor="p-key">{t('project.key')}</label>
               <Input className="mono"
                 id="p-key" value={form.key} maxLength={6} placeholder={t('project.keyAuto')}
@@ -258,14 +265,14 @@ export function ProjectNew() {
               <span className="text-label text-muted">{t('project.keyHint')}</span>
             </div>
           </div>
-          <div className="field">
+          <div className={formField}>
             <label htmlFor="p-desc">{t('project.description')}</label>
             <MarkdownEditor
               id="p-desc" value={form.description} minHeight={90}
               onChange={(value) => setForm({ ...form, description: value })}
             />
           </div>
-          <div className="field">
+          <div className={formField}>
             <label htmlFor="p-parent">{t('project.parent')}</label>
             <Select id="p-parent" value={form.parent_id}
               onChange={(event) => setForm({ ...form, parent_id: event.target.value })}
@@ -277,7 +284,7 @@ export function ProjectNew() {
             </Select>
             <span className="text-label text-muted">{t('project.parentHint')}</span>
           </div>
-          <div className="field">
+          <div className={formField}>
             <label htmlFor="p-vis">{t('project.visibility')}</label>
             <Select id="p-vis" value={form.visibility} onChange={(event) => setForm({ ...form, visibility: event.target.value })}>
               <option value="public">{t('project.visibilityPublic')}</option>
@@ -317,7 +324,7 @@ function ContainerChildren({ projectId }: { projectId: string }) {
 
   if (!children.length) {
     return (
-      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+      <div className={pageBody}>
         <Empty
           emoji="🗂️"
           title={t('project.containerEmpty')}
@@ -330,7 +337,7 @@ function ContainerChildren({ projectId }: { projectId: string }) {
   const day = today();
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+    <div className={pageBody}>
       <p className="text-muted text-label mb-2.5">{t('project.containerCount', { count: children.length })}</p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {children.map((child) => {
@@ -519,7 +526,7 @@ export function ProjectPage() {
           ? <div className="board-screen">
             <TaskViews tasks={visible} view={view} projectId={id} onOpen={openTask} />
           </div>
-          : <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5" style={{ paddingInline: 0 }}>
+          : <div className={pageBody} style={{ paddingInline: 0 }}>
             <TaskViews
               tasks={visible} view={view} projectId={id} onOpen={openTask}
               onChange={setView} selection={selection}
@@ -560,7 +567,7 @@ function Cycles({ projectId }: { projectId: string }) {
   const day = today();
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+    <div className={pageBody}>
       <div className="flex items-center gap-2 mb-3">
         <h2 className="text-title">{t('cycle.title')}</h2>
         <span className="flex-1 min-w-0" />
@@ -696,21 +703,21 @@ function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycle
           </Button>
         )}
       >
-        <div className="field">
+        <div className={formField}>
           <label htmlFor="c-name">{t('cycle.name')}</label>
           <Input id="c-name" autoFocus value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
         </div>
-        <div className="field-row">
-          <div className="field flex-1 min-w-0">
+        <div className={formRow}>
+          <div className={cn(formField, 'flex-1 min-w-0')}>
             <label htmlFor="c-start">{t('cycle.starts')}</label>
             <Input id="c-start" type="date" value={form.start_date ?? ''} onChange={(event) => setForm({ ...form, start_date: event.target.value })} />
           </div>
-          <div className="field flex-1 min-w-0">
+          <div className={cn(formField, 'flex-1 min-w-0')}>
             <label htmlFor="c-end">{t('cycle.ends')}</label>
             <Input id="c-end" type="date" value={form.end_date ?? ''} onChange={(event) => setForm({ ...form, end_date: event.target.value })} />
           </div>
         </div>
-        <div className="field">
+        <div className={formField}>
           <label htmlFor="c-goal">{t('cycle.goal')}</label>
           <MarkdownEditor
             id="c-goal" value={form.description ?? ''} minHeight={90}
@@ -788,15 +795,15 @@ function ModuleEditor({ projectId, moduleId, onClose }: { projectId: string; mod
           </Button>
         )}
       >
-        <div className="field">
+        <div className={formField}>
           <label htmlFor="m-name">{t('module.name')}</label>
           <Input id="m-name" autoFocus value={name} onChange={(event) => setName(event.target.value)} />
         </div>
-        <div className="field">
+        <div className={formField}>
           <label htmlFor="m-target">{t('module.target')}</label>
           <Input id="m-target" type="date" value={target ?? ''} onChange={(event) => setTarget(event.target.value)} />
         </div>
-        <div className="field">
+        <div className={formField}>
           <label htmlFor="m-desc">{t('module.description')}</label>
           <MarkdownEditor id="m-desc" value={description} minHeight={90} onChange={setDescription} />
         </div>
@@ -928,7 +935,7 @@ export function CyclePage() {
         <ViewControls view={view} onChange={setView} projectId={cycle.project_id ?? undefined} />
         {canWrite && <Button variant="primary" size="sm" title={t('nav.newTask')} onClick={() => setAdding(true)}><Icon name="plus" size={14} /></Button>}
       </Header>
-      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+      <div className={pageBody}>
         <Trail parts={planningCrumbs(cycle.project_id, 'cycles', t('nav.projects'))} />
         <div className="rounded border border-line bg-raised p-3.5 mb-3.5">
           <div className="flex items-center gap-2 mb-2">
@@ -972,7 +979,7 @@ function Modules({ projectId }: { projectId: string }) {
   const canWrite = useCanWrite();
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+    <div className={pageBody}>
       <div className="flex items-center gap-2 mb-3">
         <h2 className="text-title">{t('module.title')}</h2>
         <span className="text-muted text-label">{t('module.subtitle')}</span>
@@ -1097,7 +1104,7 @@ export function ModulePage() {
             several projects work on has no single project to scope a view to. */}
         <ViewControls view={view} onChange={setView} projectId={module.project_id ?? undefined} />
       </Header>
-      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+      <div className={pageBody}>
         <Trail parts={planningCrumbs(module.project_id, 'modules', t('nav.projects'))} />
         {editing ? (
           <div className="mb-3.5">
@@ -1146,7 +1153,7 @@ function ProjectPages({ projectId }: { projectId: string }) {
   );
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+    <div className={pageBody}>
       <div className="flex items-center gap-2 mb-3">
         <h2 className="text-title">{t('project.pagesTitle')}</h2>
         <span className="flex-1 min-w-0" />
@@ -1309,25 +1316,25 @@ function ProjectSettings({ projectId }: { projectId: string }) {
   if (!project) return null;
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5" style={{ maxWidth: 620 }}>
+    <div className={pageBody} style={{ maxWidth: 620 }}>
       {/* Icon beside name, the shape the create form uses — the screen that
           makes a project and the screen that changes one should not lay the
           same two fields out differently. A guest reads them, disabled (UX-09). */}
       <fieldset disabled={!canWrite} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
         <div className="flex items-start gap-2.5">
-          <div className="field" style={{ width: 60 }}>
+          <div className={formField} style={{ width: 60 }}>
             <label htmlFor="s-icon">{t('project.icon')}</label>
             <EmojiPicker
               id="s-icon" value={project.icon} fallback="🚀"
               onChange={(next) => update('project', projectId, { icon: next })}
             />
           </div>
-          <div className="field flex-1 min-w-0">
+          <div className={cn(formField, 'flex-1 min-w-0')}>
             <label htmlFor="s-name">{t('project.name')}</label>
             <Input id="s-name" value={project.name} onChange={(event) => update('project', projectId, { name: event.target.value })} />
           </div>
         </div>
-        <div className="field">
+        <div className={formField}>
           <label htmlFor="s-desc">{t('project.description')}</label>
           <MarkdownEditor
             id="s-desc" value={project.description ?? ''} minHeight={110}
@@ -1357,8 +1364,8 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         only honest if it is said, so it is said under the field.
       */}
       <fieldset disabled={!canWrite} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
-        <div className="field-row">
-          <div className="field">
+        <div className={formRow}>
+          <div className={formField}>
             <label htmlFor="s-key">{t('project.key')}</label>
             <Input className="mono" id="s-key" value={project.key ?? ''} maxLength={6}
               onChange={(event) => update('project', projectId, { key: event.target.value.toUpperCase() })} />
@@ -1369,7 +1376,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
               ? <span className="text-label" style={{ color: 'var(--danger)' }}>{t('project.keyTaken', { name: keyTaken })}</span>
               : <span className="text-label text-muted">{t('project.keyChangeHint')}</span>}
           </div>
-          <div className="field">
+          <div className={formField}>
             <label htmlFor="s-vis">{t('project.visibility')}</label>
             <Select id="s-vis" value={project.visibility ?? 'public'}
               onChange={(event) => update('project', projectId, { visibility: event.target.value })}>
@@ -1383,7 +1390,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
           and `forced` sends the old value back — so the box un-ticks itself. The
           sentence under it is why, said before somebody clicks rather than after.
         */}
-        <label className="check-row">
+        <label className={checkRow}>
           <input
             type="checkbox"
             checked={!!project.is_container}
@@ -1397,8 +1404,8 @@ function ProjectSettings({ projectId }: { projectId: string }) {
           </span>
         </label>
 
-        <div className="field-row">
-          <div className="field flex-1 min-w-0">
+        <div className={formRow}>
+          <div className={cn(formField, 'flex-1 min-w-0')}>
             <label htmlFor="s-parent">{t('project.parent')}</label>
             <Select
               id="s-parent" value={project.parent_id ?? ''}
@@ -1409,22 +1416,22 @@ function ProjectSettings({ projectId }: { projectId: string }) {
             </Select>
             <span className="text-label text-muted">{t('project.parentHint')}</span>
           </div>
-          <div className="field flex-1 min-w-0">
+          <div className={cn(formField, 'flex-1 min-w-0')}>
             <label htmlFor="s-start">{t('project.startDate')}</label>
             <Input id="s-start" type="date" value={project.start_date ?? ''}
               onChange={(event) => update('project', projectId, { start_date: event.target.value || null })} />
           </div>
         </div>
 
-        <div className="field-row">
-          <div className="field flex-1 min-w-0">
+        <div className={formRow}>
+          <div className={cn(formField, 'flex-1 min-w-0')}>
             <label htmlFor="s-lead">{t('project.lead')}</label>
             <Select id="s-lead" value={project.lead_id ?? ''} onChange={(event) => update('project', projectId, { lead_id: event.target.value || null })}>
               <option value="">{t('common.nobody')}</option>
               {members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
             </Select>
           </div>
-          <div className="field flex-1 min-w-0">
+          <div className={cn(formField, 'flex-1 min-w-0')}>
             <label htmlFor="s-target">{t('project.targetDate')}</label>
             <Input id="s-target" type="date" value={project.target_date ?? ''}
               onChange={(event) => update('project', projectId, { target_date: event.target.value || null })} />
@@ -1433,7 +1440,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
 
         {/* Which days the *scheduler* counts. Not a lock: a bar dragged onto a
             Saturday stays there, because somebody who did that meant it. */}
-        <div className="field">
+        <div className={formField}>
           <label id="s-days">{t('project.workingDays')}</label>
           <div className="flex items-center flex-wrap gap-1" role="group" aria-labelledby="s-days">
             {WEEKDAYS.map(({ day, key }) => {
@@ -1504,8 +1511,8 @@ function ProjectSettings({ projectId }: { projectId: string }) {
               The same rows the form above uses fix all of it: label over control,
               one column when there is no room for two.
             */}
-            <div className="field-row mt-2">
-              <div className="field">
+            <div className={cn(formRow, 'mt-2')}>
+              <div className={formField}>
                 <label htmlFor={`st-group-${state.id}`}>{t('view.groupState')}</label>
                 <Select id={`st-group-${state.id}`} value={state.group_key}
                   onChange={(event) => update('state', state.id, { group_key: event.target.value })}>
@@ -1514,7 +1521,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
                   ))}
                 </Select>
               </div>
-              <div className="field">
+              <div className={formField}>
                 <label htmlFor={`st-wip-${state.id}`}>{t('state.wipLimit')}</label>
                 {/* Two digits never need a full column; the label above it still
                     starts on the same edge as its neighbours, which is the part
@@ -1524,7 +1531,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
                   onChange={(event) => update('state', state.id, { wip_limit: Number(event.target.value) || 0 })}
                 />
               </div>
-              <div className="field">
+              <div className={formField}>
                 <label htmlFor={`st-roles-${state.id}`}>{t('state.allowedRoles')}</label>
                 <Select id={`st-roles-${state.id}`}
                   value={state.allowed_roles?.[0] ?? ''}
@@ -1638,7 +1645,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
           }
         >
           <p>{t('data.importAbout', { name: landing.name })}</p>
-          <div className="field">
+          <div className={formField}>
             <label htmlFor="import-into">{t('transfer.into')}</label>
             <Select id="import-into" value={into} onChange={(event) => setInto(event.target.value as 'new' | 'this')}>
               <option value="new">{t('transfer.intoNew')}</option>

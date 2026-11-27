@@ -45,11 +45,16 @@ import { useThreadWords } from '../../../kernel/design-system/thread-words';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { buttonVariants } from '../../../kernel/design-system/ui/button';
 import { cn } from '../../../kernel/design-system/cn';
-import { Input } from '../../../kernel/design-system/ui/field';
+import { Input, checkRow, formField } from '../../../kernel/design-system/ui/field';
 import { Header } from '../../../kernel/design-system/chrome';
 import { navCount, navItem } from '../../../kernel/design-system/ui/nav';
 import { Chip } from '../../../kernel/design-system/ui/chip';
-import { Avatar, Empty, Icon, MenuButton, Sheet, useConfirm, useToast } from '../../../kernel/design-system/ui';
+import { Avatar } from '../../../kernel/design-system/ui/avatar';
+import { Empty } from '../../../kernel/design-system/ui/empty';
+import { Icon } from '../../../kernel/design-system/ui/icon';
+import { MenuButton } from '../../../kernel/design-system/ui/menu-button';
+import { Sheet, useConfirm } from '../../../kernel/design-system/ui/sheet';
+import { useToast } from '../../../kernel/design-system/ui/toast';
 import { Reactions, ReactionPicker } from '../../work/reactions';
 
 /* --------------------------------------------------------------- the pieces */
@@ -368,7 +373,7 @@ function ConversationRow({ channel, last, me, active, title, onOpen }: {
   const said = excerpt(last?.body ?? '', 60);
 
   return (
-    <button className={cn(navItem({ active }), 'chat-row', unread > 0 && 'unread')} onClick={onOpen}>
+    <button className={cn(navItem({ active }), 'chat-row rounded', unread > 0 && 'unread')} onClick={onOpen}>
       <Icon name={channel.kind === 'direct' ? 'chat' : 'hash'} size={15} />
       <span className="chat-row-body">
         <span className="chat-row-line">
@@ -1001,7 +1006,7 @@ function RenameChannel({ channel, allowed }: { channel: Channel; allowed: boolea
   };
 
   return (
-    <div className="field">
+    <div className={formField}>
       <label htmlFor="channel-name">{t('chat.name')}</label>
       <Input
         id="channel-name"
@@ -1052,7 +1057,7 @@ function ChannelSettings({ channel, me, onClose, onGone }: {
           until now there was no title to change: a name chosen once was a name
           forever, however wrong it turned out to be. */}
       <RenameChannel channel={channel} allowed={mayRetitle} />
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="channel-topic">{t('chat.topic')}</label>
         <Input
           id="channel-topic"
@@ -1212,7 +1217,7 @@ function NewChannel({ me, onClose, onCreated }: { me: string; onClose: () => voi
         </>
       }
     >
-        <div className="field">
+        <div className={formField}>
           <label htmlFor="new-channel-name">{t('chat.name')}</label>
           <Input
             id="new-channel-name"
@@ -1234,7 +1239,7 @@ function NewChannel({ me, onClose, onCreated }: { me: string; onClose: () => voi
             {taken.archived_at ? t('chat.nameTakenArchived') : t('chat.nameTaken')}
           </p>
         )}
-        <div className="field">
+        <div className={formField}>
           <label htmlFor="new-channel-topic">{t('chat.topic')}</label>
           <Input
             id="new-channel-topic"
@@ -1243,7 +1248,7 @@ function NewChannel({ me, onClose, onCreated }: { me: string; onClose: () => voi
             placeholder={t('chat.topicHint')}
           />
         </div>
-        <label className="check-row">
+        <label className={checkRow}>
           <input type="checkbox" checked={isPrivate} onChange={(event) => setPrivate(event.target.checked)} />
           <span>
             <strong>{t('chat.private')}</strong>
@@ -1320,7 +1325,7 @@ function FindPerson({ me, onClose, onPick }: { me: string; onClose: () => void; 
 
   return (
     <Sheet title={t('chat.findTitle')} onClose={onClose}>
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="find-person">{t('chat.findLabel')}</label>
         <Input
           id="find-person"

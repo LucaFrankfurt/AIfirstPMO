@@ -3,7 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { isDoneGroup } from '@kolibri/shared';
 import { keyFromName } from '../../../kernel/design-system/text';
 import { Header } from '../../../kernel/design-system/chrome';
-import { Avatar, Empty, Icon, MenuButton, Progress, useConfirm } from '../../../kernel/design-system/ui';
+import { Avatar } from '../../../kernel/design-system/ui/avatar';
+import { Empty } from '../../../kernel/design-system/ui/empty';
+import { Icon } from '../../../kernel/design-system/ui/icon';
+import { MenuButton } from '../../../kernel/design-system/ui/menu-button';
+import { Progress } from '../../../kernel/design-system/ui/progress';
+import { useConfirm } from '../../../kernel/design-system/ui/sheet';
 import { create, remove, update } from '../../../kernel/sync/mutations';
 import { byId, list, useQuery } from '../../../kernel/sync/store';
 import { useCanWrite, useMembers, useSession } from '../../../kernel/identity/session';
@@ -11,6 +16,7 @@ import { Button } from '../../../kernel/design-system/ui/button';
 import { Input } from '../../../kernel/design-system/ui/field';
 import { Chip, chipVariants } from '../../../kernel/design-system/ui/chip';
 import { useT } from '../../../kernel/i18n/i18n';
+import { pageBody } from '../../../kernel/design-system/ui/page';
 
 export function Teams() {
   const t = useT();
@@ -28,7 +34,7 @@ export function Teams() {
   return (
     <>
       <Header title={t('team.title')} />
-      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+      <div className={pageBody}>
         {canWrite && (
           <form
             className="flex items-center gap-2 mb-4"

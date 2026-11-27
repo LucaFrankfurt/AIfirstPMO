@@ -20,13 +20,16 @@ import { useT } from '../../kernel/i18n/i18n';
 import { byOrder, create, remove, update } from '../../kernel/sync/mutations';
 import { byId, list, useQuery } from '../../kernel/sync/store';
 import { useCanWrite, useMe, useSession } from '../../kernel/identity/session';
-import { Icon, MenuButton, Sheet, useConfirm, useToast, type IconName, type MenuItem } from '../../kernel/design-system/ui';
+import { Icon, type IconName } from '../../kernel/design-system/ui/icon';
+import { MenuButton, type MenuItem } from '../../kernel/design-system/ui/menu-button';
+import { Sheet, useConfirm } from '../../kernel/design-system/ui/sheet';
+import { useToast } from '../../kernel/design-system/ui/toast';
 import { DEFAULT_VIEW, type GroupBy, type ViewConfig } from './task-parts';
 import { ShareSheet, type ShareTarget } from '../share/share';
 import { Button } from '../../kernel/design-system/ui/button';
 import { buttonVariants } from '../../kernel/design-system/ui/button';
 import { cn } from '../../kernel/design-system/cn';
-import { Input } from '../../kernel/design-system/ui/field';
+import { Input, checkRow, formField } from '../../kernel/design-system/ui/field';
 
 /** The stored row, read back as the shape the screens work in. */
 export function configOf(row: View): ViewConfig {
@@ -298,7 +301,7 @@ function ViewNameSheet({
         </>
       }
     >
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="view-name">{t('view.name')}</label>
         <Input
           id="view-name"
@@ -313,7 +316,7 @@ function ViewNameSheet({
 
       {/* A dozen shapes, not a picker: the icon is here to make one row in a
           menu findable at a glance, and more choices make that harder. */}
-      <div className="field">
+      <div className={formField}>
         <label id="sv-icon">{t('view.icon')}</label>
         <div className="flex items-center gap-2 flex-wrap icon-choices" role="radiogroup" aria-labelledby="sv-icon">
           {VIEW_ICONS.map((choice) => (
@@ -334,7 +337,7 @@ function ViewNameSheet({
         <span className="text-label text-muted">{t('view.iconHint')}</span>
       </div>
 
-      <label className="check-row">
+      <label className={checkRow}>
         <input type="checkbox" checked={shared} onChange={(event) => setShared(event.target.checked)} />
         <span>
           <span>{t('view.shareWithTeam')}</span>

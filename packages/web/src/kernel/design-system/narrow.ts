@@ -41,16 +41,31 @@ export const SHEET_QUERY = `(max-width: ${SHEET_BELOW})`;
  * mounts these components in a DOM that has none.
  */
 export function useNarrow(): boolean {
-  const [narrow, setNarrow] = useState(
-    () => typeof matchMedia === 'function' && matchMedia(SHEET_QUERY).matches,
+  return useMedia(SHEET_QUERY);
+}
+
+/**
+ * The window band where the navigation is a rail: wider than a phone held
+ * upright, narrower than the 900px where the sidebar has room for words. A
+ * tablet, a phone on its side, a window dragged half across a laptop. The
+ * bottom bar is a phone's answer and wastes a landscape screen's scarcest
+ * direction; the full sidebar would take a third of the width. Kept in step
+ * with the `@media` band of the same name in `app.css`.
+ */
+export const RAIL_QUERY = '(min-width: 600px) and (max-width: 899.98px)';
+
+/** Whether a media query matches, and again whenever that changes. */
+export function useMedia(query: string): boolean {
+  const [matches, setMatches] = useState(
+    () => typeof matchMedia === 'function' && matchMedia(query).matches,
   );
   useEffect(() => {
     if (typeof matchMedia !== 'function') return;
-    const query = matchMedia(SHEET_QUERY);
-    const read = () => setNarrow(query.matches);
+    const list = matchMedia(query);
+    const read = () => setMatches(list.matches);
     read();
-    query.addEventListener('change', read);
-    return () => query.removeEventListener('change', read);
-  }, []);
-  return narrow;
+    list.addEventListener('change', read);
+    return () => list.removeEventListener('change', read);
+  }, [query]);
+  return matches;
 }

@@ -13,7 +13,12 @@ import { EMPTY_SELECTION, SelectBox, useLongPressSelect, type Selection } from '
 import { Input } from '../../kernel/design-system/ui/field';
 import { cn } from '../../kernel/design-system/cn';
 import { Chip, chipDot, chipVariants } from '../../kernel/design-system/ui/chip';
-import { Avatar, AvatarStack, Icon, MenuButton, PriorityBars, StateDot, useConfirm, useToast, type MenuItem } from '../../kernel/design-system/ui';
+import { Avatar, AvatarStack } from '../../kernel/design-system/ui/avatar';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { MenuButton, type MenuItem } from '../../kernel/design-system/ui/menu-button';
+import { PriorityBars, StateDot } from '../../kernel/design-system/ui/marks';
+import { useConfirm } from '../../kernel/design-system/ui/sheet';
+import { useToast } from '../../kernel/design-system/ui/toast';
 
 /* ------------------------------------------------------------------ moving */
 

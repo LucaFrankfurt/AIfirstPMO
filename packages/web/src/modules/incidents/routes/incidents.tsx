@@ -22,7 +22,10 @@ import {
   type Incident, type IncidentResolution, type IncidentStatus, type Page, type Task,
 } from '@kolibri/shared';
 import { Header, Trail } from '../../../kernel/design-system/chrome';
-import { Empty, Icon, MenuButton, useConfirm } from '../../../kernel/design-system/ui';
+import { Empty } from '../../../kernel/design-system/ui/empty';
+import { Icon } from '../../../kernel/design-system/ui/icon';
+import { MenuButton } from '../../../kernel/design-system/ui/menu-button';
+import { useConfirm } from '../../../kernel/design-system/ui/sheet';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { Chip } from '../../../kernel/design-system/ui/chip';
 import { Input, Label, Select, Textarea } from '../../../kernel/design-system/ui/field';
@@ -44,6 +47,7 @@ import {
 import { Timeline, useChangeWords, useTimeline } from '../timeline';
 import { ApplicationsPanel } from '../applications';
 import { fileReview } from '../review';
+import { statRow } from '../../../kernel/design-system/ui/stat';
 
 function SwitchedOff() {
   const t = useT();
@@ -90,7 +94,7 @@ export function IncidentIndex() {
       </Header>
 
       <div className="mx-auto flex max-w-[900px] flex-col gap-4 px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
-        <div className="kpi-row">
+        <div className={statRow}>
           <Stat label={t('incident.statActive')} value={String(active.length)} onSelect={() => setTab('active')} active={tab === 'active'} />
           <Stat label={t('incident.statReview')} value={String(month.awaitingReview)} onSelect={() => setTab('review')} active={tab === 'review'} />
           <Stat label={t('incident.statMttr')} value={formatDuration(month.mttrMs)} hint={t('incident.last30')} />
@@ -197,7 +201,7 @@ export function IncidentDetail() {
         {/* The three clocks a review is about. Each says "—" when one of its
             ends was never written down rather than guessing one from when
             the record was opened. */}
-        <div className="kpi-row">
+        <div className={statRow}>
           <Stat
             label={t('incident.clock.impact')}
             value={formatDuration(clocks.impactMs)}

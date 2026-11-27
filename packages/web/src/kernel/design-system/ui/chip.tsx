@@ -16,14 +16,18 @@ import { cn } from '../cn';
  * sizes reads as a mistake.
  */
 export const chipVariants = cva(
-  'inline-flex max-w-full items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 '
+  // Square-ish rather than a pill, so a chip is never mistaken for a button
+  // beside it; and filled rather than outlined, so a row of five chips is five
+  // shapes and not five borders. The border stays, transparent, because the
+  // line height below was measured with it.
+  'inline-flex max-w-full items-center gap-1.5 whitespace-nowrap rounded-sm border border-transparent px-2.5 '
   + 'text-caption leading-[30px] h-8',
   {
     variants: {
       tone: {
-        default: 'border-line bg-hover text-soft',
+        default: 'bg-fill text-soft',
         // A chosen option, or a type a field applies to.
-        on: 'border-accent/40 bg-accent-soft text-accent',
+        on: 'bg-accent-soft text-accent',
       },
       interactive: {
         true: 'cursor-pointer transition-colors hover:bg-active outline-none focus-visible:ring-2 focus-visible:ring-accent/60',

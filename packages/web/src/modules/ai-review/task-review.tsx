@@ -5,7 +5,8 @@ import { comment, update } from '../../kernel/sync/mutations';
 import { useT } from '../../kernel/i18n/i18n';
 import { useCanWrite, useFeature, useMe } from '../../kernel/identity/session';
 import { Button } from '../../kernel/design-system/ui/button';
-import { Icon, useToast } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { useToast } from '../../kernel/design-system/ui/toast';
 import { Markdown } from '../pages/Markdown';
 import { useAiProvider } from './provider';
 

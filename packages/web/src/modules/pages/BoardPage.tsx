@@ -57,7 +57,7 @@ import { byOrder, create } from '../../kernel/sync/mutations';
 import { list, useQuery } from '../../kernel/sync/store';
 import { useI18n, useT } from '../../kernel/i18n/i18n';
 import { Button } from '../../kernel/design-system/ui/button';
-import { Icon } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
 import { cn } from '../../kernel/design-system/cn';
 import { ArtboardFrame, type Locate, type PinPlace } from './ArtboardFrame';
 import { isPath } from './frame';

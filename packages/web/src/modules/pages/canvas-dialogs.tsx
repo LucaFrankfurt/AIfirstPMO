@@ -19,7 +19,8 @@ import { htmlTitle, looksLikeHtml, stripFitScript } from '@kolibri/shared';
 import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Select, Textarea } from '../../kernel/design-system/ui/field';
-import { Icon, Sheet } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { Sheet } from '../../kernel/design-system/ui/sheet';
 
 /** What a canvas may ask of a model. Filled by `ai-review/board-ai.ts`, through the page route. */
 export interface CanvasAi {

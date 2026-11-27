@@ -35,7 +35,8 @@ import { HEADING_PREFIX, usePageHref } from './page-links';
 import { cn } from '../../kernel/design-system/cn';
 import { buttonVariants } from '../../kernel/design-system/ui/button';
 import { Input, Textarea } from '../../kernel/design-system/ui/field';
-import { Icon, useLightbox } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { useLightbox } from '../../kernel/design-system/ui/lightbox';
 import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
 
 /* ---------------------------------------------------------------- reading */

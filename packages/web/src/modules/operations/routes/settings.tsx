@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Header, THEME_KEY, useTheme } from '../../../kernel/design-system/chrome';
-import { Avatar, Empty, Icon, Sheet, failure, useAction, useConfirm, useToast } from '../../../kernel/design-system/ui';
+import { Avatar } from '../../../kernel/design-system/ui/avatar';
+import { Empty } from '../../../kernel/design-system/ui/empty';
+import { Icon } from '../../../kernel/design-system/ui/icon';
+import { Sheet, useConfirm } from '../../../kernel/design-system/ui/sheet';
+import { failure, useAction, useToast } from '../../../kernel/design-system/ui/toast';
 import { GuideHint } from '../../guide/hint';
 import { api } from '../../../kernel/sync/api';
 import { relativeTime } from '../../../kernel/design-system/format';
@@ -18,7 +22,7 @@ import { PushToggle } from '../../../adapters/push/push';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { buttonVariants } from '../../../kernel/design-system/ui/button';
 import { cn } from '../../../kernel/design-system/cn';
-import { Input, Select, Textarea } from '../../../kernel/design-system/ui/field';
+import { Input, Select, Textarea, checkRow, formField } from '../../../kernel/design-system/ui/field';
 import { SectionHeading } from '../../../kernel/design-system/ui/section';
 import { RateSettings } from '../../time/rates';
 import { PageStatusSettings } from '../../pages/status';
@@ -32,6 +36,7 @@ import { InstanceSettings } from '../instance';
 import { useTabStrip } from '../../../kernel/design-system/tab-strip';
 import { TabButton, TabList } from '../../../kernel/design-system/ui/tabs';
 import { useMinute } from '../../../kernel/design-system/minute';
+import { pageBody } from '../../../kernel/design-system/ui/page';
 
 type Tab = 'profile' | 'notifications' | 'workspace' | 'members' | 'rates' | 'mailboxes' | 'widgets' | 'automation' | 'api' | 'data' | 'instance';
 
@@ -89,7 +94,7 @@ export function Settings() {
           </TabButton>
         ))}
       </TabList>
-      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5" style={{ maxWidth: 680 }}>
+      <div className={pageBody} style={{ maxWidth: 680 }}>
         {tab === 'profile' && <Profile />}
         {tab === 'notifications' && <Notifications />}
         {tab === 'workspace' && <WorkspaceSettings />}
@@ -165,11 +170,11 @@ function Profile() {
         )}
       </div>
 
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="me-name">{t('profile.displayName')}</label>
         <Input id="me-name" value={name} onChange={(event) => setName(event.target.value)} />
       </div>
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="me-bio">{t('profile.bio')}</label>
         <Textarea id="me-bio" style={{ minHeight: 70 }} value={bio ?? ''} onChange={(event) => setBio(event.target.value)} />
       </div>
@@ -492,7 +497,7 @@ function WorkspaceSettings() {
 
   return (
     <>
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="ws-name">{t('workspace.name')}</label>
         <Input id="ws-name" value={name} disabled={!canEdit} onChange={(event) => setName(event.target.value)} />
         {!canEdit && <span className="text-label text-muted">{t('workspace.adminOnly')}</span>}
@@ -511,7 +516,7 @@ function WorkspaceSettings() {
           a unit there is nothing to compare the logged time against — see
           `WorkspaceFeatures` in the registry. */}
       <SectionHeading>{t('workspace.features')}</SectionHeading>
-      <label className="check-row">
+      <label className={checkRow}>
         <input
           type="checkbox"
           checked={!!workspace?.features?.time}
@@ -531,7 +536,7 @@ function WorkspaceSettings() {
       {/* The estate. Independent of budgets on purpose: what runs where is
           worth writing down whether or not anybody is costing it, and the two
           only meet when both are on. */}
-      <label className="check-row">
+      <label className={checkRow}>
         <input
           type="checkbox"
           checked={!!workspace?.features?.infrastructure}
@@ -551,7 +556,7 @@ function WorkspaceSettings() {
       {/* Off by default like the rest, and for a reason of its own: money is
           the one thing here that everybody in a workspace can see the moment
           it exists. Turning it off hides the screens; the figures stay. */}
-      <label className="check-row">
+      <label className={checkRow}>
         <input
           type="checkbox"
           checked={!!workspace?.features?.budget}
@@ -572,7 +577,7 @@ function WorkspaceSettings() {
           organisation has decided to spend, a product is money it hopes to take
           in, and a team modelling what it sells is not thereby tracking what it
           spends. The two meet in one word — the cost category. */}
-      <label className="check-row">
+      <label className={checkRow}>
         <input
           type="checkbox"
           checked={!!workspace?.features?.products}
@@ -593,7 +598,7 @@ function WorkspaceSettings() {
           promise rather than a preference: a half-adopted vault — three keys in
           it and eleven still in the handbook — is worse than none, because it
           makes people believe the handbook has been cleaned up. */}
-      <label className="check-row">
+      <label className={checkRow}>
         <input
           type="checkbox"
           checked={!!workspace?.features?.secrets}
@@ -613,7 +618,7 @@ function WorkspaceSettings() {
       {/* Independent of the other three. A team measuring lead time is not
           thereby costing servers; the only thing KPIs borrow from elsewhere is
           the milestone, which every workspace already has. */}
-      <label className="check-row">
+      <label className={checkRow}>
         <input
           type="checkbox"
           checked={!!workspace?.features?.kpi}
@@ -634,7 +639,7 @@ function WorkspaceSettings() {
           gets a switch of its own rather than arriving with the tasks: a team
           that has not decided how it decides will use one to avoid a
           conversation. */}
-      <label className="check-row">
+      <label className={checkRow}>
         <input
           type="checkbox"
           checked={!!workspace?.features?.decisions}
@@ -654,7 +659,7 @@ function WorkspaceSettings() {
       {/* Meetings are for members: a guest is on a project, not in the room
           where the projects are compared, and the agenda never reaches a
           guest's device. Saying so here is cheaper than the surprise. */}
-      <label className="check-row">
+      <label className={checkRow}>
         <input
           type="checkbox"
           checked={!!workspace?.features?.meetings}
@@ -674,7 +679,7 @@ function WorkspaceSettings() {
       {/* Incidents are for members too: a record of what broke, what it cost
           and why is a sentence about the company, and it never reaches a
           guest's device. Saying so here is cheaper than the surprise. */}
-      <label className="check-row">
+      <label className={checkRow}>
         <input
           type="checkbox"
           checked={!!workspace?.features?.incidents}
@@ -695,7 +700,7 @@ function WorkspaceSettings() {
           holds a credential to somebody else's mail server and a copy of what
           is in it. Switching it off hides the screens and stops MCP reading;
           only disconnecting a mailbox deletes the copy. */}
-      <label className="check-row">
+      <label className={checkRow}>
         <input
           type="checkbox"
           checked={!!workspace?.features?.mail}
@@ -714,7 +719,7 @@ function WorkspaceSettings() {
 
       {/* The first switch that lets people outside the workspace write to it
           live. Off closes every widget at once; the conversations stay. */}
-      <label className="check-row">
+      <label className={checkRow}>
         <input
           type="checkbox"
           checked={!!workspace?.features?.support}
@@ -735,7 +740,7 @@ function WorkspaceSettings() {
           is a key in the environment, which is not a thing an admin can set
           from here — so when there is no model the row says who to ask rather
           than offering a switch that would do nothing. */}
-      <label className="check-row">
+      <label className={checkRow}>
         <input
           type="checkbox"
           checked={!!workspace?.features?.ai}
@@ -1040,7 +1045,7 @@ function ApiSettings() {
           zur Wahl. Das Häkchen entscheidet, ob diese Bindung eine Voreinstellung
           ist oder eine Grenze — zwei verschiedene Dinge, die vorher nur eines
           sein konnten. */}
-      <label className="check-row">
+      <label className={checkRow}>
         <input type="checkbox" checked={confined} onChange={(event) => setConfined(event.target.checked)} />
         <span>{t('api.tokenConfine', { workspace: scopeLabel(workspaceId) })}</span>
       </label>

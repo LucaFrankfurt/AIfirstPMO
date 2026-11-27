@@ -36,10 +36,14 @@ import {
 } from '../product';
 import { Stat } from '../../planning/insights';
 import { MoneyInput, asMoney } from '../../../kernel/design-system/ui/money';
-import { Empty, Icon, MenuButton, Sheet, useConfirm, useDirty, useToast } from '../../../kernel/design-system/ui';
+import { Empty } from '../../../kernel/design-system/ui/empty';
+import { Icon } from '../../../kernel/design-system/ui/icon';
+import { MenuButton } from '../../../kernel/design-system/ui/menu-button';
+import { Sheet, useConfirm, useDirty } from '../../../kernel/design-system/ui/sheet';
+import { useToast } from '../../../kernel/design-system/ui/toast';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { Chip } from '../../../kernel/design-system/ui/chip';
-import { Input, Select, Textarea } from '../../../kernel/design-system/ui/field';
+import { Input, Select, Textarea, checkRow, formField, formRow } from '../../../kernel/design-system/ui/field';
 import { SectionHeading } from '../../../kernel/design-system/ui/section';
 import { Attachments } from '../../../kernel/files/Attachments';
 import { categoryKey } from '../../budgets/budget';
@@ -51,6 +55,9 @@ import { useTabStrip } from '../../../kernel/design-system/tab-strip';
 import { TabButton, TabList } from '../../../kernel/design-system/ui/tabs';
 import { useSaveChanges } from '../../../kernel/design-system/row-form';
 import { useCanWrite, useFeature } from '../../../kernel/identity/session';
+import { pageBody } from '../../../kernel/design-system/ui/page';
+import { statRow } from '../../../kernel/design-system/ui/stat';
+import { cn } from '../../../kernel/design-system/cn';
 
 /**
  * Rows in the order somebody put them, with a tie-break that is not chance.
@@ -249,12 +256,12 @@ function CapabilityForm(
         </Button>
       )}
     >
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="cap-name">{t('product.name')}</label>
         <Input id="cap-name" value={form.name} autoFocus onChange={(event) => setForm({ ...form, name: event.target.value })} />
         {taken && <span className="text-label text-danger">{t('product.capabilityTaken')}</span>}
       </div>
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="cap-desc">{t('product.description')}</label>
         <Textarea id="cap-desc" rows={2} value={form.description}
           onChange={(event) => setForm({ ...form, description: event.target.value })} />
@@ -305,7 +312,7 @@ export function ProductIndex() {
           </TabButton>
         ))}
       </TabList>
-      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+      <div className={pageBody}>
         {tab === 'catalogue' && <Catalogue only="single" />}
         {tab === 'packages' && <Catalogue only="bundle" />}
         {tab === 'promotions' && <Promotions />}
@@ -401,7 +408,7 @@ function Catalogue({ only }: { only: ProductKind }) {
   return (
     <div className="grid gap-3.5">
       {perCurrency.map((row) => (
-        <div className="kpi-row" key={row.currency}>
+        <div className={statRow} key={row.currency}>
           <Stat label={t('product.countLabel')} value={String(row.products)} hint={row.currency} />
           <Stat
             label={t('product.contributionLabel')}
@@ -555,7 +562,7 @@ function Catalogue({ only }: { only: ProductKind }) {
       ))}
       <p className="text-label text-muted">{t('product.horizonNote', { months: String(HORIZON.months) })}</p>
       {archivedCount > 0 && (
-        <label className="check-row">
+        <label className={checkRow}>
           <input type="checkbox" checked={showArchived} onChange={(event) => setShowArchived(event.target.checked)} />
           <span><span>{t('product.showArchived', { count: String(archivedCount) })}</span></span>
         </label>
@@ -600,7 +607,7 @@ function GroupAdmin({ groups }: { groups: ProductGroup[] }) {
           </span>
         ))}
       </div>
-      <div className="field-row pt-2">
+      <div className={cn(formRow, 'pt-2')}>
         <Input
           className="flex-1 min-w-0"
           value={name}
@@ -911,22 +918,22 @@ function PromotionForm({ promotion, products, groups, onClose }: {
         </Button>
       )}
     >
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="pm-name">{t('product.name')}</label>
         <Input id="pm-name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
       </div>
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="pm-desc">{t('product.description')}</label>
         <Textarea id="pm-desc" rows={2} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
       </div>
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="pm-kind">{t('product.promoKindLabel')}</label>
           <Select id="pm-kind" value={form.kind} onChange={(event) => setForm({ ...form, kind: event.target.value as Promotion['kind'], value: 0 })}>
             {PROMOTION_KINDS.map((kind) => <option key={kind} value={kind}>{t(promoKindKey(kind))}</option>)}
           </Select>
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="pm-value">{t('product.promoValue')}</label>
           {/* A percentage is basis points and money is minor units, so the two
               take different inputs. One box that guessed from the kind is how
@@ -945,17 +952,17 @@ function PromotionForm({ promotion, products, groups, onClose }: {
           )}
         </div>
       </div>
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="pm-from">{t('product.startsOn')}</label>
           <Input id="pm-from" type="date" value={form.starts_on} onChange={(event) => setForm({ ...form, starts_on: event.target.value })} />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="pm-to">{t('product.endsOn')}</label>
           <Input id="pm-to" type="date" value={form.ends_on} onChange={(event) => setForm({ ...form, ends_on: event.target.value })} />
         </div>
       </div>
-      <div className="field" role="group" aria-labelledby="pr-applies">
+      <div className={formField} role="group" aria-labelledby="pr-applies">
         <label id="pr-applies">{t('product.appliesTo')}</label>
         <span className="text-label text-muted">{t('product.appliesToHint')}</span>
         <div className="flex flex-wrap gap-2 pt-1">
@@ -981,12 +988,12 @@ function PromotionForm({ promotion, products, groups, onClose }: {
           ))}
         </div>
       </div>
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="pm-spend">{t('product.spend')}</label>
           <MoneyInput id="pm-spend" value={form.spend} currency={form.currency} onChange={(spend) => setForm({ ...form, spend })} />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="pm-uplift">{t('product.uplift')}</label>
           <Input
             id="pm-uplift"
@@ -997,7 +1004,7 @@ function PromotionForm({ promotion, products, groups, onClose }: {
           <span className="text-label text-muted">{t('product.upliftHint')}</span>
         </div>
       </div>
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="pm-status">{t('product.statusLabel')}</label>
         <Select id="pm-status" value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as Promotion['status'] })}>
           {PROMOTION_STATUS.map((status) => (
@@ -1147,52 +1154,52 @@ function ScenarioForm({ scenario, products, productId, assumptions, onClose }: {
         </Button>
       )}
     >
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="sc-name">{t('product.name')}</label>
         <Input id="sc-name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
       </div>
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="sc-product">{t('product.scenarioProduct')}</label>
         <Select id="sc-product" value={form.product_id} onChange={(event) => setForm({ ...form, product_id: event.target.value })}>
           <option value="">{t('product.wholeCatalogue')}</option>
           {products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
         </Select>
       </div>
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="sc-months">{t('product.months')}</label>
           <Input id="sc-months" type="number" min={1} max={120} value={form.months}
             onChange={(event) => setForm({ ...form, months: Number(event.target.value) })} />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="sc-units">{t('product.unitsFirstMonth')}</label>
           <Input id="sc-units" type="number" min={0} value={form.units}
             onChange={(event) => setForm({ ...form, units: Number(event.target.value) })} />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="sc-deliveries">{t('product.deliveries')}</label>
           <Input id="sc-deliveries" type="number" min={0} value={form.deliveries}
             onChange={(event) => setForm({ ...form, deliveries: Number(event.target.value) })} />
         </div>
       </div>
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="sc-growth">{t('product.growth')}</label>
           <Input id="sc-growth" type="number" value={form.growth_bps / 100}
             onChange={(event) => setForm({ ...form, growth_bps: Math.round(Number(event.target.value) * 100) })} />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="sc-price">{t('product.priceChange')}</label>
           <Input id="sc-price" type="number" value={form.price_bps / 100}
             onChange={(event) => setForm({ ...form, price_bps: Math.round(Number(event.target.value) * 100) })} />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="sc-cost">{t('product.costChange')}</label>
           <Input id="sc-cost" type="number" value={form.cost_bps / 100}
             onChange={(event) => setForm({ ...form, cost_bps: Math.round(Number(event.target.value) * 100) })} />
         </div>
       </div>
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="sc-churn">{t('product.churnOverride')}</label>
         <Input
           id="sc-churn"
@@ -1207,7 +1214,7 @@ function ScenarioForm({ scenario, products, productId, assumptions, onClose }: {
           })}
         />
       </div>
-      <div className="field" role="group" aria-labelledby="pf-campaigns">
+      <div className={formField} role="group" aria-labelledby="pf-campaigns">
         <label id="pf-campaigns">{t('product.campaignsApplied')}</label>
         <div className="flex flex-wrap gap-2 pt-1">
           {promotions.map((promotion) => (
@@ -1288,7 +1295,7 @@ export function ProductDetail() {
           </TabButton>
         ))}
       </TabList>
-      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+      <div className={pageBody}>
         {tab === 'overview' && <Overview product={product} entry={entry} />}
         {tab === 'prices' && <Prices product={product} />}
         {tab === 'costs' && <Costs product={product} />}
@@ -1322,7 +1329,7 @@ function Overview({ product, entry }: { product: Product; entry: CatalogueEntry 
     <div className="grid gap-3.5">
       {product.description && <p className="text-body text-muted">{product.description}</p>}
 
-      <div className="kpi-row">
+      <div className={statRow}>
         {/*
           * The period is part of the figure, not decoration.
           *
@@ -1410,7 +1417,7 @@ function Overview({ product, entry }: { product: Product; entry: CatalogueEntry 
           <p className="text-label text-muted">{t('product.retentionOneOff')}</p>
         ) : (
           <>
-            <div className="kpi-row">
+            <div className={statRow}>
               <Stat
                 label={t('product.expectedMonths')}
                 value={retention.months === null ? '—' : String(Math.round(retention.months))}
@@ -1596,37 +1603,37 @@ function ContributorForm({ product, person, onClose }: {
         </Button>
       )}
     >
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="co-name">{t('product.name')}</label>
         <Input id="co-name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
       </div>
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="co-role">{t('product.role')}</label>
           <Input id="co-role" value={form.role} placeholder={t('product.rolePlaceholder')} onChange={(event) => setForm({ ...form, role: event.target.value })} />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="co-org">{t('product.organisation')}</label>
           <Input id="co-org" value={form.organisation} onChange={(event) => setForm({ ...form, organisation: event.target.value })} />
         </div>
       </div>
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="co-email">{t('product.email')}</label>
         <Input id="co-email" type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} />
       </div>
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="co-fee">{t('product.fee')}</label>
           <MoneyInput id="co-fee" value={form.fee} currency={product.currency} onChange={(fee) => setForm({ ...form, fee })} />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="co-basis">{t('product.basisLabel')}</label>
           <Select id="co-basis" value={form.fee_basis} onChange={(event) => setForm({ ...form, fee_basis: event.target.value as CostBasis })}>
             {COST_BASIS.map((basis) => <option key={basis} value={basis}>{t(basisKey(basis))}</option>)}
           </Select>
         </div>
       </div>
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="co-note">{t('product.note')}</label>
         <Textarea id="co-note" rows={2} value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} />
       </div>
@@ -1854,16 +1861,16 @@ function RaiseForm({ product, price, onClose }: { product: Product; price: Produ
       )}
     >
       <p className="text-label text-muted">{t('product.raisePriceHint')}</p>
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label>{t('product.wasAmount')}</label>
           <p className="text-body">{asMoney(price.amount, product.currency)}</p>
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="rp-amount">{t('product.becameAmount')}</label>
           <MoneyInput id="rp-amount" value={amount} currency={product.currency} onChange={setAmount} />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="rp-on">{t('product.effectiveFrom')}</label>
           <Input id="rp-on" type="date" value={on} onChange={(event) => setOn(event.target.value)} />
         </div>
@@ -1947,31 +1954,31 @@ function PriceForm({ product, price, onClose }: { product: Product; price: Produ
         </Button>
       )}
     >
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="pr-name">{t('product.priceName')}</label>
         <Input id="pr-name" value={form.name} placeholder={t('product.priceNamePlaceholder')} onChange={(event) => setForm({ ...form, name: event.target.value })} />
       </div>
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="pr-kind">{t('product.priceKindLabel')}</label>
           <Select id="pr-kind" value={form.kind} onChange={(event) => setForm({ ...form, kind: event.target.value as ProductPrice['kind'] })}>
             {PRICE_KINDS.map((kind) => <option key={kind} value={kind}>{t(priceKindKey(kind))}</option>)}
           </Select>
           <span className="text-label text-muted">{t('product.priceKindHint')}</span>
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="pr-amount">{t('product.amount')}</label>
           <MoneyInput id="pr-amount" value={form.amount} currency={product.currency} onChange={(amount) => setForm({ ...form, amount })} />
         </div>
       </div>
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="pr-min">{t('product.minQuantity')}</label>
           <Input id="pr-min" type="number" min={1} value={form.min_quantity}
             onChange={(event) => setForm({ ...form, min_quantity: Math.max(1, Number(event.target.value)) })} />
           <span className="text-label text-muted">{t('product.minQuantityHint')}</span>
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="pr-rec">{t('product.billingLabel')}</label>
           <Select id="pr-rec" value={form.recurrence} onChange={(event) => setForm({ ...form, recurrence: event.target.value as ProductPrice['recurrence'] })}>
             {COST_RECURRENCES.map((every) => <option key={every} value={every}>{t(billingKey(every))}</option>)}
@@ -1980,7 +1987,7 @@ function PriceForm({ product, price, onClose }: { product: Product; price: Produ
         {/* The field that lets one product be sold at several terms at once.
             Beside the period on purpose: how often it is charged and how long
             they are tied in are the two halves people confuse. */}
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="pr-term">{t('product.priceTerm')}</label>
           <Input id="pr-term" type="number" min={0} value={form.term_months}
             placeholder={String(product.term_months)}
@@ -1990,12 +1997,12 @@ function PriceForm({ product, price, onClose }: { product: Product; price: Produ
           </span>
         </div>
       </div>
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="pr-from">{t('product.validFrom')}</label>
           <Input id="pr-from" type="date" value={form.valid_from} onChange={(event) => setForm({ ...form, valid_from: event.target.value })} />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="pr-to">{t('product.validTo')}</label>
           <Input id="pr-to" type="date" value={form.valid_to} onChange={(event) => setForm({ ...form, valid_to: event.target.value })} />
         </div>
@@ -2026,7 +2033,7 @@ function Costs({ product }: { product: Product }) {
   return (
     <div className="grid gap-3.5">
       <p className="text-label text-muted">{t('product.costsHint')}</p>
-      <div className="kpi-row">
+      <div className={statRow}>
         {BASES.map((basis) => (
           <Stat
             key={basis}
@@ -2158,30 +2165,30 @@ function CostForm({ product, cost, onClose }: { product: Product; cost: ProductC
         </Button>
       )}
     >
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="pc-name">{t('product.name')}</label>
         <Input id="pc-name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
       </div>
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="pc-basis">{t('product.basisLabel')}</label>
         <Select id="pc-basis" value={form.basis} onChange={(event) => setForm({ ...form, basis: event.target.value as CostBasis })}>
           {COST_BASIS.map((basis) => <option key={basis} value={basis}>{t(basisKey(basis))}</option>)}
         </Select>
         <span className="text-label text-muted">{t(`product.basisHint.${form.basis}` as TranslationKey)}</span>
       </div>
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="pc-cat">{t('product.category')}</label>
           <Select id="pc-cat" value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value as ProductCost['category'] })}>
             {COST_CATEGORIES.map((category) => <option key={category} value={category}>{t(categoryKey(category))}</option>)}
           </Select>
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="pc-amount">{t('product.amount')}</label>
           <MoneyInput id="pc-amount" value={form.amount} currency={product.currency} onChange={(amount) => setForm({ ...form, amount })} />
         </div>
       </div>
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="pc-vendor">{t('product.vendor')}</label>
         <Input id="pc-vendor" value={form.vendor} onChange={(event) => setForm({ ...form, vendor: event.target.value })} />
       </div>
@@ -2241,7 +2248,7 @@ function Package({ product, entry }: { product: Product; entry: CatalogueEntry }
 
   return (
     <div className="grid gap-3.5">
-      <div className="kpi-row">
+      <div className={statRow}>
         <Stat label={t('product.listValue')} value={asMoney(value.listValue, product.currency)} hint={t('product.listValueHint')} />
         <Stat
           label={t('product.packagePrice')}
@@ -2367,7 +2374,7 @@ function Package({ product, entry }: { product: Product; entry: CatalogueEntry }
       </div>
 
       {canWrite && (
-        <div className="field-row">
+        <div className={formRow}>
           <Select className="flex-1 min-w-0" value={adding} aria-label={t('product.addPart')} onChange={(event) => setAdding(event.target.value)}>
             <option value="">{t('product.addPart')}</option>
             {products.filter((row) => !parts.some((part) => part.part_id === row.id))
@@ -2450,41 +2457,41 @@ function SimulationTab({ product }: { product: Product }) {
     <div className="grid gap-3.5">
       <p className="text-label text-muted">{t('product.simulationHint')}</p>
 
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="si-months">{t('product.months')}</label>
           <Input id="si-months" type="number" min={1} max={120} value={settled.months}
             onChange={(event) => setForm({ ...form, months: Number(event.target.value) })} />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="si-units">{t('product.unitsFirstMonth')}</label>
           <Input id="si-units" type="number" min={0} value={settled.units}
             onChange={(event) => setForm({ ...form, units: Number(event.target.value) })} />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="si-growth">{t('product.growth')}</label>
           <Input id="si-growth" type="number" value={settled.growth_bps / 100}
             onChange={(event) => setForm({ ...form, growth_bps: Math.round(Number(event.target.value) * 100) })} />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="si-deliveries">{t('product.deliveries')}</label>
           <Input id="si-deliveries" type="number" min={0} value={settled.deliveries}
             onChange={(event) => setForm({ ...form, deliveries: Number(event.target.value) })} />
         </div>
       </div>
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="si-price">{t('product.priceChange')}</label>
           <Input id="si-price" type="number" value={settled.price_bps / 100}
             onChange={(event) => setForm({ ...form, price_bps: Math.round(Number(event.target.value) * 100) })} />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="si-cost">{t('product.costChange')}</label>
           <Input id="si-cost" type="number" value={settled.cost_bps / 100}
             onChange={(event) => setForm({ ...form, cost_bps: Math.round(Number(event.target.value) * 100) })} />
         </div>
       </div>
-      <div className="field" role="group" aria-labelledby="ps-campaigns">
+      <div className={formField} role="group" aria-labelledby="ps-campaigns">
         <label id="ps-campaigns">{t('product.campaignsApplied')}</label>
         <div className="flex flex-wrap gap-2 pt-1">
           {promotions.map((promotion) => (
@@ -2506,7 +2513,7 @@ function SimulationTab({ product }: { product: Product }) {
         </div>
       </div>
 
-      <div className="kpi-row">
+      <div className={statRow}>
         <Stat
           label={t('product.revenue')}
           value={asMoney(result.revenue, result.currency, true)}
@@ -2660,29 +2667,29 @@ function ProductForm({ product, onClose }: { product?: Product; onClose: () => v
         </Button>
       )}
     >
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="p-name">{t('product.name')}</label>
           <Input id="p-name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="p-code">{t('product.code')}</label>
           <Input id="p-code" value={form.code} placeholder={t('product.codePlaceholder')} onChange={(event) => setForm({ ...form, code: event.target.value })} />
         </div>
       </div>
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="p-desc">{t('product.description')}</label>
         <Textarea id="p-desc" rows={2} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
       </div>
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="p-group">{t('product.group')}</label>
           <Select id="p-group" value={form.group_id} onChange={(event) => setForm({ ...form, group_id: event.target.value })}>
             <option value="">{t('product.ungrouped')}</option>
             {groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
           </Select>
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="p-status">{t('product.statusLabel')}</label>
           <Select id="p-status" value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as Product['status'] })}>
             {PRODUCT_STATUS.map((status) => <option key={status} value={status}>{t(statusKey(status))}</option>)}
@@ -2692,7 +2699,7 @@ function ProductForm({ product, onClose }: { product?: Product; onClose: () => v
             as `single` on every create and changed only by a button inside the
             package tab's empty state — so the one screen that names packages
             was the one you reached by opening a tab that said this is not one. */}
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="p-kind">{t('product.kindLabel')}</label>
           <Select id="p-kind" value={form.kind} onChange={(event) => setForm({ ...form, kind: event.target.value as Product['kind'] })}>
             {PRODUCT_KINDS.map((kind) => (
@@ -2707,7 +2714,7 @@ function ProductForm({ product, onClose }: { product?: Product; onClose: () => v
               : t(form.kind === 'bundle' ? 'product.kindBundleHint' : 'product.kindSingleHint')}
           </span>
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="p-currency">{t('product.currency')}</label>
           {/* A list rather than three characters somebody types. ISO 4217 is
               closed, the server upper-cases and falls back to EUR anyway, and
@@ -2724,8 +2731,8 @@ function ProductForm({ product, onClose }: { product?: Product; onClose: () => v
 
       <SectionHeading>{t('product.scope')}</SectionHeading>
       <p className="text-label text-muted">{t('product.scopeHint')}</p>
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="p-unit">{t('product.unitLabel')}</label>
           {/* Suggestions, not a closed list: what one unit is called is the
               organisation's word and nothing sums across products by it. A
@@ -2736,12 +2743,12 @@ function ProductForm({ product, onClose }: { product?: Product; onClose: () => v
             {UNIT_SUGGESTIONS.map((key) => <option key={key} value={t(`product.unitOption.${key}` as TranslationKey)} />)}
           </datalist>
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="p-scope">{t('product.scopeAmount')}</label>
           <Input id="p-scope" type="number" min={0} value={form.scope_amount}
             onChange={(event) => setForm({ ...form, scope_amount: Math.max(0, Number(event.target.value)) })} />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="p-scope-unit">{t('product.scopeUnit')}</label>
           {/* Closed, unlike the one beside it, and for the reason a cost
               category is closed: the whole point of `scope_amount` is that two
@@ -2771,7 +2778,7 @@ function ProductForm({ product, onClose }: { product?: Product; onClose: () => v
         * month against forty. A field nobody should fill in is better not shown
         * than shown with a warning under it.
         */}
-      <label className="check-row">
+      <label className={checkRow}>
         <input
           type="checkbox"
           checked={form.capacity !== null}
@@ -2783,7 +2790,7 @@ function ProductForm({ product, onClose }: { product?: Product; onClose: () => v
         </span>
       </label>
       {form.capacity !== null && (
-        <div className="field">
+        <div className={formField}>
           <label htmlFor="p-capacity">{t('product.capacity')}</label>
           <Input
             id="p-capacity"
@@ -2802,27 +2809,27 @@ function ProductForm({ product, onClose }: { product?: Product; onClose: () => v
           select on the product was one answer to a question with several — it
           is a price's business and always was. */}
       <p className="text-label text-muted">{t('product.billingMovedHint')}</p>
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="p-renewal">{t('product.renewalLabel')}</label>
           <Select id="p-renewal" value={form.renewal} onChange={(event) => setForm({ ...form, renewal: event.target.value as Product['renewal'] })}>
             {RENEWALS.map((renewal) => <option key={renewal} value={renewal}>{t(renewalKey(renewal))}</option>)}
           </Select>
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="p-term">{t('product.termMonths')}</label>
           <Input id="p-term" type="number" min={0} value={form.term_months}
             onChange={(event) => setForm({ ...form, term_months: Math.max(0, Number(event.target.value)) })} />
         </div>
       </div>
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="p-churn">{t('product.churn')}</label>
           <Input id="p-churn" type="number" min={0} max={100} value={form.churn_bps / 100}
             onChange={(event) => setForm({ ...form, churn_bps: Math.round(Number(event.target.value) * 100) })} />
           <span className="text-label text-muted">{t('product.churnFieldHint')}</span>
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="p-acq">{t('product.acquisitionCost')}</label>
           <MoneyInput id="p-acq" value={form.acquisition_cost} currency={form.currency} onChange={(acquisition_cost) => setForm({ ...form, acquisition_cost })} />
           <span className="text-label text-muted">{t('product.acquisitionHint')}</span>
@@ -2848,7 +2855,7 @@ function ProductForm({ product, onClose }: { product?: Product; onClose: () => v
           </Chip>
         ))}
       </div>
-      <div className="field-row pt-2">
+      <div className={cn(formRow, 'pt-2')}>
         <Input
           className="flex-1 min-w-0"
           value={newCapability}

@@ -33,11 +33,16 @@ import { relativeTime } from '../../../kernel/design-system/format';
 import { useCanWrite, useMemberMap, useSession } from '../../../kernel/identity/session';
 import { useT, type TranslationKey } from '../../../kernel/i18n/i18n';
 import { Button } from '../../../kernel/design-system/ui/button';
-import { Input, Select, Textarea } from '../../../kernel/design-system/ui/field';
-import { Empty, Icon, MenuButton, Sheet, useConfirm, useToast } from '../../../kernel/design-system/ui';
+import { Input, Select, Textarea, formRow } from '../../../kernel/design-system/ui/field';
+import { Empty } from '../../../kernel/design-system/ui/empty';
+import { Icon } from '../../../kernel/design-system/ui/icon';
+import { MenuButton } from '../../../kernel/design-system/ui/menu-button';
+import { Sheet, useConfirm } from '../../../kernel/design-system/ui/sheet';
+import { useToast } from '../../../kernel/design-system/ui/toast';
 import { EnvironmentsSheet } from '../environments';
 import { useMinute } from '../../../kernel/design-system/minute';
 import { useSaveChanges } from '../../../kernel/design-system/row-form';
+import { pageBody } from '../../../kernel/design-system/ui/page';
 
 /** One word per kind, and one glyph, so a list of twenty is scannable. */
 const KIND_KEY: Record<SecretKind, TranslationKey> = {
@@ -219,12 +224,12 @@ function SecretSheet({ secret, onClose }: { secret: Secret | null; onClose: () =
         </>
       }
     >
-      <label className="field-row">
+      <label className={formRow}>
         <span>{t('secret.name')}</span>
         <Input value={name} autoFocus placeholder={t('secret.namePlaceholder')} onChange={(event) => setName(event.target.value)} />
       </label>
 
-      <label className="field-row">
+      <label className={formRow}>
         <span>{t('secret.value')}</span>
         <Textarea
           value={value}
@@ -242,14 +247,14 @@ function SecretSheet({ secret, onClose }: { secret: Secret | null; onClose: () =
         <p className={`text-label ${STRENGTH_CLASS[scored]}`}>{t(STRENGTH_KEY[scored])}</p>
       )}
 
-      <label className="field-row">
+      <label className={formRow}>
         <span>{t('secret.kind')}</span>
         <Select value={kind} onChange={(event) => setKind(event.target.value as SecretKind)}>
           {SECRET_KINDS.map((one) => <option key={one} value={one}>{t(KIND_KEY[one])}</option>)}
         </Select>
       </label>
 
-      <label className="field-row">
+      <label className={formRow}>
         <span>{t('secret.access')}</span>
         <Select
           value={access}
@@ -261,7 +266,7 @@ function SecretSheet({ secret, onClose }: { secret: Secret | null; onClose: () =
       <p className="text-label text-muted mb-2">{t(ACCESS_HINT[access])}</p>
 
       {access === 'project' && (
-        <label className="field-row">
+        <label className={formRow}>
           <span>{t('secret.project')}</span>
           <Select value={projectId ?? ''} onChange={(event) => setProjectId(event.target.value)}>
             <option value="">{t('secret.pickProject')}</option>
@@ -270,7 +275,7 @@ function SecretSheet({ secret, onClose }: { secret: Secret | null; onClose: () =
         </label>
       )}
 
-      <label className="field-row">
+      <label className={formRow}>
         <span>{t('secret.environment')}</span>
         <Select value={environmentId ?? ''} onChange={(event) => setEnvironmentId(event.target.value)}>
           <option value="">{t('secret.everywhere')}</option>
@@ -279,13 +284,13 @@ function SecretSheet({ secret, onClose }: { secret: Secret | null; onClose: () =
       </label>
       <p className="text-label text-muted mb-2">{t('secret.environmentHint')}</p>
 
-      <label className="field-row">
+      <label className={formRow}>
         <span>{t('secret.rotateEvery')}</span>
         <Input type="number" min={0} max={3650} value={days} onChange={(event) => setDays(event.target.value)} />
       </label>
       <p className="text-label text-muted mb-2">{t('secret.rotateHint')}</p>
 
-      <label className="field-row">
+      <label className={formRow}>
         <span>{t('secret.description')}</span>
         <Textarea value={description ?? ''} rows={2} placeholder={t('secret.descriptionPlaceholder')} onChange={(event) => setDescription(event.target.value)} />
       </label>
@@ -372,7 +377,7 @@ export function SecretsIndex() {
         )}
       </Header>
 
-      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+      <div className={pageBody}>
         {/* The honest line, first and once. Anybody deciding whether to move
             their keys in here deserves to read what it does before they see how
             nice the list looks. */}

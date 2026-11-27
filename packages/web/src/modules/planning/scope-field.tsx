@@ -20,7 +20,7 @@
 import { useState } from 'react';
 import { projectScope, type ProjectScope, type Task } from '@kolibri/shared';
 import { chipVariants } from '../../kernel/design-system/ui/chip';
-import { Select } from '../../kernel/design-system/ui/field';
+import { Select, checkRow, formField } from '../../kernel/design-system/ui/field';
 
 /** The three answers a form offers, which are not the two columns it stores. */
 export type ScopeChoice = 'this' | 'some' | 'all';
@@ -96,7 +96,7 @@ export function ProjectScopeField({
   labels: ScopeLabels;
 }) {
   return (
-    <div className="field">
+    <div className={formField}>
       <label htmlFor={id}>{labels.legend}</label>
       <Select id={id} value={scope} onChange={(event) => onScope(event.target.value as ScopeChoice)}>
         <option value="this">{labels.this}</option>
@@ -110,7 +110,7 @@ export function ProjectScopeField({
       {scope === 'some' && (
         <div className="mt-2 grid gap-1">
           {projects.map((project) => (
-            <label className="check-row" key={project.id}>
+            <label className={checkRow} key={project.id}>
               <input
                 type="checkbox"
                 checked={picked.includes(project.id)}

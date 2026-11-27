@@ -14,11 +14,12 @@ import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
 import { byId, list, useQuery } from '../../kernel/sync/store';
 import { create, remove, update } from '../../kernel/sync/mutations';
 import { useCanWrite, useMemberMap } from '../../kernel/identity/session';
-import { Icon, useConfirm } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { useConfirm } from '../../kernel/design-system/ui/sheet';
 import { Button } from '../../kernel/design-system/ui/button';
 import { buttonVariants } from '../../kernel/design-system/ui/button';
 import { chipVariants } from '../../kernel/design-system/ui/chip';
-import { Input, Select, Textarea } from '../../kernel/design-system/ui/field';
+import { Input, Select, Textarea, formField } from '../../kernel/design-system/ui/field';
 import { DateField } from './task-parts';
 
 export const kindKey = (kind: string): TranslationKey => `field.kind.${kind}` as TranslationKey;
@@ -153,7 +154,7 @@ export function TaskFields({ task }: { task: Task }) {
             ? !(value as string[]).length
             : value === '' || value === null || value === false;
           return (
-            <div className="field" key={field.id} style={{ marginBottom: 0 }}>
+            <div className={formField} key={field.id} style={{ marginBottom: 0 }}>
               <label htmlFor={`cf-${field.id}`}>
                 {field.name}
                 {/* A prompt, not a gate: the task saves either way. */}
@@ -212,7 +213,7 @@ export function ProjectFields({ projectId }: { projectId: string }) {
           {open === field.id && (
             <div className="mt-2.5">
               {(field.kind === 'select' || field.kind === 'multi_select') && (
-                <div className="field">
+                <div className={formField}>
                   <label htmlFor={`opt-${field.id}`}>{t('field.choices')}</label>
                   <Input
                     id={`opt-${field.id}`} value={field.options.join(', ')}
@@ -224,7 +225,7 @@ export function ProjectFields({ projectId }: { projectId: string }) {
                 </div>
               )}
 
-              <div className="field">
+              <div className={formField}>
                 <label htmlFor={`help-${field.id}`}>{t('field.help')}</label>
                 <Input
                   id={`help-${field.id}`} value={field.help ?? ''}

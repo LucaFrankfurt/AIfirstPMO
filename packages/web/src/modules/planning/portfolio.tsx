@@ -18,7 +18,10 @@ import { byId, list, useQuery } from '../../kernel/sync/store';
 import { useFeature, useSession } from '../../kernel/identity/session';
 import { Bars, Stat } from './insights';
 import { Table } from '../../kernel/design-system/ui/table';
-import { Empty, Icon } from '../../kernel/design-system/ui';
+import { Empty } from '../../kernel/design-system/ui/empty';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { pageBody } from '../../kernel/design-system/ui/page';
+import { statRow } from '../../kernel/design-system/ui/stat';
 
 const DAY = 86_400_000;
 
@@ -235,11 +238,11 @@ export function Portfolio() {
   }
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+    <div className={pageBody}>
       {/* The screen had four numbers, three charts and nothing naming any of
           it — the one route in the app with no heading of its own. */}
       <h1 className="text-title m-0 mb-2.5">{t('portfolio.title')}</h1>
-      <div className="kpi-row">
+      <div className={statRow}>
         <Stat label={t('portfolio.projects')} value={String(projects.length)} />
         <Stat label={t('portfolio.open')} value={String(totals.open)} hint={t('portfolio.acrossAll')} />
         <Stat label={t('portfolio.finishedMonth')} value={String(totals.doneThisMonth)} hint={t('insights.last30')} />

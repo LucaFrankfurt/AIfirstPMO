@@ -30,7 +30,7 @@ import { useNavigate } from 'react-router-dom';
 import { comparePages, type Page } from '@kolibri/shared';
 import { useT } from '../../kernel/i18n/i18n';
 import { cn } from '../../kernel/design-system/cn';
-import { Icon } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
 import { Button } from '../../kernel/design-system/ui/button';
 import { navCount, navItem } from '../../kernel/design-system/ui/nav';
 import { chipDot } from '../../kernel/design-system/ui/chip';

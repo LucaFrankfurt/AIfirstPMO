@@ -21,7 +21,10 @@ import { useMe, useMemberMap, useSession } from '../../kernel/identity/session';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Input } from '../../kernel/design-system/ui/field';
 import { Chip } from '../../kernel/design-system/ui/chip';
-import { Avatar, Icon, useConfirm, useToast } from '../../kernel/design-system/ui';
+import { Avatar } from '../../kernel/design-system/ui/avatar';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { useConfirm } from '../../kernel/design-system/ui/sheet';
+import { useToast } from '../../kernel/design-system/ui/toast';
 
 /**
  * Minutes on the clock right now, for a row that is still running.

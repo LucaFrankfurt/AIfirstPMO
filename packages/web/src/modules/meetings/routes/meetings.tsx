@@ -19,7 +19,11 @@ import {
   type Meeting, type Page,
 } from '@kolibri/shared';
 import { Header, Trail } from '../../../kernel/design-system/chrome';
-import { AvatarStack, Empty, Icon, Sheet, useConfirm, useToast } from '../../../kernel/design-system/ui';
+import { AvatarStack } from '../../../kernel/design-system/ui/avatar';
+import { Empty } from '../../../kernel/design-system/ui/empty';
+import { Icon } from '../../../kernel/design-system/ui/icon';
+import { Sheet, useConfirm } from '../../../kernel/design-system/ui/sheet';
+import { useToast } from '../../../kernel/design-system/ui/toast';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { SectionHeading } from '../../../kernel/design-system/ui/section';
 import { useT } from '../../../kernel/i18n/i18n';

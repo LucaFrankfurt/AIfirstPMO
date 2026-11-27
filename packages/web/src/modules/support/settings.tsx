@@ -10,10 +10,13 @@ import {
   WIDGET_ASSISTANTS, WIDGET_IDENTITIES, cleanContextFields, cleanOrigins, contextFieldsText, isWidgetColor, widgetSnippet,
   type Widget, type WidgetAssistant, type WidgetIdentity,
 } from '@kolibri/shared';
-import { Empty, Icon, Sheet, useAction, useConfirm, useToast } from '../../kernel/design-system/ui';
+import { Empty } from '../../kernel/design-system/ui/empty';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { Sheet, useConfirm } from '../../kernel/design-system/ui/sheet';
+import { useAction, useToast } from '../../kernel/design-system/ui/toast';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Chip } from '../../kernel/design-system/ui/chip';
-import { Input, Label, Select, Textarea } from '../../kernel/design-system/ui/field';
+import { Input, Label, Select, Textarea, checkRow } from '../../kernel/design-system/ui/field';
 import { SectionHeading } from '../../kernel/design-system/ui/section';
 import { useT } from '../../kernel/i18n/i18n';
 import { useFeature, useMembers, useRunsWorkspace } from '../../kernel/identity/session';
@@ -199,7 +202,7 @@ function WidgetSheet({ widget, onClose }: { widget: Widget | null; onClose: () =
         <fieldset className="m-0 flex flex-col gap-1.5 border-0 p-0">
           <legend className="mb-1 text-body font-medium">{t('widgets.identity')}</legend>
           {WIDGET_IDENTITIES.map((option) => (
-            <label key={option} className="check-row">
+            <label key={option} className={checkRow}>
               <input type="radio" name="identity" checked={identity === option} onChange={() => setIdentity(option)} />
               <span>
                 <span>{t(option === 'signed' ? 'widgets.signed' : 'widgets.anonymous')}</span>
@@ -225,7 +228,7 @@ function WidgetSheet({ widget, onClose }: { widget: Widget | null; onClose: () =
           <legend className="mb-1 text-body font-medium">{t('widgets.agents')}</legend>
           <span className="text-label text-muted">{t('widgets.agentsHint')}</span>
           {members.map((member) => (
-            <label key={member.id} className="check-row">
+            <label key={member.id} className={checkRow}>
               <input
                 type="checkbox"
                 checked={agents.includes(member.id)}
@@ -238,7 +241,7 @@ function WidgetSheet({ widget, onClose }: { widget: Widget | null; onClose: () =
         <fieldset className="m-0 flex flex-col gap-1.5 border-0 p-0">
           <legend className="mb-1 text-body font-medium">{t('widgets.assistant')}</legend>
           {WIDGET_ASSISTANTS.map((option) => (
-            <label key={option} className="check-row">
+            <label key={option} className={checkRow}>
               <input type="radio" name="assistant" checked={assistant === option} onChange={() => setAssistant(option)} />
               <span>
                 <span>{t(ASSISTANT_LABEL[option])}</span>
@@ -290,7 +293,7 @@ function WidgetSheet({ widget, onClose }: { widget: Widget | null; onClose: () =
         <Label label={t('widgets.replyTo')} hint={t('widgets.replyToHint')}>
           <Input type="email" value={replyTo} placeholder="support@example.com" onChange={(event) => setReplyTo(event.target.value)} />
         </Label>
-        <label className="check-row">
+        <label className={checkRow}>
           <input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />
           <span>
             <span>{t('widgets.enabled')}</span>

@@ -7,7 +7,9 @@ import { TaskViews, useVisibleTasks, ViewControls } from '../views';
 import { DEFAULT_VIEW, type ViewConfig } from '../task-parts';
 import { useSelection } from '../../../kernel/design-system/selection';
 import { SelectionBar } from '../selection-bar';
-import { Avatar, Empty, Icon } from '../../../kernel/design-system/ui';
+import { Avatar } from '../../../kernel/design-system/ui/avatar';
+import { Empty } from '../../../kernel/design-system/ui/empty';
+import { Icon } from '../../../kernel/design-system/ui/icon';
 import { Stat } from '../../planning/insights';
 import { relativeTime, today } from '../../../kernel/design-system/format';
 import { firstName, greetingKey, summarise } from '../overview';
@@ -27,6 +29,8 @@ import { ActiveIncidents } from '../../incidents/incident-parts';
 import { useTabStrip } from '../../../kernel/design-system/tab-strip';
 import { TabButton, TabList } from '../../../kernel/design-system/ui/tabs';
 import { useMinute } from '../../../kernel/design-system/minute';
+import { pageBody } from '../../../kernel/design-system/ui/page';
+import { statRow } from '../../../kernel/design-system/ui/stat';
 
 /* --------------------------------------------------------------- my work */
 
@@ -114,7 +118,7 @@ export function MyWork() {
       <Header title={t('myWork.title')}>
         <ViewControls view={view} onChange={setView} saveable />
       </Header>
-      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+      <div className={pageBody}>
         {name && <h2 className="greeting mb-3.5">{t(greetingKey(new Date().getHours()), { name })}</h2>}
 
         <SetupChecklist />
@@ -125,7 +129,7 @@ export function MyWork() {
         <ActiveIncidents />
 
         {mine.length > 0 && (
-          <div className="kpi-row">
+          <div className={statRow}>
             <Stat
               label={t('overview.statOpen')} value={String(standing.open)}
               onSelect={() => show('open')} active={bucket === 'open'}
@@ -244,7 +248,7 @@ export function Inbox() {
           <Icon name="check" size={14} /> <span className="hide-sm">{t('inbox.markAllRead')}</span>
         </Button>
       </Header>
-      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+      <div className={pageBody}>
         {shown.length === 0 ? (
           <Empty emoji="📭" title={t('inbox.emptyTitle')} hint={t('inbox.emptyHint')} guide="collab" />
         ) : (
@@ -317,7 +321,7 @@ export function More() {
   return (
     <>
       <Header title={t('nav.more')} />
-      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+      <div className={pageBody}>
         <div className="flex items-center gap-2 mb-4">
           <Avatar user={user ?? undefined} size={40} />
           <div className="flex-1 min-w-0">

@@ -1,6 +1,7 @@
 import * as Primitive from '@radix-ui/react-dropdown-menu';
 import type { ComponentProps } from 'react';
 import { cn } from '../cn';
+import { floatingSurface } from './surface';
 
 /**
  * A dropdown menu that behaves like one.
@@ -53,7 +54,7 @@ export function MenuContent({ className, sideOffset = 6, sheet, ...props }: Comp
           // cap's job is to stop a menu running off a short window, not to
           // absorb a menu that is too long.
           'menu z-50 min-w-[13rem] max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-y-auto',
-          'rounded border border-line bg-raised p-1 text-body shadow',
+          floatingSurface, 'p-1 text-body',
           'data-[state=open]:animate-in data-[state=closed]:animate-out motion-reduce:animate-none',
           className,
         )}
@@ -119,7 +120,7 @@ export function MenuSubContent({ className, sideOffset = 4, ...props }: Componen
         collisionPadding={10}
         className={cn(
           'menu z-50 min-w-[13rem] max-h-[min(24rem,var(--radix-dropdown-menu-content-available-height))] overflow-y-auto',
-          'rounded border border-line bg-raised p-1 text-body shadow',
+          floatingSurface, 'p-1 text-body',
           'data-[state=open]:animate-in data-[state=closed]:animate-out motion-reduce:animate-none',
           className,
         )}

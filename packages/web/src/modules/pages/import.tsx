@@ -29,7 +29,9 @@ import { useMe, useSession } from '../../kernel/identity/session';
 import { useT } from '../../kernel/i18n/i18n';
 import { cn } from '../../kernel/design-system/cn';
 import { Button } from '../../kernel/design-system/ui/button';
-import { Icon, Sheet, useToast } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { Sheet } from '../../kernel/design-system/ui/sheet';
+import { useToast } from '../../kernel/design-system/ui/toast';
 import { buttonVariants } from '../../kernel/design-system/ui/button';
 
 /** What the extension says, before anything looks inside the file. */

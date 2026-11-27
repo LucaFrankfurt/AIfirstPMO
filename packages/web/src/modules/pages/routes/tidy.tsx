@@ -35,12 +35,15 @@ import { Button } from '../../../kernel/design-system/ui/button';
 import { Input } from '../../../kernel/design-system/ui/field';
 import { SectionHeading } from '../../../kernel/design-system/ui/section';
 import { navItem } from '../../../kernel/design-system/ui/nav';
-import { Empty, Icon, useToast } from '../../../kernel/design-system/ui';
+import { Empty } from '../../../kernel/design-system/ui/empty';
+import { Icon } from '../../../kernel/design-system/ui/icon';
+import { useToast } from '../../../kernel/design-system/ui/toast';
 import { useMinute } from '../../../kernel/design-system/minute';
 import { STALE_DAYS, tidyPages, type Problem } from '../tidy';
 import { usePageStatuses } from '../status';
 import { trailsOf } from '../page-tree';
 import { PageBulkBar } from '../page-bulk';
+import { pageBody } from '../../../kernel/design-system/ui/page';
 
 /** What each finding is called, and the consequence that makes it one. */
 const SAYS: Record<Problem, { title: TranslationKey; why: TranslationKey }> = {
@@ -192,7 +195,7 @@ export function PagesTidy() {
           <Icon name="page" size={14} /> <span className="hide-sm">{t('page.listTitle')}</span>
         </Button>
       </Header>
-      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+      <div className={pageBody}>
         <Trail parts={[{ to: '/pages', label: t('page.listTitle'), icon: <Icon name="page" size={13} /> }]} />
         <p className="text-muted text-body" style={{ marginTop: 0 }}>{t('page.tidyIntro')}</p>
 

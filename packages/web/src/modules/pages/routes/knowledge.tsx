@@ -25,11 +25,13 @@ import { useCanWrite, useMe, useSession } from '../../../kernel/identity/session
 import { Button } from '../../../kernel/design-system/ui/button';
 import { Input } from '../../../kernel/design-system/ui/field';
 import { navItem } from '../../../kernel/design-system/ui/nav';
-import { Empty, Icon } from '../../../kernel/design-system/ui';
+import { Empty } from '../../../kernel/design-system/ui/empty';
+import { Icon } from '../../../kernel/design-system/ui/icon';
 import { useMinute } from '../../../kernel/design-system/minute';
 import { trailsOf } from '../page-tree';
 import { isPublicKnowledge } from '../public-knowledge';
 import { PageStatusChip, usePageStatuses } from '../status';
+import { pageBody } from '../../../kernel/design-system/ui/page';
 
 export function PagesKnowledge() {
   useMinute(); // re-reads the ages below once a minute — `design-system/minute.ts`
@@ -69,7 +71,7 @@ export function PagesKnowledge() {
           </Button>
         )}
       </Header>
-      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+      <div className={pageBody}>
         <Trail parts={[{ to: '/pages', label: t('page.listTitle'), icon: <Icon name="page" size={13} /> }]} />
         <p className="text-muted text-body" style={{ marginTop: 0 }}>{t('page.knowledgeIntro')}</p>
         {!marked ? (

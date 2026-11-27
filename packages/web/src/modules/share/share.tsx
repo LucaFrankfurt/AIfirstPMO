@@ -15,7 +15,9 @@ import { pull } from '../../kernel/sync/sync';
 import { useSession } from '../../kernel/identity/session';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Input } from '../../kernel/design-system/ui/field';
-import { Icon, Sheet, useConfirm, useToast } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { Sheet, useConfirm } from '../../kernel/design-system/ui/sheet';
+import { useToast } from '../../kernel/design-system/ui/toast';
 
 export const shareUrl = (share: Share): string =>
   share.token ? `${location.origin}/s/${share.token}` : '';

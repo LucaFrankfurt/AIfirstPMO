@@ -17,7 +17,7 @@ import { chipDot } from './ui/chip';
 import { Button } from './ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { useMinute } from './minute';
-import { Icon } from './ui';
+import { Icon } from './ui/icon';
 
 /* ------------------------------------------------------------ sync status */
 

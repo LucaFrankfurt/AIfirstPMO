@@ -19,12 +19,13 @@ import { create } from '../../kernel/sync/mutations';
 import { useSaveChanges } from '../../kernel/design-system/row-form';
 import { list, useQuery } from '../../kernel/sync/store';
 import { useMembers } from '../../kernel/identity/session';
-import { Sheet } from '../../kernel/design-system/ui';
+import { Sheet } from '../../kernel/design-system/ui/sheet';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Chip } from '../../kernel/design-system/ui/chip';
-import { Input, Select, Textarea } from '../../kernel/design-system/ui/field';
+import { Input, Select, Textarea, checkRow, formField, formRow } from '../../kernel/design-system/ui/field';
 import { MoneyInput } from '../../kernel/design-system/ui/money';
 import { Attachments } from '../../kernel/files/Attachments';
+import { cn } from '../../kernel/design-system/cn';
 
 export const kindKey = (kind: string): TranslationKey => `estate.kind.${kind}` as TranslationKey;
 export const envKey = (env: string): TranslationKey => `estate.env.${env}` as TranslationKey;
@@ -217,7 +218,7 @@ export function ComponentForm({ component, onClose }: { component: Component | n
       onClose={onClose}
       footer={<Button variant="primary" onClick={save} disabled={!form.name.trim()}>{t('action.save')}</Button>}
     >
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="c-name">{t('estate.name')}</label>
         <Input
           id="c-name"
@@ -228,20 +229,20 @@ export function ComponentForm({ component, onClose }: { component: Component | n
         />
       </div>
 
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="c-kind">{t('estate.kindLabel')}</label>
           <Select id="c-kind" value={form.kind} onChange={(event) => setForm({ ...form, kind: event.target.value as ComponentKind })}>
             {COMPONENT_KINDS.map((kind) => <option key={kind} value={kind}>{t(kindKey(kind))}</option>)}
           </Select>
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="c-env">{t('estate.environment')}</label>
           <Select id="c-env" value={form.environment} onChange={(event) => setForm({ ...form, environment: event.target.value as typeof form.environment })}>
             {ENVIRONMENTS.map((env) => <option key={env} value={env}>{t(envKey(env))}</option>)}
           </Select>
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="c-status">{t('estate.statusLabel')}</label>
           <Select id="c-status" value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as Lifecycle })}>
             {LIFECYCLES.map((state) => <option key={state} value={state}>{t(lifecycleKey(state))}</option>)}
@@ -249,15 +250,15 @@ export function ComponentForm({ component, onClose }: { component: Component | n
         </div>
       </div>
 
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="c-vendor">{t('estate.vendor')}</label>
           <Select id="c-vendor" value={form.vendor_id} onChange={(event) => setForm({ ...form, vendor_id: event.target.value })}>
             <option value="">{t('estate.noVendor')}</option>
             {vendors.map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.name}</option>)}
           </Select>
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="c-parent">{t('estate.runsOn')}</label>
           <Select id="c-parent" value={form.parent_id} onChange={(event) => setForm({ ...form, parent_id: event.target.value })}>
             <option value="">{t('estate.nothing')}</option>
@@ -268,12 +269,12 @@ export function ComponentForm({ component, onClose }: { component: Component | n
         </div>
       </div>
 
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="c-from">{t('estate.liveFrom')}</label>
           <Input id="c-from" type="date" value={form.live_from} onChange={(event) => setForm({ ...form, live_from: event.target.value })} />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="c-until">{t('estate.liveUntil')}</label>
           <Input id="c-until" type="date" value={form.live_until} onChange={(event) => setForm({ ...form, live_until: event.target.value })} />
         </div>
@@ -282,12 +283,12 @@ export function ComponentForm({ component, onClose }: { component: Component | n
         {inNoLandscape ? t('estate.undatedWarning') : t('estate.datesHint')}
       </p>
 
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="c-amount">{t('budget.amount')}</label>
           <MoneyInput id="c-amount" currency={form.currency} value={form.amount} onChange={(amount) => setForm({ ...form, amount })} />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="c-every">{t('budget.recurrence')}</label>
           <Select id="c-every" value={form.recurrence} onChange={(event) => setForm({ ...form, recurrence: event.target.value as typeof form.recurrence })}>
             {COST_RECURRENCES.map((every) => (
@@ -295,14 +296,14 @@ export function ComponentForm({ component, onClose }: { component: Component | n
             ))}
           </Select>
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="c-currency">{t('budget.currency')}</label>
           <Input id="c-currency" maxLength={3} value={form.currency} onChange={(event) => setForm({ ...form, currency: event.target.value.toUpperCase() })} />
         </div>
       </div>
 
       {lines.length > 0 && (
-        <div className="field">
+        <div className={formField}>
           <label htmlFor="c-line">{t('estate.chargedTo')}</label>
           <Select id="c-line" value={form.line_id} onChange={(event) => setForm({ ...form, line_id: event.target.value })}>
             <option value="">{t('estate.notBudgeted')}</option>
@@ -312,16 +313,16 @@ export function ComponentForm({ component, onClose }: { component: Component | n
         </div>
       )}
 
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="c-location">{t('estate.location')}</label>
           <Input id="c-location" placeholder={t('estate.locationPlaceholder')} value={form.location} onChange={(event) => setForm({ ...form, location: event.target.value })} />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="c-ref">{t('estate.reference')}</label>
           <Input id="c-ref" placeholder={t('estate.referencePlaceholder')} value={form.reference} onChange={(event) => setForm({ ...form, reference: event.target.value })} />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="c-owner">{t('estate.owner')}</label>
           <Select id="c-owner" value={form.owner_id} onChange={(event) => setForm({ ...form, owner_id: event.target.value })}>
             <option value="">{t('common.nobody')}</option>
@@ -330,12 +331,12 @@ export function ComponentForm({ component, onClose }: { component: Component | n
         </div>
       </div>
 
-      <div className="field" role="group" aria-labelledby="cmp-depends">
+      <div className={formField} role="group" aria-labelledby="cmp-depends">
         <label id="cmp-depends">{t('estate.dependsOn')}</label>
         <span className="text-label text-muted">{t('estate.dependsOnHint')}</span>
         <div className="scope-picker">
           {projects.map((project) => (
-            <label className="check-row" key={project.id}>
+            <label className={checkRow} key={project.id}>
               <input
                 type="checkbox"
                 checked={depends.includes(project.id)}
@@ -349,7 +350,7 @@ export function ComponentForm({ component, onClose }: { component: Component | n
         </div>
       </div>
 
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="c-note">{t('budget.adjNote')}</label>
         <Textarea id="c-note" rows={2} value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} />
       </div>
@@ -411,12 +412,12 @@ export function VendorForm({ vendor, onClose }: { vendor: Vendor | null; onClose
         </Button>
       )}
     >
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="v-name">{t('estate.name')}</label>
           <Input id="v-name" autoFocus value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="v-kind">{t('estate.kindLabel')}</label>
           <Select id="v-kind" value={form.kind} onChange={(event) => setForm({ ...form, kind: event.target.value as typeof form.kind })}>
             {VENDOR_KINDS.map((kind) => <option key={kind} value={kind}>{t(vendorKindKey(kind))}</option>)}
@@ -424,27 +425,27 @@ export function VendorForm({ vendor, onClose }: { vendor: Vendor | null; onClose
         </div>
       </div>
 
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="v-site">{t('estate.website')}</label>
           <Input id="v-site" value={form.website} onChange={(event) => setForm({ ...form, website: event.target.value })} />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="v-contact">{t('estate.contact')}</label>
           <Input id="v-contact" value={form.contact} onChange={(event) => setForm({ ...form, contact: event.target.value })} />
         </div>
       </div>
 
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="v-start">{t('estate.contractStart')}</label>
           <Input id="v-start" type="date" value={form.contract_start} onChange={(event) => setForm({ ...form, contract_start: event.target.value })} />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="v-end">{t('estate.contractEnd')}</label>
           <Input id="v-end" type="date" value={form.contract_end} onChange={(event) => setForm({ ...form, contract_end: event.target.value })} />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="v-notice">{t('estate.noticeDays')}</label>
           <Input
             id="v-notice"
@@ -462,7 +463,7 @@ export function VendorForm({ vendor, onClose }: { vendor: Vendor | null; onClose
         {notice && form.notice_days ? t('estate.noticeBy', { date: notice }) : t('estate.noticeHint')}
       </p>
 
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="v-note">{t('budget.adjNote')}</label>
         <Textarea id="v-note" rows={2} value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} />
       </div>
@@ -488,11 +489,11 @@ export function MoveForm({ move, onClose }: { move: Move | null; onClose: () => 
   /** One picker, used twice. A component can be on both lists — a machine that
       is rebuilt rather than replaced legitimately leaves and arrives. */
   const picker = (chosen: string[], set: (next: string[]) => void, label: string, id: string) => (
-    <div className="field" role="group" aria-labelledby={id}>
+    <div className={formField} role="group" aria-labelledby={id}>
       <label id={id}>{label}</label>
       <div className="scope-picker">
         {components.map((component) => (
-          <label className="check-row" key={component.id}>
+          <label className={checkRow} key={component.id}>
             <input
               type="checkbox"
               checked={chosen.includes(component.id)}
@@ -538,7 +539,7 @@ export function MoveForm({ move, onClose }: { move: Move | null; onClose: () => 
         </Button>
       )}
     >
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="m-name">{t('estate.name')}</label>
         <Input
           id="m-name"
@@ -548,23 +549,23 @@ export function MoveForm({ move, onClose }: { move: Move | null; onClose: () => 
           onChange={(event) => setForm({ ...form, name: event.target.value })}
         />
       </div>
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="m-desc">{t('budget.description')}</label>
         <Textarea id="m-desc" rows={2} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
       </div>
 
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="m-status">{t('estate.statusLabel')}</label>
           <Select id="m-status" value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as typeof form.status })}>
             {MOVE_STATUS.map((status) => <option key={status} value={status}>{t(moveStatusKey(status))}</option>)}
           </Select>
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="m-date">{t('estate.targetDate')}</label>
           <Input id="m-date" type="date" value={form.target_date} onChange={(event) => setForm({ ...form, target_date: event.target.value })} />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="m-project">{t('estate.doneBy')}</label>
           <Select id="m-project" value={form.project_id} onChange={(event) => setForm({ ...form, project_id: event.target.value })}>
             <option value="">{t('estate.noProject')}</option>

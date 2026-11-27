@@ -24,7 +24,10 @@ import { useCanWrite } from '../../kernel/identity/session';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Select } from '../../kernel/design-system/ui/field';
 import { chipVariants } from '../../kernel/design-system/ui/chip';
-import { Empty, Icon, StateDot, useToast } from '../../kernel/design-system/ui';
+import { Empty } from '../../kernel/design-system/ui/empty';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { StateDot } from '../../kernel/design-system/ui/marks';
+import { useToast } from '../../kernel/design-system/ui/toast';
 
 /** How wide a day is, per zoom step. */
 const ZOOM = [4, 8, 14, 26] as const;

@@ -27,9 +27,12 @@ import {
   cadenceKey, directionKey, healthKey, measure, unitKey,
 } from '../kpi';
 import { Stat } from '../../planning/insights';
-import { Empty, Icon, Sheet, useConfirm, useDirty, useToast } from '../../../kernel/design-system/ui';
+import { Empty } from '../../../kernel/design-system/ui/empty';
+import { Icon } from '../../../kernel/design-system/ui/icon';
+import { Sheet, useConfirm, useDirty } from '../../../kernel/design-system/ui/sheet';
+import { useToast } from '../../../kernel/design-system/ui/toast';
 import { Button } from '../../../kernel/design-system/ui/button';
-import { Input, Select, Textarea } from '../../../kernel/design-system/ui/field';
+import { Input, Select, Textarea, formField, formRow } from '../../../kernel/design-system/ui/field';
 import { SectionHeading } from '../../../kernel/design-system/ui/section';
 import { Attachments } from '../../../kernel/files/Attachments';
 import { shortDate, today } from '../../../kernel/design-system/format';
@@ -40,6 +43,9 @@ import { useTabStrip } from '../../../kernel/design-system/tab-strip';
 import { TabButton, TabList } from '../../../kernel/design-system/ui/tabs';
 import { useSaveChanges } from '../../../kernel/design-system/row-form';
 import { useCanWrite, useFeature } from '../../../kernel/identity/session';
+import { pageBody } from '../../../kernel/design-system/ui/page';
+import { statRow } from '../../../kernel/design-system/ui/stat';
+import { cn } from '../../../kernel/design-system/cn';
 
 function SwitchedOff() {
   const t = useT();
@@ -85,7 +91,7 @@ export function KpiIndex() {
       {!rows.length ? (
         <Empty emoji="🎯" title={t('kpi.emptyTitle')} hint={t('kpi.emptyHint')} />
       ) : (
-        <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+        <div className={pageBody}>
           <div className="table-wrap">
             <table className="task-table">
               <thead>
@@ -135,7 +141,7 @@ export function KpiIndex() {
               that are judgements would have made the sentence above this row
               false on its own screen — and dropping "not measured" from a count
               of KPIs is the exact omission this feature exists to refuse. */}
-          <div className="kpi-row">
+          <div className={statRow}>
             {MEASURE_HEALTH.map((health) => {
               const count = rows.filter((row) => row.progress.health === health).length;
               return <Stat key={health} label={t(`kpi.health.${health}` as TranslationKey)} value={String(count)} />;
@@ -215,7 +221,7 @@ export function KpiDetail() {
           </TabButton>
         ))}
       </TabList>
-      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+      <div className={pageBody}>
         {tab === 'overview' && <Overview kpi={kpi} readings={readings} targets={targets} modules={modules} />}
         {tab === 'readings' && <Readings kpi={kpi} readings={readings} />}
         {tab === 'targets' && <Targets kpi={kpi} targets={targets} modules={modules} />}
@@ -240,7 +246,7 @@ function Overview({ kpi, readings, targets, modules }: {
     <div className="grid gap-3.5">
       {kpi.description && <p className="text-body text-muted">{kpi.description}</p>}
 
-      <div className="kpi-row">
+      <div className={statRow}>
         <Stat
           label={t('kpi.current')}
           value={measure(progress.value, kpi)}
@@ -418,8 +424,8 @@ function ReadingForm({ kpi, entry, onClose }: { kpi: Kpi; entry: KpiReading | nu
         </Button>
       )}
     >
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="r-on">{t('kpi.measuredOn')}</label>
           <Input
             id="r-on"
@@ -428,7 +434,7 @@ function ReadingForm({ kpi, entry, onClose }: { kpi: Kpi; entry: KpiReading | nu
             onChange={(event) => setForm({ ...form, measured_on: event.target.value })}
           />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="r-value">{t('kpi.value')}</label>
           <MeasureInput
             id="r-value"
@@ -438,7 +444,7 @@ function ReadingForm({ kpi, entry, onClose }: { kpi: Kpi; entry: KpiReading | nu
           />
         </div>
       </div>
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="r-source">{t('kpi.source')}</label>
         <Input
           id="r-source"
@@ -450,7 +456,7 @@ function ReadingForm({ kpi, entry, onClose }: { kpi: Kpi; entry: KpiReading | nu
             will dispute and nobody can defend. */}
         <span className="text-label text-muted">{t('kpi.sourceHint')}</span>
       </div>
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="r-note">{t('kpi.note')}</label>
         <Textarea id="r-note" rows={3} value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} />
       </div>
@@ -610,11 +616,11 @@ function TargetForm({ kpi, entry, modules, onClose }: {
         </Button>
       )}
     >
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="t-value">{t('kpi.value')}</label>
         <MeasureInput id="t-value" kpi={kpi} value={form.value} onChange={(value) => setForm({ ...form, value })} />
       </div>
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="t-module">{t('kpi.milestone')}</label>
         <Select
           id="t-module"
@@ -626,7 +632,7 @@ function TargetForm({ kpi, entry, modules, onClose }: {
         </Select>
         <span className="text-label text-muted">{t('kpi.milestoneHint')}</span>
       </div>
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="t-due">{t('kpi.due')}</label>
         <Input
           id="t-due"
@@ -642,7 +648,7 @@ function TargetForm({ kpi, entry, modules, onClose }: {
             : t('kpi.dueHintPlain')}
         </span>
       </div>
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="t-note">{t('kpi.note')}</label>
         <Textarea id="t-note" rows={3} value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} />
       </div>
@@ -699,7 +705,7 @@ function KpiFields({ kpi, disabled, onChange }: {
 
   return (
     <>
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="k-name">{t('kpi.name')}</label>
         <Input
           id="k-name"
@@ -708,7 +714,7 @@ function KpiFields({ kpi, disabled, onChange }: {
           onChange={(event) => onChange({ name: event.target.value })}
         />
       </div>
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="k-desc">{t('kpi.description')}</label>
         <Textarea
           id="k-desc"
@@ -720,8 +726,8 @@ function KpiFields({ kpi, disabled, onChange }: {
         />
       </div>
 
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="k-unit">{t('kpi.unit')}</label>
           <Select
             id="k-unit"
@@ -732,7 +738,7 @@ function KpiFields({ kpi, disabled, onChange }: {
             {MEASURE_UNITS.map((name) => <option key={name} value={name}>{t(unitKey(name))}</option>)}
           </Select>
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="k-label">{t('kpi.unitLabel')}</label>
           <Input
             id="k-label"
@@ -742,7 +748,7 @@ function KpiFields({ kpi, disabled, onChange }: {
             onChange={(event) => onChange({ unit_label: event.target.value || null })}
           />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="k-decimals">{t('kpi.decimals')}</label>
           <Select
             id="k-decimals"
@@ -758,8 +764,8 @@ function KpiFields({ kpi, disabled, onChange }: {
           chosen: every value on the KPI is stored at this scale. */}
       <p className="text-label text-muted -mt-1 mb-3">{t('kpi.decimalsHint')}</p>
 
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="k-direction">{t('kpi.directionLabel')}</label>
           <Select
             id="k-direction"
@@ -770,7 +776,7 @@ function KpiFields({ kpi, disabled, onChange }: {
             {MEASURE_DIRECTIONS.map((name) => <option key={name} value={name}>{t(directionKey(name))}</option>)}
           </Select>
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="k-cadence">{t('kpi.cadenceLabel')}</label>
           <Select
             id="k-cadence"
@@ -784,7 +790,7 @@ function KpiFields({ kpi, disabled, onChange }: {
         </div>
       </div>
 
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="k-baseline">{t('kpi.baseline')}</label>
         <MeasureInput
           id="k-baseline"
@@ -796,7 +802,7 @@ function KpiFields({ kpi, disabled, onChange }: {
         <span className="text-label text-muted">{t('kpi.baselineHint')}</span>
       </div>
 
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="k-scope">{t('kpi.scope')}</label>
         <Select
           id="k-scope"
@@ -943,7 +949,7 @@ export function ProjectKpis({ projectId }: { projectId: string }) {
   }
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+    <div className={pageBody}>
       <div className="table-wrap">
         <table className="task-table">
           <thead>

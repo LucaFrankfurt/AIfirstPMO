@@ -501,14 +501,14 @@ const BREAKS = [
     what: 'a radius spelled out instead of named',
     script: 'tokens.mjs',
     break: (t) => t.edit('packages/web/src/kernel/design-system/ui/dialog.tsx',
-      'rounded-t-lg', 'rounded-t-[var(--radius-lg)]'),
-    says: /ui\/dialog\.tsx:\d+\n\s+rounded-t-\[var\(--radius-lg\)\]\s+→\s+[\w-]+(, [\w-]+)* or rounded-full/,
+      'rounded-t-xl', 'rounded-t-[var(--radius-xl)]'),
+    says: /ui\/dialog\.tsx:\d+\n\s+rounded-t-\[var\(--radius-xl\)\]\s+→\s+[\w-]+(, [\w-]+)* or rounded-full/,
   },
   {
     what: "one of Tailwind's own steps, which the theme removed",
     script: 'tokens.mjs',
     break: (t) => t.edit('packages/web/src/kernel/design-system/ui/button.tsx',
-      "lg: 'h-11 rounded px-5 text-body',", "lg: 'h-11 rounded-md px-5 text-sm',"),
+      "lg: 'h-11 rounded-full px-5 text-body',", "lg: 'h-11 rounded-md px-5 text-sm',"),
     says: /ui\/button\.tsx:\d+\n\s+text-sm\s+→[\s\S]*ui\/button\.tsx:\d+\n\s+rounded-md\s+→/,
   },
   {

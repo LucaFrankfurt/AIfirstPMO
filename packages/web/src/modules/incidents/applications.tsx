@@ -9,9 +9,9 @@
  */
 import { useState } from 'react';
 import { APPLICATION_CRITICALITY, isActive, orderKey, type ApplicationCriticality } from '@kolibri/shared';
-import { Empty } from '../../kernel/design-system/ui';
+import { Empty } from '../../kernel/design-system/ui/empty';
 import { Button } from '../../kernel/design-system/ui/button';
-import { Input, Select } from '../../kernel/design-system/ui/field';
+import { Input, Select, checkRow } from '../../kernel/design-system/ui/field';
 import { useT } from '../../kernel/i18n/i18n';
 import { create, update } from '../../kernel/sync/mutations';
 import { list, useQuery } from '../../kernel/sync/store';
@@ -112,7 +112,7 @@ export function ApplicationsPanel() {
         </ul>
       )}
       {apps.some((app) => app.archived) && (
-        <label className="check-row">
+        <label className={checkRow}>
           <span className="select-box"><input type="checkbox" checked={showArchived} onChange={(event) => setShowArchived(event.target.checked)} /></span>
           <span><span>{t('incident.showArchived')}</span></span>
         </label>

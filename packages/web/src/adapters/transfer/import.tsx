@@ -22,7 +22,9 @@ import { useSession } from '../../kernel/identity/session';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Select } from '../../kernel/design-system/ui/field';
 import { Chip } from '../../kernel/design-system/ui/chip';
-import { Icon, Sheet, useToast } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { Sheet } from '../../kernel/design-system/ui/sheet';
+import { useToast } from '../../kernel/design-system/ui/toast';
 
 const FIELD_KEY: Record<ImportField, TranslationKey> = {
   title: 'import.fieldTitle',

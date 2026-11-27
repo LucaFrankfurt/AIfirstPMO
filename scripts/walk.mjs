@@ -228,6 +228,9 @@ export async function walkable(page, base) {
     ['infrastructure', '/infrastructure'],
     ['timesheet', '/timesheet'],
     ['guide', '/guide'],
+    // Every primitive in every state, so a button is measured even where no
+    // screen in the seed happens to use that variant.
+    ['design catalogue', '/design'],
   ];
 
   return SCREENS;

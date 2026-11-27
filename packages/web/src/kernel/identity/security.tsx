@@ -15,8 +15,11 @@ import { Button } from '../design-system/ui/button';
 import { Input } from '../design-system/ui/field';
 import { SectionHeading } from '../design-system/ui/section';
 import { Chip } from '../design-system/ui/chip';
-import { Icon, Sheet, failure, useAction, useToast } from '../design-system/ui';
+import { Icon } from '../design-system/ui/icon';
+import { Sheet } from '../design-system/ui/sheet';
+import { failure, useAction, useToast } from '../design-system/ui/toast';
 import { useMinute } from '../design-system/minute';
+import { formField } from '../../kernel/design-system/ui/field';
 
 /* ------------------------------------------------------------ two factor */
 
@@ -102,11 +105,11 @@ export function TwoFactor() {
           <p className="text-label text-muted">{t('security.scanHint')}</p>
           {/* The URI as text rather than a QR image: drawing one needs a
               library, and every authenticator app takes a typed secret. */}
-          <div className="field">
+          <div className={formField}>
             <label htmlFor="totp-secret">{t('security.secret')}</label>
             <Input id="totp-secret" readOnly value={setup.secret.replace(/(.{4})/g, '$1 ').trim()} />
           </div>
-          <div className="field">
+          <div className={formField}>
             <label htmlFor="totp-code">{t('security.enterCode')}</label>
             <Input
               id="totp-code" inputMode="numeric" autoComplete="one-time-code"
@@ -132,7 +135,7 @@ export function TwoFactor() {
         <Sheet title={t('security.turnOff')} onClose={() => setOff(null)}>
           <form onSubmit={(event) => { event.preventDefault(); void turnOff(); }}>
             <p className="text-body mb-3">{t('security.turnOffConfirm')}</p>
-            <div className="field">
+            <div className={formField}>
               <label htmlFor="totp-off-password">{t('security.passwordToTurnOff')}</label>
               <Input
                 id="totp-off-password" type="password" autoComplete="current-password" autoFocus

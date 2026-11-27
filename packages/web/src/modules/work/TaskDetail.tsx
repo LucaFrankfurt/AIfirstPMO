@@ -21,7 +21,13 @@ import {
   AssigneePicker, CyclePicker, DateField, LabelChips, LabelPicker, ModulePicker, ParentPicker, ParentTrail,
   PriorityPicker, ProjectPicker, StatePicker, stateOf, useDeleteTask,
 } from './task-parts';
-import { Avatar, Empty, Icon, MenuButton, Sheet, StateDot, useToast } from '../../kernel/design-system/ui';
+import { Avatar } from '../../kernel/design-system/ui/avatar';
+import { Empty } from '../../kernel/design-system/ui/empty';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { MenuButton } from '../../kernel/design-system/ui/menu-button';
+import { Sheet } from '../../kernel/design-system/ui/sheet';
+import { StateDot } from '../../kernel/design-system/ui/marks';
+import { useToast } from '../../kernel/design-system/ui/toast';
 import { Input, Select } from '../../kernel/design-system/ui/field';
 import { Button } from '../../kernel/design-system/ui/button';
 import { useMinute } from '../../kernel/design-system/minute';

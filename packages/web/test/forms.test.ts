@@ -293,19 +293,22 @@ describe('fields side by side', () => {
   const rows = files.flatMap(({ path, text }) => {
     const lines = text.split('\n');
     return lines.flatMap((line, i) =>
-      /className="[^"]*\bitems-center\b[^"]*"/.test(line) && /className="field[ "]/.test(lines[i + 1] ?? '')
+      // `formField` is the same wrapper since the class moved into the code; a
+      // pattern that only knew the old spelling would pass every file by
+      // looking at none of them.
+      /className="[^"]*\bitems-center\b[^"]*"/.test(line) && /className=(?:"field[ "]|\{(?:cn\()?formField\b)/.test(lines[i + 1] ?? '')
         ? [`${path.slice(SRC.length + 1)}:${i + 1}`]
         : []);
   });
 
-  it('is a .field-row, not a centred flex line', () => {
+  it('is a formRow, not a centred flex line', () => {
     assert.deepEqual(rows, [], `field(s) centred against a taller neighbour: ${rows.join(', ')}`);
   });
 
   it('never has its alignment undone inline', () => {
     const patched = files.flatMap(({ path, text }) =>
       [...text.matchAll(/alignItems:\s*'flex-start'/g)].map((m) => `${path.slice(SRC.length + 1)}:${text.slice(0, m.index).split('\n').length}`));
-    assert.deepEqual(patched, [], `inline alignment patch(es) — use .field-row: ${patched.join(', ')}`);
+    assert.deepEqual(patched, [], `inline alignment patch(es) — use formRow: ${patched.join(', ')}`);
   });
 });
 

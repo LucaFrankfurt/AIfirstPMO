@@ -20,10 +20,30 @@ export const buttonVariants = cva(
   + 'outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-1 focus-visible:ring-offset-bg '
   + 'disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0',
   {
+    /*
+     * Hierarchy by fill rather than by outline.
+     *
+     * `secondary` was a white button with a grey border, which on a white page
+     * is a rectangle drawn around a word, and every toolbar was a row of them.
+     * It is tonal now: made of `fill`, the surface one step below the page, so
+     * it reads as a control without a line around it and the one filled button
+     * in a bar is the only thing that is loud. `danger` keeps its outline on
+     * purpose — a destructive action should look different from every other
+     * button in the dialog, not only differently coloured.
+     *
+     * Every shape is a pill. Buttons are the one thing on screen that is round
+     * at the ends, so a button can be told from a field or a card by its shape
+     * alone; `rounded-full` is not a step of the radius scale because it is not
+     * a radius, it is "as round as the height allows".
+     */
     variants: {
       variant: {
-        primary: 'bg-accent text-accent-fg hover:bg-accent/90 shadow-sm',
-        secondary: 'border border-line-strong bg-raised text-fg hover:bg-hover',
+        primary: 'bg-accent text-accent-fg hover:bg-accent/90',
+        // The accent's container: the create action that is always there —
+        // the sidebar's and the phone bar's — loud enough to find and quieter
+        // than the filled button a screen's own header carries.
+        soft: 'bg-accent-soft text-accent hover:bg-accent-soft/70',
+        secondary: 'bg-fill text-fg hover:bg-active',
         ghost: 'text-soft hover:bg-hover hover:text-fg',
         danger: 'border border-danger/40 text-danger hover:bg-danger/10',
         link: 'text-accent underline-offset-4 hover:underline',
@@ -31,11 +51,14 @@ export const buttonVariants = cva(
       size: {
         // 36px and 32px: comfortably above the 24px target that makes a phone
         // frustrating, without the chunkiness of a touch-only design.
-        default: 'h-9 rounded-sm px-3.5 text-body',
-        sm: 'h-8 rounded-sm px-2.5 text-label',
-        lg: 'h-11 rounded px-5 text-body',
-        icon: 'size-9 rounded-sm',
-        iconSm: 'size-8 rounded-sm',
+        // The padding is what it was before the pill: a canvas toolbar at 340px
+        // is exactly as wide as its buttons, and 4px more on each was 7px too many
+        // (`check:responsive`).
+        default: 'h-9 rounded-full px-3.5 text-body',
+        sm: 'h-8 rounded-full px-2.5 text-label',
+        lg: 'h-11 rounded-full px-5 text-body',
+        icon: 'size-9 rounded-full',
+        iconSm: 'size-8 rounded-full',
       },
       block: { true: 'w-full', false: '' },
     },

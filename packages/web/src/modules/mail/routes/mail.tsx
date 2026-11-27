@@ -24,7 +24,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Header } from '../../../kernel/design-system/chrome';
-import { Empty, Icon, Sheet, failure, useAction, useToast } from '../../../kernel/design-system/ui';
+import { Empty } from '../../../kernel/design-system/ui/empty';
+import { Icon } from '../../../kernel/design-system/ui/icon';
+import { Sheet } from '../../../kernel/design-system/ui/sheet';
+import { failure, useAction, useToast } from '../../../kernel/design-system/ui/toast';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { Input } from '../../../kernel/design-system/ui/field';
 import { SectionHeading } from '../../../kernel/design-system/ui/section';
@@ -34,6 +37,7 @@ import { useT } from '../../../kernel/i18n/i18n';
 import { useSession } from '../../../kernel/identity/session';
 import { useTabStrip } from '../../../kernel/design-system/tab-strip';
 import { TabButton, TabList } from '../../../kernel/design-system/ui/tabs';
+import { pageBody } from '../../../kernel/design-system/ui/page';
 
 interface Hit {
   id: string;
@@ -154,7 +158,7 @@ export function MailScreen() {
         ))}
       </TabList>
 
-      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+      <div className={pageBody}>
         <form
           className="flex items-center gap-2"
           onSubmit={(event) => {

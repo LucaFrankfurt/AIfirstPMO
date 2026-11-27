@@ -20,9 +20,12 @@ import { api, ApiError } from '../../kernel/sync/api';
 import { relativeTime, shortDate } from '../../kernel/design-system/format';
 import { currentLocale, useT, type TranslationKey } from '../../kernel/i18n/i18n';
 import { useSession } from '../../kernel/identity/session';
-import { Empty, Icon, Sheet, useConfirm, useToast } from '../../kernel/design-system/ui';
+import { Empty } from '../../kernel/design-system/ui/empty';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { Sheet, useConfirm } from '../../kernel/design-system/ui/sheet';
+import { useToast } from '../../kernel/design-system/ui/toast';
 import { Button, buttonVariants } from '../../kernel/design-system/ui/button';
-import { Input } from '../../kernel/design-system/ui/field';
+import { Input, formField } from '../../kernel/design-system/ui/field';
 
 import { SectionHeading } from '../../kernel/design-system/ui/section';
 import { cn } from '../../kernel/design-system/cn';
@@ -616,7 +619,7 @@ export function Backups() {
           <p className="text-body text-muted">{t('restore.signedOut')}</p>
           <p className="text-body text-muted">{t('restore.secret')}</p>
 
-          <div className="field">
+          <div className={formField}>
             <label htmlFor="restore-confirm">{t('restore.typeToConfirm', { word: t('restore.word') })}</label>
             <Input
               id="restore-confirm" value={typed} autoComplete="off"

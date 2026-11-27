@@ -13,7 +13,7 @@ import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Header } from '../../../kernel/design-system/chrome';
 import { CostReport, Timesheet } from '../rates';
-import { Empty } from '../../../kernel/design-system/ui';
+import { Empty } from '../../../kernel/design-system/ui/empty';
 import { useT, type TranslationKey } from '../../../kernel/i18n/i18n';
 import { useTabStrip } from '../../../kernel/design-system/tab-strip';
 import { TabButton, TabList } from '../../../kernel/design-system/ui/tabs';

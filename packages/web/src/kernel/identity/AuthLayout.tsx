@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { LOCALE_NAMES, localeLabel, useI18n, type Locale } from '../i18n/i18n';
-import { Icon } from '../design-system/ui';
+import { Icon } from '../design-system/ui/icon';
 import { Select } from '../design-system/ui/field';
 
 /**

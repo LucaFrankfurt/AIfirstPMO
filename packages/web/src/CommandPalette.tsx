@@ -8,7 +8,8 @@ import { useOpenTask } from './kernel/design-system/navigation';
 import { DESTINATIONS, enabled } from './kernel/design-system/nav';
 import { useCanWrite, useFeatures, useMe, useSession } from './kernel/identity/session';
 import { useT } from './kernel/i18n/i18n';
-import { Icon, StateDot } from './kernel/design-system/ui';
+import { Icon } from './kernel/design-system/ui/icon';
+import { StateDot } from './kernel/design-system/ui/marks';
 import { stateOf } from './modules/work/task-parts';
 
 interface Command {

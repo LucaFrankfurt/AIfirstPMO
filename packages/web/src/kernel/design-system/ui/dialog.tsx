@@ -1,7 +1,7 @@
 import * as Primitive from '@radix-ui/react-dialog';
 import type { ComponentProps, ReactNode } from 'react';
-import { X } from 'lucide-react';
 import { cn } from '../cn';
+import { Icon } from './icon';
 
 /**
  * A dialog, on Radix rather than on a `createPortal` and a keydown listener.
@@ -30,16 +30,18 @@ export function DialogContent({
   return (
     <Primitive.Portal>
       <Primitive.Overlay
-        className="fixed inset-0 z-50 bg-[var(--overlay)] backdrop-blur-[2px] data-[state=open]:animate-in data-[state=closed]:animate-out motion-reduce:animate-none"
+        // A scrim and nothing more. It used to blur the page behind as well,
+        // which made the one thing on screen that is not glass look like it.
+        className="fixed inset-0 z-50 bg-[var(--overlay)] data-[state=open]:animate-in data-[state=closed]:animate-out motion-reduce:animate-none"
       />
       <Primitive.Content
         className={cn(
           'fixed z-50 flex flex-col overflow-hidden bg-raised text-fg shadow',
-          'inset-x-0 bottom-0 max-h-[92dvh] rounded-t-lg border-t border-line',
+          'inset-x-0 bottom-0 max-h-[92dvh] rounded-t-xl border-t border-line',
           'sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:max-h-[86dvh] sm:-translate-x-1/2 sm:-translate-y-1/2',
-          'sm:rounded-lg sm:border',
+          'sm:rounded-xl sm:border',
           full
-            ? 'inset-x-2 bottom-2 top-2 max-h-none rounded-lg border sm:inset-4 sm:w-auto sm:max-h-none sm:translate-x-0 sm:translate-y-0 sm:left-4 sm:top-4'
+            ? 'inset-x-2 bottom-2 top-2 max-h-none rounded-xl border sm:inset-4 sm:w-auto sm:max-h-none sm:translate-x-0 sm:translate-y-0 sm:left-4 sm:top-4'
             : wide ? 'sm:w-[min(940px,94vw)]' : 'sm:w-[min(560px,94vw)]',
           'data-[state=open]:animate-in data-[state=closed]:animate-out motion-reduce:animate-none',
           className,
@@ -51,7 +53,7 @@ export function DialogContent({
           className="absolute right-3 top-3 grid size-8 place-items-center rounded-sm text-muted transition-colors hover:bg-hover hover:text-fg outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
           aria-label={closeLabel}
         >
-          <X size={16} />
+          <Icon name="close" size={16} />
         </Primitive.Close>
       </Primitive.Content>
     </Primitive.Portal>

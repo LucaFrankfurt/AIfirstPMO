@@ -22,12 +22,14 @@ import { useQuery } from '../../kernel/sync/store';
 import { pull } from '../../kernel/sync/sync';
 import { useMemberMap, useSession } from '../../kernel/identity/session';
 import { Button } from '../../kernel/design-system/ui/button';
-import { buttonVariants } from '../../kernel/design-system/ui/button';
-import { cn } from '../../kernel/design-system/cn';
 import { Input } from '../../kernel/design-system/ui/field';
 import { SectionHeading } from '../../kernel/design-system/ui/section';
-import { Empty, Icon, useConfirm, useToast } from '../../kernel/design-system/ui';
+import { Empty } from '../../kernel/design-system/ui/empty';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { useConfirm } from '../../kernel/design-system/ui/sheet';
+import { useToast } from '../../kernel/design-system/ui/toast';
 import { useMinute } from '../../kernel/design-system/minute';
+import { Segmented, SegmentedItem } from '../../kernel/design-system/ui/segmented';
 
 /** What can end up in here, and what to call it. */
 const KINDS: { entity: EntityName; label: TranslationKey; icon: string }[] = [
@@ -166,19 +168,13 @@ export function Trash() {
       <p className="text-muted text-body">{t('trash.intro')}</p>
 
       <div className="flex items-center flex-wrap gap-1.5" style={{ margin: '12px 0' }}>
-        <div className="flex items-center gap-0.5 rounded-sm" style={{ border: '1px solid var(--line-strong)', padding: 2 }}>
+        <Segmented>
           {(['deleted', 'archived'] as const).map((which) => (
-            <button
-              key={which}
-              className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), mode === which && 'bg-active text-fg')}
-              style={mode === which ? { background: 'var(--bg-active)' } : undefined}
-              aria-pressed={mode === which}
-              onClick={() => setMode(which)}
-            >
+            <SegmentedItem key={which} pressed={mode === which} onClick={() => setMode(which)}>
               {t(which === 'deleted' ? 'trash.tabDeleted' : 'trash.tabArchived')}
-            </button>
+            </SegmentedItem>
           ))}
-        </div>
+        </Segmented>
         <Input
           className="flex-1 min-w-0"
           style={{ minWidth: 160 }}

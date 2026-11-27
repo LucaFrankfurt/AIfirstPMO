@@ -338,14 +338,30 @@ export function Composer({
   const picker = useRef<HTMLInputElement>(null);
   const saidTyping = useRef(0);
 
-  useLayoutEffect(() => {
+  /*
+   * The field is as tall as what is in it, up to five lines.
+   *
+   * Measured on every keystroke, and again whenever the window changes size,
+   * because the window decides more than the width: the font is 16px on a
+   * phone and 13.5 above 640px, so a field sized on a desktop and then narrowed
+   * — a phone turned upright, a window dragged smaller — held 38px of text in
+   * a box sized for 35, and scrolled by three pixels (`check:responsive`, the
+   * support conversation at 340px). Text that wraps differently at the new
+   * width is the same problem with more lines.
+   */
+  const fit = useCallback(() => {
     const el = own.current;
     if (!el) return;
     el.style.height = 'auto';
     // `scrollHeight` leaves out the border, and the box is sized with it: two
     // pixels short, and the field scrolls by two pixels on every line.
     el.style.height = `${Math.min(el.scrollHeight + el.offsetHeight - el.clientHeight, 160)}px`;
-  }, [text]);
+  }, []);
+  useLayoutEffect(fit, [text, fit]);
+  useEffect(() => {
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, [fit]);
 
   // Leaving with half a sentence typed is still leaving.
   useEffect(() => () => { if (saidTyping.current) onTyping?.(false); }, []);

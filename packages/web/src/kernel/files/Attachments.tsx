@@ -25,7 +25,9 @@
  */
 import { useRef, useState } from 'react';
 import { attachmentSubject, type Attachment } from '@kolibri/shared';
-import { Icon, useConfirm, useLightbox } from '../design-system/ui';
+import { Icon } from '../design-system/ui/icon';
+import { useConfirm } from '../design-system/ui/sheet';
+import { useLightbox } from '../design-system/ui/lightbox';
 import { Button } from '../design-system/ui/button';
 import { useT } from '../i18n/i18n';
 import { useCanWrite } from '../identity/session';

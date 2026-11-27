@@ -8,7 +8,7 @@ import { AuthLayout } from '../AuthLayout';
 import { Button, buttonVariants } from '../../design-system/ui/button';
 import { Input, Label } from '../../design-system/ui/field';
 import { cn } from '../../design-system/cn';
-import { Icon } from '../../design-system/ui';
+import { Icon } from '../../design-system/ui/icon';
 
 export function Login() {
   const { t } = useI18n();

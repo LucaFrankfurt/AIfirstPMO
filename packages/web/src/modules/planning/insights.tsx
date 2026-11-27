@@ -20,9 +20,11 @@ import { shortDate, today } from '../../kernel/design-system/format';
 import { useT } from '../../kernel/i18n/i18n';
 import { byId, list, useQuery } from '../../kernel/sync/store';
 import { useFeature, useMemberMap, useSeesMoney } from '../../kernel/identity/session';
-import { Empty } from '../../kernel/design-system/ui';
+import { Empty } from '../../kernel/design-system/ui/empty';
 import { asMoney } from '../../kernel/design-system/ui/money';
 import { Table } from '../../kernel/design-system/ui/table';
+import { pageBody } from '../../kernel/design-system/ui/page';
+import { statHint, statLabel, statRow, statTile, statValue } from '../../kernel/design-system/ui/stat';
 
 const DAY = 86_400_000;
 const isDone = (task: Task): boolean => isDoneGroup(byId('state', task.state_id)?.group_key);
@@ -47,14 +49,14 @@ export function Stat({ label, value, hint, onSelect, active }: {
 }) {
   const body = (
     <>
-      <span className="stat-label">{label}</span>
-      <strong className="stat-value">{value}</strong>
-      {hint && <span className="stat-hint">{hint}</span>}
+      <span className={statLabel}>{label}</span>
+      <strong className={statValue}>{value}</strong>
+      {hint && <span className={statHint}>{hint}</span>}
     </>
   );
-  if (!onSelect) return <div className="stat">{body}</div>;
+  if (!onSelect) return <div className={statTile}>{body}</div>;
   return (
-    <button type="button" className="stat" aria-pressed={!!active} onClick={onSelect}>
+    <button type="button" className={statTile} aria-pressed={!!active} onClick={onSelect}>
       {body}
     </button>
   );
@@ -373,8 +375,8 @@ export function ProjectInsights({ projectId }: { projectId: string }) {
   }
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
-      <div className="kpi-row">
+    <div className={pageBody}>
+      <div className={statRow}>
         <Stat label={t('insights.open')} value={String(stats.open)} hint={t('insights.ofTotal', { count: tasks.length })} />
         <Stat label={t('insights.completed30')} value={String(stats.recent)} hint={t('insights.last30')} />
         <Stat

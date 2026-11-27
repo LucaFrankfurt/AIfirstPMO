@@ -15,7 +15,8 @@ import { api } from '../../kernel/sync/api';
 import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
 import { Button } from '../../kernel/design-system/ui/button';
 import { SectionHeading } from '../../kernel/design-system/ui/section';
-import { Icon, useToast } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { useToast } from '../../kernel/design-system/ui/toast';
 
 interface Status {
   /** Whether an operator configured a bot on this instance at all. */

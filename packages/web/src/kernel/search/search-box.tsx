@@ -16,7 +16,8 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Avatar, Icon } from '../design-system/ui';
+import { Avatar } from '../design-system/ui/avatar';
+import { Icon } from '../design-system/ui/icon';
 import { chipDot } from '../design-system/ui/chip';
 import { Input } from '../design-system/ui/field';
 import { cn } from '../design-system/cn';

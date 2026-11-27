@@ -30,7 +30,11 @@ import { BOARD_ICON } from '../blocks';
 import { copyBoards, downloadBoards } from '../boards';
 import { useBoardAi } from '../../ai-review/board-ai';
 import { Attachments } from '../../../kernel/files/Attachments';
-import { Empty, Icon, MenuButton, useConfirm, useToast } from '../../../kernel/design-system/ui';
+import { Empty } from '../../../kernel/design-system/ui/empty';
+import { Icon } from '../../../kernel/design-system/ui/icon';
+import { MenuButton } from '../../../kernel/design-system/ui/menu-button';
+import { useConfirm } from '../../../kernel/design-system/ui/sheet';
+import { useToast } from '../../../kernel/design-system/ui/toast';
 import { ShareSheet } from '../../share/share';
 import { useHighlights, useSelectionAnchor } from '../annotate';
 import { relativeTime } from '../../../kernel/design-system/format';
@@ -49,6 +53,7 @@ import { useSelection } from '../../../kernel/design-system/selection';
 import { useT, type TranslationKey } from '../../../kernel/i18n/i18n';
 import { cn } from '../../../kernel/design-system/cn';
 import { useMinute } from '../../../kernel/design-system/minute';
+import { pageBody } from '../../../kernel/design-system/ui/page';
 
 /**
  * The headings of a page, as something to jump by.
@@ -527,7 +532,7 @@ export function PagesIndex() {
           </Button>
         )}
       </Header>
-      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+      <div className={pageBody}>
         {!pages.length ? (
           <Empty
             emoji="📓" title={t('page.emptyTitle')}
@@ -1153,7 +1158,7 @@ export function PageDetail() {
           onRename={renameTo} printRequest={printRequest} thread={(props) => <Comments {...props} />}
         />
       ) : (
-      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5 page-with-tree">
+      <div className={cn(pageBody, 'page-with-tree')}>
         {/*
           * The tree, beside the page rather than one screen back.
           *

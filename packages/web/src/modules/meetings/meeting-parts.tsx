@@ -22,7 +22,12 @@ import {
   AGENDA_STATUS, MEETING_REPEATS, agendaOf, agendaTally, isMeetingRepeat, isOverdue, nextAgendaKey, orderKey,
   type AgendaItem, type AgendaStatus, type Meeting, type MinutesWords, type Task, type User,
 } from '@kolibri/shared';
-import { AvatarStack, Icon, MenuButton, Sheet, StateDot, useConfirm, useToast } from '../../kernel/design-system/ui';
+import { AvatarStack } from '../../kernel/design-system/ui/avatar';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { MenuButton } from '../../kernel/design-system/ui/menu-button';
+import { Sheet, useConfirm } from '../../kernel/design-system/ui/sheet';
+import { StateDot } from '../../kernel/design-system/ui/marks';
+import { useToast } from '../../kernel/design-system/ui/toast';
 import { PickChips } from '../../kernel/design-system/pick-chips';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Chip } from '../../kernel/design-system/ui/chip';

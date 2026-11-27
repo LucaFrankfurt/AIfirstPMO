@@ -8,7 +8,7 @@
  */
 import { useT } from '../../kernel/i18n/i18n';
 import { Conn, Frame, Key, MiniBox, MiniChip, MiniTask, Row, Stage } from './explain';
-import { Icon } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
 
 /* ------------------------------------------------------------- overview */
 

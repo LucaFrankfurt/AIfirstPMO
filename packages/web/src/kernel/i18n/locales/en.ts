@@ -3885,6 +3885,25 @@ export const en = {
   'incident.owner': 'Owner',
   'incident.noOwner': 'No owner',
   'incident.showArchived': 'Show archived',
+  // The design catalogue at /design: kernel/design-system/routes/catalog.tsx.
+  'design.title': 'Design system',
+  'design.intro': 'Every building block of the interface, in each of its states. The browser checks read this page in light and dark, on a phone and on a desktop, so a component that stops being readable fails here first.',
+  'design.buttons': 'Buttons',
+  'design.chips': 'Chips',
+  'design.choices': 'Choices',
+  'design.fields': 'Fields',
+  'design.fieldLabel': 'Label',
+  'design.fieldHint': 'A hint under the field',
+  'design.fieldInvalid': 'Not a complete address',
+  'design.floating': 'Floating surfaces',
+  'design.feedback': 'Feedback',
+  'design.showToast': 'Show a message',
+  'design.emptyTitle': 'Nothing here yet',
+  'design.emptyHint': 'An empty screen says what to do next.',
+  'design.people': 'People and marks',
+  'design.type': 'Type',
+  'design.surfaces': 'Surfaces',
+  'design.sample': 'Ship the onboarding copy before the cycle ends',
 } as const;
 
 /**

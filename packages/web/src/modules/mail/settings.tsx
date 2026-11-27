@@ -30,7 +30,9 @@ import { useEffect, useState, type ComponentProps } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { defaultMailboxPort, isDefaultMailboxPort, type Mailbox, type MailboxAccessLevel }
   from '@kolibri/shared';
-import { Icon, useConfirm, useToast } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { useConfirm } from '../../kernel/design-system/ui/sheet';
+import { useToast } from '../../kernel/design-system/ui/toast';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Input, Select } from '../../kernel/design-system/ui/field';
 import { SectionHeading } from '../../kernel/design-system/ui/section';

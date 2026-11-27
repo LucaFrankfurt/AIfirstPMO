@@ -414,6 +414,10 @@ p { margin: 0 0 0.75em; }
   grid-template-columns: 1fr;
   height: 100dvh;
   overflow: hidden;
+  /* The frame the app sits in. From 600px the content is a panel set into it,
+     and the sidebar is simply the part of the frame the panel does not cover:
+     no line between them, because the change of tone is the edge. */
+  background: var(--bg-sunken);
 }
 
 .sidebar {
@@ -421,7 +425,6 @@ p { margin: 0 0 0.75em; }
   flex-direction: column;
   gap: 2px;
   background: var(--bg-sunken);
-  border-inline-end: 1px solid var(--line);
   padding: 10px 8px;
   overflow-y: auto;
   /* overflow-y alone turns the x axis to auto too: a 1px-wide row then shows a sideways scrollbar. */
@@ -481,8 +484,10 @@ p { margin: 0 0 0.75em; }
   padding: 0 10px;
   padding-top: env(safe-area-inset-top);
   border-bottom: 1px solid var(--line);
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
-  backdrop-filter: blur(12px);
+  /* Glass: the list scrolls under the header, and the header says so. */
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(24px) saturate(1.5);
+  backdrop-filter: blur(24px) saturate(1.5);
   position: sticky;
   top: 0;
   z-index: 20;
@@ -510,8 +515,9 @@ p { margin: 0 0 0.75em; }
   justify-content: space-around;
   align-items: stretch;
   border-top: 1px solid var(--line);
-  background: color-mix(in srgb, var(--bg) 92%, transparent);
-  backdrop-filter: blur(12px);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(24px) saturate(1.5);
+  backdrop-filter: blur(24px) saturate(1.5);
   padding-bottom: env(safe-area-inset-bottom);
   flex: none;
 }
@@ -521,15 +527,43 @@ p { margin: 0 0 0.75em; }
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 9px 0 7px;
+  gap: 3px;
+  padding: 6px 0 6px;
   font-size: 10px;
   color: var(--fg-muted);
   position: relative;
 }
 
-.tabbar a[aria-current='page'] { color: var(--accent); }
-.tabbar .badge-dot { position: absolute; top: 6px; inset-inline-end: 50%; margin-inline-end: -14px; }
+/* The current tab: a pill behind the icon in the accent's container colour,
+   and the word in full ink. The word was the only signal — accent-coloured
+   text at 10px — which is a colour asked to carry the whole state. */
+.tabbar .tab-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 30px;
+  border-radius: 999px;
+  transition: background-color 150ms ease;
+}
+.tabbar a[aria-current='page'] { color: var(--fg); font-weight: 600; }
+.tabbar a[aria-current='page'] .tab-icon { background: var(--accent-soft); color: var(--accent); }
+.tabbar .badge-dot { position: absolute; top: 4px; inset-inline-end: 14px; }
+
+/* The create button, shaped like a FAB and kept in the bar. */
+.tabbar .tab-add {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 6px 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+/* No focus rule of its own: the page-wide `:focus-visible` ring goes on the
+   button. It was moved to the inner shape once, which looked tidier and left
+   the focused element — the thing `check:a11y` and a keyboard user look at —
+   with no ring at all. */
 
 /* One line, always. The labels are chosen to fit (`nav.bar.*`), and this is
    the guard for the translation that does not: a label too long for its sixth
@@ -542,18 +576,39 @@ p { margin: 0 0 0.75em; }
   text-overflow: ellipsis;
 }
 
-@media (min-width: 900px) {
+/*
+ * From 600px the content is a panel in the frame: inset by 8px, rounded, and
+ * told apart from the sidebar by tone rather than by a border. Between 600 and
+ * 900 the sidebar is the folded rail (`RAIL_QUERY` in `narrow.ts`, which
+ * renders it) and the bottom bar is gone; from 900 it has room for words.
+ */
+@media (min-width: 600px) {
   .shell { grid-template-columns: var(--sidebar-width) 1fr; }
   .sidebar { display: flex; }
   .tabbar { display: none; }
+  .main {
+    margin: 8px;
+    margin-inline-start: 0;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+}
+
+@media (min-width: 600px) and (max-width: 899.98px) {
+  .shell { --sidebar-width: 52px; }
+  .sidebar { align-items: center; }
+}
+
+@media (min-width: 900px) {
   .header { padding: 0 16px; }
 
   /* Folded to a rail of icons. Through the variable rather than the grid
      alone, because `.selection-bar` is fixed against the viewport and reads the
-     same width to know where the sidebar ends. 53 = 36px square + 2 × 8px
-     padding + the 1px border — so the number follows `navRailItem`'s `size-9`,
-     and moving one without the other leaves the icons off centre. */
-  .shell.nav-folded { --sidebar-width: 53px; }
+     same width to know where the sidebar ends. 52 = 36px square + 2 × 8px
+     padding — so the number follows `navRailItem`'s `size-9`, and moving one
+     without the other leaves the icons off centre. (It was 53 while the
+     sidebar had a 1px border; the frame's tone replaced the border.) */
+  .shell.nav-folded { --sidebar-width: 52px; }
   /* The squares have a width of their own, so the column's default `stretch`
      does not place them — without this they sit against the leading edge and
      the rail reads as a list that was cut off rather than one that was folded. */
@@ -847,7 +902,7 @@ p { margin: 0 0 0.75em; }
   .saved-view-name { max-width: 84px; }
 }
 
-@media (min-width: 900px) {
+@media (min-width: 600px) {
   /* No tab bar to clear, and the sidebar is a column rather than an overlay.
      The sidebar's width is in the inset because this bar is `position: fixed`
      against the *viewport*: `container-type` on `.main` does not make it a
@@ -1554,16 +1609,6 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 .page-title { font-size: 20px; margin-bottom: 4px; }
 .page-header { margin-bottom: 18px; }
 
-.empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 44px 16px;
-  color: var(--fg-muted);
-  text-align: center;
-}
-.empty .emoji { font-size: 26px; }
 
 
 
@@ -1868,35 +1913,7 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 .palette input:focus { outline: none; }
 .palette .results { overflow-y: auto; padding: 6px; }
 
-.toast-host {
-  position: fixed;
-  /* Centred rather than aligned to a side, so this one stays physical. */
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: calc(74px + env(safe-area-inset-bottom));
-  z-index: 100;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: center;
-  pointer-events: none;
-}
-@media (min-width: 900px) { .toast-host { bottom: 24px; } }
 
-.toast {
-  background: var(--fg);
-  color: var(--bg);
-  padding: 9px 14px;
-  border-radius: 999px;
-  font-size: 13px;
-  box-shadow: var(--shadow);
-  animation: slide-up 160ms ease;
-  pointer-events: auto;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.toast button { background: none; border: none; color: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; }
 
 /* --------------------------------------------------------------- markdown */
 
@@ -2355,8 +2372,6 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
 .gallery img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--line); cursor: pointer; }
 
-.progress { height: 5px; border-radius: 99px; background: var(--bg-active); overflow: hidden; }
-.progress > i { display: block; height: 100%; background: var(--accent); border-radius: 99px; transition: width 200ms ease; }
 
 .status-pill {
   display: inline-flex;
@@ -2955,7 +2970,6 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   padding: 3px 0; transition: color 160ms ease;
 }
 .guide-hint:hover { color: var(--accent); }
-.empty .guide-hint { margin-top: 2px; }
 
 /* Arriving from one of those links marks the card, so the reader knows
    which of eight they were sent to. */

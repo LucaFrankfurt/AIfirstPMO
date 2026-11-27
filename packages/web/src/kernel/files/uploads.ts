@@ -19,7 +19,7 @@ import { uploadLink, type AttachTo } from './link';
 import { api } from '../sync/api';
 import { useSession } from '../identity/session';
 import { useT } from '../i18n/i18n';
-import { useToast } from '../design-system/ui';
+import { useToast } from '../design-system/ui/toast';
 
 /**
  * Shared by every editor and every Files section, which need the same three

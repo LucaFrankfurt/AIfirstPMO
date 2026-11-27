@@ -27,7 +27,8 @@ import { isPackaged, sessionToken } from '../../kernel/sync/server';
 import { useT } from '../../kernel/i18n/i18n';
 import { buttonVariants } from '../../kernel/design-system/ui/button';
 import { SectionHeading } from '../../kernel/design-system/ui/section';
-import { Icon, useToast } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { useToast } from '../../kernel/design-system/ui/toast';
 
 /**
  * Whether this Android build has Firebase in it — see `AppPushPlugin.java`.

@@ -19,10 +19,12 @@ import {
   type Application, type ApplicationCriticality, type Incident, type IncidentCategory, type IncidentImpact,
   type IncidentPriority, type IncidentResolution, type IncidentStatus, type IncidentUrgency, type User,
 } from '@kolibri/shared';
-import { Avatar, Icon, Sheet } from '../../kernel/design-system/ui';
+import { Avatar } from '../../kernel/design-system/ui/avatar';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { Sheet } from '../../kernel/design-system/ui/sheet';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Chip, chipDot } from '../../kernel/design-system/ui/chip';
-import { Input, Label, Select, Textarea } from '../../kernel/design-system/ui/field';
+import { Input, Label, Select, Textarea, checkRow } from '../../kernel/design-system/ui/field';
 import { asMoney } from '../../kernel/design-system/ui/money';
 import { PickChips } from '../../kernel/design-system/pick-chips';
 import { useMinute } from '../../kernel/design-system/minute';
@@ -283,7 +285,7 @@ export function IncidentFields({ incident, onChange, disabled }: {
           </Select>
         </Label>
       </div>
-      <label className="check-row">
+      <label className={checkRow}>
         {/* In a 24px box, as the task checkbox is: the label carries the
             click, but a target is measured on its own. */}
         <span className="select-box">

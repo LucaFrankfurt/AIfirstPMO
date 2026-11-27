@@ -18,7 +18,7 @@ import {
   OverviewDiagram, PagesDiagram, PlanningDiagram, SyncDiagram, ViewsDiagram,
 } from '../diagrams';
 import { HierarchyExplorer } from '../../planning/hierarchy';
-import { Icon } from '../../../kernel/design-system/ui';
+import { Icon } from '../../../kernel/design-system/ui/icon';
 import { cardId, sectionFor, type GuideSection } from '../guide';
 import { useT, type TranslationKey } from '../../../kernel/i18n/i18n';
 import { Button } from '../../../kernel/design-system/ui/button';
@@ -26,6 +26,8 @@ import { buttonVariants } from '../../../kernel/design-system/ui/button';
 import { SHOW_CHECKLIST, START_TOUR } from '../tour';
 import { useTabStrip } from '../../../kernel/design-system/tab-strip';
 import { TabButton, TabList } from '../../../kernel/design-system/ui/tabs';
+import { pageBody } from '../../../kernel/design-system/ui/page';
+import { cn } from '../../../kernel/design-system/cn';
 
 type Section = GuideSection;
 
@@ -398,7 +400,7 @@ export function Help() {
           </TabButton>
         ))}
       </TabList>
-      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5 guide">
+      <div className={cn(pageBody, 'guide')}>
         {section === 'overview' && <Overview />}
         {section === 'hierarchy' && <Hierarchy />}
         {section === 'features' && <Features />}

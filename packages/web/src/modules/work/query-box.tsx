@@ -33,7 +33,8 @@ import { useT } from '../../kernel/i18n/i18n';
 import { readQuery } from '../../kernel/search/search-query';
 import { SearchBox, useFacetOptions, useVocabulary } from '../../kernel/search/search-box';
 import { Button } from '../../kernel/design-system/ui/button';
-import { Icon, Sheet } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { Sheet } from '../../kernel/design-system/ui/sheet';
 
 /** How long a line rests before it becomes the filter. */
 const SETTLE_MS = 300;

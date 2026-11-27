@@ -20,7 +20,9 @@ import {
   envKey, kindKey, moveStatusKey, useComponentRows, useVendorMap, vendorKindKey,
 } from '../landscape';
 import { Stat } from '../../planning/insights';
-import { Empty, Icon, useConfirm } from '../../../kernel/design-system/ui';
+import { Empty } from '../../../kernel/design-system/ui/empty';
+import { Icon } from '../../../kernel/design-system/ui/icon';
+import { useConfirm } from '../../../kernel/design-system/ui/sheet';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { Chip } from '../../../kernel/design-system/ui/chip';
 import { Input, Select } from '../../../kernel/design-system/ui/field';
@@ -32,6 +34,8 @@ import { list, useQuery } from '../../../kernel/sync/store';
 import { useTabStrip } from '../../../kernel/design-system/tab-strip';
 import { TabButton, TabList } from '../../../kernel/design-system/ui/tabs';
 import { useCanWrite, useFeature } from '../../../kernel/identity/session';
+import { pageBody } from '../../../kernel/design-system/ui/page';
+import { statHint, statLabel, statRow, statTile, statValue } from '../../../kernel/design-system/ui/stat';
 
 const TABS = ['register', 'landscape', 'moves', 'vendors'] as const;
 type Tab = (typeof TABS)[number];
@@ -113,18 +117,18 @@ function Register() {
   const cost = useMemo(() => costOfLandscape(landscapeOn(all, today())), [all]);
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
-      <div className="kpi-row">
+    <div className={pageBody}>
+      <div className={statRow}>
         <Stat label={t('estate.running')} value={String(landscapeOn(all, today()).length)} hint={t('estate.runningHint')} />
-        <div className="stat">
-          <span className="stat-label">{t('estate.annualRunRate')}</span>
-          <strong className="stat-value"><Cost of={cost.annual} compact /></strong>
-          {cost.unpriced > 0 && <span className="stat-hint">{t('estate.unpriced', { count: cost.unpriced })}</span>}
+        <div className={statTile}>
+          <span className={statLabel}>{t('estate.annualRunRate')}</span>
+          <strong className={statValue}><Cost of={cost.annual} compact /></strong>
+          {cost.unpriced > 0 && <span className={statHint}>{t('estate.unpriced', { count: cost.unpriced })}</span>}
         </div>
-        <div className="stat">
-          <span className="stat-label">{t('estate.bought')}</span>
-          <strong className="stat-value"><Cost of={cost.oneOff} compact /></strong>
-          <span className="stat-hint">{t('estate.oneOffHint')}</span>
+        <div className={statTile}>
+          <span className={statLabel}>{t('estate.bought')}</span>
+          <strong className={statValue}><Cost of={cost.oneOff} compact /></strong>
+          <span className={statHint}>{t('estate.oneOffHint')}</span>
         </div>
       </div>
 
@@ -251,7 +255,7 @@ function Landscape() {
   );
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+    <div className={pageBody}>
       <div className="week-bar flex-wrap">
         <label className="target-field">
           {t('estate.from')}
@@ -265,21 +269,21 @@ function Landscape() {
         <Button size="sm" onClick={() => { setFrom(today()); setTo(defaultFuture()); }}>{t('estate.reset')}</Button>
       </div>
 
-      <div className="kpi-row">
-        <div className="stat">
-          <span className="stat-label">{t('estate.costNow')}</span>
-          <strong className="stat-value"><Cost of={diff.costFrom.annual} compact /></strong>
-          <span className="stat-hint">{t('estate.componentCount', { count: diff.costFrom.components })}</span>
+      <div className={statRow}>
+        <div className={statTile}>
+          <span className={statLabel}>{t('estate.costNow')}</span>
+          <strong className={statValue}><Cost of={diff.costFrom.annual} compact /></strong>
+          <span className={statHint}>{t('estate.componentCount', { count: diff.costFrom.components })}</span>
         </div>
-        <div className="stat">
-          <span className="stat-label">{t('estate.costThen')}</span>
-          <strong className="stat-value"><Cost of={diff.costTo.annual} compact /></strong>
-          <span className="stat-hint">{t('estate.componentCount', { count: diff.costTo.components })}</span>
+        <div className={statTile}>
+          <span className={statLabel}>{t('estate.costThen')}</span>
+          <strong className={statValue}><Cost of={diff.costTo.annual} compact /></strong>
+          <span className={statHint}>{t('estate.componentCount', { count: diff.costTo.components })}</span>
         </div>
-        <div className="stat">
-          <span className="stat-label">{t('estate.difference')}</span>
-          <strong className="stat-value"><Delta of={diff.annualDelta} /></strong>
-          <span className="stat-hint">{t('estate.perYearHint')}</span>
+        <div className={statTile}>
+          <span className={statLabel}>{t('estate.difference')}</span>
+          <strong className={statValue}><Delta of={diff.annualDelta} /></strong>
+          <span className={statHint}>{t('estate.perYearHint')}</span>
         </div>
       </div>
 
@@ -331,7 +335,7 @@ function Moves() {
   );
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+    <div className={pageBody}>
       <p className="text-label text-muted">{t('estate.movesHint')}</p>
       {canWrite && (
         <div className="mb-3 flex justify-end">
@@ -433,7 +437,7 @@ function Vendors() {
   const due = useMemo(() => noticeDue(vendors, day, 90), [vendors, day]);
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+    <div className={pageBody}>
       {/* Notice periods, first, because this is the one thing in the register
           with a deadline on it — and the date somebody misses is this one
           rather than the contract's end. */}

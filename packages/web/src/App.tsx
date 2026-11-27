@@ -2,7 +2,9 @@ import { Component, Suspense, lazy, useEffect, useState, type ReactNode } from '
 import { Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from './AppShell';
 import { TaskDetail } from './modules/work/TaskDetail';
-import { Empty, Sheet, ToastHost } from './kernel/design-system/ui';
+import { Empty } from './kernel/design-system/ui/empty';
+import { Sheet } from './kernel/design-system/ui/sheet';
+import { ToastHost } from './kernel/design-system/ui/toast';
 import { Button } from './kernel/design-system/ui/button';
 import { WelcomeTour } from './modules/guide/tour';
 import { AcceptInvite, Login } from './kernel/identity/routes/Login';
@@ -31,6 +33,7 @@ import { Teams } from './modules/work/routes/teams';
  * frame on a spinner to save bytes on a file they were always going to need.
  */
 const TimesheetPage = lazy(() => import('./modules/time/routes/timesheet').then((m) => ({ default: m.TimesheetPage })));
+const DesignCatalog = lazy(() => import('./kernel/design-system/routes/catalog').then((m) => ({ default: m.DesignCatalog })));
 const Infrastructure = lazy(() => import('./modules/infrastructure/routes/infrastructure').then((m) => ({ default: m.Infrastructure })));
 const MailScreen = lazy(() => import('./modules/mail/routes/mail').then((m) => ({ default: m.MailScreen })));
 const SupportInbox = lazy(() => import('./modules/support/routes/support').then((m) => ({ default: m.SupportInbox })));
@@ -332,6 +335,7 @@ export default function App() {
           <Route path="/pages/:id" element={<PageDetail />} />
           <Route path="/teams" element={<Teams />} />
           <Route path="/guide" element={<Help />} />
+          <Route path="/design" element={<DesignCatalog />} />
           <Route path="/settings/*" element={<Settings />} />
           <Route path="/t/:id" element={<MyWork />} />
           <Route path="*" element={<Empty emoji="🧭" title={t('misc.pageNotFound')} />} />

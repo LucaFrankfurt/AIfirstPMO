@@ -22,12 +22,17 @@ import { pull } from '../../kernel/sync/sync';
 import { useMe, useMemberMap, useSession } from '../../kernel/identity/session';
 import { chipDot, chipVariants } from '../../kernel/design-system/ui/chip';
 import { Button } from '../../kernel/design-system/ui/button';
-import { Input, Select } from '../../kernel/design-system/ui/field';
-import { Avatar, Icon, Sheet, useConfirm, useToast, type MenuGroup, type MenuItem } from '../../kernel/design-system/ui';
+import { Input, Select, formField } from '../../kernel/design-system/ui/field';
+import { Avatar } from '../../kernel/design-system/ui/avatar';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { Sheet, useConfirm } from '../../kernel/design-system/ui/sheet';
+import { useToast } from '../../kernel/design-system/ui/toast';
+import { type MenuGroup, type MenuItem } from '../../kernel/design-system/ui/menu-button';
 import { downscale, uploadLink } from '../../kernel/files/uploads';
 import { fileSrc } from '../../kernel/sync/server';
 import { saveBlob } from '../../kernel/files/save';
 import { useMinute } from '../../kernel/design-system/minute';
+import { cn } from '../../kernel/design-system/cn';
 
 /* -------------------------------------------------------------- labels */
 
@@ -221,7 +226,7 @@ export function VersionDiff({ page, versionId, onClose }: { page: Page; versionI
   return (
     <Sheet title={t('page.whatChanged')} wide onClose={onClose}>
       {others.length > 0 && (
-        <div className="field mb-2.5">
+        <div className={cn(formField, 'mb-2.5')}>
           <label htmlFor="diff-against">{t('page.compareWith')}</label>
           <Select id="diff-against" value={against} onChange={(event) => setAgainst(event.target.value)}>
             <option value="">{t('page.compareNow')}</option>

@@ -8,7 +8,7 @@
  * widgets this person can see.
  */
 import type { Page } from '@kolibri/shared';
-import { Icon } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
 import { Chip } from '../../kernel/design-system/ui/chip';
 import { useT } from '../../kernel/i18n/i18n';
 import { list, useQuery } from '../../kernel/sync/store';

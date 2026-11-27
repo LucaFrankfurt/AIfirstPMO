@@ -25,8 +25,11 @@ import { OverviewDiagram } from './diagrams';
 import { Button } from '../../kernel/design-system/ui/button';
 import { buttonVariants } from '../../kernel/design-system/ui/button';
 import { cn } from '../../kernel/design-system/cn';
-import { Input, Select } from '../../kernel/design-system/ui/field';
-import { Icon, Sheet, useToast } from '../../kernel/design-system/ui';
+import { Input, Select, formField } from '../../kernel/design-system/ui/field';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { Sheet } from '../../kernel/design-system/ui/sheet';
+import { useToast } from '../../kernel/design-system/ui/toast';
+import { Progress } from '../../kernel/design-system/ui/progress';
 
 const TOUR_KEY = 'kolibri.tour';
 const CHECKLIST_KEY = 'kolibri.setup';
@@ -143,7 +146,7 @@ export function WelcomeTour() {
           <h3 className="tour-h">{t('tour.prefsTitle')}</h3>
           <p className="soft">{t('tour.prefsBody')}</p>
 
-          <div className="field">
+          <div className={formField}>
             <label htmlFor="tour-locale">{t('profile.language')}</label>
             <Select
               id="tour-locale"
@@ -159,7 +162,7 @@ export function WelcomeTour() {
             </Select>
           </div>
 
-          <div className="field" role="group" aria-labelledby="tour-appearance">
+          <div className={formField} role="group" aria-labelledby="tour-appearance">
             <label id="tour-appearance">{t('profile.appearance')}</label>
             <div className="flex items-center gap-1.5">
               {(['system', 'light', 'dark'] as const).map((option) => (
@@ -328,9 +331,7 @@ export function SetupChecklist() {
         </Button>
       </div>
 
-      <div className="progress mb-3">
-        <i style={{ width: `${(done / items.length) * 100}%` }} />
-      </div>
+      <Progress value={done} total={items.length} className="mb-3" />
 
       {items.map((item) => (
         <div className={`setup-item${item.done ? ' done' : ''}`} key={item.id}>

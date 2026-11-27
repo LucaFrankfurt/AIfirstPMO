@@ -17,7 +17,9 @@ import { useMembers, useSession } from '../../kernel/identity/session';
 import { useI18n, useT, type TranslationKey } from '../../kernel/i18n/i18n';
 import { buttonVariants } from '../../kernel/design-system/ui/button';
 import { cn } from '../../kernel/design-system/cn';
-import { Avatar, Icon, useLightbox } from '../../kernel/design-system/ui';
+import { Avatar } from '../../kernel/design-system/ui/avatar';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { useLightbox } from '../../kernel/design-system/ui/lightbox';
 import { Textarea } from '../../kernel/design-system/ui/field';
 
 /**

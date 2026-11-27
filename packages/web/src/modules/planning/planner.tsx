@@ -24,7 +24,11 @@ import { byId, list, useQuery } from '../../kernel/sync/store';
 import { update } from '../../kernel/sync/mutations';
 import { useCanWrite, useMembers, useSession } from '../../kernel/identity/session';
 import { Input, Select } from '../../kernel/design-system/ui/field';
-import { Avatar, Empty, Icon, StateDot } from '../../kernel/design-system/ui';
+import { Avatar } from '../../kernel/design-system/ui/avatar';
+import { Empty } from '../../kernel/design-system/ui/empty';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { StateDot } from '../../kernel/design-system/ui/marks';
+import { pageBody } from '../../kernel/design-system/ui/page';
 
 const DAY_WIDTH = 12;
 /** Height of one task bar's row inside a person's lane. */
@@ -248,7 +252,7 @@ export function Planner() {
   const nowX = x(today());
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+    <div className={pageBody}>
       <div className="flex items-center flex-wrap gap-2.5 mb-2.5">
         {/* `h1`, because this is the name of the screen. It was an `h2` and
             the planner was the one route in the app whose heading outline

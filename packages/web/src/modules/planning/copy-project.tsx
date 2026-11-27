@@ -12,8 +12,10 @@ import { byId, list, useQuery } from '../../kernel/sync/store';
 import { pull } from '../../kernel/sync/sync';
 import { useSession } from '../../kernel/identity/session';
 import { Button } from '../../kernel/design-system/ui/button';
-import { Input, Select } from '../../kernel/design-system/ui/field';
-import { Icon, Sheet, useToast } from '../../kernel/design-system/ui';
+import { Input, Select, formField } from '../../kernel/design-system/ui/field';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { Sheet } from '../../kernel/design-system/ui/sheet';
+import { useToast } from '../../kernel/design-system/ui/toast';
 
 export function CopyProjectSheet({ projectId, onClose, onCopied }: {
   projectId: string;
@@ -69,20 +71,20 @@ export function CopyProjectSheet({ projectId, onClose, onCopied }: {
         <p className="text-label text-muted mb-3">{t('copy.hint')}</p>
         {error && <div className="error mb-2.5">{error}</div>}
 
-        <div className="field">
+        <div className={formField}>
           <label htmlFor="copy-name">{t('copy.name')}</label>
           <Input id="copy-name" required value={name} autoFocus
             onChange={(event) => setName(event.target.value)} />
         </div>
 
-        <div className="field">
+        <div className={formField}>
           <label htmlFor="copy-key">{t('copy.key')}</label>
           <Input id="copy-key" value={key} maxLength={8} style={{ width: 140, textTransform: 'uppercase' }}
             onChange={(event) => setKey(event.target.value.toUpperCase())} />
           <span className="text-label text-muted">{t('copy.keyAuto')}</span>
         </div>
 
-        <div className="field">
+        <div className={formField}>
           <label htmlFor="copy-parent">{t('copy.parent')}</label>
           <Select id="copy-parent" value={parentId} onChange={(event) => setParentId(event.target.value)}>
             <option value="">{t('project.parentNone')}</option>

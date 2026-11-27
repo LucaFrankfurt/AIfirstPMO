@@ -26,7 +26,9 @@ import {
 } from '@kolibri/shared';
 import { Header } from '../../design-system/chrome';
 import { TaskRow } from '../../../modules/work/task-parts';
-import { Empty, Icon, useToast } from '../../design-system/ui';
+import { Empty } from '../../design-system/ui/empty';
+import { Icon } from '../../design-system/ui/icon';
+import { useToast } from '../../design-system/ui/toast';
 import { Chip, chipDot } from '../../design-system/ui/chip';
 import { api } from '../../sync/api';
 import { useT, type TranslationKey } from '../../i18n/i18n';
@@ -42,6 +44,7 @@ import { FACET_LABEL, SearchBox, useFacetOptions, useVocabulary } from '../searc
 import { HORIZON_DAYS, plusDays } from '../../../modules/work/overview';
 import { today } from '../../design-system/format';
 import { useSession } from '../../identity/session';
+import { pageBody } from '../../../kernel/design-system/ui/page';
 
 interface Hit {
   kind: string;
@@ -342,7 +345,7 @@ export function Search() {
   return (
     <>
       <Header title={t('search.title')} />
-      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+      <div className={pageBody}>
         <SearchBox
           autoFocus
           value={input}

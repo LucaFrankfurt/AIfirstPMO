@@ -336,7 +336,7 @@ if (failures) {
   console.log(`${failures} menu(s) hide part of themselves, or stand outside the window.`);
   console.log('');
   console.log('A list that grows with the workspace belongs in a drawer — a `MenuGroup`');
-  console.log('in `design-system/ui.tsx` — rather than poured into the menu in front of it.');
+  console.log('in `design-system/ui/menu-button.tsx` — rather than poured into the menu in front of it.');
   console.log('A drawer that lands outside the window is a window with no room beside the');
   console.log('menu: that is what `useNarrow` and `.menu-sheet` are for.');
   process.exit(1);

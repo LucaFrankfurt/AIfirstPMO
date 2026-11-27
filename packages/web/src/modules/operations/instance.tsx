@@ -24,7 +24,8 @@ import { Button } from '../../kernel/design-system/ui/button';
 import { Input, Select } from '../../kernel/design-system/ui/field';
 import { SectionHeading } from '../../kernel/design-system/ui/section';
 import { Chip } from '../../kernel/design-system/ui/chip';
-import { Icon, useToast } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { useToast } from '../../kernel/design-system/ui/toast';
 
 type Group = 'mail' | 'telegram' | 'ai' | 'backup';
 

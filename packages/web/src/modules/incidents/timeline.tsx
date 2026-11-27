@@ -20,7 +20,9 @@ import {
   INCIDENT_STATUS, byOccurrence, isIncidentPriority, isIncidentStatus,
   type Incident, type IncidentStatus, type IncidentUpdate,
 } from '@kolibri/shared';
-import { Avatar, Icon, useConfirm } from '../../kernel/design-system/ui';
+import { Avatar } from '../../kernel/design-system/ui/avatar';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { useConfirm } from '../../kernel/design-system/ui/sheet';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Chip } from '../../kernel/design-system/ui/chip';
 import { Input, Label, Select, Textarea } from '../../kernel/design-system/ui/field';

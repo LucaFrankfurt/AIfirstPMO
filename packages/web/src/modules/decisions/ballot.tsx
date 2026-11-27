@@ -16,7 +16,9 @@ import {
   afterPicking, byBallotOrder, chosenBy, closedBecause, isOpen, tallyOf, voteId,
   type Decision, type DecisionOption, type DecisionVote, type OptionCount,
 } from '@kolibri/shared';
-import { Avatar, Icon, Progress } from '../../kernel/design-system/ui';
+import { Avatar } from '../../kernel/design-system/ui/avatar';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { Progress } from '../../kernel/design-system/ui/progress';
 import { useT } from '../../kernel/i18n/i18n';
 import { create, remove } from '../../kernel/sync/mutations';
 import { byId, list, useQuery } from '../../kernel/sync/store';
