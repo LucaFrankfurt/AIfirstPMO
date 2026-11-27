@@ -3537,7 +3537,14 @@ await step('a pinned theme reaches the controls the browser paints itself', asyn
       await view.waitForTimeout(300);
 
       const seen = await view.evaluate(() => {
-        const luma = (c) => { const [r, g, b] = c.match(/\d+/g).map(Number); return Math.round(0.2126*r + 0.7152*g + 0.0722*b); };
+        // Painted rather than parsed: a computed `oklch(1 0 0)` read for its
+        // digits is luma 0, and a white sheet would pass as a dark one.
+        const pixel = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+        const luma = (c) => {
+          pixel.clearRect(0, 0, 1, 1); pixel.fillStyle = c; pixel.fillRect(0, 0, 1, 1);
+          const [r, g, b] = pixel.getImageData(0, 0, 1, 1).data;
+          return Math.round(0.2126*r + 0.7152*g + 0.0722*b);
+        };
         const sheet = document.querySelector('.sheet');
         return {
           scheme: getComputedStyle(document.documentElement).colorScheme,

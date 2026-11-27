@@ -21,6 +21,8 @@
  *     `check:css` reports them too — this one says what to use instead;
  *   - a font size or radius written as a number in a style object, which is the
  *     same thing with different punctuation;
+ *   - two dark palettes that disagree: the one the OS asks for and the one a
+ *     pinned theme asks for are written out twice in `app.css`;
  *   - a type step the stylesheet declares and `cn.ts` does not list, or the other
  *     way round. `tailwind-merge` cannot read the stylesheet, and a step it has
  *     not been told about is a colour to it: `cn('text-label', 'text-muted')`
@@ -72,6 +74,35 @@ function declared(css) {
     for (const [, name] of body.matchAll(/--shadow(?:-([a-z0-9]+))?\s*:/g)) out.shadow.add(name ?? '');
   }
   return out;
+}
+
+/**
+ * The custom properties a block of declarations sets, in order of appearance.
+ *
+ * Comments out first: the dark blocks carry a note about status colours, and
+ * a `--danger` mentioned in prose is not a declaration.
+ */
+function declarations(body) {
+  const out = new Map();
+  for (const [, name, value] of body.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) {
+    out.set(name, value.replace(/\s+/g, ' ').trim());
+  }
+  return out;
+}
+
+/**
+ * The dark palette, as the OS asks for it and as a pinned theme asks for it.
+ *
+ * Two blocks because CSS has no way to say "this, under a media query or
+ * under an attribute" once: `light-dark()` would, and needs iOS 17.5. So the
+ * same twenty-odd values are written twice, and the day one of them is changed
+ * in one place only, dark mode looks different depending on whether somebody
+ * pinned it — on the machines of exactly the people who care about it most.
+ */
+function darkBlocks(css) {
+  const media = css.match(/@media \(prefers-color-scheme: dark\) \{\s*:root:not\(\[data-theme='light'\]\) \{([^}]*)\}/);
+  const pinned = css.match(/:root\[data-theme='dark'\] \{([^}]*)\}/);
+  return media && pinned ? [declarations(media[1]), declarations(pinned[1])] : null;
 }
 
 /** The names `cn.ts` hands `tailwind-merge` as font sizes. */
@@ -176,8 +207,20 @@ if (!known) {
 }
 for (const entry of unused) problems.push(`the exception for ${entry.token} in ${entry.file} matches nothing any more — delete it.`);
 
+const dark = darkBlocks(readFileSync(CSS, 'utf8'));
+if (!dark) {
+  problems.push('app.css no longer has both dark blocks where this looks for them — the media query and [data-theme=\'dark\'].');
+} else {
+  const [media, pinned] = dark;
+  for (const name of new Set([...media.keys(), ...pinned.keys()])) {
+    if (media.get(name) !== pinned.get(name)) {
+      problems.push(`${name} is ${media.get(name) ?? 'missing'} when the OS asks for dark and ${pinned.get(name) ?? 'missing'} when dark is pinned — the two dark blocks in app.css must agree.`);
+    }
+  }
+}
+
 if (!findings.length && !problems.length) {
-  console.log(`OK — every size, radius and shadow is a step (${theme.text.size} type steps, ${theme.radius.size} radii, ${theme.shadow.size} shadows; ${EXCEPTIONS.length} exceptions, all named).`);
+  console.log(`OK — every size, radius and shadow is a step (${theme.text.size} type steps, ${theme.radius.size} radii, ${theme.shadow.size} shadows; ${EXCEPTIONS.length} exceptions, all named), and both dark blocks set the same ${dark[0].size} values.`);
   process.exit(0);
 }
 

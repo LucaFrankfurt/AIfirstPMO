@@ -91,6 +91,8 @@
   --color-raised: var(--bg-raised);
   --color-hover: var(--bg-hover);
   --color-active: var(--bg-active);
+  --color-fill: var(--bg-fill);
+  --color-glass: var(--glass);
 
   --color-fg: var(--fg);
   --color-soft: var(--fg-soft);
@@ -139,9 +141,10 @@
  */
 @theme static {
   --radius-*: initial;
-  --radius: 10px;      /* cards, panels — `rounded` */
-  --radius-sm: 7px;    /* controls — `rounded-sm` */
-  --radius-lg: 16px;   /* sheets — `rounded-lg` */
+  --radius-sm: 8px;    /* controls, chips, a row's hover — `rounded-sm` */
+  --radius: 12px;      /* cards, fields, menus — `rounded` */
+  --radius-lg: 16px;   /* the content panel, popovers — `rounded-lg` */
+  --radius-xl: 28px;   /* sheets and dialogs — `rounded-xl` */
 
   --text-*: initial;
   --text-caption: 11.5px;   /* chips, counts, timestamps */
@@ -167,7 +170,8 @@
 }
 
 /* Kolibri design system.
-   Quiet by default: one accent colour, hairline borders, almost no shadow.
+   Quiet by default: one accent colour, almost no shadow, and the layers of the
+   interface told apart by tone rather than by a line around each of them.
    Mobile-first — the desktop layout starts at 900px. */
 
 :root {
@@ -178,25 +182,56 @@
      date picker and every unstyled input dark inside a white dialog. */
   color-scheme: light dark;
 
-  --bg: #ffffff;
-  --bg-sunken: #f7f7f9;
-  --bg-raised: #ffffff;
-  --bg-hover: #f2f3f5;
-  --bg-active: #e9eaee;
+  /*
+   * One hue, and every neutral and the accent are steps of it.
+   *
+   * The palette is written in OKLCH because its first number is lightness as
+   * an eye reads it: a step in `L` is the same step at any hue, which is what
+   * makes "the surfaces are tones of one colour" something that can be written
+   * down rather than eyeballed. The greys this replaced were already near this
+   * hue (264–286), each picked separately; now they cannot drift apart.
+   *
+   * Every ink was solved against every surface it lands on, including the
+   * glass below over a backdrop that is entirely `--fg`, and clears 4.6:1 —
+   * 4.6 rather than 4.5 for the reason the contrast section of design.md
+   * gives. `check:contrast` measures the result in four modes; the numbers
+   * here are where the solving started, not a substitute for it.
+   *
+   * The status colours and the chart series are not on the hue on purpose:
+   * they are measured values with their own reasons, and a status colour that
+   * leans towards the accent stops reading as a status.
+   */
+  --hue: 278;
+
+  /* The surfaces, lightest to darkest. `sunken` is the frame the app sits in;
+     `bg` is the panel the content is on; `fill` is what a tonal button or a
+     search field is made of. */
+  --bg: oklch(1 0 0);
+  --bg-sunken: oklch(0.966 0.008 var(--hue));
+  --bg-raised: oklch(1 0 0);
+  --bg-hover: oklch(0.955 0.01 var(--hue));
+  --bg-active: oklch(0.935 0.013 var(--hue));
+  --bg-fill: oklch(0.945 0.011 var(--hue));
   --overlay: rgb(15 18 25 / 45%);
+  /* Something that floats over content and lets it show through: menus,
+     popovers, the header a list scrolls under. Opaque enough that `--fg-muted`
+     holds 4.6:1 even with solid `--fg` behind it, and fully opaque for anybody
+     who asked for less transparency or more contrast — see the rules below. */
+  --glass: color-mix(in srgb, var(--bg-raised) 88%, transparent);
 
-  --fg: #14161c;
-  --fg-soft: #4a4f5a;
-  /* 4.5:1 against every surface it lands on — `bg`, `sunken`, `raised` and
-     `hover`. It used to be #8b909b, which is 3.20 on white and 2.88 on a
-     hovered row: legible to the person who chose it and not to everybody. The
-     three ink levels still read as three — 16.9, 8.2, 5.0 on the page. */
-  --fg-muted: #646872;
+  --fg: oklch(0.22 0.016 var(--hue));
+  --fg-soft: oklch(0.43 0.02 var(--hue));
+  /* 4.5:1 against every surface it lands on. It used to be #8b909b, which is
+     3.20 on white and 2.88 on a hovered row: legible to the person who chose
+     it and not to everybody. */
+  --fg-muted: oklch(0.5 0.018 var(--hue));
 
-  --line: #e5e6eb;
-  --line-strong: #d3d5dc;
+  --line: oklch(0.915 0.009 var(--hue));
+  --line-strong: oklch(0.86 0.012 var(--hue));
 
-  --accent: #5b5bd6;
+  --accent: oklch(0.53 0.19 var(--hue));
+  --accent-soft: oklch(0.94 0.04 var(--hue));
+  --accent-fg: oklch(1 0 0);
   /* Chart series. Validated as a categorical pair against this surface — see
      docs/insights.md. Dark mode re-steps them rather than flipping them. */
   --chart-1: #5b5bd6;
@@ -205,8 +240,6 @@
      with the data-viz palette script, every pair, light and dark: worst CVD
      ΔE 10.5 here, 10.2 on the dark surface. One step for both themes. */
   --chart-3: #d95926;
-  --accent-soft: #eeeefc;
-  --accent-fg: #ffffff;
 
   /* Re-stepped so each clears 4.5:1 on every surface it lands on — these are
      text colours as often as they are fills (`.due-today` is a warn-coloured
@@ -229,29 +262,33 @@
 }
 
 /* Dark palette: applied when the OS asks for it, unless the user pinned light,
-   and always when the user pinned dark (the [data-theme] block further down). */
+   and always when the user pinned dark (the [data-theme] block further down).
+   The two blocks must say the same thing; `check:tokens` compares them, since
+   `light-dark()` would say it once but needs iOS 17.5. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --bg: #0e1014;
+    --bg: oklch(0.185 0.012 var(--hue));
+    --bg-sunken: oklch(0.155 0.01 var(--hue));
+    --bg-raised: oklch(0.215 0.014 var(--hue));
+    --bg-hover: oklch(0.245 0.016 var(--hue));
+    --bg-active: oklch(0.275 0.019 var(--hue));
+    --bg-fill: oklch(0.255 0.017 var(--hue));
+    --overlay: rgb(0 0 0 / 60%);
+    --glass: color-mix(in srgb, var(--bg-raised) 92%, transparent);
+
+    --fg: oklch(0.935 0.008 var(--hue));
+    --fg-soft: oklch(0.77 0.018 var(--hue));
+    --fg-muted: oklch(0.67 0.018 var(--hue));
+
+    --line: oklch(0.27 0.016 var(--hue));
+    --line-strong: oklch(0.33 0.02 var(--hue));
+
+    --accent: oklch(0.66 0.16 var(--hue));
+    --accent-soft: oklch(0.265 0.07 var(--hue));
+    --accent-fg: oklch(0.16 0.02 var(--hue));
     --chart-1: #7a7ae8;
     --chart-2: #059669;
     --chart-3: #d95926;
-    --bg-sunken: #0a0c10;
-    --bg-raised: #15181e;
-    --bg-hover: #1b1f27;
-    --bg-active: #232833;
-    --overlay: rgb(0 0 0 / 60%);
-
-    --fg: #e8eaef;
-    --fg-soft: #a7adba;
-    --fg-muted: #8a909c;
-
-    --line: #22262f;
-    --line-strong: #2e333e;
-
-    --accent: #7c7cf0;
-    --accent-soft: #1d1f3d;
-    --accent-fg: #0b0c10;
 
     /* Lit for a dark surface. Left alone, the light theme's red was 3.06 here
        and its green 3.92; amber already cleared the floor, so it stays. */
@@ -268,28 +305,54 @@
 
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --bg: #0e1014;
+  --bg: oklch(0.185 0.012 var(--hue));
+  --bg-sunken: oklch(0.155 0.01 var(--hue));
+  --bg-raised: oklch(0.215 0.014 var(--hue));
+  --bg-hover: oklch(0.245 0.016 var(--hue));
+  --bg-active: oklch(0.275 0.019 var(--hue));
+  --bg-fill: oklch(0.255 0.017 var(--hue));
+  --overlay: rgb(0 0 0 / 60%);
+  --glass: color-mix(in srgb, var(--bg-raised) 92%, transparent);
+
+  --fg: oklch(0.935 0.008 var(--hue));
+  --fg-soft: oklch(0.77 0.018 var(--hue));
+  --fg-muted: oklch(0.67 0.018 var(--hue));
+
+  --line: oklch(0.27 0.016 var(--hue));
+  --line-strong: oklch(0.33 0.02 var(--hue));
+
+  --accent: oklch(0.66 0.16 var(--hue));
+  --accent-soft: oklch(0.265 0.07 var(--hue));
+  --accent-fg: oklch(0.16 0.02 var(--hue));
   --chart-1: #7a7ae8;
   --chart-2: #059669;
   --chart-3: #d95926;
-  --bg-sunken: #0a0c10;
-  --bg-raised: #15181e;
-  --bg-hover: #1b1f27;
-  --bg-active: #232833;
-  --overlay: rgb(0 0 0 / 60%);
-  --fg: #e8eaef;
-  --fg-soft: #a7adba;
-  --fg-muted: #8a909c;
-  --line: #22262f;
-  --line-strong: #2e333e;
-  --accent: #7c7cf0;
-  --accent-soft: #1d1f3d;
-  --accent-fg: #0b0c10;
+
+  /* Lit for a dark surface. Left alone, the light theme's red was 3.06 here
+     and its green 3.92; amber already cleared the floor, so it stays. */
   --danger: #e06d6e;
   --ok: #26a27c;
   --warn: #d97706;
+
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
   --shadow: 0 12px 32px -12px rgb(0 0 0 / 70%), 0 1px 2px rgb(0 0 0 / 40%);
+}
+
+/*
+ * Glass is a convenience for the eye and a cost for some readers: a
+ * translucent surface moves under whatever scrolls behind it. Anybody who asked
+ * the OS for less transparency or more contrast gets the surface solid, and so
+ * does a browser that cannot blur, where a translucent menu would only be a
+ * menu you can read the page through.
+ */
+/* `:root:root:root` because the dark blocks above are two selectors deep and
+   would otherwise win in dark mode, which is exactly where translucency costs
+   most. */
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  :root:root:root { --glass: var(--bg-raised); }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root:root:root { --glass: var(--bg-raised); }
 }
 
 /*

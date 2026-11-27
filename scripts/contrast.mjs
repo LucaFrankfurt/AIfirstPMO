@@ -44,16 +44,34 @@ const base = process.env.KOLIBRI_URL ?? 'http://localhost:4400';
  * 18.66px when it is bold.
  */
 const PROBE = () => {
+  /*
+   * Any computed colour, as sRGB bytes — by asking the browser to paint it.
+   *
+   * This used to pick the digits out of the string, which was right for
+   * `rgb()` and needed a special case for `color(srgb …)`, whose channels run
+   * 0..1: reading those as bytes turned white into near-black, and the probe
+   * "found" twenty unreadable headings that were fine. The palette is OKLCH
+   * now, and a computed `oklch(0.22 0.016 278)` read that way is red 0.22,
+   * green 0.016, blue 278 — a measurement of nothing that still prints a ratio.
+   * A one-pixel canvas converts whatever the browser can draw, in the gamut it
+   * draws it in, so there is no format left to forget.
+   */
+  const pixel = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+  pixel.canvas.width = pixel.canvas.height = 1;
   const parse = (c) => {
     if (!c || c === 'transparent') return null;
-    const m = c.match(/[\d.]+/g);
-    if (!m) return null;
-    // `color-mix()` computes to `color(srgb 1 1 1 / .88)` — channels 0..1, not
-    // 0..255. Reading those as bytes turns white into near-black, which is how
-    // this probe first "found" twenty unreadable headings that were fine.
-    const unit = c.startsWith('color(') ? 255 : 1;
-    return { r: +m[0] * unit, g: +m[1] * unit, b: +m[2] * unit, a: m[3] === undefined ? 1 : +m[3] };
+    pixel.clearRect(0, 0, 1, 1);
+    pixel.fillStyle = '#000';
+    pixel.fillStyle = c;
+    pixel.fillRect(0, 0, 1, 1);
+    const [r, g, b, a] = pixel.getImageData(0, 0, 1, 1).data;
+    if (a === 0) return null;
+    return { r, g, b, a: a / 255 };
   };
+  // The parser is the instrument; check it reads known colours before using it.
+  for (const [given, want] of [['oklch(1 0 0)', 255], ['rgb(0 0 0)', 0], ['color(srgb 1 1 1)', 255], ['oklch(0 0 0)', 0]]) {
+    if (parse(given)?.r !== want) throw new Error(`contrast probe reads ${given} as ${JSON.stringify(parse(given))}`);
+  }
   const lum = ({ r, g, b }) => {
     const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
     return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);

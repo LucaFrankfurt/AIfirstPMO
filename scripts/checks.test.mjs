@@ -502,14 +502,14 @@ const BREAKS = [
     script: 'tokens.mjs',
     break: (t) => t.edit('packages/web/src/kernel/design-system/ui/dialog.tsx',
       'rounded-t-lg', 'rounded-t-[var(--radius-lg)]'),
-    says: /ui\/dialog\.tsx:\d+\n\s+rounded-t-\[var\(--radius-lg\)\]\s+→\s+rounded, rounded-sm, rounded-lg/,
+    says: /ui\/dialog\.tsx:\d+\n\s+rounded-t-\[var\(--radius-lg\)\]\s+→\s+[\w-]+(, [\w-]+)* or rounded-full/,
   },
   {
     what: "one of Tailwind's own steps, which the theme removed",
     script: 'tokens.mjs',
     break: (t) => t.edit('packages/web/src/kernel/design-system/ui/button.tsx',
-      "lg: 'h-11 rounded px-5 text-body',", "lg: 'h-11 rounded-xl px-5 text-sm',"),
-    says: /ui\/button\.tsx:\d+\n\s+text-sm\s+→[\s\S]*ui\/button\.tsx:\d+\n\s+rounded-xl\s+→/,
+      "lg: 'h-11 rounded px-5 text-body',", "lg: 'h-11 rounded-md px-5 text-sm',"),
+    says: /ui\/button\.tsx:\d+\n\s+text-sm\s+→[\s\S]*ui\/button\.tsx:\d+\n\s+rounded-md\s+→/,
   },
   {
     what: 'a size in a style object, which is the same thing with other punctuation',
@@ -526,6 +526,20 @@ const BREAKS = [
     break: (t) => t.edit('packages/web/src/styles/app.css',
       '  --text-display: 26px;', '  --text-display: 26px;\n  --text-micro: 10px;'),
     says: /text-micro is declared in app\.css and missing from TYPE_STEPS in cn\.ts/,
+  },
+  {
+    // Pinned dark and the OS's dark are two copies; change one and the app
+    // looks different depending on which way somebody arrived at dark.
+    what: 'a dark colour changed in one of the two dark blocks only',
+    script: 'tokens.mjs',
+    break: (t) => {
+      const css = t.read('packages/web/src/styles/app.css');
+      const pinned = css.indexOf(":root[data-theme='dark'] {");
+      const at = css.indexOf('--fg-muted:', pinned);
+      const end = css.indexOf(';', at);
+      t.write('packages/web/src/styles/app.css', `${css.slice(0, at)}--fg-muted: #777777${css.slice(end)}`);
+    },
+    says: /--fg-muted is oklch\(.+?\)\) when the OS asks for dark and #777777 when dark is pinned/,
   },
   {
     what: 'an exception kept after the value it excused has gone',
@@ -580,7 +594,7 @@ describe('and pass on a tree with nothing wrong with it', { concurrency: 2 }, ()
   it('tokens.mjs', async () => {
     const { code, out } = await tree().run('tokens.mjs');
     assert.equal(code, 0, out);
-    assert.match(out, /every size, radius and shadow is a step \(\d+ type steps, \d+ radii, \d+ shadows; 0 exceptions, all named\)/);
+    assert.match(out, /every size, radius and shadow is a step \(\d+ type steps, \d+ radii, \d+ shadows; 0 exceptions, all named\), and both dark blocks set the same \d+ values/);
   });
 });
 
