@@ -9,8 +9,36 @@ updates:
       - "/sites/video"
     schedule:
       interval: weekly
+    groups:
+      # The Radix packages share their primitives (the dismissable layer, the
+      # focus scope, the portal). Bumped one at a time, each installs a second
+      # copy of those beside the first, and two copies of the dismissable layer
+      # keep two separate layer stacks — #160 and #164 would have done that.
+      radix:
+        patterns: ["@radix-ui/*"]
+      # The CLI warns as soon as @capacitor/core and a platform differ by a
+      # minor version, and the native bridge comes from the platform packages,
+      # not from core: #162 moved core alone.
+      capacitor:
+        patterns: ["@capacitor/*"]
+    ignore:
+      # TypeScript 7 has no compiler API, and two things here read one:
+      # scripts/openapi.mjs walks the routes with it (#161 failed there), and
+      # @astrojs/check in sites/docs and sites/demo accepts ^5 || ^6 only
+      # (#165 and #166 failed at `npm ci`). Lift this when both have moved.
+      - dependency-name: typescript
+        versions: [">=7"]
   # Keeps the SHA pins in .github/workflows moving, with their version comments.
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
+    # Five open pull requests is Dependabot's default ceiling, and five sat
+    # open for weeks while upload-artifact got none — so download-artifact was
+    # proposed at v8 against an upload-artifact left at v4.
+    open-pull-requests-limit: 10
+    groups:
+      # One uploads what the other downloads, in the release workflow only,
+      # which no pull request runs: they move together or not at all.
+      artifacts:
+        patterns: ["actions/upload-artifact", "actions/download-artifact"]
