@@ -33,6 +33,15 @@ of the 25 MB that went into each project — and a phone has no devtools to read
 browser build keeps them. The one consequence: `dist` after `npm run mobile` has no maps, so a
 server started from it serves none until the next `npm run build`.
 
+**iOS 16.4 is the floor**, set as the app target's `IPHONEOS_DEPLOYMENT_TARGET`. It was 15.0, which
+the stylesheet had stopped honouring long before anybody changed the number: Tailwind 4 is built
+for Safari 16.4 and later, `color-mix()` needs 16.2, and the palette is written in `oklch()`. On an
+iPhone still on iOS 15 the app installed and then drew without parts of its styles, which is worse
+than not installing. `CapApp-SPM/Package.swift` says `.iOS(.v15)` and is left alone: the Capacitor
+CLI writes it, and it states what the plugins need, not what the app does. Android is not affected
+the same way — its WebView updates from the Play Store apart from the OS, so `minSdk` says nothing
+about which Chromium draws the page. None of this was tried on a device.
+
 From there it is each platform's own workflow: a signing team and a device in Xcode, a run
 configuration in Android Studio. Neither is scriptable from this repository, and neither is checked
 by CI — the smoke walk exercises the client in a browser at a phone's viewport, which is the part

@@ -435,13 +435,15 @@ export function Composer({
             disabled={disabled}
             placeholder={placeholder ?? words.placeholder}
             aria-label={placeholder ?? words.placeholder}
-            // `text-body`, not the `text-input sm:text-body` that `Input` uses,
-            // although under 16px iOS zooms the page in when this is tapped.
-            // At 16px the placeholder wraps on a 340px screen and the one-row
-            // field scrolls (`check:responsive`, the support conversation).
-            // Both are true; choosing between them is a design decision.
+            // `text-input` on a phone for the reason `Input` has it: under 16px
+            // iOS zooms the page in when this is tapped, and stays there. At 16px
+            // the placeholder used to wrap on a 340px screen, and a wrapped
+            // placeholder counts towards `scrollHeight` — 61px of content in a
+            // 38px box, so the empty one-row field scrolled (`check:responsive`,
+            // the support conversation). `placeholder:truncate` keeps it on one
+            // line, which is the only line a one-row field has.
             className={cn(
-              'max-h-40 min-h-9 min-w-0 flex-1 resize-none rounded-lg border border-line-strong bg-raised px-3.5 py-2 text-body leading-[1.4] text-fg placeholder:text-muted',
+              'max-h-40 min-h-9 min-w-0 flex-1 resize-none rounded-lg border border-line-strong bg-raised px-3.5 py-2 text-input sm:text-body leading-[1.4] text-fg placeholder:text-muted placeholder:truncate',
               'focus-visible:border-[var(--thread-accent,var(--accent))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--thread-accent,var(--accent))]',
             )}
             onChange={(event) => typed(event.target.value)}
