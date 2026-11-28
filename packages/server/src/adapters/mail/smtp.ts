@@ -79,7 +79,26 @@ class Connection {
     this.socket.write(`${line}\r\n`);
   }
 
-  async command(line: string, expected: number[]): Promise<Reply> {
+  /**
+   * Say one line and expect one of these answers.
+   *
+   * `about` is whose problem a refusal is: everything before `RCPT TO` is the
+   * sender's — this server's name, its encryption, its password, its From
+   * address — and refusing any of it says nothing about the person the message
+   * is for. See `DeliveryError.about`.
+   *
+   * `label` is what the failure calls the command, and it is a parameter
+   * because the line cannot be. It used to be the line's first word, and for
+   * `AUTH LOGIN` the line *is* the user name or the password, base64: a relay
+   * answering 535 put the password into the queue's `last_error`, the
+   * suppression list, the test button's answer and the log.
+   */
+  async command(
+    line: string,
+    expected: number[],
+    about: 'recipient' | 'sender',
+    label: string = line.split(' ')[0],
+  ): Promise<Reply> {
     this.write(line);
     const reply = await this.read();
     if (!expected.includes(reply.code)) {
@@ -87,8 +106,9 @@ class Connection {
       // distinction the queue needs, stated here where the code is actually in
       // hand rather than recovered from the text later.
       throw new DeliveryError(
-        `SMTP ${line.split(' ')[0]} failed: ${reply.lines.join(' ')}`,
+        `SMTP ${label} failed: ${reply.lines.join(' ')}`,
         reply.code >= 500 && reply.code < 600,
+        about,
       );
     }
     return reply;
@@ -135,6 +155,7 @@ export async function sendMail(config: SmtpConfig, mail: Mail): Promise<string> 
     throw new DeliveryError(
       `Refusing to send credentials to ${config.host}:${config.port} unencrypted — set the encryption to starttls or tls`,
       true,
+      'sender',
     );
   }
 
@@ -163,10 +184,14 @@ export async function sendMail(config: SmtpConfig, mail: Mail): Promise<string> 
 
   try {
     const greeting = await connection.read();
-    if (greeting.code !== 220) throw new Error(`Unexpected SMTP greeting: ${greeting.lines.join(' ')}`);
+    // A relay that turns the connection away — 554 for a blocked IP, 421 for a
+    // busy one — is refusing this server, not the person the mail is for.
+    if (greeting.code !== 220) {
+      throw new DeliveryError(`Unexpected SMTP greeting: ${greeting.lines.join(' ')}`, greeting.code >= 500 && greeting.code < 600, 'sender');
+    }
 
     const hostname = 'kolibri';
-    let capabilities = (await connection.command(`EHLO ${hostname}`, [250])).lines.join(' ').toUpperCase();
+    let capabilities = (await connection.command(`EHLO ${hostname}`, [250], 'sender')).lines.join(' ').toUpperCase();
 
     if (config.encryption === 'starttls') {
       // Not `if offered`. A relay that does not advertise STARTTLS when
@@ -177,24 +202,27 @@ export async function sendMail(config: SmtpConfig, mail: Mail): Promise<string> 
         throw new DeliveryError(
           `${config.host}:${config.port} does not offer STARTTLS — refusing to continue unencrypted`,
           true,
+          'sender',
         );
       }
-      await connection.command('STARTTLS', [220]);
+      await connection.command('STARTTLS', [220], 'sender');
       await connection.upgrade(config.host, !!config.allowInvalidCerts);
       // Asked again *after* the upgrade, and this is the answer that counts:
       // the capabilities a server lists on a plaintext connection are not
       // binding, and AUTH in particular is commonly withheld until it is safe.
-      capabilities = (await connection.command(`EHLO ${hostname}`, [250])).lines.join(' ').toUpperCase();
+      capabilities = (await connection.command(`EHLO ${hostname}`, [250], 'sender')).lines.join(' ').toUpperCase();
     }
 
     if (config.user && config.pass) {
       if (capabilities.includes('AUTH') && capabilities.includes('PLAIN')) {
         const token = Buffer.from(`\0${config.user}\0${config.pass}`).toString('base64');
-        await connection.command(`AUTH PLAIN ${token}`, [235]);
+        await connection.command(`AUTH PLAIN ${token}`, [235], 'sender', 'AUTH');
       } else {
-        await connection.command('AUTH LOGIN', [334]);
-        await connection.command(Buffer.from(config.user).toString('base64'), [334]);
-        await connection.command(Buffer.from(config.pass).toString('base64'), [235]);
+        // The two lines after `AUTH LOGIN` are the user name and the password,
+        // so they are labelled rather than named by what was said.
+        await connection.command('AUTH LOGIN', [334], 'sender', 'AUTH');
+        await connection.command(Buffer.from(config.user).toString('base64'), [334], 'sender', 'AUTH');
+        await connection.command(Buffer.from(config.pass).toString('base64'), [235], 'sender', 'AUTH');
       }
     }
 
@@ -202,9 +230,9 @@ export async function sendMail(config: SmtpConfig, mail: Mail): Promise<string> 
     // These two lines *are* the SMTP conversation: an address with a carriage
     // return in it does not produce a bad envelope, it produces a second
     // command that this server never wrote.
-    await connection.command(`MAIL FROM:<${assertEmailAddress(mail.from, 'The sender address')}>`, [250]);
-    await connection.command(`RCPT TO:<${assertEmailAddress(mail.to, 'The recipient address')}>`, [250, 251]);
-    await connection.command('DATA', [354]);
+    await connection.command(`MAIL FROM:<${assertEmailAddress(mail.from, 'The sender address')}>`, [250], 'sender', 'MAIL');
+    await connection.command(`RCPT TO:<${assertEmailAddress(mail.to, 'The recipient address')}>`, [250, 251], 'recipient', 'RCPT');
+    await connection.command('DATA', [354], 'recipient');
 
     const body = buildMessage(mail, messageId);
     // Dot-stuffing: a line that is just "." would otherwise end the message.
@@ -212,13 +240,19 @@ export async function sendMail(config: SmtpConfig, mail: Mail): Promise<string> 
     connection.write('.');
     const stored = await connection.read();
     if (stored.code !== 250) {
+      // Left on the recipient, as it always was: a relay that checks addresses
+      // only after the body answers "user unknown" here rather than at RCPT,
+      // and a refusal of the content is not one this client can tell apart
+      // from that without reading the enhanced status code — which nothing
+      // here has measured a relay sending reliably yet.
       throw new DeliveryError(
         `SMTP rejected the message: ${stored.lines.join(' ')}`,
         stored.code >= 500 && stored.code < 600,
+        'recipient',
       );
     }
 
-    await connection.command('QUIT', [221]).catch(() => undefined);
+    await connection.command('QUIT', [221], 'sender').catch(() => undefined);
     return messageId;
   } finally {
     connection.end();

@@ -34,7 +34,7 @@ import { installTelegramChores } from './adapters/telegram/chores.ts';
 import { installWebhookChores } from './adapters/webhooks/chores.ts';
 import { onEntity } from './kernel/write-path/repo.ts';
 import { onSettingsChange } from './kernel/platform/settings.ts';
-import { startMailWorker, stopMailWorker } from './adapters/mail/mail.ts';
+import { releaseSenderSuppressions, startMailWorker, stopMailWorker } from './adapters/mail/mail.ts';
 import { reloadTelegram } from './adapters/telegram/telegram.ts';
 import { budgetRules } from './modules/budgets/rules/budgets.ts';
 import { productRules } from './modules/products/rules/products.ts';
@@ -112,4 +112,7 @@ export function installEffects(): void {
   untiePageOrder();
   // A widget's signing key, stored as typed before keys were sealed.
   sealWidgetSecrets();
+  // Addresses put on the suppression list for a wrong password or key, before
+  // a failure said whose it was — and a password an old SMTP error carried.
+  releaseSenderSuppressions();
 }

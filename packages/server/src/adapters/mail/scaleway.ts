@@ -156,9 +156,19 @@ export async function sendViaScaleway(config: ScalewayConfig, mail: Deliverable)
      * `DeliveryError`.
      */
     const permanent = response.status >= 400 && response.status < 500 && response.status !== 429;
+    /*
+     * Whose fault, which is a second question. 401 is the key, 403 is the
+     * key's permission or a project that is not the key's, 404 is a URL, a
+     * region or a project that does not exist — none of them can be caused by
+     * the address the message was for, and every one of them used to put that
+     * address on the suppression list. The rest of 4xx stays on the recipient:
+     * a 400 is as often a malformed address as anything else.
+     */
+    const about = [401, 403, 404].includes(response.status) ? 'sender' : 'recipient';
     throw new DeliveryError(
       `Scaleway refused the message (HTTP ${response.status})${detail ? `: ${detail}` : ''}`,
       permanent,
+      about,
     );
   }
 
