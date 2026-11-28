@@ -542,6 +542,37 @@ const BREAKS = [
     says: /--fg-muted is oklch\(.+?\)\) when the OS asks for dark and #777777 when dark is pinned/,
   },
   {
+    // The half that was missing: the stylesheet's own rules had 26 sizes.
+    what: 'a font size in the stylesheet written as a number',
+    script: 'tokens.mjs',
+    break: (t) => t.edit('packages/web/src/styles/app.css',
+      '.selection-bar .count { font-size: var(--text-label);', '.selection-bar .count { font-size: 12px;'),
+    says: /styles\/app\.css:\d+\n\s+\.selection-bar \.count \{ font-size: 12px \}\s+→\s+a step: var\(--text-caption\)/,
+  },
+  {
+    what: 'a corner in the stylesheet between two steps',
+    script: 'tokens.mjs',
+    break: (t) => t.edit('packages/web/src/styles/app.css',
+      '.diff { border: 1px solid var(--line); border-radius: var(--radius-sm);', '.diff { border: 1px solid var(--line); border-radius: 6px;'),
+    says: /\.diff \{ border-radius: 6px \}\s+→\s+var\(--radius-xs\)/,
+  },
+  {
+    // A ring is geometry and passes; this has a blur, so it lifts.
+    what: 'an elevation in the stylesheet that is not one of the two shadows',
+    script: 'tokens.mjs',
+    break: (t) => t.edit('packages/web/src/styles/app.css',
+      '.planner-bar.dragging { cursor: grabbing; box-shadow: var(--shadow);',
+      '.planner-bar.dragging { cursor: grabbing; box-shadow: 0 0 0 2px var(--bg), 0 10px 30px rgb(0 0 0 / 14%);'),
+    says: /\.planner-bar\.dragging \{ box-shadow: 0 0 0 2px var\(--bg\), 0 10px 30px rgb\(0 0 0 \/ 14%\) \}\s+→\s+var\(--shadow\)/,
+  },
+  {
+    what: 'a stylesheet exception kept after what it excused has gone',
+    script: 'tokens.mjs',
+    break: (t) => t.edit('scripts/tokens.mjs', 'const CSS_EXCEPTIONS = [',
+      "const CSS_EXCEPTIONS = [\n  { selectors: ['.nothing-here'], why: 'a case in checks.test.mjs' },"),
+    says: /the stylesheet exception for \.nothing-here excuses nothing any more/,
+  },
+  {
     what: 'an exception kept after the value it excused has gone',
     script: 'tokens.mjs',
     break: (t) => t.edit('scripts/tokens.mjs', 'const EXCEPTIONS = [];',
@@ -594,7 +625,7 @@ describe('and pass on a tree with nothing wrong with it', { concurrency: 2 }, ()
   it('tokens.mjs', async () => {
     const { code, out } = await tree().run('tokens.mjs');
     assert.equal(code, 0, out);
-    assert.match(out, /every size, radius and shadow is a step \(\d+ type steps, \d+ radii, \d+ shadows; 0 exceptions, all named\), and both dark blocks set the same \d+ values/);
+    assert.match(out, /every size, radius and shadow is a step, in the source and in app\.css \(\d+ type steps, \d+ radii, \d+ shadows; 0 exceptions in the source and \d+ in the stylesheet, all named\), and both dark blocks set the same \d+ values/);
   });
 });
 

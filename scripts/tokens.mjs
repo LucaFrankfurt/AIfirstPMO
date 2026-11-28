@@ -28,10 +28,21 @@
  *     not been told about is a colour to it: `cn('text-label', 'text-muted')`
  *     comes back as `text-muted`, and the size is gone with no error anywhere.
  *
- * What it does not look at: `app.css` itself, whose hand-written rules are the
- * part of the port still to come (`design.md` lists what stays there and why),
- * and `packages/feedback`, which ships compiled into other people's apps and has
- * none of these tokens to use.
+ * And in `app.css`, the rules written by hand, it refuses:
+ *
+ *   - a font size that is not a step — `var(--text-…)` — or relative to one
+ *     (`em`, `%`, `inherit`);
+ *   - a radius that is not a step, `0`, `50%` or `999px` (a circle, a pill);
+ *   - an elevation that is not one of the two shadows. A box-shadow with no blur
+ *     is not an elevation — it is a ring, a focus outline, a drop line drawn
+ *     without moving the layout — and those are geometry, so they pass.
+ *
+ * That half was missing while it said it was "the part of the port still to
+ * come", and in the meantime the stylesheet held 26 font sizes and 26 radii:
+ * 12px written 34 times beside a 12.5px step, 6px corners beside an 8px one.
+ *
+ * What it does not look at: `packages/feedback`, which ships compiled into
+ * other people's apps and has none of these tokens to use.
  *
  *   node scripts/tokens.mjs
  */
@@ -53,6 +64,36 @@ const CN = join(SRC, 'kernel/design-system/cn.ts');
  * to add to `@theme static`, with its reason beside it.
  */
 const EXCEPTIONS = [];
+
+/**
+ * Rules in `app.css` that are off the scale on purpose: `{ selectors | prefix,
+ * property?, why }`. `prefix` covers every rule whose selector starts with it;
+ * `property` narrows the entry to one of `font-size`, `radius`, `shadow`. As
+ * above, an entry that excuses nothing fails the check.
+ */
+const CSS_EXCEPTIONS = [
+  {
+    prefix: '.gx-',
+    why: "the guide's diagrams draw the app in miniature — a task card at two thirds of its size, "
+      + 'an avatar the size of a letter. Their sizes are a drawing\'s proportions, not the type scale.',
+  },
+  {
+    selectors: ['.emoji-trigger', '.emoji-cell', '.reaction-pick'],
+    property: 'font-size',
+    why: 'an emoji in a picker is sized as an icon is, to the cell it fills, not as text',
+  },
+  {
+    selectors: ['.tabbar a'],
+    property: 'font-size',
+    why: 'five labels and the add button share a 340px phone; at the caption step, measured in German, '
+      + '"Aufgaben" and "Posteingang" ran into each other with no gap between them',
+  },
+  {
+    selectors: ['.canvas-board-name'],
+    property: 'font-size',
+    why: 'counter-scaled against the canvas zoom (`--inverse`), so it stays one size on screen',
+  },
+];
 
 /**
  * Tailwind's own steps for the three scales. `@theme static` clears them with
@@ -193,6 +234,56 @@ for (const path of sources(SRC)) {
   }
 }
 
+/*
+ * The stylesheet's own rules. Comments blanked with their newlines kept, so a
+ * note quoting `font-size: 12px` is not one, and a line number is still a line.
+ */
+const cssText = readFileSync(CSS, 'utf8');
+const masked = cssText.replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '));
+const unusedCss = new Set(CSS_EXCEPTIONS);
+const RADIUS_OK = (part) => part === '0' || part === '50%' || part === '999px'
+  || (/^var\(--radius(?:-([a-z0-9]+))?\)$/.test(part) && theme.radius.has(part.match(/^var\(--radius(?:-([a-z0-9]+))?\)$/)[1] ?? ''));
+const FONT_OK = (value) => /^(?:inherit|initial|unset|smaller|larger)$/.test(value) || /^-?[\d.]+(?:em|%)$/.test(value)
+  || (/^var\(--text-([a-z0-9]+)\)$/.test(value) && theme.text.has(value.match(/^var\(--text-([a-z0-9]+)\)$/)[1]));
+/** The shadows in a box-shadow list, split on the commas between them rather than inside a colour. */
+const shadowsOf = (value) => {
+  const out = []; let depth = 0; let from = 0;
+  for (let i = 0; i < value.length; i++) {
+    if (value[i] === '(') depth++;
+    else if (value[i] === ')') depth--;
+    else if (value[i] === ',' && depth === 0) { out.push(value.slice(from, i).trim()); from = i + 1; }
+  }
+  return [...out, value.slice(from).trim()];
+};
+/** A shadow that lifts something: anything with a blur. A ring or an inset line has none. */
+const lifts = (shadow) => {
+  if (shadow === 'none' || /^var\(--shadow(?:-[a-z0-9]+)?\)$/.test(shadow)) return false;
+  const lengths = shadow.replace(/\b(?:rgb|hsl|oklch|color-mix|var)\([^)]*\)+/g, ' ').match(/-?[\d.]+(?:px)?(?![\w%])/g) ?? [];
+  return lengths.length >= 3 && parseFloat(lengths[2]) !== 0;
+};
+for (const rule of masked.matchAll(/([^{};]+)\{([^{}]*)\}/g)) {
+  const selector = rule[1].trim().replace(/\s+/g, ' ');
+  if (selector.startsWith('@')) continue; // `@theme` and the token blocks declare variables, not properties
+  const bodyAt = rule.index + rule[1].length + 1;
+  for (const decl of rule[2].matchAll(/(?<![\w-])(font-size|border(?:-[a-z]+)*-radius|box-shadow)\s*:\s*([^;]+);/g)) {
+    const [, prop, raw] = decl;
+    const value = raw.trim();
+    const kind = prop === 'font-size' ? 'font-size' : prop === 'box-shadow' ? 'shadow' : 'radius';
+    const bad = kind === 'font-size' ? !FONT_OK(value)
+      : kind === 'radius' ? !value.split(/\s+/).every(RADIUS_OK)
+        : shadowsOf(value).some(lifts);
+    if (!bad) continue;
+    const excused = CSS_EXCEPTIONS.find((entry) => (!entry.property || entry.property === kind)
+      && (entry.prefix ? selector.startsWith(entry.prefix) : entry.selectors.includes(selector)));
+    if (excused) { unusedCss.delete(excused); continue; }
+    const line = masked.slice(0, bodyAt + decl.index).split('\n').length;
+    const use = kind === 'font-size' ? `a step: ${[...theme.text.keys()].map((name) => `var(--text-${name})`).join(', ')}`
+      : kind === 'radius' ? `${[...theme.radius].map((name) => `var(--radius${name ? `-${name}` : ''})`).join(', ')}, 0, 50% or 999px`
+        : 'var(--shadow) or var(--shadow-sm) — or no blur, if it is a ring rather than an elevation';
+    findings.push({ where: `styles/app.css:${line}`, token: `${selector} { ${prop}: ${value} }`, use });
+  }
+}
+
 const problems = [];
 const known = merged(readFileSync(CN, 'utf8'));
 if (!known) {
@@ -206,6 +297,7 @@ if (!known) {
   }
 }
 for (const entry of unused) problems.push(`the exception for ${entry.token} in ${entry.file} matches nothing any more — delete it.`);
+for (const entry of unusedCss) problems.push(`the stylesheet exception for ${entry.prefix ?? entry.selectors.join(', ')} excuses nothing any more — delete it.`);
 
 const dark = darkBlocks(readFileSync(CSS, 'utf8'));
 if (!dark) {
@@ -220,7 +312,7 @@ if (!dark) {
 }
 
 if (!findings.length && !problems.length) {
-  console.log(`OK — every size, radius and shadow is a step (${theme.text.size} type steps, ${theme.radius.size} radii, ${theme.shadow.size} shadows; ${EXCEPTIONS.length} exceptions, all named), and both dark blocks set the same ${dark[0].size} values.`);
+  console.log(`OK — every size, radius and shadow is a step, in the source and in app.css (${theme.text.size} type steps, ${theme.radius.size} radii, ${theme.shadow.size} shadows; ${EXCEPTIONS.length} exceptions in the source and ${CSS_EXCEPTIONS.length} in the stylesheet, all named), and both dark blocks set the same ${dark[0].size} values.`);
   process.exit(0);
 }
 

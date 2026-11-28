@@ -536,6 +536,7 @@ const like = (stated, actual) => {
 const HISTORY = [
   { file: 'docs/design.md', pattern: prose('The first run reported \\*\\*(\\d+) problems on desktop'), what: 'what check:a11y found on its first run' },
   { file: 'docs/design.md', pattern: prose('progress bar: \\*\\*(\\d),\\d{3} lines\\*\\*'), what: 'app.css when the Tailwind port started' },
+  { file: 'docs/design.md', pattern: prose('They held \\*\\*(\\d+)\\*\\* font sizes'), what: 'distinct font sizes in app.css before check:tokens read it, counted then' },
   { file: 'docs/modules.md', pattern: prose('\\*\\*(\\d+)\\*\\* reads — counted when step 9 shipped'),
     what: 'reads bypassing useQuery when step 9 shipped, counted by reading the call sites' },
   { file: 'docs/modules.md', pattern: prose('was \\*\\*(\\d+) lines\\*\\*'), what: 'notifications, before the write path handed its meaning back' },

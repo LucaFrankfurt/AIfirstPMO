@@ -220,18 +220,26 @@ Charts get `--chart-1` and `--chart-2`, re-stepped rather than flipped for dark.
 
 | Class | Token | Where |
 |---|---|---|
-| `rounded-sm` | `--radius-sm`, 7px | controls |
-| `rounded` | `--radius`, 10px | cards, panels |
-| `rounded-lg` | `--radius-lg`, 16px | sheets |
+| `rounded-xs` | `--radius-xs`, 4px | marks, swatches, code, a focus ring's corner |
+| `rounded-sm` | `--radius-sm`, 8px | controls, chips, a row's hover |
+| `rounded` | `--radius`, 12px | cards, fields, menus |
+| `rounded-lg` | `--radius-lg`, 16px | the content panel, popovers |
+| `rounded-xl` | `--radius-xl`, 28px | sheets and dialogs |
 | `rounded-full` | — | pills, dots, avatars |
 
-**Nothing else.** In the client's TypeScript that is enforced: `npm run check:tokens` refuses an
-arbitrary `rounded-[…]`, one of Tailwind's own steps, and a `borderRadius` written as a number in a
-style object. The hand-written rules in `app.css` still use `4px`, `5px` and `6px` here and there,
-which is a thing to remove as screens are ported, not a set of choices.
+The same steps as Material's shape scale, extra-small to extra-large. `xs` came last: the
+hand-written rules had 2px to 7px corners on things too small for 8px — a legend swatch, a chart
+bar, inline code — and rounding them to 8px would have made marks into blobs.
+
+**Nothing else**, in the TypeScript or in `app.css`. `npm run check:tokens` refuses an arbitrary
+`rounded-[…]`, one of Tailwind's own steps, a `borderRadius` written as a number in a style object,
+and in the stylesheet any corner that is not `var(--radius…)`, `0`, `50%` or `999px`. A corner that
+is half its box's height was a pill spelled as a number, and became `999px`.
 
 Two shadows: `shadow-sm` (`--shadow-sm`) for a raised control, `shadow` (`--shadow`) for something
-floating over the page. A card in a list gets a border, not a shadow.
+floating over the page. A card in a list gets a border, not a shadow. In the stylesheet a box-shadow
+with no blur passes — it is a ring, a focus outline or a drop line drawn without moving the layout,
+which is geometry rather than elevation; one with a blur has to be one of the two.
 
 Motion is short and only ever confirms something happened: the enter and exit of a menu or a sheet.
 Everything honours `prefers-reduced-motion`, and the Radix components carry `motion-reduce:animate-none`.
@@ -255,15 +263,23 @@ anything.
 | `text-input` | 16px | anything typed into on a phone — see below |
 
 Five sizes for the interface, and two that are not a matter of taste: a page read as a document
-has a title larger than any screen's, and a field on a phone has a floor set by iOS. The
-hand-written rules in `app.css` still carry sizes of their own, from 8px to 26px, which is not a
-scale but an accumulation — half a pixel of difference is a decision nobody made on purpose.
+has a title larger than any screen's, and a field on a phone has a floor set by iOS.
 
-**In the TypeScript there is nothing else.** `npm run check:tokens` refuses an arbitrary
+**There is nothing else, in the TypeScript or in `app.css`.** `npm run check:tokens` refuses an arbitrary
 `text-[…px]`, Tailwind's own `text-sm` and its siblings, and a `fontSize` written as a number in a
 style object. When the steps became classes, every arbitrary size was folded onto the nearest one:
 `12px` became `text-label`, `13px` became `text-body`, `11px` and `10px` became `text-caption`, and a
 `14px` heading became `text-title`. A half-pixel either way, on purpose this time.
+
+The hand-written rules followed later, and the same way. They held **26** font sizes from 8px to
+26px — not a scale but an accumulation, half a pixel of difference being a decision nobody made on
+purpose. Each became `var(--text-…)` at the nearest step, a tie going up, and `body` with them, from
+14px to 13.5px. One heading could not take the nearest: a markdown `h1` (22px) and `h2` (18px) both
+round to 19px, so the `h1` went up to `text-display` to keep the two apart. What stays off the
+scale is named in `tokens.mjs` with the reason: the guide's diagrams, which draw the app in
+miniature; an emoji in a picker, sized as an icon; a canvas label counter-scaled against the zoom;
+and the tab bar's labels, which at the caption step ran "Aufgaben" into "Posteingang" on a 340px
+phone — measured, not assumed.
 
 **The steps carry no line height.** Every one of them replaced an arbitrary size, and those set the
 size alone; a step that also set a line height would have moved every line of text it touched,
@@ -443,8 +459,8 @@ The port is deliberately incremental. The order inside one screen:
 2. Replace `style={{ … }}` with Tailwind classes. The inline style props that are left are the main
    reason two screens that should look the same do not. A value that comes from data — a label's
    colour, a bar's width — stays a style; a size or a corner never does.
-3. Sizes, radii and shadows are already steps — `check:tokens` sees to it in the TypeScript. What is
-   left to fold is the hand-written rule the screen leaned on in `app.css`.
+3. Sizes, radii and shadows are already steps — `check:tokens` sees to it, in the TypeScript and in
+   `app.css`. A rule moved out of the stylesheet keeps its step as the class of the same name.
 4. Delete the CSS class from `app.css` **once the last screen stops using it, and not before** —
    `node scripts/unstyled.mjs` after a build is how you know. This is the step that went wrong: the
    commit that added the field components deleted `.field` while seventy-six `<div class="field">`
