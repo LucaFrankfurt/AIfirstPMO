@@ -112,12 +112,35 @@ export const MenuSubTrigger = ({ className, ...props }: ComponentProps<typeof Pr
   />
 );
 
-export function MenuSubContent({ className, sideOffset = 4, ...props }: ComponentProps<typeof Primitive.SubContent>) {
+export function MenuSubContent({ className, sideOffset = 4, onFocusOutside, ...props }: ComponentProps<typeof Primitive.SubContent>) {
   return (
     <Primitive.Portal>
       <Primitive.SubContent
         sideOffset={sideOffset}
         collisionPadding={10}
+        /*
+         * A drawer that opened to the left of its menu shut on the first tick.
+         *
+         * When the pointer leaves a row of the menu, Radix moves focus to the
+         * menu itself unless it reckons the pointer is on its way into the
+         * submenu — and its reckoning, a polygon from the pointer to the
+         * submenu's near edge, came out wrong for a submenu on the left once a
+         * tick had re-rendered the row that opened it. Focus landed on the
+         * menu, which is outside the drawer, and the drawer closed with the
+         * pointer still on it. Keyboard ticks never moved the pointer and never
+         * closed it. A drawer only opens to the left when there is no room on
+         * the right, which is why nothing saw this while the filter sat in the
+         * header: it took the row of tools above the list, which puts the
+         * filter near the right edge, to make it the ordinary case.
+         *
+         * So focus moving to a menu's own surface — not to a row of it — does
+         * not close the drawer. Pointing at another row still does, because
+         * Radix focuses that row; Escape and a click outside still do.
+         */
+        onFocusOutside={(event) => {
+          if ((event.target as HTMLElement | null)?.getAttribute('role') === 'menu') event.preventDefault();
+          onFocusOutside?.(event);
+        }}
         className={cn(
           'menu z-50 min-w-[13rem] max-h-[min(24rem,var(--radix-dropdown-menu-content-available-height))] overflow-y-auto',
           floatingSurface, 'p-1 text-body',

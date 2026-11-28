@@ -427,6 +427,11 @@ await step('assignee filter: nobody, then a person beside it, in one visit', asy
 
     const drawer = page.locator('[role=menu]').last();
     if (!(await drawer.isVisible())) throw new Error('the menu closed after the first tick');
+    // The drawer, not just the menu: with only the menu left, `.last()` is the
+    // menu itself and the next line waited thirty seconds for a name it does
+    // not hold. A drawer that opened to the left of its menu used to shut on
+    // the first tick (see `MenuSubContent`), and this is how that read.
+    if (await page.locator('[role=menu]').count() < 2) throw new Error('the drawer closed after the first tick');
     await rungItem(drawer, name).first().click();
     await page.waitForTimeout(500);
     const both = await faces();
