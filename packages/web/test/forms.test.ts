@@ -327,7 +327,12 @@ describe('fields side by side', () => {
  * beside it, not in silence.
  */
 describe('a project made and a project changed', () => {
+  // Two files since the route was split: the create form stayed with the
+  // route, the settings tab moved beside it. Read apart, each list is checked
+  // against the other — read as one file after the split, the settings would
+  // have come back empty and the first case below says so rather than passing.
   const source = readFileSync(join(SRC, 'modules/planning/routes/projects.tsx'), 'utf8');
+  const settings = readFileSync(join(SRC, 'modules/planning/project-settings.tsx'), 'utf8');
 
   /** The fields the create form starts with — its own `useState` object. */
   const created = (() => {
@@ -339,7 +344,7 @@ describe('a project made and a project changed', () => {
 
   /** The fields the settings screen writes back. */
   const settable = new Set(
-    [...source.matchAll(/update\('project', projectId, \{\s*(\w+)/g)].map((match) => match[1]),
+    [...settings.matchAll(/update\('project', projectId, \{\s*(\w+)/g)].map((match) => match[1]),
   );
 
   it('reads both lists — a scan that finds nothing passes everything', () => {
@@ -510,9 +515,9 @@ describe('a create or edit sheet with typed input', () => {
     ['modules/kpis/routes/kpis.tsx', 'KpiForm'],
     ['modules/kpis/routes/kpis.tsx', 'ReadingForm'],
     ['modules/kpis/routes/kpis.tsx', 'TargetForm'],
-    ['modules/budgets/routes/budgets.tsx', 'BudgetForm'],
-    ['modules/budgets/routes/budgets.tsx', 'LineForm'],
-    ['modules/budgets/routes/budgets.tsx', 'ActualForm'],
+    ['modules/budgets/budget-settings.tsx', 'BudgetForm'],
+    ['modules/budgets/plan.tsx', 'LineForm'],
+    ['modules/budgets/actuals.tsx', 'ActualForm'],
     ['modules/products/product-form.tsx', 'ProductForm'],
   ];
 
@@ -690,11 +695,11 @@ describe('a bulk delete or archive', () => {
 describe('a write in the teams screen or a project tab', () => {
   const SCREENS: [string, string][] = [
     ['modules/work/routes/teams.tsx', 'Teams'],
-    ['modules/planning/routes/projects.tsx', 'Cycles'],
-    ['modules/planning/routes/projects.tsx', 'CyclePage'],
-    ['modules/planning/routes/projects.tsx', 'Modules'],
+    ['modules/planning/cycle-list.tsx', 'Cycles'],
+    ['modules/planning/routes/cycle.tsx', 'CyclePage'],
+    ['modules/planning/module-list.tsx', 'Modules'],
     ['modules/planning/routes/projects.tsx', 'ProjectPages'],
-    ['modules/planning/routes/projects.tsx', 'ProjectSettings'],
+    ['modules/planning/project-settings.tsx', 'ProjectSettings'],
   ];
   /** Where `canWrite` holds: `{canWrite && …}`, `(canWrite ? …)`, and inside `<fieldset disabled={!canWrite}>`. */
   const guarded = (body: string): [number, number][] => [
@@ -726,10 +731,14 @@ describe('a write in the teams screen or a project tab', () => {
 // A module's description had an editor only behind its own page's Edit button; a cycle's is in its sheet.
 describe("a module's sheet", () => {
   it("asks what the module is for, as a cycle's does, and saves it", () => {
-    const cycle = functionBody('modules/planning/routes/projects.tsx', 'CycleEditor');
-    const module = functionBody('modules/planning/routes/projects.tsx', 'ModuleEditor');
-    assert.match(cycle, /<MarkdownEditor[\s\S]*?form\.description/);
-    assert.match(module, /<MarkdownEditor[^>]*value=\{description\}/);
+    const cycle = functionBody('modules/planning/cycle-list.tsx', 'CycleEditor');
+    const module = functionBody('modules/planning/module-list.tsx', 'ModuleEditor');
+    // The editor is handed in by the route since the tabs left it (see
+    // `SettingsSlots`), so each sheet is asked two things: that what it is
+    // handed is the markdown editor, and that it writes the description with it.
+    for (const sheet of [cycle, module]) assert.match(sheet, /Editor: typeof MarkdownEditor/);
+    assert.match(cycle, /<Editor[\s\S]*?form\.description/);
+    assert.match(module, /<Editor[^>]*value=\{description\}/);
     assert.match(module, /const fields = \{[^\n]*\bdescription:/);
   });
 });

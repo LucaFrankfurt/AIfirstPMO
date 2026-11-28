@@ -33,7 +33,6 @@ import { cn } from '../../kernel/design-system/cn';
 import { navCount } from '../../kernel/design-system/ui/nav';
 import { Popover, PopoverContent, PopoverTrigger } from '../../kernel/design-system/ui/popover';
 import { GanttView } from '../planning/gantt';
-import { Progress } from '../../kernel/design-system/ui/progress';
 import { Segmented, SegmentedItem } from '../../kernel/design-system/ui/segmented';
 import { DataTable, Td, Th, Tr, rowOpen, tableCell } from '../../kernel/design-system/ui/data-table';
 
@@ -1146,20 +1145,3 @@ export function TaskViews(props: {
   return <ListView {...props} />;
 }
 
-/** Small helper used by cycle pages. */
-export function CycleProgress({ cycleId }: { cycleId: string }) {
-  const t = useT();
-  const tasks = useQuery(() => list('task', (t) => t.cycle_id === cycleId), [cycleId]);
-  const done = tasks.filter((task) => isDoneGroup(byId('state', task.state_id)?.group_key)).length;
-  const cycle = byId('cycle', cycleId);
-  return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-2 text-label">
-        <span className="flex-1 min-w-0 truncate">{cycle?.name}</span>
-        <span className="text-muted">{done}/{tasks.length}</span>
-      </div>
-      <Progress value={done} total={tasks.length} />
-      {cycle?.end_date && <span className="text-muted text-caption">{t('cycle.endsOn', { date: shortDate(cycle.end_date) })}</span>}
-    </div>
-  );
-}
