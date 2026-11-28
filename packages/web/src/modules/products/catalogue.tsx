@@ -19,6 +19,7 @@ import { useCanWrite } from '../../kernel/identity/session';
 import { statRow } from '../../kernel/design-system/ui/stat';
 import { cn } from '../../kernel/design-system/cn';
 import { HORIZON, termChip } from './parts';
+import { DataTable, Td, Th, Tr, cellLink } from '../../kernel/design-system/ui/data-table';
 
 /**
  * Every product at once, grouped by family.
@@ -128,40 +129,40 @@ export function Catalogue({ only }: { only: ProductKind }) {
         <div key={family.id ?? 'none'}>
           <SectionHeading>{family.name}</SectionHeading>
           <div className="table-wrap">
-            <table className="task-table">
+            <DataTable>
               <thead>
                 <tr>
-                  <th>{t('product.name')}</th>
+                  <Th>{t('product.name')}</Th>
                   {/*
-                    * The price and the standing are *not* `narrow`, and the
-                    * other three are. A phone drops every column marked narrow —
-                    * "the ones that are only useful for comparing", says the
-                    * stylesheet — and marking all five left a catalogue that was
+                    * The price and the standing are *not* `optional`, and the
+                    * other three are. A phone drops every optional column —
+                    * "only useful for comparing", says `DataTable` — and
+                    * marking all five left a catalogue that was
                     * a list of names and nothing else. The price and the verdict
                     * are the two somebody would read out loud.
                     */}
-                  <th>{t('product.price')}</th>
-                  <th className="narrow">{t('product.unitCost')}</th>
-                  <th className="narrow">{t('product.margin')}</th>
-                  <th className="narrow">{t('product.breakEven')}</th>
-                  {/* Only where every row is a package, and not `narrow`.
+                  <Th>{t('product.price')}</Th>
+                  <Th optional>{t('product.unitCost')}</Th>
+                  <Th optional>{t('product.margin')}</Th>
+                  <Th optional>{t('product.breakEven')}</Th>
+                  {/* Only where every row is a package, and not `optional`.
                       What the parts come to separately is the question this
                       tab exists for — folded away on a phone it would show
                       exactly what the catalogue shows, which is a tab that
                       earns nothing. Margin and break-even fold instead: those
                       are the comparing columns here. */}
-                  {only === 'bundle' && <th>{t('product.listValue')}</th>}
-                  {only === 'bundle' && <th>{t('product.saving')}</th>}
-                  <th>{t('product.healthLabel')}</th>
+                  {only === 'bundle' && <Th>{t('product.listValue')}</Th>}
+                  {only === 'bundle' && <Th>{t('product.saving')}</Th>}
+                  <Th>{t('product.healthLabel')}</Th>
                 </tr>
               </thead>
               <tbody>
                 {live.filter((entry) => (entry.product.group_id ?? null) === family.id)
                   .sort((a, b) => (b.economics.contribution ?? 0) - (a.economics.contribution ?? 0))
                   .map((entry) => (
-                    <tr key={entry.product.id}>
-                      <td>
-                        <Link className="cell-link" to={`/products/${entry.product.id}`}>{entry.product.name}</Link>
+                    <Tr key={entry.product.id}>
+                      <Td>
+                        <Link className={cellLink} to={`/products/${entry.product.id}`}>{entry.product.name}</Link>
                         {entry.product.kind === 'bundle' && only !== 'bundle' && <> <Chip>{t('product.package')}</Chip></>}
                         {entry.product.status !== 'active' && <> <Chip>{t(statusKey(entry.product.status))}</Chip></>}
                         {/* A campaign is the one thing that makes today's price
@@ -182,22 +183,23 @@ export function Catalogue({ only }: { only: ProductKind }) {
                             the ordinary case and adds nothing, so it is only
                             said when there is a choice to be seen.
 
-                            `narrow` on the chips rather than on a column,
-                            because they live inside the name. Spelled out on a
+                            Hidden on a phone the way an optional column is,
+                            but on the chips rather than on a column, because
+                            they live inside the name. Spelled out on a
                             360px screen they made this cell 363px wide on its
                             own and pushed the price off the side entirely —
                             information added by taking the subject away. The
                             span in the next column is the same fact said
                             short, so the phone keeps that one. */}
                         {entry.terms.length > 1 && (
-                          <span className="narrow">
+                          <span className="max-[700px]:hidden">
                             {entry.terms.map(({ months }) => (
                               <span key={months}> <Chip>{termChip(t, months)}</Chip></span>
                             ))}
                           </span>
                         )}
-                      </td>
-                      <td>
+                      </Td>
+                      <Td>
                         {entry.economics.price === null
                           ? <span className="money-flat">—</span>
                           /* The span when the commitment moves the price, because
@@ -211,10 +213,10 @@ export function Catalogue({ only }: { only: ProductKind }) {
                               high: asMoney(entry.terms[0]!.amount, entry.economics.currency, true),
                             })
                             : asMoney(entry.economics.price, entry.economics.currency, true)}
-                      </td>
-                      <td className="narrow">{asMoney(entry.economics.unitCost, entry.economics.currency, true)}</td>
-                      <td className="narrow"><Margin marginBps={entry.economics.marginBps} /></td>
-                      <td className="narrow">
+                      </Td>
+                      <Td optional>{asMoney(entry.economics.unitCost, entry.economics.currency, true)}</Td>
+                      <Td optional><Margin marginBps={entry.economics.marginBps} /></Td>
+                      <Td optional>
                         {entry.breakEven.units === null
                           ? <span className="money-flat">{t(blockedKey(entry.breakEven.blocked ?? 'no_price'))}</span>
                           : (
@@ -222,16 +224,16 @@ export function Catalogue({ only }: { only: ProductKind }) {
                               {t('product.breakEvenUnits', { units: String(entry.breakEven.units) })}
                             </span>
                           )}
-                      </td>
+                      </Td>
                       {only === 'bundle' && (
-                        <td>
+                        <Td>
                           {entry.bundle
                             ? asMoney(entry.bundle.listValue, entry.economics.currency, true)
                             : <span className="money-flat">—</span>}
-                        </td>
+                        </Td>
                       )}
                       {only === 'bundle' && (
-                        <td>
+                        <Td>
                           {/* A package dearer than its parts is a real state and
                               not an error — MAX asks 99 for 89 of parts because
                               one of them is unpriced. Negative is shown as it is
@@ -246,13 +248,13 @@ export function Catalogue({ only }: { only: ProductKind }) {
                                 )}
                               </span>
                             )}
-                        </td>
+                        </Td>
                       )}
-                      <td><Health entry={entry} /></td>
-                    </tr>
+                      <Td><Health entry={entry} /></Td>
+                    </Tr>
                   ))}
               </tbody>
-            </table>
+            </DataTable>
           </div>
         </div>
       ))}

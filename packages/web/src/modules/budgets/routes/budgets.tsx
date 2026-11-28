@@ -51,6 +51,7 @@ import { useCanWrite, useFeature } from '../../../kernel/identity/session';
 import { pageBody } from '../../../kernel/design-system/ui/page';
 import { statRow } from '../../../kernel/design-system/ui/stat';
 import { cn } from '../../../kernel/design-system/cn';
+import { DataTable, Td, Th, Tr, cellLink, rowOpen } from '../../../kernel/design-system/ui/data-table';
 
 /* A tick on a cumulative axis: the point in time the running total is read
    at, so a day is the honest label. Prose wants `monthName` instead. */
@@ -202,25 +203,25 @@ export function BudgetIndex() {
               concluded there were none. A summary is context for a list; it is
               not what an index is for. */}
           <div className="table-wrap">
-            <table className="task-table">
+            <DataTable>
               <thead>
                 <tr>
-                  <th>{t('budget.budget')}</th>
-                  <th>{t('budget.period')}</th>
-                  <th>{t('budget.status')}</th>
-                  <th className="num">{t('budget.approved')}</th>
-                  <th className="num">{t('budget.planned')}</th>
-                  <th className="num">{t('budget.actual')}</th>
-                  <th className="num">{t('budget.forecast')}</th>
-                  <th className="num">{t('budget.variance')}</th>
-                  <th />
+                  <Th>{t('budget.budget')}</Th>
+                  <Th>{t('budget.period')}</Th>
+                  <Th>{t('budget.status')}</Th>
+                  <Th numeric>{t('budget.approved')}</Th>
+                  <Th numeric>{t('budget.planned')}</Th>
+                  <Th numeric>{t('budget.actual')}</Th>
+                  <Th numeric>{t('budget.forecast')}</Th>
+                  <Th numeric>{t('budget.variance')}</Th>
+                  <Th />
                 </tr>
               </thead>
               <tbody>
                 {rolled.map(({ budget, totals }) => (
-                  <tr key={budget.id} onClick={() => navigate(`/budgets/${budget.id}`)}>
-                    <td className="title">
-                      <Link className="cell-link" to={`/budgets/${budget.id}`}>{budget.name}</Link>
+                  <Tr key={budget.id} onClick={() => navigate(`/budgets/${budget.id}`)}>
+                    <Td lead>
+                      <Link className={cellLink} to={`/budgets/${budget.id}`}>{budget.name}</Link>
                       {/* The row is nine columns wide and a phone shows two of
                           them, so the figure somebody came for was behind a
                           sideways scroll. It goes under the name on a narrow
@@ -232,19 +233,19 @@ export function BudgetIndex() {
                           planned: asMoney(totals.planned, totals.currency),
                         })}
                       </span>
-                    </td>
-                    <td>{totals.period.from} → {totals.period.to}</td>
-                    <td>{t(`budget.status.${budget.status}` as TranslationKey)}</td>
-                    <td className="num">{budget.approved ? asMoney(budget.approved, totals.currency) : '—'}</td>
-                    <td className="num">{asMoney(totals.planned, totals.currency)}</td>
-                    <td className="num">{asMoney(totals.actual, totals.currency)}</td>
-                    <td className="num">{asMoney(totals.forecast, totals.currency)}</td>
-                    <td className="num"><Variance value={totals.variance} currency={totals.currency} /></td>
-                    <td><Health totals={totals} /></td>
-                  </tr>
+                    </Td>
+                    <Td>{totals.period.from} → {totals.period.to}</Td>
+                    <Td>{t(`budget.status.${budget.status}` as TranslationKey)}</Td>
+                    <Td numeric>{budget.approved ? asMoney(budget.approved, totals.currency) : '—'}</Td>
+                    <Td numeric>{asMoney(totals.planned, totals.currency)}</Td>
+                    <Td numeric>{asMoney(totals.actual, totals.currency)}</Td>
+                    <Td numeric>{asMoney(totals.forecast, totals.currency)}</Td>
+                    <Td numeric><Variance value={totals.variance} currency={totals.currency} /></Td>
+                    <Td><Health totals={totals} /></Td>
+                  </Tr>
                 ))}
               </tbody>
-            </table>
+            </DataTable>
           </div>
 
           {/* `mt-5` rather than `tight`: this is no longer the top of the page. */}
@@ -599,35 +600,35 @@ function Plan({ budget }: { budget: Budget }) {
         <Empty emoji="🧾" title={t('budget.noLines')} hint={t('budget.noLinesHint')} />
       ) : (
         <div className="table-wrap">
-          <table className="task-table">
+          <DataTable>
             <thead>
               <tr>
-                <th>{t('budget.lineName')}</th>
-                <th>{t('budget.category')}</th>
-                <th>{t('budget.recurrence')}</th>
-                <th className="num">{t('budget.amountEach')}</th>
-                <th className="num">{t('budget.total')}</th>
-                {anyRegistered && <th className="num">{t('estate.fromRegister')}</th>}
-                <th>{t('budget.charges')}</th>
-                <th>{t('budget.confidence')}</th>
-                <th />
+                <Th>{t('budget.lineName')}</Th>
+                <Th>{t('budget.category')}</Th>
+                <Th>{t('budget.recurrence')}</Th>
+                <Th numeric>{t('budget.amountEach')}</Th>
+                <Th numeric>{t('budget.total')}</Th>
+                {anyRegistered && <Th numeric>{t('estate.fromRegister')}</Th>}
+                <Th>{t('budget.charges')}</Th>
+                <Th>{t('budget.confidence')}</Th>
+                <Th />
               </tr>
             </thead>
             <tbody>
               {sorted.map((line) => (
-                <tr key={line.id} onClick={() => canWrite && setEditing(line)}>
-                  <td className="title">
-                    {canWrite ? <button type="button" className="row-open">{line.name}</button> : line.name}
+                <Tr key={line.id} onClick={() => canWrite && setEditing(line)}>
+                  <Td lead>
+                    {canWrite ? <button type="button" className={rowOpen}>{line.name}</button> : line.name}
                     {line.vendor && <span className="row-sub">{line.vendor}</span>}
-                  </td>
-                  <td>{t(categoryKey(line.category))}</td>
-                  <td>{t(recurrenceKey(line.recurrence))}</td>
-                  <td className="num">{asMoney(line.amount, budget.currency)}</td>
-                  <td className="num">
+                  </Td>
+                  <Td>{t(categoryKey(line.category))}</Td>
+                  <Td>{t(recurrenceKey(line.recurrence))}</Td>
+                  <Td numeric>{asMoney(line.amount, budget.currency)}</Td>
+                  <Td numeric>
                     {totals ? asMoney(plannedTotal(line, totals.period), budget.currency) : '—'}
-                  </td>
+                  </Td>
                   {anyRegistered && (
-                    <td className="num">
+                    <Td numeric>
                       {fromRegister.has(line.id) ? (
                         <>
                           {asMoney(fromRegister.get(line.id)!, budget.currency)}
@@ -644,11 +645,11 @@ function Plan({ budget }: { budget: Budget }) {
                           )}
                         </>
                       ) : <span className="text-muted">—</span>}
-                    </td>
+                    </Td>
                   )}
-                  <td><AllocationChips allocations={line.allocations} names={names} /></td>
-                  <td><Chip>{t(confidenceKey(line.confidence))}</Chip></td>
-                  <td>
+                  <Td><AllocationChips allocations={line.allocations} names={names} /></Td>
+                  <Td><Chip>{t(confidenceKey(line.confidence))}</Chip></Td>
+                  <Td>
                     {canWrite && (
                       <Button
                         variant="ghost"
@@ -662,11 +663,11 @@ function Plan({ budget }: { budget: Budget }) {
                         <Icon name="trash" size={14} />
                       </Button>
                     )}
-                  </td>
-                </tr>
+                  </Td>
+                </Tr>
               ))}
             </tbody>
-          </table>
+          </DataTable>
         </div>
       )}
 
@@ -871,37 +872,37 @@ function Actuals({ budget }: { budget: Budget }) {
         <Empty emoji="🧾" title={t('budget.noActuals')} hint={t('budget.noActualsHint')} />
       ) : (
         <div className="table-wrap">
-          <table className="task-table">
+          <DataTable>
             <thead>
               <tr>
-                <th>{t('budget.spentOn')}</th>
-                <th>{t('budget.actualDescription')}</th>
-                <th>{t('budget.against')}</th>
-                <th>{t('budget.category')}</th>
-                <th>{t('budget.stage')}</th>
-                <th className="num">{t('budget.amount')}</th>
-                <th />
+                <Th>{t('budget.spentOn')}</Th>
+                <Th>{t('budget.actualDescription')}</Th>
+                <Th>{t('budget.against')}</Th>
+                <Th>{t('budget.category')}</Th>
+                <Th>{t('budget.stage')}</Th>
+                <Th numeric>{t('budget.amount')}</Th>
+                <Th />
               </tr>
             </thead>
             <tbody>
               {sorted.map((entry) => (
-                <tr key={entry.id} onClick={() => canWrite && setEditing(entry)}>
-                  <td>{shortDate(entry.spent_on)}</td>
-                  <td className="title">
-                    {canWrite ? <button type="button" className="row-open">{entry.description}</button> : entry.description}
+                <Tr key={entry.id} onClick={() => canWrite && setEditing(entry)}>
+                  <Td>{shortDate(entry.spent_on)}</Td>
+                  <Td lead>
+                    {canWrite ? <button type="button" className={rowOpen}>{entry.description}</button> : entry.description}
                     {entry.reference && <span className="row-sub">{entry.reference}</span>}
-                  </td>
-                  <td>
+                  </Td>
+                  <Td>
                     {entry.line_id
                       ? lineNames.get(entry.line_id) ?? t('budget.noLine')
                       : <span className="text-muted">{t('budget.noLine')}</span>}
-                  </td>
-                  <td>{t(categoryKey(entry.category))}</td>
-                  <td>
+                  </Td>
+                  <Td>{t(categoryKey(entry.category))}</Td>
+                  <Td>
                     <Chip className={STAGE_CLASS[entry.stage]}>{t(stageKey(entry.stage))}</Chip>
-                  </td>
-                  <td className="num">{asMoney(entry.amount, budget.currency)}</td>
-                  <td>
+                  </Td>
+                  <Td numeric>{asMoney(entry.amount, budget.currency)}</Td>
+                  <Td>
                     {canWrite && (
                       <Button
                         variant="ghost"
@@ -916,11 +917,11 @@ function Actuals({ budget }: { budget: Budget }) {
                         <Icon name="trash" size={14} />
                       </Button>
                     )}
-                  </td>
-                </tr>
+                  </Td>
+                </Tr>
               ))}
             </tbody>
-          </table>
+          </DataTable>
         </div>
       )}
 

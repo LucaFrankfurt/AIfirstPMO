@@ -347,8 +347,8 @@ tidiness. Below `sm` they get one row each, label at the start, control at the e
 
 ## Components
 
-The interactive primitives are Radix underneath, in `kernel/design-system/ui/`. Their wrappers in
-`kernel/design-system/ui.tsx` keep the API the screens already use.
+The primitives live one to a file in `kernel/design-system/ui/`, and the interactive ones are Radix
+underneath.
 
 | | Built on | Why not by hand |
 |---|---|---|
@@ -357,6 +357,7 @@ The interactive primitives are Radix underneath, in `kernel/design-system/ui/`. 
 | `Tooltip` | Radix Tooltip | appears on keyboard focus, not only under a pointer |
 | `Button` | CVA | one focus ring, one disabled state, one height table |
 | `Input`/`Select`/`Textarea` | CVA | one focus treatment, and the 16px rule above |
+| `DataTable`/`Th`/`Td`/`Tr` | CVA | what a cell is — `numeric`, `optional`, `wraps`, `lead` — as a prop, so a misspelling is a type error rather than a cell that looks slightly wrong |
 
 Still hand-written and still candidates, in the order they are worth doing: `Select` (a native one
 cannot be styled consistently or show an icon per option), `Checkbox`, `Tabs`, `Popover` for the
@@ -477,12 +478,12 @@ make the code worse:
 Everything that is a *component* — anything that appears twice — is Tailwind. Where that is not yet
 true, it is said here rather than left to be found:
 
-- **The data table** (`task-table`, `table-wrap`, and the cell markers `num`, `narrow`, `title`,
-  `actions`, `row-open`, `cell-link`, `wraps`) is still a block of descendant rules in `app.css`. It
-  is in the tables of most data screens, so it is a component and belongs in code. Written as one
-  utility string on `<table>` it would be the same rules in a form that is harder to read; what it
-  wants is a `DataTable` with `Th` and `Td` that take `numeric`, `optional`, `title` as props, and
-  each of the tables rewritten to use it. That is its own piece of work.
+- **The data table** was `.task-table`, a block of descendant rules that each cell opted into by
+  class name. It is `DataTable`, `Th`, `Td` and `Tr` in `ui/data-table.tsx` now, with `numeric`,
+  `optional`, `wraps` and `lead` as props — `lead` and not `title`, which is HTML's tooltip
+  attribute. What stays a class is `table-wrap`, the box a wide table scrolls in: `check:responsive`
+  knows it by name as a scroller that is meant, and the rule that lets it shrink inside a grid is
+  about its parent, which no prop on the table can reach.
 - **The long tail.** Most of the remaining classes are used by one screen each — `secret-flag`,
   `agenda-card`, `review-finding`, `ballot-mark` and their like. They are components of one screen,
   and they move when that screen is next worked on, by the steps in "Porting a screen" above.

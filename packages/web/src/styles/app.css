@@ -873,101 +873,6 @@ p { margin: 0 0 0.75em; }
 .table-wrap { min-width: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .grid > .table-wrap, .grid > :has(> .table-wrap) { min-width: 0; }
 
-.task-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.task-table th, .task-table td { text-align: start; padding: 8px 10px; white-space: nowrap; }
-/* A link in a table cell, big enough to hit.
-   An inline link is as tall as its text — fifteen pixels — and WCAG 2.2 asks
-   for twenty-four. The spec exempts a link inside a sentence, and rightly:
-   padding one out would break the paragraph around it. A table cell is not a
-   sentence, so the link gets the height instead of the exemption. */
-.cell-link { display: inline-flex; align-items: center; min-height: 24px; }
-.task-table thead th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: var(--bg);
-  border-bottom: 1px solid var(--line-strong);
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--fg-soft);
-}
-.task-table tbody tr { border-bottom: 1px solid var(--line); cursor: pointer; }
-.task-table tbody tr:hover { background: var(--bg-hover); }
-.task-table tbody tr.selected { background: var(--accent-soft); }
-.task-table tbody tr.done .title { color: var(--fg-muted); text-decoration: line-through; }
-.task-table tr.group th {
-  position: static;
-  padding-top: 14px;
-  border-bottom: 1px solid var(--line);
-  font-size: 12px;
-}
-.task-table tr.group .count { color: var(--fg-muted); font-weight: 500; margin-inline-start: 6px; }
-.task-table tr.group .state-dot { margin-inline-end: 6px; vertical-align: -1px; }
-.task-table .title { white-space: normal; min-width: 240px; }
-/* A row's name as a button, the keyboard's way into the row; its click bubbles to the row's handler. */
-.task-table .row-open { text-align: start; cursor: pointer; text-decoration: inherit; }
-/*
- * Prose in a cell, allowed to wrap.
- *
- * `.task-table td` is `nowrap` by default, which is right for an amount, a date
- * or a chip and wrong for a sentence: three nowrap sentence columns made the
- * capability table 200px wider than a tablet and pushed the column you act from
- * off the side. `.title` already says this, but it carries a 240px floor that
- * only makes sense for the column a row is named by.
- */
-.task-table .wraps { white-space: normal; }
-.task-table .identifier { font-family: var(--mono); font-size: 11.5px; color: var(--fg-muted); }
-.task-table .pick { width: 30px; }
-/* A column a project invented. Truncated rather than allowed to set the width. */
-.task-table .custom { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
-.task-table .sort {
-  display: inline-flex; align-items: center; gap: 3px;
-  border: none; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer;
-}
-.task-table .sort[aria-pressed='true'] { color: var(--fg); }
-
-/*
- * The column you act from, which is not one of the ones above.
- *
- * It used to be `narrow`, and `narrow` is dropped below 700px — so every
- * catalogue table on a phone could be read and not changed: no editing a
- * price, a cost, a contributor, a part, a scenario or a campaign, with no
- * hint that the buttons existed. Nothing announced it, because a missing
- * column looks exactly like a column that was never there.
- *
- * It was pinned to the trailing edge for a while, so the buttons would be
- * there without scrolling. Measured on a 360px phone it cost more than it
- * bought: three buttons are 218px of a 336px table — 65% — and an opaque
- * column that wide does not sit *beside* the row, it sits *on* it. The name,
- * the amount and the billing period were all underneath it, which is the
- * thing the column beside this one exists to prevent.
- *
- * So it scrolls with the rest. What makes the buttons reachable is the
- * `min-width: 0` above, which is what turned `overflow-x: auto` from a
- * promise into a scroll; the pinning was never the part that worked.
- */
-.task-table .actions { white-space: nowrap; }
-
-/* On a phone the columns that are only useful for comparing are dropped
-   rather than squeezed — the ones left are the ones you would read out. */
-@media (max-width: 700px) {
-  .task-table .narrow { display: none; }
-}
-
-/*
- * And on the narrowest screen the cells give back some of their gutter.
- *
- * Ten pixels either side is right at a comfortable width and is four columns'
- * worth of nothing at 340px: the costs table came to 343px there — three over,
- * which `responsive.mjs` reports rather than tolerates, because a box that
- * scrolls by a sliver is rounding rather than a decision. Seven leaves the
- * columns apart and the table inside the screen.
- */
-@media (max-width: 400px) {
-  .task-table th,
-  .task-table td { padding-inline: 7px; }
-}
-
 .trash-row { gap: 9px; padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 13px; }
 .trash-row:last-child { border-bottom: none; }
 
@@ -1406,10 +1311,6 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 .bar-track { flex: 1; height: 10px; border-radius: 5px; background: var(--bg-hover); overflow: hidden; }
 .bar-fill { display: block; height: 100%; border-radius: 5px; min-width: 2px; }
 .bar-value { flex: none; min-width: 24px; text-align: end; color: var(--fg-soft); }
-
-.chart-table { margin-top: 10px; }
-.chart-table summary { font-size: 12px; color: var(--fg-muted); cursor: pointer; }
-.chart-table .task-table { margin-top: 6px; }
 
 .lightbox {
   position: fixed; inset: 0; z-index: 90;
@@ -3656,16 +3557,9 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 
 /* ------------------------------------------------------------------ budgets
  *
- * Money is read in columns, so almost everything here is about alignment:
- * `tabular-nums` on every figure, and `text-align: end` on every cell that
- * holds one. A column of amounts whose digits do not line up cannot be
- * compared by eye, which is the only thing anybody does with it.
+ * The columns of amounts themselves are `numeric` cells of a `DataTable`
+ * (`ui/data-table.tsx`), which is where their alignment is explained.
  */
-
-.task-table th.num, .task-table td.num {
-  text-align: end;
-  font-variant-numeric: tabular-nums;
-}
 
 /* A second line under a row's title: a supplier under a cost, an invoice
    number under a description. Muted and smaller, so the row still reads as one
@@ -3813,9 +3707,8 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 
 /* --------------------------------------------------------- rates & time
  *
- * A timesheet is a grid people scan down a column of, so the numbers are
- * tabular and the weekend is tinted rather than hidden — Saturday with work on
- * it is worth noticing, and a column that is not there cannot be noticed.
+ * The timesheet's grid is a `DataTable`, and says why it looks as it does
+ * where it is drawn, in `modules/time/rates.tsx`.
  */
 
 .week-bar {
@@ -3825,22 +3718,6 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   margin-bottom: 14px;
   font-size: 13px;
 }
-
-.timesheet th.num, .timesheet td.num { min-width: 68px; }
-.timesheet .weekend { background: var(--bg-sunken); }
-.timesheet thead th { vertical-align: bottom; }
-.timesheet .day-name { display: block; font-weight: 600; }
-.timesheet .day-date { display: block; font-weight: 400; font-size: 11px; color: var(--fg-muted); }
-.timesheet tfoot th {
-  border-top: 1px solid var(--line-strong);
-  font-variant-numeric: tabular-nums;
-  text-align: end;
-  padding: 8px 10px;
-}
-.timesheet tfoot th:first-child { text-align: start; }
-/* A timesheet row is not a link. The hover the task table gives every row
-   would promise a screen that is not there. */
-.timesheet tbody tr { cursor: default; }
 
 .target-field {
   display: flex;

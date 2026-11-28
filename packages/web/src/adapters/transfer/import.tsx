@@ -25,6 +25,7 @@ import { Chip } from '../../kernel/design-system/ui/chip';
 import { Icon } from '../../kernel/design-system/ui/icon';
 import { Sheet } from '../../kernel/design-system/ui/sheet';
 import { useToast } from '../../kernel/design-system/ui/toast';
+import { DataTable, Td, Th, Tr } from '../../kernel/design-system/ui/data-table';
 
 const FIELD_KEY: Record<ImportField, TranslationKey> = {
   title: 'import.fieldTitle',
@@ -186,32 +187,32 @@ export function ImportSheet({ projectId, onClose }: { projectId: string; onClose
               </div>
 
               {preview.preview.length > 0 && (
-                <table className="task-table mb-3.5">
+                <DataTable className="mb-3.5">
                   <thead>
                     <tr>
-                      <th>{t('table.title')}</th>
-                      <th>{t('table.state')}</th>
-                      <th>{t('table.priority')}</th>
-                      <th>{t('table.due')}</th>
-                      <th>{t('table.assignees')}</th>
-                      <th>{t('table.labels')}</th>
+                      <Th>{t('table.title')}</Th>
+                      <Th>{t('table.state')}</Th>
+                      <Th>{t('table.priority')}</Th>
+                      <Th>{t('table.due')}</Th>
+                      <Th>{t('table.assignees')}</Th>
+                      <Th>{t('table.labels')}</Th>
                     </tr>
                   </thead>
                   <tbody>
                     {preview.preview.map((row, index) => (
-                      <tr key={index}>
-                        <td className="title">{row.title}</td>
-                        <td>{row.state ?? '—'}</td>
+                      <Tr key={index}>
+                        <Td lead>{row.title}</Td>
+                        <Td>{row.state ?? '—'}</Td>
                         {/* Translated, and the date already parsed: the point of
                             the preview is seeing what will land, not what was typed. */}
-                        <td>{t(priorityKey(row.priority))}</td>
-                        <td>{row.due ? shortDate(row.due) : '—'}</td>
-                        <td>{row.assignee ?? '—'}</td>
-                        <td>{row.labels.join(', ') || '—'}</td>
-                      </tr>
+                        <Td>{t(priorityKey(row.priority))}</Td>
+                        <Td>{row.due ? shortDate(row.due) : '—'}</Td>
+                        <Td>{row.assignee ?? '—'}</Td>
+                        <Td>{row.labels.join(', ') || '—'}</Td>
+                      </Tr>
                     ))}
                   </tbody>
-                </table>
+                </DataTable>
               )}
 
               {preview.problems.length > 0 && (

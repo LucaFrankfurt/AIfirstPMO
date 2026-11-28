@@ -30,6 +30,7 @@ import { MoneyInput, asMoney } from '../../kernel/design-system/ui/money';
 import { pageBody } from '../../kernel/design-system/ui/page';
 import { statHint, statLabel, statRow, statTile, statValue } from '../../kernel/design-system/ui/stat';
 import { cn } from '../../kernel/design-system/cn';
+import { DataTable, Td, Th, Tr, tableCell } from '../../kernel/design-system/ui/data-table';
 
 export const rateKindKey = (kind: string): TranslationKey => `rate.kind.${kind}` as TranslationKey;
 
@@ -131,54 +132,60 @@ export function Timesheet() {
       ) : (
         <>
           <div className="table-wrap">
-            <table className="task-table timesheet">
+            {/* A grid people scan down a column of: every figure tabular and at
+                least 68px wide, so the days line up whatever is in them, and the
+                weekend tinted rather than hidden — Saturday with work on it is
+                worth noticing, and a column that is not there cannot be. The
+                headings stand on the bottom edge, where a day's two lines and
+                the other columns' one line agree. */}
+            <DataTable>
               <thead>
                 <tr>
-                  <th>{by === 'user' ? t('timesheet.person') : t('budget.project')}</th>
+                  <Th className="align-bottom">{by === 'user' ? t('timesheet.person') : t('budget.project')}</Th>
                   {sheet.days.map((day, index) => (
-                    <th key={day} className={`num${index >= 5 ? ' weekend' : ''}`}>
-                      <span className="day-name">{dayLabel(day)}</span>
-                      <span className="day-date">{dayNumber(day)}</span>
-                    </th>
+                    <Th key={day} numeric className={cn('min-w-17 align-bottom', index >= 5 && 'bg-sunken')}>
+                      <span className="block font-semibold">{dayLabel(day)}</span>
+                      <span className="block text-caption font-normal text-muted">{dayNumber(day)}</span>
+                    </Th>
                   ))}
-                  <th className="num">{t('timesheet.total')}</th>
-                  {seesMoney && <th className="num">{t('rate.cost')}</th>}
+                  <Th numeric className="min-w-17 align-bottom">{t('timesheet.total')}</Th>
+                  {seesMoney && <Th numeric className="min-w-17 align-bottom">{t('rate.cost')}</Th>}
                 </tr>
               </thead>
               <tbody>
                 {sheet.rows.map((row) => (
-                  <tr key={row.key}>
-                    <td className="title">
+                  <Tr key={row.key}>
+                    <Td lead>
                       {row.key ? nameOf.get(row.key) ?? t('timesheet.unknown') : t('timesheet.noProject')}
                       {seesMoney && row.unratedMinutes > 0 && (
                         <span className="row-sub">{t('rate.unrated', { hours: duration(row.unratedMinutes) })}</span>
                       )}
-                    </td>
+                    </Td>
                     {row.days.map((minutes, index) => (
-                      <td key={index} className={`num${index >= 5 ? ' weekend' : ''}`}>
+                      <Td key={index} numeric className={cn('min-w-17', index >= 5 && 'bg-sunken')}>
                         {/* An empty cell rather than "0h". A zero in every gap
                             is a grid nobody can find the worked days in. */}
                         {minutes ? duration(minutes) : ''}
-                      </td>
+                      </Td>
                     ))}
-                    <td className="num"><strong>{duration(row.minutes)}</strong></td>
-                    {seesMoney && <td className="num"><Money of={row.cost} /></td>}
-                  </tr>
+                    <Td numeric className="min-w-17"><strong>{duration(row.minutes)}</strong></Td>
+                    {seesMoney && <Td numeric className="min-w-17"><Money of={row.cost} /></Td>}
+                  </Tr>
                 ))}
               </tbody>
               <tfoot>
-                <tr>
-                  <th>{t('timesheet.total')}</th>
+                <tr className="border-t border-line-strong">
+                  <th className={tableCell()}>{t('timesheet.total')}</th>
                   {sheet.perDay.map((minutes, index) => (
-                    <th key={index} className={`num${index >= 5 ? ' weekend' : ''}`}>
+                    <th key={index} className={cn(tableCell({ numeric: true }), 'min-w-17', index >= 5 && 'bg-sunken')}>
                       {minutes ? duration(minutes) : ''}
                     </th>
                   ))}
-                  <th className="num">{duration(sheet.totals.minutes)}</th>
-                  {seesMoney && <th className="num"><Money of={sheet.totals.cost} /></th>}
+                  <th className={cn(tableCell({ numeric: true }), 'min-w-17')}>{duration(sheet.totals.minutes)}</th>
+                  {seesMoney && <th className={cn(tableCell({ numeric: true }), 'min-w-17')}><Money of={sheet.totals.cost} /></th>}
                 </tr>
               </tfoot>
-            </table>
+            </DataTable>
           </div>
           {seesMoney && sheet.totals.unratedMinutes > 0 && (
             <p className="mt-2 text-label text-muted">{t('rate.unratedHint')}</p>
@@ -304,63 +311,63 @@ export function CostReport() {
 
       <SectionHeading tight>{t('rate.perProject')}</SectionHeading>
       <div className="table-wrap">
-        <table className="task-table">
+        <DataTable>
           <thead>
             <tr>
-              <th>{t('budget.project')}</th>
-              <th className="num">{t('rate.hours')}</th>
-              <th className="num">{t('rate.billable')}</th>
-              <th className="num">{t('rate.cost')}</th>
-              <th className="num">{t('rate.revenue')}</th>
-              <th className="num">{t('rate.margin')}</th>
+              <Th>{t('budget.project')}</Th>
+              <Th numeric>{t('rate.hours')}</Th>
+              <Th numeric>{t('rate.billable')}</Th>
+              <Th numeric>{t('rate.cost')}</Th>
+              <Th numeric>{t('rate.revenue')}</Th>
+              <Th numeric>{t('rate.margin')}</Th>
             </tr>
           </thead>
           <tbody>
             {perProject.map((row) => (
-              <tr key={row.key}>
-                <td className="title">
+              <Tr key={row.key}>
+                <Td lead>
                   {row.name}
                   {row.unratedMinutes > 0 && (
                     <span className="row-sub">{t('rate.unrated', { hours: duration(row.unratedMinutes) })}</span>
                   )}
-                </td>
-                <td className="num">{duration(row.minutes)}</td>
-                <td className="num">{duration(row.billableMinutes)}</td>
-                <td className="num"><Money of={row.cost} /></td>
-                <td className="num"><Money of={row.revenue} /></td>
-                <td className="num"><Money of={row.margin} /></td>
-              </tr>
+                </Td>
+                <Td numeric>{duration(row.minutes)}</Td>
+                <Td numeric>{duration(row.billableMinutes)}</Td>
+                <Td numeric><Money of={row.cost} /></Td>
+                <Td numeric><Money of={row.revenue} /></Td>
+                <Td numeric><Money of={row.margin} /></Td>
+              </Tr>
             ))}
           </tbody>
-        </table>
+        </DataTable>
       </div>
 
       <SectionHeading>{t('rate.perPerson')}</SectionHeading>
       <div className="table-wrap">
-        <table className="task-table">
+        <DataTable>
           <thead>
             <tr>
-              <th>{t('timesheet.person')}</th>
-              <th className="num">{t('rate.hours')}</th>
-              <th className="num">{t('rate.billable')}</th>
-              <th className="num">{t('rate.billableShare')}</th>
-              {target > 0 && <th className="num">{t('rate.againstTarget')}</th>}
+              <Th>{t('timesheet.person')}</Th>
+              <Th numeric>{t('rate.hours')}</Th>
+              <Th numeric>{t('rate.billable')}</Th>
+              <Th numeric>{t('rate.billableShare')}</Th>
+              {target > 0 && <Th numeric>{t('rate.againstTarget')}</Th>}
             </tr>
           </thead>
           <tbody>
             {perPerson.map((row) => (
-              <tr key={row.key}>
-                <td className="title">{nameOf.get(row.key) ?? t('timesheet.unknown')}</td>
-                <td className="num">{duration(row.minutes)}</td>
-                <td className="num">{duration(row.billableMinutes)}</td>
-                <td className="num">{row.share === null ? '—' : `${Math.round(row.share * 100)}%`}</td>
+              <Tr key={row.key}>
+                <Td lead>{nameOf.get(row.key) ?? t('timesheet.unknown')}</Td>
+                <Td numeric>{duration(row.minutes)}</Td>
+                <Td numeric>{duration(row.billableMinutes)}</Td>
+                <Td numeric>{row.share === null ? '—' : `${Math.round(row.share * 100)}%`}</Td>
                 {target > 0 && (
-                  <td className="num">{row.againstTarget === null ? '—' : `${Math.round(row.againstTarget * 100)}%`}</td>
+                  <Td numeric>{row.againstTarget === null ? '—' : `${Math.round(row.againstTarget * 100)}%`}</Td>
                 )}
-              </tr>
+              </Tr>
             ))}
           </tbody>
-        </table>
+        </DataTable>
       </div>
       <p className="mt-2 text-label text-muted">{t('rate.targetHint')}</p>
     </div>

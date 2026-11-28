@@ -20,6 +20,7 @@ import { useCanWrite } from '../../kernel/identity/session';
 import { cn } from '../../kernel/design-system/cn';
 import { noticeWarn } from '../../kernel/design-system/ui/notice';
 import { byOrder, payback } from './parts';
+import { DataTable, Td, Th, Tr, cellLink } from '../../kernel/design-system/ui/data-table';
 
 export function Promotions() {
   const t = useT();
@@ -65,54 +66,54 @@ export function Promotions() {
         <Empty emoji="📣" title={t('product.noPromotions')} hint={t('product.noPromotionsHint')} />
       ) : (
         <div className="table-wrap">
-          <table className="task-table">
+          <DataTable>
             <thead>
               <tr>
-                <th>{t('product.name')}</th>
-                <th>{t('product.promoValue')}</th>
-                <th className="narrow">{t('product.appliesTo')}</th>
-                <th className="narrow">{t('product.window')}</th>
-                <th className="narrow">{t('product.spend')}</th>
-                <th>{t('product.phaseLabel')}</th>
-                {canWrite && <th className="actions" />}
+                <Th>{t('product.name')}</Th>
+                <Th>{t('product.promoValue')}</Th>
+                <Th optional>{t('product.appliesTo')}</Th>
+                <Th optional>{t('product.window')}</Th>
+                <Th optional>{t('product.spend')}</Th>
+                <Th>{t('product.phaseLabel')}</Th>
+                {canWrite && <Th />}
               </tr>
             </thead>
             <tbody>
               {[...promotions].sort(byOrder).map((promotion) => {
                 const covered = [...promotion.products, ...promotion.groups];
                 return (
-                  <tr key={promotion.id}>
-                    <td>
+                  <Tr key={promotion.id}>
+                    <Td>
                       {/* The name is the way in. Everything computed about a
                           campaign is per covered product, which is a table,
                           and a table does not fit in a cell. */}
-                      <button type="button" className="cell-link" onClick={() => setOpened(promotion)}>
+                      <button type="button" className={cellLink} onClick={() => setOpened(promotion)}>
                         {promotion.name}
                       </button>
-                    </td>
-                    <td>
+                    </Td>
+                    <Td>
                       {promotion.kind === 'percent'
                         ? `${promotion.value / 100}%`
                         : asMoney(promotion.value, promotion.currency, true)}
                       {' '}<span className="text-caption text-muted">{t(promoKindKey(promotion.kind))}</span>
-                    </td>
-                    <td className="narrow">
+                    </Td>
+                    <Td optional>
                       {/* Both lists empty is the whole catalogue, which is a
                           claim worth spelling out — an empty cell would read as
                           "nothing", which is the opposite. */}
                       {covered.length
                         ? covered.map((id) => named.get(id) ?? id).join(', ')
                         : <span className="text-muted">{t('product.wholeCatalogue')}</span>}
-                    </td>
-                    <td className="narrow">
+                    </Td>
+                    <Td optional>
                       {promotion.starts_on ? shortDate(promotion.starts_on) : '…'}
                       {' → '}
                       {promotion.ends_on ? shortDate(promotion.ends_on) : '…'}
-                    </td>
-                    <td className="narrow">{asMoney(promotion.spend, promotion.currency, true)}</td>
-                    <td><Chip>{t(phaseKey(promotionPhase(promotion, day)))}</Chip></td>
+                    </Td>
+                    <Td optional>{asMoney(promotion.spend, promotion.currency, true)}</Td>
+                    <Td><Chip>{t(phaseKey(promotionPhase(promotion, day)))}</Chip></Td>
                     {canWrite && (
-                      <td className="actions">
+                      <Td>
                         <MenuButton
                           variant="ghost" size="iconSm"
                           label={t('common.moreActions')}
@@ -128,13 +129,13 @@ export function Promotions() {
                         >
                           <Icon name="dots" size={14} />
                         </MenuButton>
-                      </td>
+                      </Td>
                     )}
-                  </tr>
+                  </Tr>
                 );
               })}
             </tbody>
-          </table>
+          </DataTable>
         </div>
       )}
       {editing !== undefined && (
@@ -184,23 +185,23 @@ export function PromotionDetail({ promotion, onClose }: { promotion: Promotion; 
         <p className={noticeWarn}>{t('product.promoReachesNothing')}</p>
       ) : (
         <div className="table-wrap">
-          <table className="task-table">
+          <DataTable>
             <thead>
               <tr>
-                <th>{t('product.product')}</th>
-                <th className="narrow">{t('product.listPrice')}</th>
-                <th className="narrow">{t('product.withPromo')}</th>
-                <th className="narrow">{t('product.givenAway')}</th>
-                <th>{t('product.paysFrom')}</th>
+                <Th>{t('product.product')}</Th>
+                <Th optional>{t('product.listPrice')}</Th>
+                <Th optional>{t('product.withPromo')}</Th>
+                <Th optional>{t('product.givenAway')}</Th>
+                <Th>{t('product.paysFrom')}</Th>
               </tr>
             </thead>
             <tbody>
               {reached.map((row) => (
-                <tr key={row.product.id}>
-                  <td>{row.product.name}</td>
-                  <td className="narrow">{row.list === null ? '—' : asMoney(row.list, row.product.currency)}</td>
-                  <td className="narrow">{row.promoted === null ? '—' : asMoney(row.promoted, row.product.currency)}</td>
-                  <td className="narrow">
+                <Tr key={row.product.id}>
+                  <Td>{row.product.name}</Td>
+                  <Td optional>{row.list === null ? '—' : asMoney(row.list, row.product.currency)}</Td>
+                  <Td optional>{row.promoted === null ? '—' : asMoney(row.promoted, row.product.currency)}</Td>
+                  <Td optional>
                     {row.list === null ? '—' : (
                       /* Flat, not red: a discount given is not an overrun, and
                          whether it is bad news depends on what it buys. */
@@ -209,12 +210,12 @@ export function PromotionDetail({ promotion, onClose }: { promotion: Promotion; 
                         {row.discountBps !== null && ` (${Math.round(row.discountBps / 100)}%)`}
                       </span>
                     )}
-                  </td>
-                  <td>{payback(t, row.breakEven)}</td>
-                </tr>
+                  </Td>
+                  <Td>{payback(t, row.breakEven)}</Td>
+                </Tr>
               ))}
             </tbody>
-          </table>
+          </DataTable>
         </div>
       )}
       <p className="text-label text-muted">

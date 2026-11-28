@@ -47,6 +47,7 @@ import { pageBody } from '../../../kernel/design-system/ui/page';
 import { statRow } from '../../../kernel/design-system/ui/stat';
 import { cn } from '../../../kernel/design-system/cn';
 import { noticeWarn } from '../../../kernel/design-system/ui/notice';
+import { DataTable, Td, Th, Tr, cellLink, rowOpen } from '../../../kernel/design-system/ui/data-table';
 
 function SwitchedOff() {
   const t = useT();
@@ -94,23 +95,23 @@ export function KpiIndex() {
       ) : (
         <div className={pageBody}>
           <div className="table-wrap">
-            <table className="task-table">
+            <DataTable>
               <thead>
                 <tr>
-                  <th>{t('kpi.name')}</th>
-                  <th className="num">{t('kpi.current')}</th>
-                  <th className="num">{t('kpi.trend')}</th>
-                  <th className="num">{t('kpi.target')}</th>
-                  <th>{t('kpi.due')}</th>
-                  <th>{t('kpi.pace')}</th>
-                  <th />
+                  <Th>{t('kpi.name')}</Th>
+                  <Th numeric>{t('kpi.current')}</Th>
+                  <Th numeric>{t('kpi.trend')}</Th>
+                  <Th numeric>{t('kpi.target')}</Th>
+                  <Th>{t('kpi.due')}</Th>
+                  <Th>{t('kpi.pace')}</Th>
+                  <Th />
                 </tr>
               </thead>
               <tbody>
                 {rows.map(({ kpi, progress, trend }) => (
-                  <tr key={kpi.id} onClick={() => navigate(`/kpis/${kpi.id}`)}>
-                    <td className="title">
-                      <Link className="cell-link" to={`/kpis/${kpi.id}`}>{kpi.name}</Link>
+                  <Tr key={kpi.id} onClick={() => navigate(`/kpis/${kpi.id}`)}>
+                    <Td lead>
+                      <Link className={cellLink} to={`/kpis/${kpi.id}`}>{kpi.name}</Link>
                       {/* The row is seven columns wide and a phone shows two,
                           so what somebody came for goes under the name — and
                           only there. See `row-sub-sm` in the stylesheet.
@@ -123,17 +124,17 @@ export function KpiIndex() {
                         {progress.target !== null && ` → ${measure(progress.target, kpi)}`}
                         {` · ${t(healthKey(progress.health))}`}
                       </span>
-                    </td>
-                    <td className="num">{measure(progress.value, kpi)}</td>
-                    <td className="num"><Trend change={trend.change} better={trend.better} kpi={kpi} /></td>
-                    <td className="num">{measure(progress.target, kpi)}</td>
-                    <td>{progress.due ? shortDate(progress.due) : <span className="text-muted">—</span>}</td>
-                    <td><Pace progress={progress} /></td>
-                    <td><Health health={progress.health} /></td>
-                  </tr>
+                    </Td>
+                    <Td numeric>{measure(progress.value, kpi)}</Td>
+                    <Td numeric><Trend change={trend.change} better={trend.better} kpi={kpi} /></Td>
+                    <Td numeric>{measure(progress.target, kpi)}</Td>
+                    <Td>{progress.due ? shortDate(progress.due) : <span className="text-muted">—</span>}</Td>
+                    <Td><Pace progress={progress} /></Td>
+                    <Td><Health health={progress.health} /></Td>
+                  </Tr>
                 ))}
               </tbody>
-            </table>
+            </DataTable>
           </div>
 
           <SectionHeading>{t('kpi.summaryTitle')}</SectionHeading>
@@ -337,24 +338,24 @@ function Readings({ kpi, readings }: { kpi: Kpi; readings: KpiReading[] }) {
         <Empty emoji="📈" title={t('kpi.noReadings')} hint={t('kpi.noReadingsHint')} />
       ) : (
         <div className="table-wrap">
-          <table className="task-table">
+          <DataTable>
             <thead>
               <tr>
-                <th>{t('kpi.measuredOn')}</th>
-                <th className="num">{t('kpi.value')}</th>
-                <th>{t('kpi.source')}</th>
-                <th>{t('kpi.note')}</th>
-                <th />
+                <Th>{t('kpi.measuredOn')}</Th>
+                <Th numeric>{t('kpi.value')}</Th>
+                <Th>{t('kpi.source')}</Th>
+                <Th>{t('kpi.note')}</Th>
+                <Th />
               </tr>
             </thead>
             <tbody>
               {sorted.map((entry) => (
-                <tr key={entry.id} onClick={() => canWrite && setEditing(entry)}>
-                  <td>{canWrite ? <button type="button" className="row-open">{shortDate(entry.measured_on)}</button> : shortDate(entry.measured_on)}</td>
-                  <td className="num">{measure(entry.value, kpi)}</td>
-                  <td>{entry.source ?? <span className="text-muted">{t('kpi.noSource')}</span>}</td>
-                  <td className="text-muted">{entry.note}</td>
-                  <td>
+                <Tr key={entry.id} onClick={() => canWrite && setEditing(entry)}>
+                  <Td>{canWrite ? <button type="button" className={rowOpen}>{shortDate(entry.measured_on)}</button> : shortDate(entry.measured_on)}</Td>
+                  <Td numeric>{measure(entry.value, kpi)}</Td>
+                  <Td>{entry.source ?? <span className="text-muted">{t('kpi.noSource')}</span>}</Td>
+                  <Td className="text-muted">{entry.note}</Td>
+                  <Td>
                     {canWrite && (
                       <Button
                         variant="ghost"
@@ -369,11 +370,11 @@ function Readings({ kpi, readings }: { kpi: Kpi; readings: KpiReading[] }) {
                         <Icon name="trash" size={14} />
                       </Button>
                     )}
-                  </td>
-                </tr>
+                  </Td>
+                </Tr>
               ))}
             </tbody>
-          </table>
+          </DataTable>
         </div>
       )}
 
@@ -500,26 +501,26 @@ function Targets({ kpi, targets, modules }: {
         <Empty emoji="🎯" title={t('kpi.noTargets')} hint={t('kpi.noTargetsHint')} />
       ) : (
         <div className="table-wrap">
-          <table className="task-table">
+          <DataTable>
             <thead>
               <tr>
-                <th className="num">{t('kpi.value')}</th>
-                <th>{t('kpi.due')}</th>
-                <th>{t('kpi.milestone')}</th>
-                <th>{t('kpi.note')}</th>
-                <th />
+                <Th numeric>{t('kpi.value')}</Th>
+                <Th>{t('kpi.due')}</Th>
+                <Th>{t('kpi.milestone')}</Th>
+                <Th>{t('kpi.note')}</Th>
+                <Th />
               </tr>
             </thead>
             <tbody>
               {sorted.map((entry) => {
                 const due = dueOn(entry, modules);
                 return (
-                  <tr key={entry.id} onClick={() => canWrite && setEditing(entry)}>
-                    <td className="num title">
-                      {canWrite ? <button type="button" className="row-open">{measure(entry.value, kpi)}</button> : measure(entry.value, kpi)}
-                    </td>
-                    <td>{due ? shortDate(due) : <span className="text-muted">{t('kpi.undated')}</span>}</td>
-                    <td>
+                  <Tr key={entry.id} onClick={() => canWrite && setEditing(entry)}>
+                    <Td numeric lead>
+                      {canWrite ? <button type="button" className={rowOpen}>{measure(entry.value, kpi)}</button> : measure(entry.value, kpi)}
+                    </Td>
+                    <Td>{due ? shortDate(due) : <span className="text-muted">{t('kpi.undated')}</span>}</Td>
+                    <Td>
                       {entry.module_id
                         ? (
                           <span className="kpi-linked">
@@ -528,9 +529,9 @@ function Targets({ kpi, targets, modules }: {
                           </span>
                         )
                         : <span className="text-muted">—</span>}
-                    </td>
-                    <td className="text-muted">{entry.note}</td>
-                    <td>
+                    </Td>
+                    <Td className="text-muted">{entry.note}</Td>
+                    <Td>
                       {canWrite && (
                         <Button
                           variant="ghost"
@@ -545,12 +546,12 @@ function Targets({ kpi, targets, modules }: {
                           <Icon name="trash" size={14} />
                         </Button>
                       )}
-                    </td>
-                  </tr>
+                    </Td>
+                  </Tr>
                 );
               })}
             </tbody>
-          </table>
+          </DataTable>
         </div>
       )}
 
@@ -897,28 +898,28 @@ export function MilestoneKpis({ moduleId }: { moduleId: string }) {
       <SectionHeading>{t('kpi.onMilestone')}</SectionHeading>
       <p className="text-label text-muted">{t('kpi.onMilestoneHint')}</p>
       <div className="table-wrap">
-        <table className="task-table">
+        <DataTable>
           <thead>
             <tr>
-              <th>{t('kpi.name')}</th>
-              <th className="num">{t('kpi.current')}</th>
-              <th className="num">{t('kpi.target')}</th>
-              <th>{t('kpi.pace')}</th>
-              <th />
+              <Th>{t('kpi.name')}</Th>
+              <Th numeric>{t('kpi.current')}</Th>
+              <Th numeric>{t('kpi.target')}</Th>
+              <Th>{t('kpi.pace')}</Th>
+              <Th />
             </tr>
           </thead>
           <tbody>
             {rows.map(({ kpi, progress }) => (
-              <tr key={kpi.id}>
-                <td className="title"><Link to={`/kpis/${kpi.id}`}>{kpi.name}</Link></td>
-                <td className="num">{measure(progress.value, kpi)}</td>
-                <td className="num">{measure(progress.target, kpi)}</td>
-                <td><Pace progress={progress} /></td>
-                <td><Health health={progress.health} /></td>
-              </tr>
+              <Tr key={kpi.id}>
+                <Td lead><Link to={`/kpis/${kpi.id}`}>{kpi.name}</Link></Td>
+                <Td numeric>{measure(progress.value, kpi)}</Td>
+                <Td numeric>{measure(progress.target, kpi)}</Td>
+                <Td><Pace progress={progress} /></Td>
+                <Td><Health health={progress.health} /></Td>
+              </Tr>
             ))}
           </tbody>
-        </table>
+        </DataTable>
       </div>
     </div>
   );
@@ -952,26 +953,26 @@ export function ProjectKpis({ projectId }: { projectId: string }) {
   return (
     <div className={pageBody}>
       <div className="table-wrap">
-        <table className="task-table">
+        <DataTable>
           <thead>
             <tr>
-              <th>{t('kpi.name')}</th>
-              <th className="num">{t('kpi.current')}</th>
-              <th className="num">{t('kpi.target')}</th>
-              <th />
+              <Th>{t('kpi.name')}</Th>
+              <Th numeric>{t('kpi.current')}</Th>
+              <Th numeric>{t('kpi.target')}</Th>
+              <Th />
             </tr>
           </thead>
           <tbody>
             {rows.map(({ kpi, progress }) => (
-              <tr key={kpi.id}>
-                <td className="title"><Link to={`/kpis/${kpi.id}`}>{kpi.name}</Link></td>
-                <td className="num">{measure(progress.value, kpi)}</td>
-                <td className="num">{measure(progress.target, kpi)}</td>
-                <td><Health health={progress.health} /></td>
-              </tr>
+              <Tr key={kpi.id}>
+                <Td lead><Link to={`/kpis/${kpi.id}`}>{kpi.name}</Link></Td>
+                <Td numeric>{measure(progress.value, kpi)}</Td>
+                <Td numeric>{measure(progress.target, kpi)}</Td>
+                <Td><Health health={progress.health} /></Td>
+              </Tr>
             ))}
           </tbody>
-        </table>
+        </DataTable>
       </div>
     </div>
   );

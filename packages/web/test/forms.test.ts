@@ -395,10 +395,13 @@ describe('a product made', () => {
 });
 
 /**
- * The column you act from, and the one class it must never wear.
+ * The column you act from, and the one prop it must never carry.
  *
- * `.narrow` means "drop this below 700px" — it is for the columns that are
- * only useful for comparing, and the stylesheet says so. Six action cells in
+ * `optional` means "drop this below 700px" — it is for the columns that are
+ * only useful for comparing, and `DataTable` says so. (It was the class
+ * `narrow` when this test was written, and the cells said so by class name;
+ * the scan reads both, so a raw cell wearing the old class is still caught.)
+ * Six action cells in
  * the catalogue carried it anyway, so on a phone every products table could
  * be read and not changed: no editing a price, a cost, a contributor, a part,
  * a scenario or a campaign, and nothing to suggest the buttons existed. A
@@ -414,7 +417,9 @@ describe('every column you act from', () => {
   const cells = files.flatMap(({ path, text }) => {
     const lines = text.split('\n');
     return lines.flatMap((line, i) => {
-      const match = /<td\b[^>]*className="([^"]*)"/.exec(line);
+      // Any cell, with or without props: an action cell no longer has to carry
+      // a class to be one, and the scan used to find them by the class.
+      const match = /<(td|Td)\b([^>]*)>/.exec(line);
       if (!match) return [];
       /*
        * The buttons sit on the lines after the cell opens, so the scan reads
@@ -424,11 +429,12 @@ describe('every column you act from', () => {
        * of this test duly reported two innocent columns holding buttons they
        * do not hold.
        */
-      const closes = line.includes('</td>');
-      const end = closes ? i : lines.findIndex((l, j) => j > i && l.includes('</td>'));
+      const closing = `</${match[1]}>`;
+      const closes = line.includes(closing);
+      const end = closes ? i : lines.findIndex((l, j) => j > i && l.includes(closing));
       const body = lines.slice(i, end === -1 ? i + 1 : end + 1).join('\n');
       if (!/<Button\b|action\.edit|action\.delete/.test(body)) return [];
-      return [{ where: `${path.slice(SRC.length + 1)}:${i + 1}`, classes: match[1].split(/\s+/) }];
+      return [{ where: `${path.slice(SRC.length + 1)}:${i + 1}`, attributes: match[2] }];
     });
   });
 
@@ -437,8 +443,10 @@ describe('every column you act from', () => {
   });
 
   it('is never dropped on a phone', () => {
-    const folded = cells.filter((cell) => cell.classes.includes('narrow')).map((cell) => cell.where);
-    assert.deepEqual(folded, [], `action cell(s) marked \`narrow\`, so the buttons vanish below 700px: ${folded.join(', ')}`);
+    // The prop, the old class, and the utility either of them comes to.
+    const folds = /\boptional\b|className="[^"]*\bnarrow\b|max-\[700px\]:hidden/;
+    const folded = cells.filter((cell) => folds.test(cell.attributes)).map((cell) => cell.where);
+    assert.deepEqual(folded, [], `action cell(s) marked \`optional\`, so the buttons vanish below 700px: ${folded.join(', ')}`);
   });
 });
 
@@ -459,8 +467,10 @@ describe('deleting a label, a cycle or a module', () => {
 
 // A clickable row/card must also open from the keyboard (UX-02).
 describe('every row or card that opens on a click', () => {
+  // `Tr` as well as `tr`: a data table's rows are the component now, and a scan
+  // that only knew the element went from thirteen rows to one.
   const opens = files.flatMap(({ path, text }) =>
-    [...text.matchAll(/<(tr|article|li)\b/g)].flatMap((match) => {
+    [...text.matchAll(/<(tr|Tr|article|li)\b/g)].flatMap((match) => {
       const tag = text.slice(match.index!, endOfTag(text, match.index!));
       if (!/\bonClick=/.test(tag)) return [];
       const close = text.indexOf(`</${match[1]}>`, match.index!);

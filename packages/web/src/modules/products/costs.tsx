@@ -21,6 +21,7 @@ import { useCanWrite } from '../../kernel/identity/session';
 import { statRow } from '../../kernel/design-system/ui/stat';
 import { cn } from '../../kernel/design-system/cn';
 import { byOrder } from './parts';
+import { DataTable, Td, Th, Tr } from '../../kernel/design-system/ui/data-table';
 
 export function Costs({ product }: { product: Product }) {
   const t = useT();
@@ -64,27 +65,27 @@ export function Costs({ product }: { product: Product }) {
       ) : (
         <>
           <div className="table-wrap">
-            <table className="task-table">
+            <DataTable>
               <thead>
                 <tr>
-                  <th>{t('product.name')}</th>
-                  <th>{t('product.basisLabel')}</th>
-                  <th className="narrow">{t('product.category')}</th>
-                  <th>{t('product.amount')}</th>
-                  <th className="narrow">{t('product.vendor')}</th>
-                  {canWrite && <th className="actions" />}
+                  <Th>{t('product.name')}</Th>
+                  <Th>{t('product.basisLabel')}</Th>
+                  <Th optional>{t('product.category')}</Th>
+                  <Th>{t('product.amount')}</Th>
+                  <Th optional>{t('product.vendor')}</Th>
+                  {canWrite && <Th />}
                 </tr>
               </thead>
               <tbody>
                 {[...costs].sort(byOrder).map((cost) => (
-                  <tr key={cost.id}>
-                    <td>{cost.name}</td>
-                    <td>{t(basisKey(cost.basis))}</td>
-                    <td className="narrow">{t(categoryKey(cost.category))}</td>
-                    <td>{asMoney(cost.amount, product.currency)}</td>
-                    <td className="narrow">{cost.vendor ?? '—'}</td>
+                  <Tr key={cost.id}>
+                    <Td>{cost.name}</Td>
+                    <Td>{t(basisKey(cost.basis))}</Td>
+                    <Td optional>{t(categoryKey(cost.category))}</Td>
+                    <Td>{asMoney(cost.amount, product.currency)}</Td>
+                    <Td optional>{cost.vendor ?? '—'}</Td>
                     {canWrite && (
-                      <td className="actions">
+                      <Td>
                         <MenuButton
                           variant="ghost" size="iconSm"
                           label={t('common.moreActions')}
@@ -100,12 +101,12 @@ export function Costs({ product }: { product: Product }) {
                         >
                           <Icon name="dots" size={14} />
                         </MenuButton>
-                      </td>
+                      </Td>
                     )}
-                  </tr>
+                  </Tr>
                 ))}
               </tbody>
-            </table>
+            </DataTable>
           </div>
           <div>
             <SectionHeading>{t('product.byCategory')}</SectionHeading>

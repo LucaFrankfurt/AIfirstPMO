@@ -25,6 +25,7 @@ import { cn } from '../../kernel/design-system/cn';
 import { noticeWarn } from '../../kernel/design-system/ui/notice';
 import { HORIZON, byOrder } from './parts';
 import { ProductForm } from './product-form';
+import { DataTable, Td, Th, Tr, cellLink } from '../../kernel/design-system/ui/data-table';
 
 export function Overview({ product, entry }: { product: Product; entry: CatalogueEntry }) {
   const t = useT();
@@ -219,27 +220,27 @@ export function Contributors({ product, contributors }: { product: Product; cont
       <p className="text-label text-muted">{t('product.contributorsHint')}</p>
       {contributors.length > 0 && (
         <div className="table-wrap">
-          <table className="task-table">
+          <DataTable>
             <thead>
               <tr>
-                <th>{t('product.name')}</th>
-                <th className="narrow">{t('product.role')}</th>
-                <th className="narrow">{t('product.organisation')}</th>
-                <th>{t('product.fee')}</th>
-                <th>{t('product.basisLabel')}</th>
-                {canWrite && <th className="actions" />}
+                <Th>{t('product.name')}</Th>
+                <Th optional>{t('product.role')}</Th>
+                <Th optional>{t('product.organisation')}</Th>
+                <Th>{t('product.fee')}</Th>
+                <Th>{t('product.basisLabel')}</Th>
+                {canWrite && <Th />}
               </tr>
             </thead>
             <tbody>
               {[...contributors].sort(byOrder).map((person) => (
-                <tr key={person.id}>
-                  <td>{person.email ? <a className="cell-link" href={`mailto:${person.email}`}>{person.name}</a> : person.name}</td>
-                  <td className="narrow">{person.role ?? '—'}</td>
-                  <td className="narrow">{person.organisation ?? '—'}</td>
-                  <td>{asMoney(person.fee, product.currency, true)}</td>
-                  <td>{t(basisKey(person.fee_basis))}</td>
+                <Tr key={person.id}>
+                  <Td>{person.email ? <a className={cellLink} href={`mailto:${person.email}`}>{person.name}</a> : person.name}</Td>
+                  <Td optional>{person.role ?? '—'}</Td>
+                  <Td optional>{person.organisation ?? '—'}</Td>
+                  <Td>{asMoney(person.fee, product.currency, true)}</Td>
+                  <Td>{t(basisKey(person.fee_basis))}</Td>
                   {canWrite && (
-                    <td className="actions">
+                    <Td>
                       <MenuButton
                         variant="ghost" size="iconSm"
                         label={t('common.moreActions')}
@@ -255,12 +256,12 @@ export function Contributors({ product, contributors }: { product: Product; cont
                       >
                         <Icon name="dots" size={14} />
                       </MenuButton>
-                    </td>
+                    </Td>
                   )}
-                </tr>
+                </Tr>
               ))}
             </tbody>
-          </table>
+          </DataTable>
         </div>
       )}
       {canWrite && (

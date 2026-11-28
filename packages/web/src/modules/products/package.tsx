@@ -20,6 +20,7 @@ import { useCanWrite } from '../../kernel/identity/session';
 import { statRow } from '../../kernel/design-system/ui/stat';
 import { noticeWarn } from '../../kernel/design-system/ui/notice';
 import { byOrder } from './parts';
+import { DataTable, Td, Th, Tr, cellLink } from '../../kernel/design-system/ui/data-table';
 
 export function Package({ product, entry }: { product: Product; entry: CatalogueEntry }) {
   const t = useT();
@@ -94,72 +95,72 @@ export function Package({ product, entry }: { product: Product; entry: Catalogue
           <SectionHeading>{t('product.periodsHeading')}</SectionHeading>
           <p className="text-label text-muted">{t('product.periodsHint')}</p>
           <div className="table-wrap">
-            <table className="task-table">
+            <DataTable>
               <thead>
                 <tr>
-                  <th>{t('product.billingLabel')}</th>
+                  <Th>{t('product.billingLabel')}</Th>
                   {/* The two comparison columns drop on a phone, which is what
-                      `narrow` is for. What is left answers the question
+                      `optional` is for. What is left answers the question
                       somebody opens this on a phone to ask: what does this
                       package cost me, and how often. */}
-                  <th className="narrow">{t('product.listValue')}</th>
-                  <th>{t('product.packagePrice')}</th>
-                  <th className="narrow">{t('product.saving')}</th>
+                  <Th optional>{t('product.listValue')}</Th>
+                  <Th>{t('product.packagePrice')}</Th>
+                  <Th optional>{t('product.saving')}</Th>
                   {/* The cost belongs beside the price it is subtracted from.
                       The figures above the table describe the quoted period
                       alone, so a one-off setup's cost is not in the margin —
                       and a column that never mentions it is the flattering
                       half of an honest split. */}
-                  <th className="narrow">{t('product.unitCost')}</th>
+                  <Th optional>{t('product.unitCost')}</Th>
                 </tr>
               </thead>
               <tbody>
                 {value.periods.map((line) => (
-                  <tr key={line.recurrence}>
-                    <td>
+                  <Tr key={line.recurrence}>
+                    <Td>
                       {t(billingKey(line.recurrence))}
                       {line.recurrence === value.recurrence && <> <Chip>{t('product.appliesNow')}</Chip></>}
-                    </td>
-                    <td className="narrow">{asMoney(line.listValue, product.currency)}</td>
-                    <td>
+                    </Td>
+                    <Td optional>{asMoney(line.listValue, product.currency)}</Td>
+                    <Td>
                       {line.price === null
                         ? <span className="text-muted">{t('product.periodNotCharged')}</span>
                         : asMoney(line.price, product.currency)}
-                    </td>
+                    </Td>
                     {/* No colour on the direction, the same reasoning the price
                         history gives: whether a premium is good news depends on
                         which side of the invoice the reader is on. */}
-                    <td className="narrow">
+                    <Td optional>
                       {line.saving === null ? '—' : (
                         <span className="money-flat">
                           {line.saving > 0 ? '+' : ''}{asMoney(line.saving, product.currency, true)}
                           {line.savingBps !== null && ` (${line.saving > 0 ? '+' : ''}${Math.round(line.savingBps / 100)}%)`}
                         </span>
                       )}
-                    </td>
-                    <td className="narrow">
+                    </Td>
+                    <Td optional>
                       {(() => {
                         const spent = entry.economics.unitCostByPeriod
                           .find((row) => row.recurrence === line.recurrence);
                         return spent ? asMoney(spent.amount, product.currency) : '—';
                       })()}
-                    </td>
-                  </tr>
+                    </Td>
+                  </Tr>
                 ))}
               </tbody>
-            </table>
+            </DataTable>
           </div>
         </div>
       )}
 
       <div className="table-wrap">
-        <table className="task-table">
+        <DataTable>
           <thead>
             <tr>
-              <th>{t('product.part')}</th>
-              <th>{t('product.quantity')}</th>
-              <th>{t('product.price')}</th>
-              {canWrite && <th className="actions" />}
+              <Th>{t('product.part')}</Th>
+              <Th>{t('product.quantity')}</Th>
+              <Th>{t('product.price')}</Th>
+              {canWrite && <Th />}
             </tr>
           </thead>
           <tbody>
@@ -167,14 +168,14 @@ export function Package({ product, entry }: { product: Product; entry: Catalogue
               const child = named.get(part.part_id);
               const price = priceFor(pricesOf.get(part.part_id) ?? [], { quantity: part.quantity, on: day });
               return (
-                <tr key={part.id}>
-                  <td>{child ? <Link className="cell-link" to={`/products/${child.id}`}>{child.name}</Link> : t('product.unknownPart')}</td>
-                  <td>{part.quantity}</td>
-                  <td>
+                <Tr key={part.id}>
+                  <Td>{child ? <Link className={cellLink} to={`/products/${child.id}`}>{child.name}</Link> : t('product.unknownPart')}</Td>
+                  <Td>{part.quantity}</Td>
+                  <Td>
                     {price ? asMoney(price.amount * part.quantity, product.currency) : <span className="money-flat">—</span>}
-                  </td>
+                  </Td>
                   {canWrite && (
-                    <td className="actions">
+                    <Td>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -187,13 +188,13 @@ export function Package({ product, entry }: { product: Product; entry: Catalogue
                       >
                         <Icon name="trash" size={14} />
                       </Button>
-                    </td>
+                    </Td>
                   )}
-                </tr>
+                </Tr>
               );
             })}
           </tbody>
-        </table>
+        </DataTable>
       </div>
 
       {canWrite && (

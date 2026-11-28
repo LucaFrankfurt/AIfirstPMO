@@ -21,6 +21,7 @@ import { useCanWrite } from '../../kernel/identity/session';
 import { cn } from '../../kernel/design-system/cn';
 import { noticeWarn } from '../../kernel/design-system/ui/notice';
 import { byOrder, termLabel } from './parts';
+import { DataTable, Td, Th, Tr } from '../../kernel/design-system/ui/data-table';
 
 export function Prices({ product }: { product: Product }) {
   const t = useT();
@@ -60,44 +61,44 @@ export function Prices({ product }: { product: Product }) {
         <Empty emoji="💶" title={t('product.noPrices')} hint={t('product.noPricesHint')} />
       ) : (
         <div className="table-wrap">
-          <table className="task-table">
+          <DataTable>
             <thead>
               <tr>
-                <th>{t('product.priceName')}</th>
-                <th className="narrow">{t('product.priceKindLabel')}</th>
-                <th>{t('product.amount')}</th>
-                <th className="narrow">{t('product.minQuantity')}</th>
-                <th>{t('product.billingLabel')}</th>
-                <th className="narrow">{t('product.priceTerm')}</th>
-                <th className="narrow">{t('product.window')}</th>
-                {canWrite && <th className="actions" />}
+                <Th>{t('product.priceName')}</Th>
+                <Th optional>{t('product.priceKindLabel')}</Th>
+                <Th>{t('product.amount')}</Th>
+                <Th optional>{t('product.minQuantity')}</Th>
+                <Th>{t('product.billingLabel')}</Th>
+                <Th optional>{t('product.priceTerm')}</Th>
+                <Th optional>{t('product.window')}</Th>
+                {canWrite && <Th />}
               </tr>
             </thead>
             <tbody>
               {[...current].sort(byOrder).map((price) => (
-                <tr key={price.id}>
-                  <td>
+                <Tr key={price.id}>
+                  <Td>
                     {price.name || t('product.unnamedPrice')}
                     {/* Which row actually applies today, at quantity one. Four
                         prices in a column and no mark is four prices somebody
                         has to work it out from. */}
                     {applied?.id === price.id && <> <Chip>{t('product.appliesNow')}</Chip></>}
-                  </td>
-                  <td className="narrow">{t(priceKindKey(price.kind))}</td>
-                  <td>{asMoney(price.amount, product.currency)}</td>
-                  <td className="narrow">{price.min_quantity}</td>
-                  <td>{t(billingKey(price.recurrence))}</td>
+                  </Td>
+                  <Td optional>{t(priceKindKey(price.kind))}</Td>
+                  <Td>{asMoney(price.amount, product.currency)}</Td>
+                  <Td optional>{price.min_quantity}</Td>
+                  <Td>{t(billingKey(price.recurrence))}</Td>
                   {/* Without this column three prices at three terms are three
                       identical rows at three different amounts, which is what
                       made them look like a mistake. */}
-                  <td className="narrow">{termLabel(t, price, product)}</td>
-                  <td className="narrow">
+                  <Td optional>{termLabel(t, price, product)}</Td>
+                  <Td optional>
                     {price.valid_from ? shortDate(price.valid_from) : '…'}
                     {' → '}
                     {price.valid_to ? shortDate(price.valid_to) : '…'}
-                  </td>
+                  </Td>
                   {canWrite && (
-                    <td className="actions">
+                    <Td>
                       <MenuButton
                         variant="ghost" size="iconSm"
                         label={t('common.moreActions')}
@@ -114,12 +115,12 @@ export function Prices({ product }: { product: Product }) {
                       >
                         <Icon name="dots" size={14} />
                       </MenuButton>
-                    </td>
+                    </Td>
                   )}
-                </tr>
+                </Tr>
               ))}
             </tbody>
-          </table>
+          </DataTable>
         </div>
       )}
       {history.length > 0 && (
@@ -130,23 +131,23 @@ export function Prices({ product }: { product: Product }) {
               price. See `priceHistory`. */}
           <p className="text-label text-muted">{t('product.priceHistoryHint')}</p>
           <div className="table-wrap">
-            <table className="task-table">
+            <DataTable>
               <thead>
                 <tr>
-                  <th>{t('product.changedOn')}</th>
-                  <th>{t('product.priceName')}</th>
-                  <th className="narrow">{t('product.wasAmount')}</th>
-                  <th className="narrow">{t('product.becameAmount')}</th>
-                  <th className="narrow">{t('product.changeBy')}</th>
+                  <Th>{t('product.changedOn')}</Th>
+                  <Th>{t('product.priceName')}</Th>
+                  <Th optional>{t('product.wasAmount')}</Th>
+                  <Th optional>{t('product.becameAmount')}</Th>
+                  <Th optional>{t('product.changeBy')}</Th>
                 </tr>
               </thead>
               <tbody>
                 {[...history].reverse().map((change) => (
-                  <tr key={`${change.from.id}-${change.to.id}`}>
-                    <td>{shortDate(change.on)}</td>
-                    <td>{change.to.name || t('product.unnamedPrice')} <span className="text-caption text-muted">{t(priceKindKey(change.to.kind))} · {t(billingKey(change.to.recurrence))}</span></td>
-                    <td className="narrow">{asMoney(change.from.amount, product.currency)}</td>
-                    <td className="narrow">{asMoney(change.to.amount, product.currency)}</td>
+                  <Tr key={`${change.from.id}-${change.to.id}`}>
+                    <Td>{shortDate(change.on)}</Td>
+                    <Td>{change.to.name || t('product.unnamedPrice')} <span className="text-caption text-muted">{t(priceKindKey(change.to.kind))} · {t(billingKey(change.to.recurrence))}</span></Td>
+                    <Td optional>{asMoney(change.from.amount, product.currency)}</Td>
+                    <Td optional>{asMoney(change.to.amount, product.currency)}</Td>
                     {/*
                       * No colour on the direction, deliberately. The classes to
                       * hand are the budget's — `money-over` is red and means
@@ -156,16 +157,16 @@ export function Prices({ product }: { product: Product }) {
                       * invoice the reader is on, which is not ours to decide; the
                       * sign and the percentage say what happened and stop there.
                       */}
-                    <td className="narrow">
+                    <Td optional>
                       <span className="money-flat">
                         {change.delta > 0 ? '+' : ''}{asMoney(change.delta, product.currency, true)}
                         {change.deltaBps !== null && ` (${change.delta > 0 ? '+' : ''}${Math.round(change.deltaBps / 100)}%)`}
                       </span>
-                    </td>
-                  </tr>
+                    </Td>
+                  </Tr>
                 ))}
               </tbody>
-            </table>
+            </DataTable>
           </div>
         </div>
       )}

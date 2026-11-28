@@ -46,8 +46,8 @@ const MARKERS = new Set([
   'kpi-row', 'stat', 'stat-label', 'stat-value', 'stat-hint', // My work's figures (`ui/stat.ts`)
   'mono',         // a task's key, which the walkthrough reads to know which task it has
   // Table columns name themselves so a column-visibility setting can address
-  // them. The widths come from `.narrow` and from the table, not from these.
-  'type', 'state', 'assignees', 'priority', 'due_date', 'estimate', 'labels', 'created_by', 'updated_at',
+  // them. Their looks come from `Th` and `Td` (`ui/data-table.tsx`), not these.
+  'type', 'identifier', 'state', 'assignees', 'priority', 'due_date', 'estimate', 'labels', 'created_by', 'updated_at',
   'auto-recipient',
   // The team chat's composer: the walkthrough finds its field and its send
   // button inside it. `Composer` draws itself with utilities.

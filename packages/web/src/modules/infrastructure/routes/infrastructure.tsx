@@ -36,6 +36,8 @@ import { TabButton, TabList } from '../../../kernel/design-system/ui/tabs';
 import { useCanWrite, useFeature } from '../../../kernel/identity/session';
 import { pageBody } from '../../../kernel/design-system/ui/page';
 import { statHint, statLabel, statRow, statTile, statValue } from '../../../kernel/design-system/ui/stat';
+import { cn } from '../../../kernel/design-system/cn';
+import { DataTable, Td, Th, Tr, cellLink, rowOpen } from '../../../kernel/design-system/ui/data-table';
 
 const TABS = ['register', 'landscape', 'moves', 'vendors'] as const;
 type Tab = (typeof TABS)[number];
@@ -155,45 +157,45 @@ function Register() {
         <Empty emoji="🗄️" title={t('estate.emptyTitle')} hint={t('estate.emptyHint')} />
       ) : (
         <div className="table-wrap">
-          <table className="task-table">
+          <DataTable>
             <thead>
               <tr>
-                <th>{t('estate.name')}</th>
-                <th>{t('estate.kindLabel')}</th>
-                <th>{t('estate.environment')}</th>
-                <th>{t('estate.vendor')}</th>
-                <th>{t('estate.statusLabel')}</th>
-                <th>{t('estate.window')}</th>
-                <th className="num">{t('estate.cost')}</th>
-                <th />
+                <Th>{t('estate.name')}</Th>
+                <Th>{t('estate.kindLabel')}</Th>
+                <Th>{t('estate.environment')}</Th>
+                <Th>{t('estate.vendor')}</Th>
+                <Th>{t('estate.statusLabel')}</Th>
+                <Th>{t('estate.window')}</Th>
+                <Th numeric>{t('estate.cost')}</Th>
+                <Th />
               </tr>
             </thead>
             <tbody>
               {rows.map(({ component, depth }) => (
-                <tr key={component.id} onClick={() => canWrite && setEditing(component)}>
-                  <td className="title">
+                <Tr key={component.id} onClick={() => canWrite && setEditing(component)}>
+                  <Td lead>
                     {/* Depth as padding rather than as a separate column: an
                         instance is a thing on a machine, not a different kind
                         of row. */}
                     <span style={{ paddingInlineStart: depth * 18 }}>
                       {depth > 0 && <span className="tree-branch" aria-hidden>└ </span>}
-                      {canWrite ? <button type="button" className="row-open cell-link">{component.name}</button> : component.name}
+                      {canWrite ? <button type="button" className={cn(rowOpen, cellLink)}>{component.name}</button> : component.name}
                     </span>
                     {component.reference && <span className="row-sub" style={{ paddingInlineStart: depth * 18 }}>{component.reference}</span>}
-                  </td>
-                  <td>{t(kindKey(component.kind))}</td>
-                  <td>{t(envKey(component.environment))}</td>
-                  <td>{vendors.get(component.vendor_id ?? '')?.name ?? <span className="text-muted">—</span>}</td>
-                  <td><Lifecycles status={component.status} /></td>
-                  <td className="text-label text-muted">
+                  </Td>
+                  <Td>{t(kindKey(component.kind))}</Td>
+                  <Td>{t(envKey(component.environment))}</Td>
+                  <Td>{vendors.get(component.vendor_id ?? '')?.name ?? <span className="text-muted">—</span>}</Td>
+                  <Td><Lifecycles status={component.status} /></Td>
+                  <Td className="text-label text-muted">
                     {component.live_from ? shortDate(component.live_from) : '—'}
                     {component.live_until ? ` → ${shortDate(component.live_until)}` : ''}
-                  </td>
-                  <td className="num">
+                  </Td>
+                  <Td numeric>
                     <ComponentCost component={component} />
                     {component.line_id && <span className="row-sub">{t('estate.budgeted')}</span>}
-                  </td>
-                  <td>
+                  </Td>
+                  <Td>
                     {canWrite && (
                       <Button
                         variant="ghost"
@@ -209,11 +211,11 @@ function Register() {
                         <Icon name="trash" size={14} />
                       </Button>
                     )}
-                  </td>
-                </tr>
+                  </Td>
+                </Tr>
               ))}
             </tbody>
-          </table>
+          </DataTable>
         </div>
       )}
 
@@ -463,16 +465,16 @@ function Vendors() {
         <Empty emoji="🏷️" title={t('estate.noVendors')} hint={t('estate.noVendorsHint')} />
       ) : (
         <div className="table-wrap">
-          <table className="task-table">
+          <DataTable>
             <thead>
               <tr>
-                <th>{t('estate.vendor')}</th>
-                <th>{t('estate.kindLabel')}</th>
-                <th className="num">{t('estate.components')}</th>
-                <th className="num">{t('estate.annualRunRate')}</th>
-                <th>{t('estate.contractEnd')}</th>
-                <th>{t('estate.noticeByColumn')}</th>
-                <th />
+                <Th>{t('estate.vendor')}</Th>
+                <Th>{t('estate.kindLabel')}</Th>
+                <Th numeric>{t('estate.components')}</Th>
+                <Th numeric>{t('estate.annualRunRate')}</Th>
+                <Th>{t('estate.contractEnd')}</Th>
+                <Th>{t('estate.noticeByColumn')}</Th>
+                <Th />
               </tr>
             </thead>
             <tbody>
@@ -481,17 +483,17 @@ function Vendors() {
                 const cost = costOfLandscape(theirs);
                 const notice = noticeBy(vendor);
                 return (
-                  <tr key={vendor.id} onClick={() => canWrite && setEditing(vendor)}>
-                    <td className="title">
-                      {canWrite ? <button type="button" className="row-open">{vendor.name}</button> : vendor.name}
+                  <Tr key={vendor.id} onClick={() => canWrite && setEditing(vendor)}>
+                    <Td lead>
+                      {canWrite ? <button type="button" className={rowOpen}>{vendor.name}</button> : vendor.name}
                       {vendor.contact && <span className="row-sub">{vendor.contact}</span>}
-                    </td>
-                    <td>{t(vendorKindKey(vendor.kind))}</td>
-                    <td className="num">{theirs.length}</td>
-                    <td className="num"><Cost of={cost.annual} /></td>
-                    <td>{vendor.contract_end ? shortDate(vendor.contract_end) : <span className="text-muted">—</span>}</td>
-                    <td>{notice && vendor.notice_days ? shortDate(notice) : <span className="text-muted">—</span>}</td>
-                    <td>
+                    </Td>
+                    <Td>{t(vendorKindKey(vendor.kind))}</Td>
+                    <Td numeric>{theirs.length}</Td>
+                    <Td numeric><Cost of={cost.annual} /></Td>
+                    <Td>{vendor.contract_end ? shortDate(vendor.contract_end) : <span className="text-muted">—</span>}</Td>
+                    <Td>{notice && vendor.notice_days ? shortDate(notice) : <span className="text-muted">—</span>}</Td>
+                    <Td>
                       {canWrite && (
                         <Button
                           variant="ghost"
@@ -507,12 +509,12 @@ function Vendors() {
                           <Icon name="trash" size={14} />
                         </Button>
                       )}
-                    </td>
-                  </tr>
+                    </Td>
+                  </Tr>
                 );
               })}
             </tbody>
-          </table>
+          </DataTable>
         </div>
       )}
 

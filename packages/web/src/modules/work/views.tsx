@@ -35,6 +35,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '../../kernel/design-sys
 import { GanttView } from '../planning/gantt';
 import { Progress } from '../../kernel/design-system/ui/progress';
 import { Segmented, SegmentedItem } from '../../kernel/design-system/ui/segmented';
+import { DataTable, Td, Th, Tr, rowOpen, tableCell } from '../../kernel/design-system/ui/data-table';
 
 const PRIORITY_RANK = Object.fromEntries(PRIORITIES.map((p, i) => [p, i]));
 
@@ -951,6 +952,9 @@ export function CalendarView({ tasks, onOpen }: { tasks: Task[]; onOpen: (task: 
 /* ------------------------------------------------------------------ table */
 
 /** Columns, in the order they are shown. Narrow ones drop out on a phone. */
+/** A column a project invented: truncated rather than allowed to set the width. */
+const custom = 'max-w-55 overflow-hidden text-ellipsis';
+
 const COLUMNS = [
   { id: 'identifier', label: 'table.id' as const, orderBy: null, narrow: true },
   { id: 'title', label: 'table.title' as const, orderBy: 'title' as const, narrow: false },
@@ -1018,25 +1022,28 @@ export function TableView({
 
   return (
     <div className="table-wrap">
-      <table className="task-table">
+      <DataTable>
         <thead>
           <tr>
             {selection && (
-              <th className="pick">
+              <Th className="w-7.5">
                 <input
                   type="checkbox"
                   checked={allSelected}
                   aria-label={t('select.selectGroup')}
                   onChange={() => selection.setMany(order, !allSelected)}
                 />
-              </th>
+              </Th>
             )}
             {[...COLUMNS, ...extra.map((field) => ({ id: field.id, label: null, orderBy: null, narrow: true, field }))].map((column: any) => (
-              <th key={column.id} className={`${column.field ? 'custom' : column.id}${column.narrow ? ' narrow' : ''}`}>
+              // The built-in columns name themselves (`state`, `due_date`…) so
+              // a column can be addressed; a project's own field is truncated
+              // rather than allowed to set the width.
+              <Th key={column.id} optional={column.narrow} className={column.field ? custom : column.id}>
                 {column.field ? column.field.name : null}
                 {column.orderBy && onChange ? (
                   <button
-                    className="sort"
+                    className="inline-flex cursor-pointer items-center gap-0.75 aria-pressed:text-fg"
                     aria-pressed={view.orderBy === column.orderBy}
                     onClick={() => onChange({ ...view, orderBy: column.orderBy! })}
                   >
@@ -1044,18 +1051,23 @@ export function TableView({
                     {view.orderBy === column.orderBy && <Icon name="chevronDown" size={11} />}
                   </button>
                 ) : column.label ? t(column.label) : null}
-              </th>
+              </Th>
             ))}
           </tr>
         </thead>
         {groups.map((group) => (
           <tbody key={group.id}>
+            {/* A group's heading, inside the body it heads: the table's rhythm
+                without a column heading's stickiness, and not a row you can
+                open, so not a `Tr`. */}
             {view.groupBy !== 'none' && (
-              <tr className="group">
-                <th colSpan={COLUMNS.length + extra.length + (selection ? 1 : 0)}>
-                  {group.color && <StateDot group={group.group} color={group.color} size={9} />}
-                  <span>{group.title}</span>
-                  <span className={navCount}>{group.tasks.length}</span>
+              <tr className="border-b border-line">
+                <th colSpan={COLUMNS.length + extra.length + (selection ? 1 : 0)} className={cn(tableCell(), 'pt-3.5 text-label')}>
+                  <span className="inline-flex items-center gap-1.5">
+                    {group.color && <StateDot group={group.group} color={group.color} size={9} />}
+                    <span>{group.title}</span>
+                    <span className={navCount}>{group.tasks.length}</span>
+                  </span>
                 </th>
               </tr>
             )}
@@ -1065,46 +1077,46 @@ export function TableView({
               const people = (task.assignees ?? []).map((id) => memberMap.get(id)).filter(Boolean) as any[];
               const author = memberMap.get(String(task.created_by ?? ''));
               return (
-                <tr
-                  key={task.id}
-                  className={`${done ? 'done' : ''}${selection?.has(task.id) ? ' selected' : ''}`}
-                  onClick={() => onOpen(task)}
-                >
+                <Tr key={task.id} selected={selection?.has(task.id)} onClick={() => onOpen(task)}>
                   {selection && (
-                    <td className="pick" onClick={(event) => event.stopPropagation()}>
+                    <Td className="w-7.5" onClick={(event) => event.stopPropagation()}>
                       <SelectBox id={task.id} order={order} selection={selection} label={t('select.selectRow')} />
-                    </td>
+                    </Td>
                   )}
-                  <td className="identifier narrow">{task.identifier}</td>
-                  <td className="title"><button type="button" className="row-open">{task.title}</button></td>
-                  <td className="state">
+                  <Td optional className="identifier font-mono text-caption text-muted">{task.identifier}</Td>
+                  {/* Struck through when it is done, and the button carries the
+                      line on: see `rowOpen`. */}
+                  <Td lead className={cn('title', done && 'text-muted line-through')}>
+                    <button type="button" className={rowOpen}>{task.title}</button>
+                  </Td>
+                  <Td className="state">
                     <StateDot group={state?.group_key} color={state?.color} /> {state?.name ?? ''}
-                  </td>
-                  <td className="assignees"><AvatarStack users={people} size={20} /></td>
-                  <td className="priority">
+                  </Td>
+                  <Td className="assignees"><AvatarStack users={people} size={20} /></Td>
+                  <Td className="priority">
                     {task.priority !== 'none' && <><PriorityBars priority={task.priority} /> {t(priorityKey(task.priority))}</>}
-                  </td>
-                  <td className="due_date">{task.due_date ? shortDate(task.due_date) : ''}</td>
-                  <td className="estimate narrow">{task.estimate ?? ''}</td>
-                  <td className="labels narrow"><LabelChips ids={task.labels ?? []} projectId={task.project_id} /></td>
+                  </Td>
+                  <Td className="due_date">{task.due_date ? shortDate(task.due_date) : ''}</Td>
+                  <Td optional className="estimate">{task.estimate ?? ''}</Td>
+                  <Td optional className="labels"><LabelChips ids={task.labels ?? []} projectId={task.project_id} /></Td>
                   {/* An avatar rather than a name: the table already says
                       "person" that way in the assignees column, and the name is
                       on the hover and spelled out in the detail. Empty rather
                       than a "?" bubble where the creator has left the
                       workspace — a row of question marks is not information. */}
-                  <td className="created_by narrow">{author ? <Avatar user={author} size={20} /> : null}</td>
-                  <td className="updated_at narrow">{shortDate(task.updated_at)}</td>
+                  <Td optional className="created_by">{author ? <Avatar user={author} size={20} /> : null}</Td>
+                  <Td optional className="updated_at">{shortDate(task.updated_at)}</Td>
                   {extra.map((field) => (
-                    <td className="custom narrow" key={field.id}>
+                    <Td optional className={custom} key={field.id}>
                       {formatFieldValue(field.kind, values.get(`${task.id}.${field.id}`), nameMap)}
-                    </td>
+                    </Td>
                   ))}
-                </tr>
+                </Tr>
               );
             })}
           </tbody>
         ))}
-      </table>
+      </DataTable>
     </div>
   );
 }

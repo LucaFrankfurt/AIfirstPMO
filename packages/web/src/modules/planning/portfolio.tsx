@@ -23,6 +23,7 @@ import { Empty } from '../../kernel/design-system/ui/empty';
 import { Icon } from '../../kernel/design-system/ui/icon';
 import { pageBody } from '../../kernel/design-system/ui/page';
 import { statRow } from '../../kernel/design-system/ui/stat';
+import { DataTable, Td, Th, Tr } from '../../kernel/design-system/ui/data-table';
 
 const DAY = 86_400_000;
 
@@ -278,15 +279,15 @@ export function Portfolio() {
 
       <h2 className="chart-title mt-[22px]">{t('portfolio.status')}</h2>
       <div className="table-wrap">
-        <table className="task-table">
+        <DataTable>
           <thead>
             <tr>
-              <th>{t('portfolio.project')}</th>
-              <th>{t('project.statusLabel')}</th>
-              <th className="narrow">{t('project.lead')}</th>
-              <th className="narrow">{t('project.targetDate')}</th>
-              <th>{t('portfolio.progress')}</th>
-              <th className="narrow">{t('portfolio.overdue')}</th>
+              <Th>{t('portfolio.project')}</Th>
+              <Th>{t('project.statusLabel')}</Th>
+              <Th optional>{t('project.lead')}</Th>
+              <Th optional>{t('project.targetDate')}</Th>
+              <Th>{t('portfolio.progress')}</Th>
+              <Th optional>{t('portfolio.overdue')}</Th>
             </tr>
           </thead>
           <tbody>
@@ -295,18 +296,18 @@ export function Portfolio() {
               const total = counts.open + counts.done;
               const lead = byId('user', project.lead_id ?? undefined);
               return (
-                <tr key={project.id}>
-                  <td>{project.icon} {project.name}</td>
-                  <td>{t(projectStatusKey(project.status))}</td>
-                  <td className="narrow">{lead?.name ?? '—'}</td>
-                  <td className="narrow">{project.target_date ? shortDate(project.target_date) : '—'}</td>
-                  <td>{total ? `${Math.round((counts.done / total) * 100)}% · ${counts.done}/${total}` : '—'}</td>
-                  <td className="narrow">{counts.overdue || ''}</td>
-                </tr>
+                <Tr key={project.id}>
+                  <Td>{project.icon} {project.name}</Td>
+                  <Td>{t(projectStatusKey(project.status))}</Td>
+                  <Td optional>{lead?.name ?? '—'}</Td>
+                  <Td optional>{project.target_date ? shortDate(project.target_date) : '—'}</Td>
+                  <Td>{total ? `${Math.round((counts.done / total) * 100)}% · ${counts.done}/${total}` : '—'}</Td>
+                  <Td optional>{counts.overdue || ''}</Td>
+                </Tr>
               );
             })}
           </tbody>
-        </table>
+        </DataTable>
       </div>
     </div>
   );

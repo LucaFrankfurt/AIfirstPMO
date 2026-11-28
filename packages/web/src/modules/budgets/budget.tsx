@@ -28,6 +28,7 @@ import { Table } from '../../kernel/design-system/ui/table';
 import { asMoney } from '../../kernel/design-system/ui/money';
 import { pageBody } from '../../kernel/design-system/ui/page';
 import { statHint, statLabel, statRow, statTile, statValue } from '../../kernel/design-system/ui/stat';
+import { DataTable, Td, Th, Tr } from '../../kernel/design-system/ui/data-table';
 
 /* ------------------------------------------------------------------ money */
 
@@ -501,28 +502,28 @@ export function ProjectBudget({ projectId }: { projectId: string }) {
       </div>
 
       <div className="table-wrap">
-        <table className="task-table">
+        <DataTable>
           <thead>
             <tr>
-              <th>{t('budget.budget')}</th>
-              <th>{t('budget.period')}</th>
-              <th className="num">{t('budget.plannedShare')}</th>
-              <th className="num">{t('budget.actualShare')}</th>
-              <th className="num">{t('budget.variance')}</th>
+              <Th>{t('budget.budget')}</Th>
+              <Th>{t('budget.period')}</Th>
+              <Th numeric>{t('budget.plannedShare')}</Th>
+              <Th numeric>{t('budget.actualShare')}</Th>
+              <Th numeric>{t('budget.variance')}</Th>
             </tr>
           </thead>
           <tbody>
             {charged.map((row) => (
-              <tr key={row.budget.id}>
-                <td className="title">{row.budget.name}</td>
-                <td>{row.totals.period.from} → {row.totals.period.to}</td>
-                <td className="num">{asMoney(row.planned, row.totals.currency)}</td>
-                <td className="num">{asMoney(row.actual, row.totals.currency)}</td>
-                <td className="num"><Variance value={row.planned - row.actual} currency={row.totals.currency} /></td>
-              </tr>
+              <Tr key={row.budget.id}>
+                <Td lead>{row.budget.name}</Td>
+                <Td>{row.totals.period.from} → {row.totals.period.to}</Td>
+                <Td numeric>{asMoney(row.planned, row.totals.currency)}</Td>
+                <Td numeric>{asMoney(row.actual, row.totals.currency)}</Td>
+                <Td numeric><Variance value={row.planned - row.actual} currency={row.totals.currency} /></Td>
+              </Tr>
             ))}
           </tbody>
-        </table>
+        </DataTable>
       </div>
       <p className="mt-2 text-label text-muted">{t('budget.projectHint')}</p>
     </div>

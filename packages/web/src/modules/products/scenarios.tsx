@@ -23,6 +23,7 @@ import { statRow } from '../../kernel/design-system/ui/stat';
 import { cn } from '../../kernel/design-system/cn';
 import { noticeWarn } from '../../kernel/design-system/ui/notice';
 import { byOrder } from './parts';
+import { DataTable, Td, Th, Tr, cellLink } from '../../kernel/design-system/ui/data-table';
 
 export function Scenarios() {
   const t = useT();
@@ -47,31 +48,31 @@ export function Scenarios() {
         <Empty emoji="🔮" title={t('product.noScenarios')} hint={t('product.noScenariosHint')} />
       ) : (
         <div className="table-wrap">
-          <table className="task-table">
+          <DataTable>
             <thead>
               <tr>
-                <th>{t('product.name')}</th>
-                <th>{t('product.scenarioProduct')}</th>
-                <th>{t('product.months')}</th>
-                <th>{t('product.units')}</th>
-                {canWrite && <th className="actions" />}
+                <Th>{t('product.name')}</Th>
+                <Th>{t('product.scenarioProduct')}</Th>
+                <Th>{t('product.months')}</Th>
+                <Th>{t('product.units')}</Th>
+                {canWrite && <Th />}
               </tr>
             </thead>
             <tbody>
               {[...scenarios].sort(byOrder).map((scenario) => {
                 const settled = assumptionsOf(scenario.assumptions);
                 return (
-                  <tr key={scenario.id}>
-                    <td>
+                  <Tr key={scenario.id}>
+                    <Td>
                       {scenario.product_id
-                        ? <Link className="cell-link" to={`/products/${scenario.product_id}?tab=simulation&scenario=${scenario.id}`}>{scenario.name}</Link>
+                        ? <Link className={cellLink} to={`/products/${scenario.product_id}?tab=simulation&scenario=${scenario.id}`}>{scenario.name}</Link>
                         : scenario.name}
-                    </td>
-                    <td>{scenario.product_id ? names.get(scenario.product_id) ?? '—' : t('product.wholeCatalogue')}</td>
-                    <td>{settled.months}</td>
-                    <td>{settled.units}</td>
+                    </Td>
+                    <Td>{scenario.product_id ? names.get(scenario.product_id) ?? '—' : t('product.wholeCatalogue')}</Td>
+                    <Td>{settled.months}</Td>
+                    <Td>{settled.units}</Td>
                     {canWrite && (
-                      <td className="actions">
+                      <Td>
                         <MenuButton
                           variant="ghost" size="iconSm"
                           label={t('common.moreActions')}
@@ -87,13 +88,13 @@ export function Scenarios() {
                         >
                           <Icon name="dots" size={14} />
                         </MenuButton>
-                      </td>
+                      </Td>
                     )}
-                  </tr>
+                  </Tr>
                 );
               })}
             </tbody>
-          </table>
+          </DataTable>
         </div>
       )}
       {editing !== undefined && (

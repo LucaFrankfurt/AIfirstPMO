@@ -14,6 +14,7 @@ import { list, useQuery } from '../../kernel/sync/store';
 import { useSaveChanges } from '../../kernel/design-system/row-form';
 import { useCanWrite } from '../../kernel/identity/session';
 import { byOrder } from './parts';
+import { DataTable, Td, Th, Tr } from '../../kernel/design-system/ui/data-table';
 
 /**
  * The workspace's vocabulary, and the screen that was missing under it.
@@ -77,43 +78,43 @@ export function Capabilities() {
         <Empty emoji="🏷️" title={t('product.noCapabilities')} hint={t('product.noCapabilitiesHint')} />
       ) : (
         <div className="table-wrap">
-          <table className="task-table">
+          <DataTable>
             <thead>
               <tr>
-                <th>{t('product.name')}</th>
-                <th className="narrow wraps">{t('product.description')}</th>
-                {/* Both lists are `narrow`: they grow with the catalogue rather
+                <Th>{t('product.name')}</Th>
+                <Th optional wraps>{t('product.description')}</Th>
+                {/* Both lists are `optional`: they grow with the catalogue rather
                     than with the design — one product name is 24 characters and
                     there is no upper bound on how many — and at 360px they
                     pushed the column you act from off the side of the table.
                     The one thing worth acting on, that nothing claims it, moves
                     up beside the name instead. */}
-                <th className="narrow wraps">{t('product.claimedBy')}</th>
-                <th className="narrow wraps">{t('product.inheritedBy')}</th>
-                {canWrite && <th className="actions" />}
+                <Th optional wraps>{t('product.claimedBy')}</Th>
+                <Th optional wraps>{t('product.inheritedBy')}</Th>
+                {canWrite && <Th />}
               </tr>
             </thead>
             <tbody>
               {[...capabilities].sort(byOrder).map((capability: ProductCapability) => {
                 const own = claims.own.get(capability.id) ?? [];
                 return (
-                  <tr key={capability.id}>
-                    {/* `title` rather than a plain cell: `.task-table td` is
-                        `nowrap`, so a name and a chip sat on one 322px line and
-                        pushed the column you act from past the edge of a 360px
-                        screen. This is the class that already answers that. */}
-                    <td className="title">
+                  <Tr key={capability.id}>
+                    {/* `lead` rather than a plain cell: a cell is `nowrap`, so
+                        a name and a chip sat on one 322px line and pushed the
+                        column you act from past the edge of a 360px screen.
+                        This is the prop that already answers that. */}
+                    <Td lead>
                       {capability.name}
                       {/* Marked rather than left to a column that a phone drops:
                           an entry nothing claims is the one somebody came here
                           to delete. */}
                       {!own.length && <> <Chip>{t('product.nobodyClaims')}</Chip></>}
-                    </td>
-                    <td className="narrow wraps">{capability.description || '—'}</td>
-                    <td className="narrow wraps">{own.join(', ') || '—'}</td>
-                    <td className="narrow wraps">{(claims.via.get(capability.id) ?? []).join(', ') || '—'}</td>
+                    </Td>
+                    <Td optional wraps>{capability.description || '—'}</Td>
+                    <Td optional wraps>{own.join(', ') || '—'}</Td>
+                    <Td optional wraps>{(claims.via.get(capability.id) ?? []).join(', ') || '—'}</Td>
                     {canWrite && (
-                      <td className="actions">
+                      <Td>
                         <MenuButton
                           variant="ghost" size="iconSm"
                           label={t('common.moreActions')}
@@ -131,13 +132,13 @@ export function Capabilities() {
                         >
                           <Icon name="dots" size={14} />
                         </MenuButton>
-                      </td>
+                      </Td>
                     )}
-                  </tr>
+                  </Tr>
                 );
               })}
             </tbody>
-          </table>
+          </DataTable>
         </div>
       )}
       {editing !== undefined && (
