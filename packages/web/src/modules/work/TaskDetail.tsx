@@ -99,7 +99,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
         title={
           <span className="flex items-center gap-1.5">
             <StateDot group={state?.group_key} color={state?.color} />
-            <span className="mono text-muted">{task.identifier}</span>
+            <span className="mono font-mono text-label text-muted">{task.identifier}</span>
           </span>
         }
       >
@@ -264,7 +264,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
             <div key={child.id} className="flex items-center gap-2" style={{ padding: '5px 0', borderTop: '1px solid var(--line)' }}>
               <StateDot group={stateOf(child)?.group_key} color={stateOf(child)?.color} />
               <Button variant="ghost" size="sm" className="flex-1 min-w-0" style={{ justifyContent: 'flex-start' }} onClick={() => onOpen(child)}>
-                <span className="mono text-muted">{child.identifier}</span>
+                <span className="mono font-mono text-label text-muted">{child.identifier}</span>
                 <span className="truncate">{child.title}</span>
               </Button>
             </div>
@@ -319,7 +319,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
               {activity.map((entry) => (
                 <div key={entry.id} className="flex items-center gap-2 text-label" style={{ gap: 7 }}>
                   <Avatar user={members.get(entry.actor_id)} size={18} />
-                  <span className="soft flex-1 min-w-0">
+                  <span className="text-soft flex-1 min-w-0">
                     <strong>{members.get(entry.actor_id)?.name ?? t('common.someone')}</strong>{' '}
                     {entry.verb === 'created' ? t('task.activityCreated')
                       // Both used to fall through to "changed something": the

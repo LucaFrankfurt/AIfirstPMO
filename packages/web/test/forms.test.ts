@@ -354,7 +354,10 @@ describe('a project made and a project changed', () => {
 });
 
 describe('a product made', () => {
-  const source = readFileSync(join(SRC, 'modules/products/routes/products.tsx'), 'utf8');
+  // The form moved out of the route file when that file was split; this read
+  // the route for a while afterwards, found no create call, and the two cases
+  // below stopped registering — the suite went green by running two fewer tests.
+  const source = readFileSync(join(SRC, 'modules/products/product-form.tsx'), 'utf8');
 
   /**
    * What the create call is allowed to decide on the form's behalf.
@@ -500,7 +503,7 @@ describe('a create or edit sheet with typed input', () => {
     ['modules/budgets/routes/budgets.tsx', 'BudgetForm'],
     ['modules/budgets/routes/budgets.tsx', 'LineForm'],
     ['modules/budgets/routes/budgets.tsx', 'ActualForm'],
-    ['modules/products/routes/products.tsx', 'ProductForm'],
+    ['modules/products/product-form.tsx', 'ProductForm'],
   ];
 
   it('asks before closing', () => {

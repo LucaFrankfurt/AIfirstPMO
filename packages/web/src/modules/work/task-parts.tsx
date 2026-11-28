@@ -348,7 +348,8 @@ export function ParentTrail({ task, onOpen }: { task: Task; onOpen: (task: Task)
       {above.map((ancestor) => (
         <Fragment key={ancestor.id}>
           <button type="button" onClick={() => onOpen(ancestor)} title={ancestor.title}>
-            <span className="mono">{ancestor.identifier}</span>
+            {/* What `.parent-trail button .mono` said: the key stays whole and quiet while the names shrink. */}
+            <span className="mono flex-none font-mono text-label text-muted">{ancestor.identifier}</span>
             <span className="truncate">{ancestor.title}</span>
           </button>
           <Icon name="chevronRight" size={12} aria-hidden />
@@ -558,7 +559,7 @@ export function TaskCard({
       onClick={() => onOpen(task)}
     >
       <div className="flex items-center gap-2 mb-1">
-        <span className="mono text-muted">{task.identifier}</span>
+        <span className="mono font-mono text-label text-muted">{task.identifier}</span>
         <span className="flex-1 min-w-0" />
         {task.priority !== 'none' && <PriorityBars priority={task.priority} />}
         {(moveTargets && moveTargets.length > 1) || projects.length || onDelete ? (

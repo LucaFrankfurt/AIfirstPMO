@@ -506,7 +506,6 @@ p { margin: 0 0 0.75em; }
 /* The phone/desktop display helpers live in `@layer utilities` — see the note
    above them, near the top of this file. */
 
-
 .header .spacer { flex: 1; }
 
 /* mobile bottom navigation */
@@ -628,8 +627,6 @@ p { margin: 0 0 0.75em; }
 
 .brand img { width: 22px; height: 22px; border-radius: 6px; }
 
-
-
 /* A project in the sidebar: twisty, link, menu. The grid rather than flex so
    the chevron slot is exactly as wide whether or not there is a chevron in it —
    a tree whose rows shift sideways by that width reads as two lists. */
@@ -698,56 +695,6 @@ p { margin: 0 0 0.75em; }
 .nav-section button { margin-inline-start: auto; }
 
 /* ----------------------------------------------------------------- pieces */
-
-/*
- * Form layout, still hand-written.
- *
- * These four came back after the port deleted them: the rules went in the
- * commit that introduced the `Input`/`Select`/`Textarea` components, but the
- * seventy-six `<div class="field">` wrappers around those controls did not
- * change, so every form in the app lost its spacing and every label its
- * weight in one go. Nothing threw; it just looked wrong, which is why
- * `scripts/unstyled.mjs` now compares the classes the source uses against the
- * ones the stylesheet actually defines.
- *
- * They are written against the tokens like everything else, so a `<Field>`
- * component can take them over later without anything changing on screen.
- */
-.field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
-
-/* Two or three fields side by side, and stacked once there is no room for that.
-
-   Both halves of that were being got wrong by hand. The rows were `flex
-   items-center`, which centres each field against the tallest of them — and one
-   of a pair almost always carries a line of help text underneath, so its
-   partner's label came to rest half a field lower than its own. Four call sites
-   had already noticed and pinned `alignItems: 'flex-start'` back on inline; the
-   three in the project's settings had not, and that is the ragged column in the
-   screenshot.
-
-   Nothing stacked either, so a 390px phone got two 178px columns: a date input
-   too narrow to read a date in, and a select that cut its own longest option in
-   half. `auto-fit` measures the container rather than the window, which matters
-   because these same rows appear inside dialogs — a 620px form and a 420px
-   sheet should not have to agree about what "narrow" means. */
-.field-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 0 10px;
-  align-items: start;
-}
-.field label { font-size: 12.5px; font-weight: 550; color: var(--fg-soft); }
-
-/* A checkbox with a label and a line of explanation under it. */
-.check-row { display: flex; gap: 9px; align-items: flex-start; padding: 7px 0; font-size: 13px; cursor: pointer; }
-.check-row input { margin-top: 2px; flex: none; }
-/* The label and its explanation are one stacked block beside the box, so the
-   explanation lines up under the label rather than under the checkbox. */
-.check-row > span { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-/* A checkbox in its 24px box inside a check row. The rule above is for the
-   label's text and, being more specific than `.select-box`, collapsed the box
-   back to its 15px input — which `check:a11y` measured on the incident form. */
-.check-row > .select-box { flex-direction: row; min-width: 24px; }
 
 /* Choosing the icon a project, a page or a template wears. The trigger is a
    square the size of a small button, so it sits on a form row beside a name
@@ -840,7 +787,6 @@ p { margin: 0 0 0.75em; }
   color: var(--fg-muted);
   font-weight: 600;
 }
-
 
 /* The box stays 15px; the thing you have to hit is 24. WCAG 2.2 asks for 24×24
    and means the *target*, not the drawing — so the padding does the work and
@@ -1133,23 +1079,6 @@ p { margin: 0 0 0.75em; }
 /* Quiet by construction: the data is the only thing allowed to be loud, so the
    grid is a hairline one step off the surface and nothing else has a border. */
 
-.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 16px; }
-.stat { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
-.stat-label { font-size: 12px; color: var(--fg-soft); }
-.stat-value { font-size: 26px; font-weight: 620; line-height: 1.1; letter-spacing: -0.4px; }
-.stat-hint { font-size: 11.5px; color: var(--fg-muted); }
-
-/* A figure that is also a door. `:focus-visible` is the page-wide rule and is
-   not restated; what a button needs here is the alignment a div got for free —
-   `text-align` is inherited from the surrounding text everywhere except inside
-   a button, where the UA centres it. */
-button.stat { width: 100%; text-align: start; cursor: pointer; }
-button.stat:hover { border-color: var(--line-strong); background: var(--bg-hover); }
-/* On, marked with the border rather than a fill: the numbers and their labels
-   keep their text tokens against the same surface as every other tile, so the
-   contrast floor is the one that was already measured. */
-button.stat[aria-pressed='true'] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
-
 /* Where a pressed tile scrolls to. The header is sticky and would otherwise sit
    on top of the first row of what you just asked for. */
 .my-work-list { scroll-margin-top: calc(var(--header-height) + 12px); }
@@ -1168,7 +1097,6 @@ button.stat[aria-pressed='true'] { border-color: var(--accent); box-shadow: inse
   background: none; color: var(--fg-soft); font-size: 12.5px; cursor: pointer;
 }
 .parent-trail button:hover { background: var(--bg-hover); color: var(--fg); }
-.parent-trail button .mono { flex: none; color: var(--fg-muted); }
 
 /* Where you just were.
 
@@ -1595,22 +1523,17 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   display: inline-block;
 }
 
-
 /* A rule with a word set into it. Used between single sign-on and the password
    form, so neither of the two reads as the only way in. */
 .divider-text { display: flex; align-items: center; gap: 10px; margin: 14px 0; color: var(--fg-muted); font-size: 12px; }
 .divider-text::before, .divider-text::after { content: ''; flex: 1; height: 1px; background: var(--line); }
 
 .soft { color: var(--fg-soft); }
-.mono { font-family: var(--mono); font-size: 12px; }
-.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .page-title { font-size: 20px; margin-bottom: 4px; }
 .page-header { margin-bottom: 18px; }
-
-
-
 
 /* ------------------------------------------------------------------ tasks */
 
@@ -1872,15 +1795,6 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 
 /* ---------------------------------------------------------------- overlays */
 
-@media (min-width: 700px) { .overlay { align-items: center; padding: 24px; } }
-
-@media (min-width: 700px) {
-}
-
-
-@media (min-width: 700px) { .grabber { display: none; } }
-
-
 .palette {
   position: fixed;
   inset: 0;
@@ -1912,8 +1826,6 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 }
 .palette input:focus { outline: none; }
 .palette .results { overflow-y: auto; padding: 6px; }
-
-
 
 /* --------------------------------------------------------------- markdown */
 
@@ -2368,10 +2280,6 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 .attachment-list.dropping { border-color: var(--accent); background: var(--bg-active); }
 
 .attachment-thumb { padding: 0; border: 0; background: none; cursor: zoom-in; line-height: 0; flex: none; }
-
-.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
-.gallery img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--line); cursor: pointer; }
-
 
 .status-pill {
   display: inline-flex;
@@ -3040,7 +2948,6 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 .auto-h { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
   color: var(--fg-muted); margin: 18px 0 8px; }
 
-
 .auto-run { display: flex; align-items: center; gap: 9px; padding: 8px 0; border-top: 1px solid var(--line); }
 .auto-run:first-of-type { border-top: none; }
 .auto-run-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); flex: none; }
@@ -3456,8 +3363,6 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 }
 .reaction-pick:hover { background: var(--bg-hover); }
 .reaction-pick.mine { background: var(--accent-soft); }
-
-
 
 }
 
@@ -4345,16 +4250,6 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   width: 2px;
   background: var(--fg);
   opacity: 0.55;
-}
-
-/* A sentence the screen needs to say out loud rather than imply with a chip. */
-.notice-warn {
-  border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
-  border-radius: var(--radius);
-  background: color-mix(in srgb, var(--warn) 8%, transparent);
-  color: var(--warn);
-  padding: 9px 11px;
-  font-size: 12.5px;
 }
 
 /*

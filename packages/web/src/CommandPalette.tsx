@@ -229,7 +229,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
                     >
                       <Icon name={command.icon} size={15} />
                       <span className="flex-1 min-w-0 truncate">{command.title}</span>
-                      {command.hint && <span className="text-muted mono">{command.hint}</span>}
+                      {command.hint && <span className="text-muted mono font-mono text-label">{command.hint}</span>}
                     </button>
                   ))}
                 </div>

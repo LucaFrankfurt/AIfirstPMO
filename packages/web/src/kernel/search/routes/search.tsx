@@ -488,7 +488,7 @@ function Tips() {
       <ul className="flex flex-col gap-1.5">
         {rows.map((row) => (
           <li key={row.glyph} className="flex items-center gap-2.5 text-body text-soft">
-            <span className="mono grid size-7 flex-none place-items-center rounded-sm border border-line bg-hover text-body">
+            <span className="mono font-mono grid size-7 flex-none place-items-center rounded-sm border border-line bg-hover text-body">
               {row.glyph}
             </span>
             {t(row.hint)}

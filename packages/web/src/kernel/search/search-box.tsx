@@ -284,7 +284,7 @@ export function SearchBox({
             >
               <FacetGlyph option={option} />
               <span className="min-w-0 flex-1 truncate">{option.name}</span>
-              {option.hint && <span className="mono truncate text-caption text-muted">{option.hint}</span>}
+              {option.hint && <span className="mono font-mono truncate text-caption text-muted">{option.hint}</span>}
             </button>
           ))}
         </>,

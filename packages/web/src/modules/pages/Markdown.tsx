@@ -927,7 +927,7 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
               >
                 <span aria-hidden="true" style={{ width: 18, textAlign: 'center' }}>{choice.icon || '#'}</span>
                 <span className="flex-1 min-w-0 truncate">{choice.label}</span>
-                <span className="text-muted mono truncate text-caption">{choice.hint}</span>
+                <span className="text-muted mono font-mono truncate text-caption">{choice.hint}</span>
               </button>
             ))}
           </div>

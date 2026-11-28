@@ -228,7 +228,7 @@ function GroupState({ group, status }: { group: Group; status: Status }) {
     return (
       <>
         <Chip tone="on">{status.mail.transport}</Chip>
-        <span className="mono truncate text-label text-muted">{status.mail.host}</span>
+        <span className="mono font-mono text-label truncate text-muted">{status.mail.host}</span>
       </>
     );
   }
@@ -239,10 +239,10 @@ function GroupState({ group, status }: { group: Group; status: Status }) {
   return (
     <>
       <Chip tone="on">{status.ai.provider}</Chip>
-      {status.ai.model && <span className="mono truncate text-label text-muted">{status.ai.model}</span>}
+      {status.ai.model && <span className="mono font-mono text-label truncate text-muted">{status.ai.model}</span>}
       {/* Said only when it differs: the same model twice is one fact. */}
       {status.ai.supportModel && status.ai.supportModel !== status.ai.model && (
-        <span className="mono truncate text-label text-muted">{t('instance.aiSupportChip')}: {status.ai.supportModel}</span>
+        <span className="mono font-mono text-label truncate text-muted">{t('instance.aiSupportChip')}: {status.ai.supportModel}</span>
       )}
     </>
   );
@@ -266,7 +266,7 @@ function Field({
         {/* The variable's own name, because it is what the documentation, the
             compose file and `.env.example` all call this — and somebody moving
             a setting from one to the other should not have to guess. */}
-        <span className="mono text-caption text-muted">{setting.key}</span>
+        <span className="mono font-mono text-caption text-muted">{setting.key}</span>
         {setting.source === 'environment' && !edited && (
           <span className="text-caption text-muted">{t('instance.fromEnvironment')}</span>
         )}

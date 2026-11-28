@@ -297,7 +297,7 @@ export function ImportPages({ parentId, projectId, onClose }: {
             <div className="flex items-center gap-2 py-1.5 border-t border-line" key={`${draft.title}-${at}`}>
               <span aria-hidden="true">📄</span>
               <span className="flex-1 min-w-0 truncate">{draft.title}</span>
-              <span className="text-caption text-muted mono">
+              <span className="text-caption text-muted mono font-mono">
                 {draft.format === 'html' ? 'HTML' : 'MD'} · {t('page.versionSize', { count: draft.content.length })}
               </span>
             </div>

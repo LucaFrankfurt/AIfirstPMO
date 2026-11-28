@@ -26,7 +26,7 @@ import {
   Health, MeasureChart, MeasureInput, Pace, Trend,
   cadenceKey, directionKey, healthKey, measure, unitKey,
 } from '../kpi';
-import { Stat } from '../../planning/insights';
+import { Stat } from '../../../kernel/design-system/ui/stat';
 import { Empty } from '../../../kernel/design-system/ui/empty';
 import { Icon } from '../../../kernel/design-system/ui/icon';
 import { Sheet, useConfirm, useDirty } from '../../../kernel/design-system/ui/sheet';
@@ -46,6 +46,7 @@ import { useCanWrite, useFeature } from '../../../kernel/identity/session';
 import { pageBody } from '../../../kernel/design-system/ui/page';
 import { statRow } from '../../../kernel/design-system/ui/stat';
 import { cn } from '../../../kernel/design-system/cn';
+import { noticeWarn } from '../../../kernel/design-system/ui/notice';
 
 function SwitchedOff() {
   const t = useT();
@@ -280,7 +281,7 @@ function Overview({ kpi, readings, targets, modules }: {
       {/* The one sentence the tiles cannot carry: what the verdict is, and on
           what grounds. Stated rather than left to be inferred from a chip. */}
       {progress.health === 'stale' && progress.age !== null && (
-        <p className="notice-warn">{t('kpi.staleSince', { days: String(progress.age) })}</p>
+        <p className={noticeWarn}>{t('kpi.staleSince', { days: String(progress.age) })}</p>
       )}
       {progress.achieved !== null && progress.expected !== null && progress.health !== 'stale' && (
         <p className="text-label text-muted">

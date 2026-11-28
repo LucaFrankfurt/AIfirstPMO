@@ -117,7 +117,7 @@ export function TelegramConnection() {
               <Icon name="check" size={15} />
               <strong className="flex-1 min-w-0">{t('telegram.connectedTitle')}</strong>
             </div>
-            <span className="soft text-label">{t('telegram.connectedBody')}</span>
+            <span className="text-soft text-label">{t('telegram.connectedBody')}</span>
           </div>
 
           <div className="flex items-center flex-wrap gap-1.5 mb-1">
@@ -171,10 +171,10 @@ export function TelegramConnection() {
           </Button>
           {pending && (
             <div className="rounded border border-line bg-raised p-3.5 mt-2.5">
-              <span className="soft text-label">{t('telegram.waiting')}</span>
+              <span className="text-soft text-label">{t('telegram.waiting')}</span>
               {/* The popup may have been blocked, and on a desktop without
                   Telegram installed the link is the only way through. */}
-              <a href={pending.url} target="_blank" rel="noopener noreferrer" className="mono text-label">
+              <a href={pending.url} target="_blank" rel="noopener noreferrer" className="mono font-mono text-label">
                 {pending.url}
               </a>
             </div>

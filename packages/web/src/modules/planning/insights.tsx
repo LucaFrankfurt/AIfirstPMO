@@ -24,43 +24,12 @@ import { Empty } from '../../kernel/design-system/ui/empty';
 import { asMoney } from '../../kernel/design-system/ui/money';
 import { Table } from '../../kernel/design-system/ui/table';
 import { pageBody } from '../../kernel/design-system/ui/page';
-import { statHint, statLabel, statRow, statTile, statValue } from '../../kernel/design-system/ui/stat';
+import { Stat, statRow } from '../../kernel/design-system/ui/stat';
 
 const DAY = 86_400_000;
 const isDone = (task: Task): boolean => isDoneGroup(byId('state', task.state_id)?.group_key);
 
 /* ------------------------------------------------------------- primitives */
-
-/**
- * A headline number. Not a one-bar bar chart.
- *
- * With `onSelect` it is also the way into what it counted, and becomes a real
- * button rather than a div that listens for clicks — so it is tabbable, says
- * `aria-pressed`, and answers the space bar. Without one it stays a figure: a
- * tile that reads as pressable and shows a different set than the number on it
- * is worse than a tile that does nothing.
- */
-export function Stat({ label, value, hint, onSelect, active }: {
-  label: string;
-  value: string;
-  hint?: string;
-  onSelect?: () => void;
-  active?: boolean;
-}) {
-  const body = (
-    <>
-      <span className={statLabel}>{label}</span>
-      <strong className={statValue}>{value}</strong>
-      {hint && <span className={statHint}>{hint}</span>}
-    </>
-  );
-  if (!onSelect) return <div className={statTile}>{body}</div>;
-  return (
-    <button type="button" className={statTile} aria-pressed={!!active} onClick={onSelect}>
-      {body}
-    </button>
-  );
-}
 
 export interface Column {
   key: string;

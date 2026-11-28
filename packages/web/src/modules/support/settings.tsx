@@ -83,7 +83,7 @@ function WidgetCard({ widget, onEdit }: { widget: Widget; onEdit: () => void }) 
       </p>
 
       <SectionHeading>{t('widgets.snippet')}</SectionHeading>
-      <pre className="m-0 mb-2 whitespace-pre-wrap break-all rounded-sm bg-sunken p-3 font-mono text-label leading-[1.5]">{snippet}</pre>
+      <pre className="m-0 mb-2 whitespace-pre-wrap break-all rounded-sm bg-sunken p-3 mono font-mono text-label leading-[1.5]">{snippet}</pre>
       <div className="flex flex-wrap gap-2">
         <Button size="sm" onClick={() => copy(snippet)}>{t('widgets.copySnippet')}</Button>
         <Button size="sm" variant="ghost" onClick={() => window.open(`${publicUrl()}/w/${widget.id}`, '_blank', 'noopener')}>
@@ -95,7 +95,7 @@ function WidgetCard({ widget, onEdit }: { widget: Widget; onEdit: () => void }) 
         <>
           <SectionHeading>{t('widgets.secret')}</SectionHeading>
           <p className="m-0 mb-2 text-label text-muted">{t('widgets.secretHint')}</p>
-          {secret && <pre className="m-0 mb-2 whitespace-pre-wrap break-all rounded-sm bg-sunken p-3 font-mono text-label">{secret}</pre>}
+          {secret && <pre className="m-0 mb-2 whitespace-pre-wrap break-all rounded-sm bg-sunken p-3 mono font-mono text-label">{secret}</pre>}
           <div className="flex flex-wrap gap-2">
             {secret
               ? <Button size="sm" onClick={() => copy(secret)}>{t('widgets.copySecret')}</Button>

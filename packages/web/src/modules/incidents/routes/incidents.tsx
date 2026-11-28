@@ -39,7 +39,7 @@ import { byId, list, useQuery, useRow } from '../../../kernel/sync/store';
 import { useCanWrite, useFeature, useMe } from '../../../kernel/identity/session';
 import { now } from '../../../kernel/sync/clock';
 import { Attachments } from '../../../kernel/files/Attachments';
-import { Stat } from '../../planning/insights';
+import { Stat } from '../../../kernel/design-system/ui/stat';
 import {
   IncidentFields, IncidentForm, IncidentRow, PriorityChip, StatusChip, categoryKey, resolutionKey, statusKey,
   useApplications, useImpactWords,

@@ -421,7 +421,7 @@ function Notifications() {
             <Icon name="bell" size={15} />
             <strong>{t('notify.captureTitle')}</strong>
           </div>
-          <span className="soft text-label">
+          <span className="text-soft text-label">
             {t('notify.captureBody', { host: status.host ?? '' })}
           </span>
         </div>
@@ -431,7 +431,7 @@ function Notifications() {
           <div className="rounded border border-line bg-raised p-3.5 mb-2.5">
             <div className="flex items-center gap-2">
               <span className="flex-1 min-w-0">{t(status.transport === 'scaleway' ? 'notify.api' : 'notify.relay')}</span>
-              <strong className="mono">{status.host}</strong>
+              <strong className="mono font-mono text-label">{status.host}</strong>
               {/* Said where somebody would look for it: an unencrypted relay is
                   a deliberate choice for a capture inbox and a mistake
                   everywhere else, and the settings screen is the only place it
@@ -441,7 +441,7 @@ function Notifications() {
               )}
               {status.mode === 'test-inbox' && <span className={chipVariants()} style={{ color: 'var(--warn)' }}>{t('notify.captureChip')}</span>}
             </div>
-            <div className="flex items-center gap-2"><span className="flex-1 min-w-0">{t('notify.sender')}</span><strong className="mono">{status.from}</strong></div>
+            <div className="flex items-center gap-2"><span className="flex-1 min-w-0">{t('notify.sender')}</span><strong className="mono font-mono text-label">{status.from}</strong></div>
             <div className="flex items-center gap-2"><span className="flex-1 min-w-0">{t('notify.queued')}</span><strong>{status.pending}</strong></div>
           </div>
           <Button
@@ -883,7 +883,7 @@ function Members() {
           </Button>
           {invites.map((invite) => (
             <div className="flex items-center gap-2" key={invite.id} style={{ padding: '6px 0', borderTop: '1px solid var(--line)' }}>
-              <code className="mono flex-1 min-w-0 truncate">{location.origin}/invite/{invite.code}</code>
+              <code className="mono font-mono text-label flex-1 min-w-0 truncate">{location.origin}/invite/{invite.code}</code>
               <Chip>{t(roleKey(invite.role))}</Chip>
               <Button variant="ghost" size="iconSm" title={t('action.copyLink')}
                 onClick={() => {
@@ -943,7 +943,7 @@ function CalendarFeed() {
       ) : (
         <>
           <div className="flex items-center gap-2 flex-wrap">
-            <Input readOnly value={url} onFocus={(event) => event.currentTarget.select()} className="flex-1 min-w-0 font-mono text-label" aria-label={t('calendar.title')} />
+            <Input readOnly value={url} onFocus={(event) => event.currentTarget.select()} className="flex-1 min-w-0 mono font-mono" aria-label={t('calendar.title')} />
             <Button size="sm" onClick={() => copy(url)}>
               <Icon name="copy" size={14} /> {t('action.copy')}
             </Button>
@@ -1058,7 +1058,7 @@ function ApiSettings() {
           <div className="flex-1 min-w-0">
             <div className="truncate">{token.name}</div>
             <div className="text-muted truncate" title={token.workspace_id ?? undefined}>
-              <span className="mono">{token.prefix}… · {token.scopes}</span>
+              <span className="mono font-mono text-label">{token.prefix}… · {token.scopes}</span>
               {' · '}
               {t(token.confined ? 'api.tokenScopeConfined' : 'api.tokenScopeDefault', {
                 workspace: scopeLabel(token.workspace_id),
@@ -1110,7 +1110,7 @@ function ApiSettings() {
       {created && (
         <Sheet title={t('api.copyNow')} onClose={() => setCreated(null)}>
           <p className="text-muted">{t('api.copyNowHint')}</p>
-          <code className="mono rounded-sm" style={{ display: 'block', wordBreak: 'break-all', background: 'var(--bg-sunken)', padding: 12 }}>
+          <code className="mono font-mono text-label rounded-sm" style={{ display: 'block', wordBreak: 'break-all', background: 'var(--bg-sunken)', padding: 12 }}>
             {created}
           </code>
           <Button variant="primary" block className="mt-3"

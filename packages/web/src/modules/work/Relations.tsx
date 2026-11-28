@@ -76,7 +76,7 @@ export function Relations({ task, onOpen }: { task: Task; onOpen: (task: Task) =
             <Chip>{t(relationKey(row.kind))}</Chip>
             <Button variant="ghost" size="sm" className="flex-1 min-w-0" style={{ justifyContent: 'flex-start' }} onClick={() => onOpen(row.other)}>
               <StateDot group={state?.group_key} color={state?.color} />
-              <span className="mono text-muted">{row.other.identifier}</span>
+              <span className="mono font-mono text-label text-muted">{row.other.identifier}</span>
               <span className="truncate">{row.other.title}</span>
             </Button>
             {row.ownsLag && (

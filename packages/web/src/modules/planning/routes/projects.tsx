@@ -258,7 +258,7 @@ export function ProjectNew() {
             </div>
             <div className={cn(formField, 'flex-1 min-w-0')}>
               <label htmlFor="p-key">{t('project.key')}</label>
-              <Input className="mono"
+              <Input className="mono font-mono"
                 id="p-key" value={form.key} maxLength={6} placeholder={t('project.keyAuto')}
                 onChange={(event) => setForm({ ...form, key: event.target.value.toUpperCase() })}
               />
@@ -1367,7 +1367,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         <div className={formRow}>
           <div className={formField}>
             <label htmlFor="s-key">{t('project.key')}</label>
-            <Input className="mono" id="s-key" value={project.key ?? ''} maxLength={6}
+            <Input className="mono font-mono" id="s-key" value={project.key ?? ''} maxLength={6}
               onChange={(event) => update('project', projectId, { key: event.target.value.toUpperCase() })} />
             {/* The server bounces a taken key back, which on its own is a field
                 that refuses to be typed in for no stated reason. This is the

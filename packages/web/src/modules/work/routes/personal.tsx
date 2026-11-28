@@ -10,7 +10,7 @@ import { SelectionBar } from '../selection-bar';
 import { Avatar } from '../../../kernel/design-system/ui/avatar';
 import { Empty } from '../../../kernel/design-system/ui/empty';
 import { Icon } from '../../../kernel/design-system/ui/icon';
-import { Stat } from '../../planning/insights';
+import { Stat } from '../../../kernel/design-system/ui/stat';
 import { relativeTime, today } from '../../../kernel/design-system/format';
 import { firstName, greetingKey, summarise } from '../overview';
 import { useRecentProjects } from '../../../kernel/search/recents';

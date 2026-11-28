@@ -310,7 +310,7 @@ export function HtmlEditor({ value, onChange, minHeight = 420, attachTo }: {
 
       {source ? (
         <Textarea
-          className="mono"
+          className="mono font-mono"
           style={{ minHeight }}
           value={value}
           spellCheck={false}

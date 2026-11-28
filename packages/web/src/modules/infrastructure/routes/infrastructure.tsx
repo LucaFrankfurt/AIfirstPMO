@@ -19,7 +19,7 @@ import {
   ComponentCost, ComponentForm, Cost, Delta, Lifecycles, MoveForm, VendorForm,
   envKey, kindKey, moveStatusKey, useComponentRows, useVendorMap, vendorKindKey,
 } from '../landscape';
-import { Stat } from '../../planning/insights';
+import { Stat } from '../../../kernel/design-system/ui/stat';
 import { Empty } from '../../../kernel/design-system/ui/empty';
 import { Icon } from '../../../kernel/design-system/ui/icon';
 import { useConfirm } from '../../../kernel/design-system/ui/sheet';

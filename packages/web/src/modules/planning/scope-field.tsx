@@ -138,7 +138,7 @@ export function ProjectScopeField({
           <span className="mt-1 flex flex-wrap items-center gap-1.5">
             {stranded.slice(0, 12).map((task) => (
               <span className={chipVariants()} key={task.id} title={task.title}>
-                <span className="mono">{task.identifier}</span>
+                <span className="mono font-mono text-label">{task.identifier}</span>
               </span>
             ))}
             {stranded.length > 12 && <span className="text-label text-muted">{labels.strandMore}</span>}

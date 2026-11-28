@@ -14,6 +14,29 @@ the first morning is something somebody is still flinching at in week three. Col
 overdue, blocked, done — so a colour spent on chrome is a colour that no longer means anything when
 it appears on a task. Density is high enough to see a working set at once and no higher.
 
+## Tonal: surfaces, the accent's container, glass
+
+The interface is Material 3's idea of a surface, kept quiet. Layers are told apart by *tone* rather
+than by a line around each of them: the app sits in a tinted frame (`--bg-sunken`), the content is a
+lighter panel set into it from 600px, and the steps between — `hover`, `fill`, `active` — are tones
+of the same hue. Hairlines stay where they carry structure, between the rows of a list; they are no
+longer what separates the sidebar from the page.
+
+- **One hue.** Every neutral and the accent are steps of `--hue` in `oklch()`, whose first number is
+  lightness as an eye reads it. The status colours and the chart series are deliberately not on it.
+- **"You are here" is the accent's container.** The current row in the navigation, the current tab
+  on a phone, a chosen chip: `--accent-soft` with the accent as ink. The filled accent is kept for the
+  one action a bar is for.
+- **Tonal before outlined.** A secondary button is made of `fill`, not drawn around with a border;
+  `danger` keeps its outline so a destructive button looks different in shape, not only in colour.
+  Buttons are pills — the one thing on screen round at the ends — and fields, chips and cards are not.
+- **Glass only over content.** Menus, popovers, the header a list scrolls under and the phone's bar
+  are `--glass`: opaque enough that the faintest ink clears 4.6:1 with solid `--fg` behind it, and
+  fully opaque for anybody who asked for less transparency or more contrast, and in a browser that
+  cannot blur. A card in the flow of the page is never glass.
+
+`/design` shows every primitive in every state, and the browser checks walk it in four modes.
+
 ## Layers, which decide who wins
 
 `app.css` has two halves and the boundary between them matters more than it looks.
@@ -249,15 +272,25 @@ would come back as `text-muted`, the size deleted without a word. `TYPE_STEPS` i
 and `check:tokens` fails when that list and the stylesheet disagree.
 
 **16px is the floor for anything typed into on a phone.** Below it iOS zooms the page in on focus
-and never zooms back out. The `Input` component handles this with `text-input sm:text-body`. The
-chat composer does not, yet: at 16px its placeholder wraps on a 340px screen and the one-row field
-scrolls, which `check:responsive` reports. It is `text-body`, and iOS zooms in when it is tapped.
+and never zooms back out. The `Input` component handles this with `text-input sm:text-body`, and so
+does the chat composer. It took two fixes to get there: a placeholder that wraps counts towards a
+textarea's `scrollHeight` (61px of content in a 38px box, measured), so it is `placeholder:truncate`;
+and the field is refitted when the window changes size, because the font changes at 640px and a
+height measured at 13.5px held 16px text three pixels short.
 
 ## Layout
 
-Mobile-first. One breakpoint that matters, **900px**: below it the bottom bar and full-width sheets,
-above it the sidebar and centred dialogs. That one is about the *window*, because it decides what
-the window contains.
+Mobile-first. Two breakpoints that matter, both about the *window*, because they decide what the
+window contains:
+
+- Below **600px**, a phone held upright: the bottom bar and full-width sheets.
+- From 600px the content is a panel set into the tinted frame, and the navigation is the folded
+  rail — a phone on its side, a tablet, a window dragged half across a laptop. The bottom bar wastes
+  a landscape screen's scarcest direction; the full sidebar would take a third of the width.
+- From **900px** the sidebar has room for words, and dialogs are centred.
+
+`RAIL_QUERY` in `narrow.ts` renders the rail and the `@media` band in `app.css` lays it out; the two
+have to agree, and `check:figures` holds this paragraph to the first of them.
 
 Everything about whether a control fits is about the *content column* instead, and asks `.main` —
 see [Width is not the window](#width-is-not-the-window). The two are not interchangeable and the
@@ -438,4 +471,24 @@ make the code worse:
   more maintainable than the twelve lines of CSS it replaces; it is the same thing, written where it
   is harder to read.
 
-Everything that is a *component* — anything that appears twice — is Tailwind.
+Everything that is a *component* — anything that appears twice — is Tailwind. Where that is not yet
+true, it is said here rather than left to be found:
+
+- **The data table** (`task-table`, `table-wrap`, and the cell markers `num`, `narrow`, `title`,
+  `actions`, `row-open`, `cell-link`, `wraps`) is still a block of descendant rules in `app.css`. It
+  is in the tables of most data screens, so it is a component and belongs in code. Written as one
+  utility string on `<table>` it would be the same rules in a form that is harder to read; what it
+  wants is a `DataTable` with `Th` and `Td` that take `numeric`, `optional`, `title` as props, and
+  each of the tables rewritten to use it. That is its own piece of work.
+- **The long tail.** Most of the remaining classes are used by one screen each — `secret-flag`,
+  `agenda-card`, `review-finding`, `ballot-mark` and their like. They are components of one screen,
+  and they move when that screen is next worked on, by the steps in "Porting a screen" above.
+- **Hooks.** Some class names stay on elements with no rule behind them, because the walkthrough
+  finds things by them: `check-row`, `stat`, `kpi-row`, `stat-label`, `stat-value`, `mono`, `toast`,
+  `empty`, `sheet`. `scripts/unstyled.mjs` names each with the reason, which is how a hook is told
+  apart from a class whose rule went missing.
+- **Form layouts and figure tiles** were classes and are now strings in code — `formField`,
+  `formRow`, `checkRow` in `ui/field.tsx`, the tile and its `Stat` component in `ui/stat.tsx`,
+  `pageBody` in `ui/page.ts`, `noticeWarn` in `ui/notice.ts`. Strings rather than components because
+  several hundred call sites already wrote them as classes on plain elements, and the change worth
+  making was where the styling lives, not the shape of every form.

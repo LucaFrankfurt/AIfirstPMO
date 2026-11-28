@@ -29,7 +29,7 @@ import {
   Variance, categoryKey, confidenceKey, recurrenceKey, stageKey,
   useProjectNames, useRollUp,
 } from '../budget';
-import { Stat } from '../../planning/insights';
+import { Stat } from '../../../kernel/design-system/ui/stat';
 import { MoneyInput, asMoney } from '../../../kernel/design-system/ui/money';
 import { Empty } from '../../../kernel/design-system/ui/empty';
 import { Icon } from '../../../kernel/design-system/ui/icon';
