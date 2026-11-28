@@ -19,7 +19,11 @@ import {
   type Meeting, type Page,
 } from '@kolibri/shared';
 import { Header, Trail } from '../../../kernel/design-system/chrome';
-import { AvatarStack, Empty, Icon, Sheet, useConfirm, useToast } from '../../../kernel/design-system/ui';
+import { AvatarStack } from '../../../kernel/design-system/ui/avatar';
+import { Empty } from '../../../kernel/design-system/ui/empty';
+import { Icon } from '../../../kernel/design-system/ui/icon';
+import { Sheet, useConfirm } from '../../../kernel/design-system/ui/sheet';
+import { useToast } from '../../../kernel/design-system/ui/toast';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { SectionHeading } from '../../../kernel/design-system/ui/section';
 import { useT } from '../../../kernel/i18n/i18n';
@@ -126,7 +130,7 @@ function CarrySheet({ meeting, onClose }: { meeting: Meeting; onClose: () => voi
         </>
       ) : undefined}
     >
-      <p className="m-0 text-[13.5px]">
+      <p className="m-0 text-body">
         {count === 0 ? t('meeting.carryNone')
           : target ? t('meeting.carryInto', { count, meeting: target.title, when: meetingWhen(target) || t('meeting.noTime') })
           : t('meeting.carryNew', { count, when: meetingWhen(draft) })}
@@ -274,13 +278,13 @@ export function MeetingDetail() {
 
         <div className="flex flex-wrap items-center gap-2">
           <MeetingState meeting={meeting} />
-          <span className="text-[13px] text-soft">
+          <span className="text-body text-soft">
             {meetingWhen(meeting) || t('meeting.noTime')}
             {meeting.location && ` · ${meeting.location}`}
           </span>
           {attendees.length > 0 && <AvatarStack users={attendees} max={6} />}
         </div>
-        {meeting.description && <p className="m-0 text-[13px]">{meeting.description}</p>}
+        {meeting.description && <p className="m-0 text-body">{meeting.description}</p>}
 
         <div className="flex flex-wrap items-center gap-2">
           {canWrite && (
@@ -293,11 +297,11 @@ export function MeetingDetail() {
               <Icon name="page" size={13} /> {filed ? t('meeting.minutesAgain') : t('meeting.minutes')}
             </Button>
           )}
-          {filed && <Link to={`/pages/${filed.id}`} className="inline-flex min-h-8 items-center text-[13px]">{t('meeting.minutesOpen')}</Link>}
+          {filed && <Link to={`/pages/${filed.id}`} className="inline-flex min-h-8 items-center text-body">{t('meeting.minutesOpen')}</Link>}
         </div>
 
         <SectionHeading>{t('meeting.agenda')}</SectionHeading>
-        {!agenda.length && <p className="m-0 text-[13px] text-muted">{t('meeting.agendaEmpty')}</p>}
+        {!agenda.length && <p className="m-0 text-body text-muted">{t('meeting.agendaEmpty')}</p>}
         <ol className="flex list-none flex-col gap-3 p-0">
           {agenda.map((item, index) => (
             <li key={item.id}>

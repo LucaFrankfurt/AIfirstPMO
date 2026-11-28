@@ -20,7 +20,7 @@
 import { useState } from 'react';
 import { projectScope, type ProjectScope, type Task } from '@kolibri/shared';
 import { chipVariants } from '../../kernel/design-system/ui/chip';
-import { Select } from '../../kernel/design-system/ui/field';
+import { Select, checkRow, formField } from '../../kernel/design-system/ui/field';
 
 /** The three answers a form offers, which are not the two columns it stores. */
 export type ScopeChoice = 'this' | 'some' | 'all';
@@ -96,21 +96,21 @@ export function ProjectScopeField({
   labels: ScopeLabels;
 }) {
   return (
-    <div className="field">
+    <div className={formField}>
       <label htmlFor={id}>{labels.legend}</label>
       <Select id={id} value={scope} onChange={(event) => onScope(event.target.value as ScopeChoice)}>
         <option value="this">{labels.this}</option>
         <option value="some">{labels.some}</option>
         <option value="all">{labels.all}</option>
       </Select>
-      <span className="text-[12px] text-muted mt-1">
+      <span className="text-label text-muted mt-1">
         {scope === 'this' ? labels.thisHint : scope === 'all' ? labels.allHint : labels.someHint}
       </span>
 
       {scope === 'some' && (
         <div className="mt-2 grid gap-1">
           {projects.map((project) => (
-            <label className="check-row" key={project.id}>
+            <label className={checkRow} key={project.id}>
               <input
                 type="checkbox"
                 checked={picked.includes(project.id)}
@@ -123,7 +123,7 @@ export function ProjectScopeField({
               <span>{project.icon} {project.name}</span>
             </label>
           ))}
-          {!picked.length && <span className="text-[12px] text-danger">{labels.pickOne}</span>}
+          {!picked.length && <span className="text-label text-danger">{labels.pickOne}</span>}
         </div>
       )}
 
@@ -133,17 +133,17 @@ export function ProjectScopeField({
           removed, because "stranded" otherwise reads as "deleted" to the person
           about to press Save. */}
       {stranded.length > 0 && (
-        <div className="mt-2.5 rounded-[var(--radius-sm)] border border-line bg-sunken p-2.5">
-          <strong className="block text-[12.5px] text-danger">{labels.strandTitle}</strong>
+        <div className="mt-2.5 rounded-sm border border-line bg-sunken p-2.5">
+          <strong className="block text-label text-danger">{labels.strandTitle}</strong>
           <span className="mt-1 flex flex-wrap items-center gap-1.5">
             {stranded.slice(0, 12).map((task) => (
               <span className={chipVariants()} key={task.id} title={task.title}>
-                <span className="mono">{task.identifier}</span>
+                <span className="mono font-mono text-label">{task.identifier}</span>
               </span>
             ))}
-            {stranded.length > 12 && <span className="text-[12px] text-muted">{labels.strandMore}</span>}
+            {stranded.length > 12 && <span className="text-label text-muted">{labels.strandMore}</span>}
           </span>
-          <span className="mt-1.5 block text-[12px] text-muted">{labels.strandHint}</span>
+          <span className="mt-1.5 block text-label text-muted">{labels.strandHint}</span>
         </div>
       )}
     </div>

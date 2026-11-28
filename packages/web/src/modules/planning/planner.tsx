@@ -24,7 +24,11 @@ import { byId, list, useQuery } from '../../kernel/sync/store';
 import { update } from '../../kernel/sync/mutations';
 import { useCanWrite, useMembers, useSession } from '../../kernel/identity/session';
 import { Input, Select } from '../../kernel/design-system/ui/field';
-import { Avatar, Empty, Icon, StateDot } from '../../kernel/design-system/ui';
+import { Avatar } from '../../kernel/design-system/ui/avatar';
+import { Empty } from '../../kernel/design-system/ui/empty';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { StateDot } from '../../kernel/design-system/ui/marks';
+import { pageBody } from '../../kernel/design-system/ui/page';
 
 const DAY_WIDTH = 12;
 /** Height of one task bar's row inside a person's lane. */
@@ -248,20 +252,20 @@ export function Planner() {
   const nowX = x(today());
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+    <div className={pageBody}>
       <div className="flex items-center flex-wrap gap-2.5 mb-2.5">
         {/* `h1`, because this is the name of the screen. It was an `h2` and
             the planner was the one route in the app whose heading outline
             started halfway down. */}
-        <h1 className="text-base m-0">{t('planner.title')}</h1>
+        <h1 className="text-title m-0">{t('planner.title')}</h1>
         <span className="flex-1 min-w-0" />
-        <label className="flex items-center gap-1.5 text-[12.5px]">
+        <label className="flex items-center gap-1.5 text-label">
           <span className="text-muted">{t('planner.limit')}</span>
           <Input type="number" min={1} max={20} style={{ width: 62 }}
             value={limit} onChange={(event) => setLimit(Math.max(1, Number(event.target.value) || 1))}
           />
         </label>
-        <label className="flex items-center gap-1.5 text-[12.5px]">
+        <label className="flex items-center gap-1.5 text-label">
           <span className="text-muted">{t('planner.weeks')}</span>
           <Select style={{ width: 90 }} value={weeks}
             onChange={(event) => setWeeks(Number(event.target.value))}>
@@ -270,7 +274,7 @@ export function Planner() {
         </label>
       </div>
 
-      <p className="text-[12px] text-muted mb-2.5">{t('planner.hint')}</p>
+      <p className="text-label text-muted mb-2.5">{t('planner.hint')}</p>
 
       <div className="planner-scroll" ref={board}>
         <div className="planner-names">
@@ -400,7 +404,7 @@ export function Planner() {
       </div>
 
       {!inWindow.length && (
-        <p className="text-muted text-[13.5px] mt-3">{t('planner.nothingDated')}</p>
+        <p className="text-muted text-body mt-3">{t('planner.nothingDated')}</p>
       )}
     </div>
   );

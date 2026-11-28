@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { LOCALE_NAMES, localeLabel, useI18n, type Locale } from '../i18n/i18n';
-import { Icon } from '../design-system/ui';
+import { Icon } from '../design-system/ui/icon';
 import { Select } from '../design-system/ui/field';
 
 /**
@@ -77,7 +77,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
                 around it, in a line of running text. */}
             <Select
               inputSize="sm"
-              className="w-auto h-auto border-none bg-transparent px-1 py-0.5 text-[12.5px] text-muted"
+              className="w-auto h-auto border-none bg-transparent px-1 py-0.5 text-label text-muted"
               aria-label={t('auth.language')}
               value={locale}
               onChange={(event) => setLocale(event.target.value as Locale)}

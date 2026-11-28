@@ -27,7 +27,8 @@ import { isPackaged, sessionToken } from '../../kernel/sync/server';
 import { useT } from '../../kernel/i18n/i18n';
 import { buttonVariants } from '../../kernel/design-system/ui/button';
 import { SectionHeading } from '../../kernel/design-system/ui/section';
-import { Icon, useToast } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { useToast } from '../../kernel/design-system/ui/toast';
 
 /**
  * Whether this Android build has Firebase in it — see `AppPushPlugin.java`.
@@ -251,9 +252,9 @@ export function AppPushToggle() {
   return (
     <>
       <SectionHeading>{t('push.title')}</SectionHeading>
-      <p className="text-[12px] text-muted mb-2">{t('push.appHint')}</p>
+      <p className="text-label text-muted mb-2">{t('push.appHint')}</p>
       {state === 'denied' ? (
-        <p className="text-muted text-[12.5px]">{t('push.appDenied')}</p>
+        <p className="text-muted text-label">{t('push.appDenied')}</p>
       ) : (
         <button
           className={buttonVariants({ variant: state === 'on' ? 'secondary' : 'primary' })}

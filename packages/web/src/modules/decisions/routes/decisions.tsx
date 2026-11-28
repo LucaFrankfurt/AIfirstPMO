@@ -13,7 +13,9 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { isOpen, orderKey, tallyOf } from '@kolibri/shared';
 import { Header, Trail } from '../../../kernel/design-system/chrome';
-import { Empty, Icon, useConfirm } from '../../../kernel/design-system/ui';
+import { Empty } from '../../../kernel/design-system/ui/empty';
+import { Icon } from '../../../kernel/design-system/ui/icon';
+import { useConfirm } from '../../../kernel/design-system/ui/sheet';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { Chip } from '../../../kernel/design-system/ui/chip';
 import { Input } from '../../../kernel/design-system/ui/field';
@@ -126,10 +128,10 @@ export function DecisionDetail() {
           <DecisionState decision={decision} />
           <Chip>{t(modeKey(decision.mode))}</Chip>
           <Chip>{t(visibilityKey(decision.visibility))}</Chip>
-          {decision.task_id && <Link to={`/t/${decision.task_id}`} className="text-[12px]">{byId('task', decision.task_id)?.identifier}</Link>}
+          {decision.task_id && <Link to={`/t/${decision.task_id}`} className="text-label">{byId('task', decision.task_id)?.identifier}</Link>}
         </div>
 
-        {decision.description && <p className="text-[13px]">{decision.description}</p>}
+        {decision.description && <p className="text-body">{decision.description}</p>}
 
         <Ballot decision={decision} />
 

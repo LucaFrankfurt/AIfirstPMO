@@ -6,21 +6,22 @@
  * KPI screens imported a planning component to get at it — the same
  * cross-capability reach `docs/modules.md` describes. It is furniture.
  */
+import { DataTable, Td, Th, Tr } from './data-table';
 
 /** The same numbers as text. Required, not a nicety: colour is never the only channel. */
 export function Table({ caption, head, rows }: { caption: string; head: string[]; rows: string[][] }) {
   return (
-    <details className="chart-table">
-      <summary>{caption}</summary>
+    <details className="mt-2.5">
+      <summary className="cursor-pointer text-label text-muted">{caption}</summary>
       <div className="table-wrap">
-        <table className="task-table">
-          <thead><tr>{head.map((cell) => <th key={cell}>{cell}</th>)}</tr></thead>
+        <DataTable className="mt-1.5">
+          <thead><tr>{head.map((cell) => <Th key={cell}>{cell}</Th>)}</tr></thead>
           <tbody>
             {rows.map((row, index) => (
-              <tr key={index}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>
+              <Tr key={index}>{row.map((cell, cellIndex) => <Td key={cellIndex}>{cell}</Td>)}</Tr>
             ))}
           </tbody>
-        </table>
+        </DataTable>
       </div>
     </details>
   );

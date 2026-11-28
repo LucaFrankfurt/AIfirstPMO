@@ -22,12 +22,17 @@ import { pull } from '../../kernel/sync/sync';
 import { useMe, useMemberMap, useSession } from '../../kernel/identity/session';
 import { chipDot, chipVariants } from '../../kernel/design-system/ui/chip';
 import { Button } from '../../kernel/design-system/ui/button';
-import { Input, Select } from '../../kernel/design-system/ui/field';
-import { Avatar, Icon, Sheet, useConfirm, useToast, type MenuGroup, type MenuItem } from '../../kernel/design-system/ui';
+import { Input, Select, formField } from '../../kernel/design-system/ui/field';
+import { Avatar } from '../../kernel/design-system/ui/avatar';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { Sheet, useConfirm } from '../../kernel/design-system/ui/sheet';
+import { useToast } from '../../kernel/design-system/ui/toast';
+import { type MenuGroup, type MenuItem } from '../../kernel/design-system/ui/menu-button';
 import { downscale, uploadLink } from '../../kernel/files/uploads';
 import { fileSrc } from '../../kernel/sync/server';
 import { saveBlob } from '../../kernel/files/save';
 import { useMinute } from '../../kernel/design-system/minute';
+import { cn } from '../../kernel/design-system/cn';
 
 /* -------------------------------------------------------------- labels */
 
@@ -221,7 +226,7 @@ export function VersionDiff({ page, versionId, onClose }: { page: Page; versionI
   return (
     <Sheet title={t('page.whatChanged')} wide onClose={onClose}>
       {others.length > 0 && (
-        <div className="field mb-2.5">
+        <div className={cn(formField, 'mb-2.5')}>
           <label htmlFor="diff-against">{t('page.compareWith')}</label>
           <Select id="diff-against" value={against} onChange={(event) => setAgainst(event.target.value)}>
             <option value="">{t('page.compareNow')}</option>
@@ -229,11 +234,11 @@ export function VersionDiff({ page, versionId, onClose }: { page: Page; versionI
           </Select>
         </div>
       )}
-      {failed && <p className="text-[12px] text-danger">{t('page.historyFailed')}</p>}
+      {failed && <p className="text-label text-danger">{t('page.historyFailed')}</p>}
       {(before === null || after === null) && !failed && <p className="text-muted">{t('common.loading')}</p>}
       {before !== null && after !== null && (
         <>
-          <p className="text-[12px] text-muted mb-2.5">
+          <p className="text-label text-muted mb-2.5">
             {t('page.diffSummary', { added: summary.added, removed: summary.removed })}
           </p>
           {summary.added === 0 && summary.removed === 0 ? (
@@ -551,13 +556,13 @@ export function PageHistory({ page, onClose, onCompare }: {
 
   return (
     <Sheet title={t('page.history')} onClose={onClose}>
-      <p className="mt-0 mb-2 text-[12.5px] text-muted">{t('page.versionsHint')}</p>
+      <p className="mt-0 mb-2 text-label text-muted">{t('page.versionsHint')}</p>
       {naming && naming.id === null ? nameForm : (
         <Button size="sm" className="mb-2" onClick={() => setNaming({ id: null, name: '', note: '' })}>
           <Icon name="star" size={14} /> {t('page.saveVersion')}
         </Button>
       )}
-      {failed && <p className="text-[12px] text-danger">{t('page.historyFailed')}</p>}
+      {failed && <p className="text-label text-danger">{t('page.historyFailed')}</p>}
       {entries === null && !failed && <p className="text-muted">{t('common.loading')}</p>}
       {entries !== null && shown.length === 0 && <p className="text-muted">{t('page.noVersions')}</p>}
 
@@ -566,11 +571,11 @@ export function PageHistory({ page, onClose, onCompare }: {
           <Avatar user={entry.who ? members.get(entry.who) : undefined} size={20} />
           {entry.kind === 'change' ? (
             <div className="flex-1 min-w-0">
-              <span className="text-[13.5px]">
+              <span className="text-body">
                 <strong>{(entry.who && members.get(entry.who)?.name) || t('common.someone')}</strong>{' '}
                 {said(entry)}
               </span>
-              <div className="text-muted text-[12.5px]">{relativeTime(entry.at)}</div>
+              <div className="text-muted text-label">{relativeTime(entry.at)}</div>
             </div>
           ) : (
             naming?.id === entry.id ? <div className="flex-1 min-w-0">{nameForm}</div> : <>
@@ -583,10 +588,10 @@ export function PageHistory({ page, onClose, onCompare }: {
                   {entry.id === page.settled_version_id && (
                     <span className={chipVariants()}>{t('page.versionSettled', { status: settled })}</span>
                   )}
-                  <strong className="text-[13.5px]">{entry.title || t('common.untitled')}</strong>
+                  <strong className="text-body">{entry.title || t('common.untitled')}</strong>
                 </span>
-                {entry.note && <div className="text-[12.5px]">{entry.note}</div>}
-                <div className="text-muted text-[12.5px]">
+                {entry.note && <div className="text-label">{entry.note}</div>}
+                <div className="text-muted text-label">
                   {shortDate(entry.at)} · {(entry.who && members.get(entry.who)?.name) || t('common.someone')}
                   {' '}· {t('page.versionSize', { count: entry.size })}
                 </div>

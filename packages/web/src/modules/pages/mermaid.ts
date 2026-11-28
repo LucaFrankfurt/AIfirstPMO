@@ -14,6 +14,26 @@
  */
 import { useEffect, useSyncExternalStore, type RefObject } from 'react';
 
+/**
+ * A computed colour as `rgb()`, which is the one form mermaid's colour library
+ * (`khroma`) is sure to read.
+ *
+ * The page's background is an `oklch()` value, and a computed colour keeps the
+ * space it was written in. Handed to mermaid as it is, `khroma` throws
+ * "Unsupported color format" — measured — and no diagram on any page draws.
+ * Painting it into one pixel and reading the pixel back converts anything the
+ * browser can draw.
+ */
+function asRgb(color: string): string {
+  const pixel = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+  if (!pixel) return color;
+  pixel.canvas.width = pixel.canvas.height = 1;
+  pixel.fillStyle = color;
+  pixel.fillRect(0, 0, 1, 1);
+  const [r, g, b, a] = pixel.getImageData(0, 0, 1, 1).data;
+  return a === 255 ? `rgb(${r}, ${g}, ${b})` : `rgba(${r}, ${g}, ${b}, ${(a / 255).toFixed(3)})`;
+}
+
 /** Which theme is actually on screen: the chosen one, or the system's. */
 function darkNow(): boolean {
   const chosen = document.documentElement.getAttribute('data-theme');
@@ -116,7 +136,7 @@ export function useMermaid(host: RefObject<HTMLElement | null>, html: string, op
           // Mermaid's own themes paint the label on an arrow onto a fixed pale
           // swatch, which on a dark page is a grey sticker over the line. The
           // page's own background is what that label is actually sitting on.
-          themeVariables: { edgeLabelBackground: getComputedStyle(document.body).backgroundColor },
+          themeVariables: { edgeLabelBackground: asRgb(getComputedStyle(document.body).backgroundColor) },
         });
 
         for (const node of waiting) {

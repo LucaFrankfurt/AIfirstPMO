@@ -20,13 +20,16 @@ import { useT } from '../../kernel/i18n/i18n';
 import { byOrder, create, remove, update } from '../../kernel/sync/mutations';
 import { byId, list, useQuery } from '../../kernel/sync/store';
 import { useCanWrite, useMe, useSession } from '../../kernel/identity/session';
-import { Icon, MenuButton, Sheet, useConfirm, useToast, type IconName, type MenuItem } from '../../kernel/design-system/ui';
+import { Icon, type IconName } from '../../kernel/design-system/ui/icon';
+import { MenuButton, type MenuItem } from '../../kernel/design-system/ui/menu-button';
+import { Sheet, useConfirm } from '../../kernel/design-system/ui/sheet';
+import { useToast } from '../../kernel/design-system/ui/toast';
 import { DEFAULT_VIEW, type GroupBy, type ViewConfig } from './task-parts';
 import { ShareSheet, type ShareTarget } from '../share/share';
 import { Button } from '../../kernel/design-system/ui/button';
 import { buttonVariants } from '../../kernel/design-system/ui/button';
 import { cn } from '../../kernel/design-system/cn';
-import { Input } from '../../kernel/design-system/ui/field';
+import { Input, checkRow, formField } from '../../kernel/design-system/ui/field';
 
 /** The stored row, read back as the shape the screens work in. */
 export function configOf(row: View): ViewConfig {
@@ -248,7 +251,12 @@ export function SavedViews({
     <>
       <MenuButton variant="secondary" size="sm" items={items} search={views.length > 6}>
         <Icon name={active?.icon ?? 'bookmark'} size={14} />
-        <span className={`truncate saved-view-name${active ? '' : ' hide-sm'}`} style={{ maxWidth: 140 }}>
+        {/* Capped for a long view name, and at a width the button's own
+            words fit under: at 140px "Gespeicherte Ansichten" was cut off on
+            every screen in German, the name of the menu shortened to make room
+            for nothing. Narrower on a phone, where the active view's name is
+            shown and the rest of the row still has to fit beside it. */}
+        <span className={cn('truncate max-w-36 sm:max-w-60', !active && 'hide-sm')}>
           {active ? active.name : t('view.saved')}
         </span>
         {/* A dot rather than a word: it says "not saved" without taking a line. */}
@@ -298,7 +306,7 @@ function ViewNameSheet({
         </>
       }
     >
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="view-name">{t('view.name')}</label>
         <Input
           id="view-name"
@@ -308,12 +316,12 @@ function ViewNameSheet({
           onChange={(event) => setName(event.target.value)}
           onKeyDown={(event) => { if (event.key === 'Enter' && trimmed && !duplicate) done(); }}
         />
-        {duplicate && <span className="text-[12px] text-danger">{t('view.nameTaken')}</span>}
+        {duplicate && <span className="text-label text-danger">{t('view.nameTaken')}</span>}
       </div>
 
       {/* A dozen shapes, not a picker: the icon is here to make one row in a
           menu findable at a glance, and more choices make that harder. */}
-      <div className="field">
+      <div className={formField}>
         <label id="sv-icon">{t('view.icon')}</label>
         <div className="flex items-center gap-2 flex-wrap icon-choices" role="radiogroup" aria-labelledby="sv-icon">
           {VIEW_ICONS.map((choice) => (
@@ -331,14 +339,14 @@ function ViewNameSheet({
             </button>
           ))}
         </div>
-        <span className="text-[12px] text-muted">{t('view.iconHint')}</span>
+        <span className="text-label text-muted">{t('view.iconHint')}</span>
       </div>
 
-      <label className="check-row">
+      <label className={checkRow}>
         <input type="checkbox" checked={shared} onChange={(event) => setShared(event.target.checked)} />
         <span>
           <span>{t('view.shareWithTeam')}</span>
-          <span className="text-[12px] text-muted">{shared ? t('view.sharedHint') : t('view.privateHint')}</span>
+          <span className="text-label text-muted">{shared ? t('view.sharedHint') : t('view.privateHint')}</span>
         </span>
       </label>
     </Sheet>

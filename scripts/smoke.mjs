@@ -427,6 +427,11 @@ await step('assignee filter: nobody, then a person beside it, in one visit', asy
 
     const drawer = page.locator('[role=menu]').last();
     if (!(await drawer.isVisible())) throw new Error('the menu closed after the first tick');
+    // The drawer, not just the menu: with only the menu left, `.last()` is the
+    // menu itself and the next line waited thirty seconds for a name it does
+    // not hold. A drawer that opened to the left of its menu used to shut on
+    // the first tick (see `MenuSubContent`), and this is how that read.
+    if (await page.locator('[role=menu]').count() < 2) throw new Error('the drawer closed after the first tick');
     await rungItem(drawer, name).first().click();
     await page.waitForTimeout(500);
     const both = await faces();
@@ -2808,7 +2813,9 @@ await step('a page says how finished it is, and the word can be changed', async 
   await page.goto(`${base}/pages`, { waitUntil: 'networkidle' });
   await closeTour(page);
   await page.waitForSelector('.page-row', { timeout: 8000 });
-  await page.locator('.header button')
+  // In the row above the pages, where it moved from a header too crowded to
+  // show the page's own title.
+  await page.locator('.list-tools button')
     .filter({ hasText: new RegExp(`${LABELS.filterPages}|${RUNGS.final}`) }).first().click();
   await page.waitForTimeout(350);
   // The rungs are a drawer of the filter, beside the labels and the types —
@@ -2837,7 +2844,7 @@ await step('a page says how finished it is, and the word can be changed', async 
   await page.waitForTimeout(700);
 });
 
-await step('one box, two places: the header filters and the search finds', async () => {
+await step('one box, two places: the list filters and the search finds', async () => {
   await page.goto(`${base}/`, { waitUntil: 'networkidle' });
   await closeTour(page);
   // `.my-work-list` and not `.task-row` anywhere: the overdue bucket above the
@@ -2854,7 +2861,10 @@ await step('one box, two places: the header filters and the search finds', async
   const phrase = first.replace(/^\S+\s+/, '').match(/^[\p{L}\p{N}]+ [\p{L}\p{N}]+/u)?.[0];
   if (!identifier || !phrase) throw new Error(`could not read a task out of "${first}"`);
 
-  const field = page.locator('.header input[type=text]').first();
+  // Above the list, in the row of tools that used to be squeezed into the
+  // header — where, in German at 1024px, it pushed the page's title down to
+  // six letters and the sync status out of sight.
+  const field = page.locator('.list-tools input[type=text]').first();
   await field.waitFor({ timeout: 5000 });
 
   const apply = async (query) => {
@@ -2887,9 +2897,9 @@ await step('one box, two places: the header filters and the search finds', async
   /*
    * The half that only a browser can be asked: a name is *picked*, not typed.
    *
-   * The list hangs in a portal, because the header is `overflow-x: auto` and
-   * would otherwise clip it — and the first version of that portal broke
-   * picking outright. The box closes its list when a pointer goes down outside
+   * The list hangs in a portal, because the field stood in the header, which
+   * is `overflow-x: auto` and would otherwise have clipped it — and the first
+   * version of that portal broke picking outright. The box closes its list when a pointer goes down outside
    * itself, and once the list is portalled out it *is* outside itself: every
    * click dismissed the list under the pointer and the field kept the bare `@`.
    * Nothing static could see it. This is what sees it.
@@ -2898,9 +2908,9 @@ await step('one box, two places: the header filters and the search finds', async
   await page.waitForSelector('[role=option]', { timeout: 5000 });
   const offered = await page.locator('[role=option]').count();
   const panel = await page.locator('[role=listbox]').first().boundingBox();
-  const header = await page.locator('.header').first().boundingBox();
-  if (!(panel.y + panel.height > header.y + header.height)) {
-    throw new Error('the list of names is drawn inside the header, which clips it');
+  const tools = await page.locator('.list-tools').first().boundingBox();
+  if (!(panel.y + panel.height > tools.y + tools.height)) {
+    throw new Error('the list of names is drawn inside the row it hangs from, which clips it');
   }
   await page.locator('[role=option]').first().click();
   await page.waitForTimeout(500);
@@ -3537,7 +3547,14 @@ await step('a pinned theme reaches the controls the browser paints itself', asyn
       await view.waitForTimeout(300);
 
       const seen = await view.evaluate(() => {
-        const luma = (c) => { const [r, g, b] = c.match(/\d+/g).map(Number); return Math.round(0.2126*r + 0.7152*g + 0.0722*b); };
+        // Painted rather than parsed: a computed `oklch(1 0 0)` read for its
+        // digits is luma 0, and a white sheet would pass as a dark one.
+        const pixel = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+        const luma = (c) => {
+          pixel.clearRect(0, 0, 1, 1); pixel.fillStyle = c; pixel.fillRect(0, 0, 1, 1);
+          const [r, g, b] = pixel.getImageData(0, 0, 1, 1).data;
+          return Math.round(0.2126*r + 0.7152*g + 0.0722*b);
+        };
         const sheet = document.querySelector('.sheet');
         return {
           scheme: getComputedStyle(document.documentElement).colorScheme,

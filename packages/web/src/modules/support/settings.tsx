@@ -10,10 +10,13 @@ import {
   WIDGET_ASSISTANTS, WIDGET_IDENTITIES, cleanContextFields, cleanOrigins, contextFieldsText, isWidgetColor, widgetSnippet,
   type Widget, type WidgetAssistant, type WidgetIdentity,
 } from '@kolibri/shared';
-import { Empty, Icon, Sheet, useAction, useConfirm, useToast } from '../../kernel/design-system/ui';
+import { Empty } from '../../kernel/design-system/ui/empty';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { Sheet, useConfirm } from '../../kernel/design-system/ui/sheet';
+import { useAction, useToast } from '../../kernel/design-system/ui/toast';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Chip } from '../../kernel/design-system/ui/chip';
-import { Input, Label, Select, Textarea } from '../../kernel/design-system/ui/field';
+import { Input, Label, Select, Textarea, checkRow } from '../../kernel/design-system/ui/field';
 import { SectionHeading } from '../../kernel/design-system/ui/section';
 import { useT } from '../../kernel/i18n/i18n';
 import { useFeature, useMembers, useRunsWorkspace } from '../../kernel/identity/session';
@@ -41,7 +44,7 @@ export function WidgetSettings() {
   return (
     <>
       <div className="mb-3 flex items-center gap-2">
-        <p className="m-0 flex-1 text-[12.5px] text-muted">{t('widgets.intro')}</p>
+        <p className="m-0 flex-1 text-label text-muted">{t('widgets.intro')}</p>
         <Button size="sm" variant="primary" onClick={() => setEditing('new')}>{t('widgets.new')}</Button>
       </div>
       {!widgets.length && <Empty emoji="💬" title={t('widgets.none')} hint={t('widgets.noneHint')} />}
@@ -65,7 +68,7 @@ function WidgetCard({ widget, onEdit }: { widget: Widget; onEdit: () => void }) 
   const copy = (text: string) => void navigator.clipboard.writeText(text).then(() => toast(t('widgets.copied')));
 
   return (
-    <section className="rounded-[var(--radius)] border border-line bg-raised p-4" style={widget.color ? { borderTopColor: widget.color, borderTopWidth: 3 } : undefined}>
+    <section className="rounded border border-line bg-raised p-4" style={widget.color ? { borderTopColor: widget.color, borderTopWidth: 3 } : undefined}>
       <div className="mb-2 flex items-center gap-2">
         <strong className="min-w-0 flex-1 truncate">{widget.name || t('widgets.unnamed')}</strong>
         <Chip className="h-6 leading-6" tone={widget.enabled ? 'on' : 'default'}>
@@ -73,14 +76,14 @@ function WidgetCard({ widget, onEdit }: { widget: Widget; onEdit: () => void }) 
         </Chip>
         <Button size="sm" onClick={onEdit}>{t('action.edit')}</Button>
       </div>
-      <p className="m-0 mb-2 text-[12.5px] text-muted">
+      <p className="m-0 mb-2 text-label text-muted">
         {t(widget.identity === 'signed' ? 'widgets.signedSummary' : 'widgets.anonymousSummary')}
         {' · '}
         {origins.length ? origins.join(', ') : t('widgets.noSites')}
       </p>
 
       <SectionHeading>{t('widgets.snippet')}</SectionHeading>
-      <pre className="m-0 mb-2 whitespace-pre-wrap break-all rounded-[var(--radius-sm)] bg-sunken p-3 font-mono text-[12px] leading-[1.5]">{snippet}</pre>
+      <pre className="m-0 mb-2 whitespace-pre-wrap break-all rounded-sm bg-sunken p-3 mono font-mono text-label leading-[1.5]">{snippet}</pre>
       <div className="flex flex-wrap gap-2">
         <Button size="sm" onClick={() => copy(snippet)}>{t('widgets.copySnippet')}</Button>
         <Button size="sm" variant="ghost" onClick={() => window.open(`${publicUrl()}/w/${widget.id}`, '_blank', 'noopener')}>
@@ -91,8 +94,8 @@ function WidgetCard({ widget, onEdit }: { widget: Widget; onEdit: () => void }) 
       {widget.identity === 'signed' && (
         <>
           <SectionHeading>{t('widgets.secret')}</SectionHeading>
-          <p className="m-0 mb-2 text-[12.5px] text-muted">{t('widgets.secretHint')}</p>
-          {secret && <pre className="m-0 mb-2 whitespace-pre-wrap break-all rounded-[var(--radius-sm)] bg-sunken p-3 font-mono text-[12px]">{secret}</pre>}
+          <p className="m-0 mb-2 text-label text-muted">{t('widgets.secretHint')}</p>
+          {secret && <pre className="m-0 mb-2 whitespace-pre-wrap break-all rounded-sm bg-sunken p-3 mono font-mono text-label">{secret}</pre>}
           <div className="flex flex-wrap gap-2">
             {secret
               ? <Button size="sm" onClick={() => copy(secret)}>{t('widgets.copySecret')}</Button>
@@ -197,13 +200,13 @@ function WidgetSheet({ widget, onClose }: { widget: Widget | null; onClose: () =
           </Select>
         </Label>
         <fieldset className="m-0 flex flex-col gap-1.5 border-0 p-0">
-          <legend className="mb-1 text-[13px] font-medium">{t('widgets.identity')}</legend>
+          <legend className="mb-1 text-body font-medium">{t('widgets.identity')}</legend>
           {WIDGET_IDENTITIES.map((option) => (
-            <label key={option} className="check-row">
+            <label key={option} className={checkRow}>
               <input type="radio" name="identity" checked={identity === option} onChange={() => setIdentity(option)} />
               <span>
                 <span>{t(option === 'signed' ? 'widgets.signed' : 'widgets.anonymous')}</span>
-                <span className="text-[12px] text-muted">{t(option === 'signed' ? 'widgets.signedHint' : 'widgets.anonymousHint')}</span>
+                <span className="text-label text-muted">{t(option === 'signed' ? 'widgets.signedHint' : 'widgets.anonymousHint')}</span>
               </span>
             </label>
           ))}
@@ -211,7 +214,7 @@ function WidgetSheet({ widget, onClose }: { widget: Widget | null; onClose: () =
         <Label label={t('widgets.sites')} hint={t('widgets.sitesHint')}>
           <Textarea rows={3} value={sites} placeholder={'example.com\ndev.example.com'} onChange={(event) => setSites(event.target.value)} />
         </Label>
-        {dropped > 0 && <p className="m-0 text-[12px] text-warn">{t('widgets.sitesDropped', { count: dropped })}</p>}
+        {dropped > 0 && <p className="m-0 text-label text-warn">{t('widgets.sitesDropped', { count: dropped })}</p>}
         <Label label={t('widgets.greeting')} hint={t('widgets.greetingHint')}>
           <Textarea rows={2} maxLength={500} value={greeting} onChange={(event) => setGreeting(event.target.value)} />
         </Label>
@@ -222,10 +225,10 @@ function WidgetSheet({ widget, onClose }: { widget: Widget | null; onClose: () =
           </span>
         </Label>
         <fieldset className="m-0 flex flex-col gap-1.5 border-0 p-0">
-          <legend className="mb-1 text-[13px] font-medium">{t('widgets.agents')}</legend>
-          <span className="text-[12px] text-muted">{t('widgets.agentsHint')}</span>
+          <legend className="mb-1 text-body font-medium">{t('widgets.agents')}</legend>
+          <span className="text-label text-muted">{t('widgets.agentsHint')}</span>
           {members.map((member) => (
-            <label key={member.id} className="check-row">
+            <label key={member.id} className={checkRow}>
               <input
                 type="checkbox"
                 checked={agents.includes(member.id)}
@@ -236,18 +239,18 @@ function WidgetSheet({ widget, onClose }: { widget: Widget | null; onClose: () =
           ))}
         </fieldset>
         <fieldset className="m-0 flex flex-col gap-1.5 border-0 p-0">
-          <legend className="mb-1 text-[13px] font-medium">{t('widgets.assistant')}</legend>
+          <legend className="mb-1 text-body font-medium">{t('widgets.assistant')}</legend>
           {WIDGET_ASSISTANTS.map((option) => (
-            <label key={option} className="check-row">
+            <label key={option} className={checkRow}>
               <input type="radio" name="assistant" checked={assistant === option} onChange={() => setAssistant(option)} />
               <span>
                 <span>{t(ASSISTANT_LABEL[option])}</span>
-                <span className="text-[12px] text-muted">{t(ASSISTANT_HINT[option])}</span>
+                <span className="text-label text-muted">{t(ASSISTANT_HINT[option])}</span>
               </span>
             </label>
           ))}
           {assistant !== 'off' && !(modelOn && aiSwitch) && (
-            <p className="m-0 text-[12px] text-warn">{t('widgets.assistantNeeds')}</p>
+            <p className="m-0 text-label text-warn">{t('widgets.assistantNeeds')}</p>
           )}
         </fieldset>
         {assistant !== 'off' && (
@@ -260,7 +263,7 @@ function WidgetSheet({ widget, onClose }: { widget: Widget | null; onClose: () =
                 ))}
               </Select>
             </Label>
-            {!offered.length && <p className="m-0 text-[12px] text-muted">{t('widgets.knowledgeNone')}</p>}
+            {!offered.length && <p className="m-0 text-label text-muted">{t('widgets.knowledgeNone')}</p>}
             {knowledge.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {knowledge.map((id) => (
@@ -272,7 +275,7 @@ function WidgetSheet({ widget, onClose }: { widget: Widget | null; onClose: () =
                 ))}
               </div>
             )}
-            {unread.size > 0 && <p className="m-0 text-[12px] text-warn">{t('widgets.notPublic')}</p>}
+            {unread.size > 0 && <p className="m-0 text-label text-warn">{t('widgets.notPublic')}</p>}
             {/* Only where a host vouches for the visitor: an anonymous widget
                 has nobody to say anything about. */}
             {identity === 'signed' && (
@@ -290,11 +293,11 @@ function WidgetSheet({ widget, onClose }: { widget: Widget | null; onClose: () =
         <Label label={t('widgets.replyTo')} hint={t('widgets.replyToHint')}>
           <Input type="email" value={replyTo} placeholder="support@example.com" onChange={(event) => setReplyTo(event.target.value)} />
         </Label>
-        <label className="check-row">
+        <label className={checkRow}>
           <input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />
           <span>
             <span>{t('widgets.enabled')}</span>
-            <span className="text-[12px] text-muted">{t('widgets.enabledHint')}</span>
+            <span className="text-label text-muted">{t('widgets.enabledHint')}</span>
           </span>
         </label>
       </div>

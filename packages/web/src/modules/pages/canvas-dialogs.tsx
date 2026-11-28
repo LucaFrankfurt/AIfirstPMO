@@ -19,7 +19,8 @@ import { htmlTitle, looksLikeHtml, stripFitScript } from '@kolibri/shared';
 import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Select, Textarea } from '../../kernel/design-system/ui/field';
-import { Icon, Sheet } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { Sheet } from '../../kernel/design-system/ui/sheet';
 
 /** What a canvas may ask of a model. Filled by `ai-review/board-ai.ts`, through the page route. */
 export interface CanvasAi {
@@ -144,8 +145,8 @@ export function DraftDialog({ ai, pageId, board, hasOthers, initial = '', onDraf
           <span>{t('canvas.matchLook')}</span>
         </label>
       )}
-      <p className="text-muted text-[12.5px] mt-2">{working ? t('canvas.drawingHint') : t('canvas.draftPrivacy')}</p>
-      {problem && <p className="text-danger text-[12.5px] mt-1.5" role="alert">{problem}</p>}
+      <p className="text-muted text-label mt-2">{working ? t('canvas.drawingHint') : t('canvas.draftPrivacy')}</p>
+      {problem && <p className="text-danger text-label mt-1.5" role="alert">{problem}</p>}
     </Sheet>
   );
 }
@@ -208,8 +209,8 @@ export function ImportDialog({ onImported, onClose }: { onImported: (draft: Draf
         />
       </label>
       <FormatPicker value={format} onChange={setFormat} />
-      <p className="text-muted text-[12.5px] mt-2">{t('canvas.importHint')}</p>
-      {problem && <p className="text-danger text-[12.5px] mt-1.5" role="alert">{problem}</p>}
+      <p className="text-muted text-label mt-2">{t('canvas.importHint')}</p>
+      {problem && <p className="text-danger text-label mt-1.5" role="alert">{problem}</p>}
     </Sheet>
   );
 }

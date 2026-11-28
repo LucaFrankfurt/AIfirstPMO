@@ -18,7 +18,11 @@ import {
   type BaseGroupBy, type Implied, type ViewConfig,
 } from './task-parts';
 import { setFieldValue, useFields } from './fields';
-import { Avatar, AvatarStack, Empty, Icon, MenuButton, PriorityBars, StateDot, isMenuGroup, type MenuEntry, type MenuGroup } from '../../kernel/design-system/ui';
+import { Avatar, AvatarStack } from '../../kernel/design-system/ui/avatar';
+import { Empty } from '../../kernel/design-system/ui/empty';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { MenuButton, isMenuGroup, type MenuEntry, type MenuGroup } from '../../kernel/design-system/ui/menu-button';
+import { PriorityBars, StateDot } from '../../kernel/design-system/ui/marks';
 import { QueryBox } from './query-box';
 import { SavedViews } from './saved-views';
 import { SelectBox, type Selection } from '../../kernel/design-system/selection';
@@ -29,6 +33,8 @@ import { cn } from '../../kernel/design-system/cn';
 import { navCount } from '../../kernel/design-system/ui/nav';
 import { Popover, PopoverContent, PopoverTrigger } from '../../kernel/design-system/ui/popover';
 import { GanttView } from '../planning/gantt';
+import { Segmented, SegmentedItem } from '../../kernel/design-system/ui/segmented';
+import { DataTable, Td, Th, Tr, rowOpen, tableCell } from '../../kernel/design-system/ui/data-table';
 
 const PRIORITY_RANK = Object.fromEntries(PRIORITIES.map((p, i) => [p, i]));
 
@@ -192,12 +198,30 @@ function fieldFilterGroup(
   };
 }
 
+/**
+ * The tools a task list is worked with, as one row standing directly above it.
+ *
+ * They used to live in the page header — one row 52px tall that scrolls
+ * sideways when its contents do not fit, shared with the page's title, its
+ * main action and the sync status. Measured at 1024px in German, the project
+ * header was 284px wider than its room: the title had shrunk to its 72px floor
+ * and read "Websit", "Gespeicherte Ansichten" was cut off, and the sync status
+ * had scrolled out of sight. At 1280px it still overflowed by 28px. Every
+ * control was there and the screen had no name.
+ *
+ * So the header keeps what belongs to the page, and what belongs to the list
+ * stands where the list is. Here a row may wrap, which the header could never
+ * do: a second line of tools pushes the list down instead of drawing over the
+ * tab strip.
+ */
 export function ViewControls({
-  view, onChange, projectId, saveable,
+  view, onChange, projectId, saveable, className,
 }: {
   view: ViewConfig;
   onChange: (next: ViewConfig) => void;
   projectId?: string;
+  /** Where the row sits on its screen: padding, mostly. */
+  className?: string;
   /**
    * Offer saved views. Off for a cycle or a module: those screens already show
    * one slice of the project, and a view saved there would be a filter set that
@@ -364,37 +388,35 @@ export function ViewControls({
   const activeFilters = countFilters(view.filters);
 
   return (
-    // Emphatically not `flex-wrap`. Every one of these lives in the header,
-    // which is one row 52px tall and scrolls sideways when its contents do not
-    // fit — see `.header` in `app.css`. Allowed to wrap, the second row had
-    // nowhere to go and drew itself straight over the tab strip below.
-    <div className="flex items-center gap-1.5">
+    // `list-tools` carries no style. It is the name the walkthrough finds the
+    // query field by, which it used to find as "the input in the header".
+    <div className={cn('list-tools flex flex-wrap items-center gap-1.5', className)}>
       {saveable && <SavedViews view={view} onChange={onChange} projectId={projectId} />}
       <QueryBox
         filters={view.filters}
         projectId={projectId}
         onChange={(filters) => onChange({ ...view, filters })}
       />
-      {/* Four buttons side by side are right where there is room and too many
-          on a phone, where the header also carries saved views, filter, display
-          and the add button. Same choice, one button. */}
-      <div className="flex items-center not-sm gap-0.5" style={{ border: '1px solid var(--line-strong)', borderRadius: 7, padding: 2 }}>
+      {/* Five buttons side by side are right where there is room and too many
+          on a phone. Same choice, one button. `ms-auto` on both, since only one
+          of them is ever drawn: the layout, the filter and the display stand at
+          the far end, where the eye looks for what changes the list. */}
+      <Segmented className="not-sm ms-auto">
         {BUILT_LAYOUTS.map((layout) => (
-          <button
+          <SegmentedItem
             key={layout}
-            className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), view.layout === layout && 'bg-active text-fg')}
-            style={view.layout === layout ? { background: 'var(--bg-active)' } : undefined}
+            className="w-8 px-0"
+            pressed={view.layout === layout}
             onClick={() => onChange({ ...view, layout })}
             title={t(LAYOUT_KEY[layout])}
             aria-label={t(LAYOUT_KEY[layout])}
-            aria-pressed={view.layout === layout}
           >
             <Icon name={layout} size={14} />
-          </button>
+          </SegmentedItem>
         ))}
-      </div>
+      </Segmented>
       <MenuButton
-        className={cn(buttonVariants({ size: 'sm' }), 'only-sm')}
+        className={cn(buttonVariants({ size: 'sm' }), 'only-sm ms-auto')}
         title={t(LAYOUT_KEY[view.layout])}
         items={BUILT_LAYOUTS.map((layout) => ({
           id: layout,
@@ -756,7 +778,7 @@ export function BoardView({
               </Fragment>
             ))}
             {overColumn === group.id && overIndex !== null && overIndex >= group.tasks.length && <div className="drop-line" />}
-            {!group.tasks.length && <span className="text-muted text-[12.5px]" style={{ padding: '6px 2px' }}>{t('common.empty')}</span>}
+            {!group.tasks.length && <span className="text-muted text-label" style={{ padding: '6px 2px' }}>{t('common.empty')}</span>}
           </div>
         </div>
       ))}
@@ -779,7 +801,7 @@ export function BoardView({
               <button type="button" onClick={() => setDraftColumn('')}>
                 <Icon name="plus" size={14} /> {t('project.addColumn')}
               </button>
-              <span className="text-muted text-[12px]">{t('project.addColumnHint')}</span>
+              <span className="text-muted text-label">{t('project.addColumnHint')}</span>
             </>
           ) : (
             // In place rather than a dialog. Adding three columns in a row is
@@ -820,7 +842,7 @@ export function BoardView({
                   {t('action.cancel')}
                 </Button>
               </div>
-              <span className="text-muted text-[12px]">{t('project.addColumnHint')}</span>
+              <span className="text-muted text-label">{t('project.addColumnHint')}</span>
             </form>
           )}
         </div>
@@ -898,7 +920,7 @@ export function CalendarView({ tasks, onOpen }: { tasks: Task[]; onOpen: (task: 
                 <Popover open={openDay === key} onOpenChange={(open) => setOpenDay(open ? key : null)}>
                   <PopoverTrigger asChild>
                     <button
-                      type="button" className="text-muted text-[10px] text-start hover:text-fg"
+                      type="button" className="text-muted text-caption text-start hover:text-fg"
                       aria-label={t('view.moreOnDay', { count: items.length - 4, date: shortDate(key) })}
                     >
                       +{items.length - 4}
@@ -908,7 +930,7 @@ export function CalendarView({ tasks, onOpen }: { tasks: Task[]; onOpen: (task: 
                     {items.map((task) => (
                       <button
                         type="button" key={task.id} title={task.title}
-                        className="truncate rounded px-2 py-1 text-start text-[12.5px] hover:bg-hover"
+                        className="truncate rounded-sm px-2 py-1 text-start text-label hover:bg-hover"
                         onClick={() => { setOpenDay(null); onOpen(task); }}
                       >
                         {task.title}
@@ -929,6 +951,9 @@ export function CalendarView({ tasks, onOpen }: { tasks: Task[]; onOpen: (task: 
 /* ------------------------------------------------------------------ table */
 
 /** Columns, in the order they are shown. Narrow ones drop out on a phone. */
+/** A column a project invented: truncated rather than allowed to set the width. */
+const custom = 'max-w-55 overflow-hidden text-ellipsis';
+
 const COLUMNS = [
   { id: 'identifier', label: 'table.id' as const, orderBy: null, narrow: true },
   { id: 'title', label: 'table.title' as const, orderBy: 'title' as const, narrow: false },
@@ -996,25 +1021,28 @@ export function TableView({
 
   return (
     <div className="table-wrap">
-      <table className="task-table">
+      <DataTable>
         <thead>
           <tr>
             {selection && (
-              <th className="pick">
+              <Th className="w-7.5">
                 <input
                   type="checkbox"
                   checked={allSelected}
                   aria-label={t('select.selectGroup')}
                   onChange={() => selection.setMany(order, !allSelected)}
                 />
-              </th>
+              </Th>
             )}
             {[...COLUMNS, ...extra.map((field) => ({ id: field.id, label: null, orderBy: null, narrow: true, field }))].map((column: any) => (
-              <th key={column.id} className={`${column.field ? 'custom' : column.id}${column.narrow ? ' narrow' : ''}`}>
+              // The built-in columns name themselves (`state`, `due_date`…) so
+              // a column can be addressed; a project's own field is truncated
+              // rather than allowed to set the width.
+              <Th key={column.id} optional={column.narrow} className={column.field ? custom : column.id}>
                 {column.field ? column.field.name : null}
                 {column.orderBy && onChange ? (
                   <button
-                    className="sort"
+                    className="inline-flex cursor-pointer items-center gap-0.75 aria-pressed:text-fg"
                     aria-pressed={view.orderBy === column.orderBy}
                     onClick={() => onChange({ ...view, orderBy: column.orderBy! })}
                   >
@@ -1022,18 +1050,23 @@ export function TableView({
                     {view.orderBy === column.orderBy && <Icon name="chevronDown" size={11} />}
                   </button>
                 ) : column.label ? t(column.label) : null}
-              </th>
+              </Th>
             ))}
           </tr>
         </thead>
         {groups.map((group) => (
           <tbody key={group.id}>
+            {/* A group's heading, inside the body it heads: the table's rhythm
+                without a column heading's stickiness, and not a row you can
+                open, so not a `Tr`. */}
             {view.groupBy !== 'none' && (
-              <tr className="group">
-                <th colSpan={COLUMNS.length + extra.length + (selection ? 1 : 0)}>
-                  {group.color && <StateDot group={group.group} color={group.color} size={9} />}
-                  <span>{group.title}</span>
-                  <span className={navCount}>{group.tasks.length}</span>
+              <tr className="border-b border-line">
+                <th colSpan={COLUMNS.length + extra.length + (selection ? 1 : 0)} className={cn(tableCell(), 'pt-3.5 text-label')}>
+                  <span className="inline-flex items-center gap-1.5">
+                    {group.color && <StateDot group={group.group} color={group.color} size={9} />}
+                    <span>{group.title}</span>
+                    <span className={navCount}>{group.tasks.length}</span>
+                  </span>
                 </th>
               </tr>
             )}
@@ -1043,46 +1076,46 @@ export function TableView({
               const people = (task.assignees ?? []).map((id) => memberMap.get(id)).filter(Boolean) as any[];
               const author = memberMap.get(String(task.created_by ?? ''));
               return (
-                <tr
-                  key={task.id}
-                  className={`${done ? 'done' : ''}${selection?.has(task.id) ? ' selected' : ''}`}
-                  onClick={() => onOpen(task)}
-                >
+                <Tr key={task.id} selected={selection?.has(task.id)} onClick={() => onOpen(task)}>
                   {selection && (
-                    <td className="pick" onClick={(event) => event.stopPropagation()}>
+                    <Td className="w-7.5" onClick={(event) => event.stopPropagation()}>
                       <SelectBox id={task.id} order={order} selection={selection} label={t('select.selectRow')} />
-                    </td>
+                    </Td>
                   )}
-                  <td className="identifier narrow">{task.identifier}</td>
-                  <td className="title"><button type="button" className="row-open">{task.title}</button></td>
-                  <td className="state">
+                  <Td optional className="identifier font-mono text-caption text-muted">{task.identifier}</Td>
+                  {/* Struck through when it is done, and the button carries the
+                      line on: see `rowOpen`. */}
+                  <Td lead className={cn('title', done && 'text-muted line-through')}>
+                    <button type="button" className={rowOpen}>{task.title}</button>
+                  </Td>
+                  <Td className="state">
                     <StateDot group={state?.group_key} color={state?.color} /> {state?.name ?? ''}
-                  </td>
-                  <td className="assignees"><AvatarStack users={people} size={20} /></td>
-                  <td className="priority">
+                  </Td>
+                  <Td className="assignees"><AvatarStack users={people} size={20} /></Td>
+                  <Td className="priority">
                     {task.priority !== 'none' && <><PriorityBars priority={task.priority} /> {t(priorityKey(task.priority))}</>}
-                  </td>
-                  <td className="due_date">{task.due_date ? shortDate(task.due_date) : ''}</td>
-                  <td className="estimate narrow">{task.estimate ?? ''}</td>
-                  <td className="labels narrow"><LabelChips ids={task.labels ?? []} projectId={task.project_id} /></td>
+                  </Td>
+                  <Td className="due_date">{task.due_date ? shortDate(task.due_date) : ''}</Td>
+                  <Td optional className="estimate">{task.estimate ?? ''}</Td>
+                  <Td optional className="labels"><LabelChips ids={task.labels ?? []} projectId={task.project_id} /></Td>
                   {/* An avatar rather than a name: the table already says
                       "person" that way in the assignees column, and the name is
                       on the hover and spelled out in the detail. Empty rather
                       than a "?" bubble where the creator has left the
                       workspace — a row of question marks is not information. */}
-                  <td className="created_by narrow">{author ? <Avatar user={author} size={20} /> : null}</td>
-                  <td className="updated_at narrow">{shortDate(task.updated_at)}</td>
+                  <Td optional className="created_by">{author ? <Avatar user={author} size={20} /> : null}</Td>
+                  <Td optional className="updated_at">{shortDate(task.updated_at)}</Td>
                   {extra.map((field) => (
-                    <td className="custom narrow" key={field.id}>
+                    <Td optional className={custom} key={field.id}>
                       {formatFieldValue(field.kind, values.get(`${task.id}.${field.id}`), nameMap)}
-                    </td>
+                    </Td>
                   ))}
-                </tr>
+                </Tr>
               );
             })}
           </tbody>
         ))}
-      </table>
+      </DataTable>
     </div>
   );
 }
@@ -1112,20 +1145,3 @@ export function TaskViews(props: {
   return <ListView {...props} />;
 }
 
-/** Small helper used by cycle pages. */
-export function CycleProgress({ cycleId }: { cycleId: string }) {
-  const t = useT();
-  const tasks = useQuery(() => list('task', (t) => t.cycle_id === cycleId), [cycleId]);
-  const done = tasks.filter((task) => isDoneGroup(byId('state', task.state_id)?.group_key)).length;
-  const cycle = byId('cycle', cycleId);
-  return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-2 text-[12.5px]">
-        <span className="flex-1 min-w-0 truncate">{cycle?.name}</span>
-        <span className="text-muted">{done}/{tasks.length}</span>
-      </div>
-      <div className="progress"><i style={{ width: `${tasks.length ? (done / tasks.length) * 100 : 0}%` }} /></div>
-      {cycle?.end_date && <span className="text-muted text-[11.5px]">{t('cycle.endsOn', { date: shortDate(cycle.end_date) })}</span>}
-    </div>
-  );
-}

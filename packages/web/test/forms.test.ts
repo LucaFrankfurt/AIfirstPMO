@@ -17,7 +17,7 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
-import { twMerge } from 'tailwind-merge';
+import { cn } from '../src/kernel/design-system/cn.ts';
 import { en } from '../src/kernel/i18n/locales/en.ts';
 
 const SRC = new URL('../src', import.meta.url).pathname;
@@ -133,6 +133,11 @@ describe('every label', () => {
  * `cn()` — which is `twMerge` — resolves exactly this, last one wins. So the
  * check is: does merging the string change it? If it does, the string is
  * asking for two things at once and only one of them is happening.
+ *
+ * It merges through `cn` itself and not through a bare `twMerge`, because the
+ * two disagree about the type steps: a bare one files `text-label` under
+ * colour and would report every `text-label text-muted` in the app as a
+ * conflict. What matters is what the app's own merge does with the string.
  */
 describe('every className literal', () => {
   it('does not contain a utility that another one in the same string overrides', () => {
@@ -144,7 +149,7 @@ describe('every className literal', () => {
         // what it will contain, and those call sites go through `cn()` anyway.
         if (raw.includes('${')) continue;
         const tokens = raw.split(/\s+/).filter(Boolean);
-        const merged = twMerge(tokens.join(' ')).split(/\s+/).filter(Boolean);
+        const merged = cn(tokens.join(' ')).split(/\s+/).filter(Boolean);
         if (merged.length === tokens.length) continue;
         const lost = tokens.filter((token) => !merged.includes(token));
         const line = text.slice(0, match.index).split('\n').length;
@@ -288,19 +293,22 @@ describe('fields side by side', () => {
   const rows = files.flatMap(({ path, text }) => {
     const lines = text.split('\n');
     return lines.flatMap((line, i) =>
-      /className="[^"]*\bitems-center\b[^"]*"/.test(line) && /className="field[ "]/.test(lines[i + 1] ?? '')
+      // `formField` is the same wrapper since the class moved into the code; a
+      // pattern that only knew the old spelling would pass every file by
+      // looking at none of them.
+      /className="[^"]*\bitems-center\b[^"]*"/.test(line) && /className=(?:"field[ "]|\{(?:cn\()?formField\b)/.test(lines[i + 1] ?? '')
         ? [`${path.slice(SRC.length + 1)}:${i + 1}`]
         : []);
   });
 
-  it('is a .field-row, not a centred flex line', () => {
+  it('is a formRow, not a centred flex line', () => {
     assert.deepEqual(rows, [], `field(s) centred against a taller neighbour: ${rows.join(', ')}`);
   });
 
   it('never has its alignment undone inline', () => {
     const patched = files.flatMap(({ path, text }) =>
       [...text.matchAll(/alignItems:\s*'flex-start'/g)].map((m) => `${path.slice(SRC.length + 1)}:${text.slice(0, m.index).split('\n').length}`));
-    assert.deepEqual(patched, [], `inline alignment patch(es) — use .field-row: ${patched.join(', ')}`);
+    assert.deepEqual(patched, [], `inline alignment patch(es) — use formRow: ${patched.join(', ')}`);
   });
 });
 
@@ -319,7 +327,12 @@ describe('fields side by side', () => {
  * beside it, not in silence.
  */
 describe('a project made and a project changed', () => {
+  // Two files since the route was split: the create form stayed with the
+  // route, the settings tab moved beside it. Read apart, each list is checked
+  // against the other — read as one file after the split, the settings would
+  // have come back empty and the first case below says so rather than passing.
   const source = readFileSync(join(SRC, 'modules/planning/routes/projects.tsx'), 'utf8');
+  const settings = readFileSync(join(SRC, 'modules/planning/project-settings.tsx'), 'utf8');
 
   /** The fields the create form starts with — its own `useState` object. */
   const created = (() => {
@@ -331,7 +344,7 @@ describe('a project made and a project changed', () => {
 
   /** The fields the settings screen writes back. */
   const settable = new Set(
-    [...source.matchAll(/update\('project', projectId, \{\s*(\w+)/g)].map((match) => match[1]),
+    [...settings.matchAll(/update\('project', projectId, \{\s*(\w+)/g)].map((match) => match[1]),
   );
 
   it('reads both lists — a scan that finds nothing passes everything', () => {
@@ -346,7 +359,10 @@ describe('a project made and a project changed', () => {
 });
 
 describe('a product made', () => {
-  const source = readFileSync(join(SRC, 'modules/products/routes/products.tsx'), 'utf8');
+  // The form moved out of the route file when that file was split; this read
+  // the route for a while afterwards, found no create call, and the two cases
+  // below stopped registering — the suite went green by running two fewer tests.
+  const source = readFileSync(join(SRC, 'modules/products/product-form.tsx'), 'utf8');
 
   /**
    * What the create call is allowed to decide on the form's behalf.
@@ -384,10 +400,13 @@ describe('a product made', () => {
 });
 
 /**
- * The column you act from, and the one class it must never wear.
+ * The column you act from, and the one prop it must never carry.
  *
- * `.narrow` means "drop this below 700px" — it is for the columns that are
- * only useful for comparing, and the stylesheet says so. Six action cells in
+ * `optional` means "drop this below 700px" — it is for the columns that are
+ * only useful for comparing, and `DataTable` says so. (It was the class
+ * `narrow` when this test was written, and the cells said so by class name;
+ * the scan reads both, so a raw cell wearing the old class is still caught.)
+ * Six action cells in
  * the catalogue carried it anyway, so on a phone every products table could
  * be read and not changed: no editing a price, a cost, a contributor, a part,
  * a scenario or a campaign, and nothing to suggest the buttons existed. A
@@ -403,7 +422,9 @@ describe('every column you act from', () => {
   const cells = files.flatMap(({ path, text }) => {
     const lines = text.split('\n');
     return lines.flatMap((line, i) => {
-      const match = /<td\b[^>]*className="([^"]*)"/.exec(line);
+      // Any cell, with or without props: an action cell no longer has to carry
+      // a class to be one, and the scan used to find them by the class.
+      const match = /<(td|Td)\b([^>]*)>/.exec(line);
       if (!match) return [];
       /*
        * The buttons sit on the lines after the cell opens, so the scan reads
@@ -413,11 +434,12 @@ describe('every column you act from', () => {
        * of this test duly reported two innocent columns holding buttons they
        * do not hold.
        */
-      const closes = line.includes('</td>');
-      const end = closes ? i : lines.findIndex((l, j) => j > i && l.includes('</td>'));
+      const closing = `</${match[1]}>`;
+      const closes = line.includes(closing);
+      const end = closes ? i : lines.findIndex((l, j) => j > i && l.includes(closing));
       const body = lines.slice(i, end === -1 ? i + 1 : end + 1).join('\n');
       if (!/<Button\b|action\.edit|action\.delete/.test(body)) return [];
-      return [{ where: `${path.slice(SRC.length + 1)}:${i + 1}`, classes: match[1].split(/\s+/) }];
+      return [{ where: `${path.slice(SRC.length + 1)}:${i + 1}`, attributes: match[2] }];
     });
   });
 
@@ -426,8 +448,10 @@ describe('every column you act from', () => {
   });
 
   it('is never dropped on a phone', () => {
-    const folded = cells.filter((cell) => cell.classes.includes('narrow')).map((cell) => cell.where);
-    assert.deepEqual(folded, [], `action cell(s) marked \`narrow\`, so the buttons vanish below 700px: ${folded.join(', ')}`);
+    // The prop, the old class, and the utility either of them comes to.
+    const folds = /\boptional\b|className="[^"]*\bnarrow\b|max-\[700px\]:hidden/;
+    const folded = cells.filter((cell) => folds.test(cell.attributes)).map((cell) => cell.where);
+    assert.deepEqual(folded, [], `action cell(s) marked \`optional\`, so the buttons vanish below 700px: ${folded.join(', ')}`);
   });
 });
 
@@ -448,8 +472,10 @@ describe('deleting a label, a cycle or a module', () => {
 
 // A clickable row/card must also open from the keyboard (UX-02).
 describe('every row or card that opens on a click', () => {
+  // `Tr` as well as `tr`: a data table's rows are the component now, and a scan
+  // that only knew the element went from thirteen rows to one.
   const opens = files.flatMap(({ path, text }) =>
-    [...text.matchAll(/<(tr|article|li)\b/g)].flatMap((match) => {
+    [...text.matchAll(/<(tr|Tr|article|li)\b/g)].flatMap((match) => {
       const tag = text.slice(match.index!, endOfTag(text, match.index!));
       if (!/\bonClick=/.test(tag)) return [];
       const close = text.indexOf(`</${match[1]}>`, match.index!);
@@ -489,10 +515,10 @@ describe('a create or edit sheet with typed input', () => {
     ['modules/kpis/routes/kpis.tsx', 'KpiForm'],
     ['modules/kpis/routes/kpis.tsx', 'ReadingForm'],
     ['modules/kpis/routes/kpis.tsx', 'TargetForm'],
-    ['modules/budgets/routes/budgets.tsx', 'BudgetForm'],
-    ['modules/budgets/routes/budgets.tsx', 'LineForm'],
-    ['modules/budgets/routes/budgets.tsx', 'ActualForm'],
-    ['modules/products/routes/products.tsx', 'ProductForm'],
+    ['modules/budgets/budget-settings.tsx', 'BudgetForm'],
+    ['modules/budgets/plan.tsx', 'LineForm'],
+    ['modules/budgets/actuals.tsx', 'ActualForm'],
+    ['modules/products/product-form.tsx', 'ProductForm'],
   ];
 
   it('asks before closing', () => {
@@ -502,7 +528,7 @@ describe('a create or edit sheet with typed input', () => {
 
   it('creates a task on a plain Enter in the title', () => {
     const quick = functionBody('modules/work/QuickAdd.tsx', 'QuickAdd');
-    const handler = quick.slice(quick.indexOf('onKeyDown='), quick.indexOf('className="text-base'));
+    const handler = quick.slice(quick.indexOf('onKeyDown='), quick.indexOf('className="text-input'));
     assert.match(handler, /event\.key === 'Enter'/);
     assert.doesNotMatch(handler, /metaKey|ctrlKey/, 'Enter only submits with a modifier held');
   });
@@ -669,11 +695,11 @@ describe('a bulk delete or archive', () => {
 describe('a write in the teams screen or a project tab', () => {
   const SCREENS: [string, string][] = [
     ['modules/work/routes/teams.tsx', 'Teams'],
-    ['modules/planning/routes/projects.tsx', 'Cycles'],
-    ['modules/planning/routes/projects.tsx', 'CyclePage'],
-    ['modules/planning/routes/projects.tsx', 'Modules'],
+    ['modules/planning/cycle-list.tsx', 'Cycles'],
+    ['modules/planning/routes/cycle.tsx', 'CyclePage'],
+    ['modules/planning/module-list.tsx', 'Modules'],
     ['modules/planning/routes/projects.tsx', 'ProjectPages'],
-    ['modules/planning/routes/projects.tsx', 'ProjectSettings'],
+    ['modules/planning/project-settings.tsx', 'ProjectSettings'],
   ];
   /** Where `canWrite` holds: `{canWrite && …}`, `(canWrite ? …)`, and inside `<fieldset disabled={!canWrite}>`. */
   const guarded = (body: string): [number, number][] => [
@@ -705,10 +731,14 @@ describe('a write in the teams screen or a project tab', () => {
 // A module's description had an editor only behind its own page's Edit button; a cycle's is in its sheet.
 describe("a module's sheet", () => {
   it("asks what the module is for, as a cycle's does, and saves it", () => {
-    const cycle = functionBody('modules/planning/routes/projects.tsx', 'CycleEditor');
-    const module = functionBody('modules/planning/routes/projects.tsx', 'ModuleEditor');
-    assert.match(cycle, /<MarkdownEditor[\s\S]*?form\.description/);
-    assert.match(module, /<MarkdownEditor[^>]*value=\{description\}/);
+    const cycle = functionBody('modules/planning/cycle-list.tsx', 'CycleEditor');
+    const module = functionBody('modules/planning/module-list.tsx', 'ModuleEditor');
+    // The editor is handed in by the route since the tabs left it (see
+    // `SettingsSlots`), so each sheet is asked two things: that what it is
+    // handed is the markdown editor, and that it writes the description with it.
+    for (const sheet of [cycle, module]) assert.match(sheet, /Editor: typeof MarkdownEditor/);
+    assert.match(cycle, /<Editor[\s\S]*?form\.description/);
+    assert.match(module, /<Editor[^>]*value=\{description\}/);
     assert.match(module, /const fields = \{[^\n]*\bdescription:/);
   });
 });

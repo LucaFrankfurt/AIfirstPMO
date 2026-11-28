@@ -425,7 +425,7 @@ for (const [label, options] of MODES) {
     // have.
     '/products', '/products?tab=promotions',
     // Behind the budget, kpi, infrastructure and time switches; see `planning-fixture.mjs`.
-    '/budgets', `/budgets/${budgetId}`, '/kpis', `/kpis/${kpiId}`, '/infrastructure', '/timesheet', '/guide'];
+    '/budgets', `/budgets/${budgetId}`, '/kpis', `/kpis/${kpiId}`, '/infrastructure', '/timesheet', '/guide', '/design'];
 
   const found = new Map();
   const small = new Map();

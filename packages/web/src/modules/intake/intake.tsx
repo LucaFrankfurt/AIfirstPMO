@@ -21,12 +21,15 @@ import { useCanWrite, useMemberMap } from '../../kernel/identity/session';
 import { ShareSheet } from '../share/share';
 import { useStates } from '../work/task-parts';
 import { Button } from '../../kernel/design-system/ui/button';
-import { buttonVariants } from '../../kernel/design-system/ui/button';
-import { cn } from '../../kernel/design-system/cn';
-import { Input, Select } from '../../kernel/design-system/ui/field';
+import { Input, Select, formField } from '../../kernel/design-system/ui/field';
 import { Chip } from '../../kernel/design-system/ui/chip';
-import { Empty, Icon, Sheet, useConfirm, useToast } from '../../kernel/design-system/ui';
+import { Empty } from '../../kernel/design-system/ui/empty';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { Sheet, useConfirm } from '../../kernel/design-system/ui/sheet';
+import { useToast } from '../../kernel/design-system/ui/toast';
 import { useMinute } from '../../kernel/design-system/minute';
+import { Segmented, SegmentedItem } from '../../kernel/design-system/ui/segmented';
+import { pageBody } from '../../kernel/design-system/ui/page';
 
 /** Everything reported to this project, newest first. */
 export const useIntakes = (projectId: string, status?: Intake['status']) =>
@@ -70,22 +73,16 @@ export function Triage({ projectId }: { projectId: string }) {
   };
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+    <div className={pageBody}>
       <div className="flex items-center flex-wrap gap-1.5 mb-3.5">
-        <div className="flex items-center gap-0.5" style={{ border: '1px solid var(--line-strong)', borderRadius: 7, padding: 2 }}>
+        <Segmented>
           {(['new', 'handled'] as const).map((which) => (
-            <button
-              key={which}
-              className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), tab === which && 'bg-active text-fg')}
-              style={tab === which ? { background: 'var(--bg-active)' } : undefined}
-              aria-pressed={tab === which}
-              onClick={() => setTab(which)}
-            >
+            <SegmentedItem key={which} pressed={tab === which} onClick={() => setTab(which)}>
               {t(which === 'new' ? 'intake.tabNew' : 'intake.tabHandled')}
               {which === 'new' && waiting.length > 0 && ` ${waiting.length}`}
-            </button>
+            </SegmentedItem>
           ))}
-        </div>
+        </Segmented>
         <span className="flex-1 min-w-0" />
         {canWrite && (
           <Button size="sm" onClick={() => setLinking(true)}>
@@ -103,11 +100,11 @@ export function Triage({ projectId }: { projectId: string }) {
       ) : (
         <div className="grid gap-2.5">
           {shown.map((intake) => (
-            <article className="rounded-[var(--radius)] border border-line bg-raised p-3.5" key={intake.id}>
+            <article className="rounded border border-line bg-raised p-3.5" key={intake.id}>
               <div className="flex items-start gap-2">
                 <div className="flex-1 min-w-0">
-                  <strong style={{ fontSize: 14.5 }}>{intake.title}</strong>
-                  <div className="text-muted text-[12.5px] mt-0.5">
+                  <strong className="text-title">{intake.title}</strong>
+                  <div className="text-muted text-label mt-0.5">
                     {/* Neither the name nor the address was verified, and saying
                         so once is better than a screen that quietly implies it. */}
                     {intake.reporter || intake.email
@@ -124,7 +121,7 @@ export function Triage({ projectId }: { projectId: string }) {
                 )}
               </div>
               {intake.body && (
-                <p style={{ margin: '10px 0 0', fontSize: 13.5, whiteSpace: 'pre-wrap' }}>{intake.body}</p>
+                <p className="text-body" style={{ margin: '10px 0 0', whiteSpace: 'pre-wrap' }}>{intake.body}</p>
               )}
               {intake.status === 'new' && canWrite && (
                 <div className="flex items-center gap-1.5 mt-3">
@@ -203,13 +200,13 @@ function AcceptSheet({
         </>
       }
     >
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="intake-title">{t('task.title')}</label>
         <Input id="intake-title" autoFocus value={title} onChange={(event) => setTitle(event.target.value)} />
-        <span className="text-[12px] text-muted">{t('intake.titleHint')}</span>
+        <span className="text-label text-muted">{t('intake.titleHint')}</span>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="field">
+        <div className={formField}>
           <label htmlFor="intake-state">{t('view.groupState')}</label>
           <Select id="intake-state" value={stateId} onChange={(event) => setStateId(event.target.value)}>
             {states.map((state) => <option key={state.id} value={state.id}>{state.name}</option>)}
@@ -217,10 +214,10 @@ function AcceptSheet({
         </div>
       </div>
       {intake.body && (
-        <div className="field">
+        <div className={formField}>
           <label>{t('intake.whatTheySaid')}</label>
-          <p className="text-muted text-[13.5px] m-0" style={{ whiteSpace: 'pre-wrap' }}>{intake.body}</p>
-          <span className="text-[12px] text-muted">{t('intake.bodyHint')}</span>
+          <p className="text-muted text-body m-0" style={{ whiteSpace: 'pre-wrap' }}>{intake.body}</p>
+          <span className="text-label text-muted">{t('intake.bodyHint')}</span>
         </div>
       )}
     </Sheet>

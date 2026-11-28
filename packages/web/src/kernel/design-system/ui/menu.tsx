@@ -1,6 +1,7 @@
 import * as Primitive from '@radix-ui/react-dropdown-menu';
 import type { ComponentProps } from 'react';
 import { cn } from '../cn';
+import { floatingSurface } from './surface';
 
 /**
  * A dropdown menu that behaves like one.
@@ -21,7 +22,7 @@ export const MenuSeparator = ({ className, ...props }: ComponentProps<typeof Pri
 );
 
 export const MenuLabel = ({ className, ...props }: ComponentProps<typeof Primitive.Label>) => (
-  <Primitive.Label className={cn('px-2 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted', className)} {...props} />
+  <Primitive.Label className={cn('px-2 pb-1 pt-2 text-caption font-semibold uppercase tracking-wide text-muted', className)} {...props} />
 );
 
 /**
@@ -53,7 +54,7 @@ export function MenuContent({ className, sideOffset = 6, sheet, ...props }: Comp
           // cap's job is to stop a menu running off a short window, not to
           // absorb a menu that is too long.
           'menu z-50 min-w-[13rem] max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-y-auto',
-          'rounded-[var(--radius)] border border-line bg-raised p-1 text-[13.5px] shadow-[var(--shadow)]',
+          floatingSurface, 'p-1 text-body',
           'data-[state=open]:animate-in data-[state=closed]:animate-out motion-reduce:animate-none',
           className,
         )}
@@ -67,7 +68,7 @@ export function MenuItem({ className, danger, ...props }: ComponentProps<typeof 
   return (
     <Primitive.Item
       className={cn(
-        'flex cursor-pointer select-none items-center gap-2.5 rounded-[var(--radius-sm)] px-2 py-1.5 outline-none',
+        'flex cursor-pointer select-none items-center gap-2.5 rounded-sm px-2 py-1.5 outline-none',
         // Radix marks the item under the cursor *and* the one the keyboard is
         // on with the same attribute, so both are highlighted the same way and
         // there is never a second, competing highlight.
@@ -100,7 +101,7 @@ export const MenuSub = Primitive.Sub;
 export const MenuSubTrigger = ({ className, ...props }: ComponentProps<typeof Primitive.SubTrigger>) => (
   <Primitive.SubTrigger
     className={cn(
-      'flex cursor-pointer select-none items-center gap-2.5 rounded-[var(--radius-sm)] px-2 py-1.5 outline-none text-fg',
+      'flex cursor-pointer select-none items-center gap-2.5 rounded-sm px-2 py-1.5 outline-none text-fg',
       // `data-[state=open]` as well as highlighted: the row that opened the
       // drawer stays marked while the pointer is inside it, or the trail back
       // out of a submenu is a row that looks like nothing.
@@ -111,15 +112,38 @@ export const MenuSubTrigger = ({ className, ...props }: ComponentProps<typeof Pr
   />
 );
 
-export function MenuSubContent({ className, sideOffset = 4, ...props }: ComponentProps<typeof Primitive.SubContent>) {
+export function MenuSubContent({ className, sideOffset = 4, onFocusOutside, ...props }: ComponentProps<typeof Primitive.SubContent>) {
   return (
     <Primitive.Portal>
       <Primitive.SubContent
         sideOffset={sideOffset}
         collisionPadding={10}
+        /*
+         * A drawer that opened to the left of its menu shut on the first tick.
+         *
+         * When the pointer leaves a row of the menu, Radix moves focus to the
+         * menu itself unless it reckons the pointer is on its way into the
+         * submenu — and its reckoning, a polygon from the pointer to the
+         * submenu's near edge, came out wrong for a submenu on the left once a
+         * tick had re-rendered the row that opened it. Focus landed on the
+         * menu, which is outside the drawer, and the drawer closed with the
+         * pointer still on it. Keyboard ticks never moved the pointer and never
+         * closed it. A drawer only opens to the left when there is no room on
+         * the right, which is why nothing saw this while the filter sat in the
+         * header: it took the row of tools above the list, which puts the
+         * filter near the right edge, to make it the ordinary case.
+         *
+         * So focus moving to a menu's own surface — not to a row of it — does
+         * not close the drawer. Pointing at another row still does, because
+         * Radix focuses that row; Escape and a click outside still do.
+         */
+        onFocusOutside={(event) => {
+          if ((event.target as HTMLElement | null)?.getAttribute('role') === 'menu') event.preventDefault();
+          onFocusOutside?.(event);
+        }}
         className={cn(
           'menu z-50 min-w-[13rem] max-h-[min(24rem,var(--radix-dropdown-menu-content-available-height))] overflow-y-auto',
-          'rounded-[var(--radius)] border border-line bg-raised p-1 text-[13.5px] shadow-[var(--shadow)]',
+          floatingSurface, 'p-1 text-body',
           'data-[state=open]:animate-in data-[state=closed]:animate-out motion-reduce:animate-none',
           className,
         )}
@@ -132,7 +156,7 @@ export function MenuSubContent({ className, sideOffset = 4, ...props }: Componen
 export const MenuCheckboxItem = ({ className, ...props }: ComponentProps<typeof Primitive.CheckboxItem>) => (
   <Primitive.CheckboxItem
     className={cn(
-      'flex cursor-pointer select-none items-center gap-2.5 rounded-[var(--radius-sm)] px-2 py-1.5 outline-none',
+      'flex cursor-pointer select-none items-center gap-2.5 rounded-sm px-2 py-1.5 outline-none',
       'data-[highlighted]:bg-hover data-[state=checked]:text-accent',
       className,
     )}

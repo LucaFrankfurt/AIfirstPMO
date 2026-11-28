@@ -21,7 +21,13 @@ import {
   AssigneePicker, CyclePicker, DateField, LabelChips, LabelPicker, ModulePicker, ParentPicker, ParentTrail,
   PriorityPicker, ProjectPicker, StatePicker, stateOf, useDeleteTask,
 } from './task-parts';
-import { Avatar, Empty, Icon, MenuButton, Sheet, StateDot, useToast } from '../../kernel/design-system/ui';
+import { Avatar } from '../../kernel/design-system/ui/avatar';
+import { Empty } from '../../kernel/design-system/ui/empty';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { MenuButton } from '../../kernel/design-system/ui/menu-button';
+import { Sheet } from '../../kernel/design-system/ui/sheet';
+import { StateDot } from '../../kernel/design-system/ui/marks';
+import { useToast } from '../../kernel/design-system/ui/toast';
 import { Input, Select } from '../../kernel/design-system/ui/field';
 import { Button } from '../../kernel/design-system/ui/button';
 import { useMinute } from '../../kernel/design-system/minute';
@@ -93,7 +99,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
         title={
           <span className="flex items-center gap-1.5">
             <StateDot group={state?.group_key} color={state?.color} />
-            <span className="mono text-muted">{task.identifier}</span>
+            <span className="mono font-mono text-label text-muted">{task.identifier}</span>
           </span>
         }
       >
@@ -102,7 +108,8 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
         <ParentTrail task={task} onOpen={onOpen} />
 
         <Input
-          style={{ fontSize: 17, fontWeight: 600, border: 'none', padding: '2px 0', marginBottom: 10, background: 'none' }}
+          className="text-headline sm:text-headline"
+          style={{ fontWeight: 600, border: 'none', padding: '2px 0', marginBottom: 10, background: 'none' }}
           value={title}
           aria-label={t('task.titleLabel')}
           onChange={(event) => setTitle(event.target.value)}
@@ -156,11 +163,11 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
           * label at the start, control at the end, all three ends aligned.
           */}
         <div className="flex flex-col gap-2 mb-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2.5">
-          <label className="flex items-center justify-between gap-1.5 text-[12.5px] sm:justify-start">
+          <label className="flex items-center justify-between gap-1.5 text-label sm:justify-start">
             <span className="text-muted">{t('task.due')}</span>
             <DateField label={t('task.due')} value={task.due_date} onChange={(value) => update('task', task.id, { due_date: value })} />
           </label>
-          <label className="flex items-center justify-between gap-1.5 text-[12.5px] sm:justify-start">
+          <label className="flex items-center justify-between gap-1.5 text-label sm:justify-start">
             <span className="text-muted">{t('task.repeats')}</span>
             <Select className="w-[150px] sm:w-[130px]"
               value={task.recurrence ?? ''}
@@ -173,7 +180,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
               <option value="monthly">{t('task.repeatsMonthly')}</option>
             </Select>
           </label>
-          <label className="flex items-center justify-between gap-1.5 text-[12.5px] sm:justify-start">
+          <label className="flex items-center justify-between gap-1.5 text-label sm:justify-start">
             <span className="text-muted">{t('task.estimate')}</span>
             <Input type="number" min={0} step={1} className="w-[150px] sm:w-[84px]"
               value={task.estimate ?? ''}
@@ -195,7 +202,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
               somebody willing to look at the markdown behind it. Editing is a
               button now, the way it is on a page. */}
           <div className="flex items-center gap-2 mb-1.5">
-            <strong className="text-[13.5px]">{t('task.description')}</strong>
+            <strong className="text-body">{t('task.description')}</strong>
             <span className="flex-1 min-w-0" />
             {!editingDescription && hasDescription && (
               <Button variant="ghost" size="sm" hidden={!canWrite} onClick={() => setEditingDescription(true)}>
@@ -245,8 +252,8 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
         {/* sub-tasks */}
         <section className="mb-[18px]">
           <div className="flex items-center gap-2 mb-1.5">
-            <strong className="text-[13.5px]">{t('task.subtasks')}</strong>
-            <span className="text-muted text-[12.5px]">
+            <strong className="text-body">{t('task.subtasks')}</strong>
+            <span className="text-muted text-label">
               {t('task.subtaskCount', {
                 done: subtasks.filter((child) => stateOf(child)?.group_key === 'completed').length,
                 total: subtasks.length,
@@ -257,7 +264,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
             <div key={child.id} className="flex items-center gap-2" style={{ padding: '5px 0', borderTop: '1px solid var(--line)' }}>
               <StateDot group={stateOf(child)?.group_key} color={stateOf(child)?.color} />
               <Button variant="ghost" size="sm" className="flex-1 min-w-0" style={{ justifyContent: 'flex-start' }} onClick={() => onOpen(child)}>
-                <span className="mono text-muted">{child.identifier}</span>
+                <span className="mono font-mono text-label text-muted">{child.identifier}</span>
                 <span className="truncate">{child.title}</span>
               </Button>
             </div>
@@ -308,11 +315,11 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
             <Comments target={{ task_id: task.id }} />
           ) : (
             <div className="flex flex-col gap-2">
-              {activity.length === 0 && <span className="text-muted text-[12.5px]">{t('task.noActivity')}</span>}
+              {activity.length === 0 && <span className="text-muted text-label">{t('task.noActivity')}</span>}
               {activity.map((entry) => (
-                <div key={entry.id} className="flex items-center gap-2 text-[12.5px]" style={{ gap: 7 }}>
+                <div key={entry.id} className="flex items-center gap-2 text-label" style={{ gap: 7 }}>
                   <Avatar user={members.get(entry.actor_id)} size={18} />
-                  <span className="soft flex-1 min-w-0">
+                  <span className="text-soft flex-1 min-w-0">
                     <strong>{members.get(entry.actor_id)?.name ?? t('common.someone')}</strong>{' '}
                     {entry.verb === 'created' ? t('task.activityCreated')
                       // Both used to fall through to "changed something": the
@@ -329,7 +336,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
           )}
         </section>
 
-        <div className="text-muted text-[11.5px] mt-[18px]">
+        <div className="text-muted text-caption mt-[18px]">
           {/* Who filed it, where the line already says when. The trail under
               "Protokoll" has said it all along — behind a tab, in the past
               tense, and only for as long as the entry is still in the last

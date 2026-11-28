@@ -15,7 +15,9 @@ import { pull } from '../../kernel/sync/sync';
 import { useSession } from '../../kernel/identity/session';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Input } from '../../kernel/design-system/ui/field';
-import { Icon, Sheet, useConfirm, useToast } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { Sheet, useConfirm } from '../../kernel/design-system/ui/sheet';
+import { useToast } from '../../kernel/design-system/ui/toast';
 
 export const shareUrl = (share: Share): string =>
   share.token ? `${location.origin}/s/${share.token}` : '';
@@ -80,10 +82,10 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
 
   return (
     <Sheet title={t(target.kind === 'intake' ? 'intake.linkTitle' : 'share.title')} onClose={onClose}>
-      <p className="text-[12px] text-muted mb-3">{t(target.kind === 'intake' ? 'intake.linkHint' : 'share.hint')}</p>
+      <p className="text-label text-muted mb-3">{t(target.kind === 'intake' ? 'intake.linkHint' : 'share.hint')}</p>
 
       {shares.length === 0 && (
-        <p className="text-muted text-[13.5px] mb-3">{t('share.none')}</p>
+        <p className="text-muted text-body mb-3">{t('share.none')}</p>
       )}
 
       {shares.map((share) => (
@@ -111,7 +113,7 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
             </Button>
           </div>
 
-          <div className="flex items-center flex-wrap gap-3 mt-2 text-[12.5px]">
+          <div className="flex items-center flex-wrap gap-3 mt-2 text-label">
             <label className="flex items-center gap-1.5">
               <span className="text-muted">{t('share.expires')}</span>
               <Input type="date" style={{ width: 150 }}

@@ -97,6 +97,10 @@ jobs:
       # A fractional index is base-62, so `localeCompare` puts 'k' before 'V'
       # and a ballot's options come back in an order nobody chose.
       - run: npm run check:ordering
+      # The type sizes, radii and shadows are a scale declared in `app.css`.
+      # Before this existed the source held 594 arbitrary `text-[…px]`, and
+      # `tailwind-merge` drops a step it has not been told about without a word.
+      - run: npm run check:tokens
       # `CREATE TABLE IF NOT EXISTS` does nothing to a database that exists, and
       # `ALTER TABLE` adds a column and nothing else. So a column — or a type, a
       # NOT NULL, a UNIQUE — put into `schema.sql` alone reaches new instances

@@ -29,7 +29,9 @@ import { useSession } from '../../kernel/identity/session';
 import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Input, Select } from '../../kernel/design-system/ui/field';
-import { Icon, Sheet, useToast } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { Sheet } from '../../kernel/design-system/ui/sheet';
+import { useToast } from '../../kernel/design-system/ui/toast';
 
 const ROLE_KEY: Record<EnvironmentRole, TranslationKey> = {
   member: 'environment.roleMember',
@@ -153,7 +155,7 @@ export function EnvironmentsSheet({ onClose }: { onClose: () => void }) {
         </div>
       )}
 
-      {!mayEdit && <p className="text-[12px] text-muted">{t('environment.adminOnly')}</p>}
+      {!mayEdit && <p className="text-label text-muted">{t('environment.adminOnly')}</p>}
     </Sheet>
   );
 }

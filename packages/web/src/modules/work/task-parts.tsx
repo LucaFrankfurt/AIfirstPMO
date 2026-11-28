@@ -13,7 +13,12 @@ import { EMPTY_SELECTION, SelectBox, useLongPressSelect, type Selection } from '
 import { Input } from '../../kernel/design-system/ui/field';
 import { cn } from '../../kernel/design-system/cn';
 import { Chip, chipDot, chipVariants } from '../../kernel/design-system/ui/chip';
-import { Avatar, AvatarStack, Icon, MenuButton, PriorityBars, StateDot, useConfirm, useToast, type MenuItem } from '../../kernel/design-system/ui';
+import { Avatar, AvatarStack } from '../../kernel/design-system/ui/avatar';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { MenuButton, type MenuItem } from '../../kernel/design-system/ui/menu-button';
+import { PriorityBars, StateDot } from '../../kernel/design-system/ui/marks';
+import { useConfirm } from '../../kernel/design-system/ui/sheet';
+import { useToast } from '../../kernel/design-system/ui/toast';
 
 /* ------------------------------------------------------------------ moving */
 
@@ -216,7 +221,7 @@ export function LabelPicker({ task }: { task: Task }) {
     id: label.id,
     label: label.name,
     hint: applied.has(label.id) ? '✓' : undefined,
-    icon: <span className={chipDot} style={{ background: label.color, width: 8, height: 8, borderRadius: 4 }} />,
+    icon: <span className={chipDot} style={{ background: label.color, width: 8, height: 8 }} />,
     onSelect: () => toggleLabel(task, label.id),
   }));
   return (
@@ -343,7 +348,8 @@ export function ParentTrail({ task, onOpen }: { task: Task; onOpen: (task: Task)
       {above.map((ancestor) => (
         <Fragment key={ancestor.id}>
           <button type="button" onClick={() => onOpen(ancestor)} title={ancestor.title}>
-            <span className="mono">{ancestor.identifier}</span>
+            {/* What `.parent-trail button .mono` said: the key stays whole and quiet while the names shrink. */}
+            <span className="mono flex-none font-mono text-label text-muted">{ancestor.identifier}</span>
             <span className="truncate">{ancestor.title}</span>
           </button>
           <Icon name="chevronRight" size={12} aria-hidden />
@@ -553,7 +559,7 @@ export function TaskCard({
       onClick={() => onOpen(task)}
     >
       <div className="flex items-center gap-2 mb-1">
-        <span className="mono text-muted">{task.identifier}</span>
+        <span className="mono font-mono text-label text-muted">{task.identifier}</span>
         <span className="flex-1 min-w-0" />
         {task.priority !== 'none' && <PriorityBars priority={task.priority} />}
         {(moveTargets && moveTargets.length > 1) || projects.length || onDelete ? (

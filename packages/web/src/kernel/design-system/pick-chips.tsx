@@ -8,7 +8,8 @@
  * drift on the one thing that matters: what removing a chip announces to a
  * screen reader.
  */
-import { Icon, MenuButton } from './ui';
+import { Icon } from './ui/icon';
+import { MenuButton } from './ui/menu-button';
 import { Chip } from './ui/chip';
 
 /**

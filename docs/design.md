@@ -14,6 +14,29 @@ the first morning is something somebody is still flinching at in week three. Col
 overdue, blocked, done — so a colour spent on chrome is a colour that no longer means anything when
 it appears on a task. Density is high enough to see a working set at once and no higher.
 
+## Tonal: surfaces, the accent's container, glass
+
+The interface is Material 3's idea of a surface, kept quiet. Layers are told apart by *tone* rather
+than by a line around each of them: the app sits in a tinted frame (`--bg-sunken`), the content is a
+lighter panel set into it from 600px, and the steps between — `hover`, `fill`, `active` — are tones
+of the same hue. Hairlines stay where they carry structure, between the rows of a list; they are no
+longer what separates the sidebar from the page.
+
+- **One hue.** Every neutral and the accent are steps of `--hue` in `oklch()`, whose first number is
+  lightness as an eye reads it. The status colours and the chart series are deliberately not on it.
+- **"You are here" is the accent's container.** The current row in the navigation, the current tab
+  on a phone, a chosen chip: `--accent-soft` with the accent as ink. The filled accent is kept for the
+  one action a bar is for.
+- **Tonal before outlined.** A secondary button is made of `fill`, not drawn around with a border;
+  `danger` keeps its outline so a destructive button looks different in shape, not only in colour.
+  Buttons are pills — the one thing on screen round at the ends — and fields, chips and cards are not.
+- **Glass only over content.** Menus, popovers, the header a list scrolls under and the phone's bar
+  are `--glass`: opaque enough that the faintest ink clears 4.6:1 with solid `--fg` behind it, and
+  fully opaque for anybody who asked for less transparency or more contrast, and in a browser that
+  cannot blur. A card in the flow of the page is never glass.
+
+`/design` shows every primitive in every state, and the browser checks walk it in four modes.
+
 ## Layers, which decide who wins
 
 `app.css` has two halves and the boundary between them matters more than it looks.
@@ -70,9 +93,12 @@ header rendered into that and did not fit: its controls wrapped onto a second ro
 strip below, and squeezed the title to nothing. The band was 900–940px, which is a laptop with the
 window not quite maximised, and nobody finds that by looking at one screenshot.
 
-- **The threshold is 764px of content**, which is what the busiest bar in the app needs — a project
-  header carrying saved views, five layout buttons, filter, display and the add button. Measured,
-  not guessed.
+- **The threshold is 764px of content**, which is what the busiest bar in the app needs — the row of
+  tools above a task list, carrying saved views, the query field, five layout buttons, filter and
+  display. Measured, not guessed: at 764px of content it is one line in German, the longest of the
+  three languages. That row used to be the project header, with the title and the add button in it
+  as well; at 1024px in German it ran 284px past its room and squeezed the title to six letters.
+  The header now carries only what belongs to the page, and the row stands above the list.
 - **Every use of the three must be inside `.main`.** A container query with no container never
   matches, so a label moved into the sidebar, or into a dialog (Radix portals those to `<body>`),
   would not turn compact — it would vanish.
@@ -130,9 +156,22 @@ looked like a 35px row and answered to 19px of it.
 
 ## Tokens
 
-Everything visual comes from a CSS custom property in `styles/app.css`. They are aliased into
-Tailwind with `@theme inline`, so `bg-raised` and `var(--bg-raised)` are the same value and always
-will be.
+Everything visual comes from a CSS custom property in `styles/app.css`, in one of two ways, and
+which one depends on a single question: does the value change with the theme?
+
+- **Colours and shadows do.** Their values live in `:root` and the two dark blocks, and
+  `@theme inline` points Tailwind at them, so `bg-raised` and `var(--bg-raised)` are the same value
+  and always will be.
+- **Radius and type do not.** They are declared in `@theme static` and nowhere else, which makes
+  that block the one source: `rounded-sm` in a component and `var(--radius-sm)` in a hand-written
+  rule read the same line. The block starts with `--radius-*: initial` and `--text-*: initial`, so
+  Tailwind's own steps (`rounded-xl`, `text-sm`) do not exist at all rather than sitting beside
+  ours as an easier option.
+
+The radii used to be aliased like the colours, under Tailwind 3's names. `--radius-DEFAULT` is not
+a key Tailwind 4 reads, so a bare `rounded` fell back to Tailwind's own 4px and the port wrote
+`rounded-[var(--radius)]` instead, everywhere. Nothing reported it, because nothing was broken in a
+way a check could see: the class existed and drew a corner.
 
 The consequence is worth stating once, because it is what made a gradual port possible: **dark mode
 needs no `dark:` variants.** The variables are redefined under `[data-theme='dark']` and under
@@ -179,12 +218,28 @@ Charts get `--chart-1` and `--chart-2`, re-stepped rather than flipped for dark.
 
 ### Radius, shadow, motion
 
-`--radius-sm` (7px) for controls, `--radius` (10px) for cards, `--radius-lg` (16px) for sheets.
-Pills use `999px`. **Nothing else** — `border-radius: 4px` and `5px` and `6px` all appear in the
-current stylesheet, which is a thing to remove as screens are ported, not a set of choices.
+| Class | Token | Where |
+|---|---|---|
+| `rounded-xs` | `--radius-xs`, 4px | marks, swatches, code, a focus ring's corner |
+| `rounded-sm` | `--radius-sm`, 8px | controls, chips, a row's hover |
+| `rounded` | `--radius`, 12px | cards, fields, menus |
+| `rounded-lg` | `--radius-lg`, 16px | the content panel, popovers |
+| `rounded-xl` | `--radius-xl`, 28px | sheets and dialogs |
+| `rounded-full` | — | pills, dots, avatars |
 
-Two shadows: `--shadow-sm` for a raised control, `--shadow` for something floating over the page.
-A card in a list gets a border, not a shadow.
+The same steps as Material's shape scale, extra-small to extra-large. `xs` came last: the
+hand-written rules had 2px to 7px corners on things too small for 8px — a legend swatch, a chart
+bar, inline code — and rounding them to 8px would have made marks into blobs.
+
+**Nothing else**, in the TypeScript or in `app.css`. `npm run check:tokens` refuses an arbitrary
+`rounded-[…]`, one of Tailwind's own steps, a `borderRadius` written as a number in a style object,
+and in the stylesheet any corner that is not `var(--radius…)`, `0`, `50%` or `999px`. A corner that
+is half its box's height was a pill spelled as a number, and became `999px`.
+
+Two shadows: `shadow-sm` (`--shadow-sm`) for a raised control, `shadow` (`--shadow`) for something
+floating over the page. A card in a list gets a border, not a shadow. In the stylesheet a box-shadow
+with no blur passes — it is a ring, a focus outline or a drop line drawn without moving the layout,
+which is geometry rather than elevation; one with a blur has to be one of the two.
 
 Motion is short and only ever confirms something happened: the enter and exit of a menu or a sheet.
 Everything honours `prefers-reduced-motion`, and the Radix components carry `motion-reduce:animate-none`.
@@ -195,28 +250,66 @@ The system stack — `-apple-system`, `Segoe UI`, `Roboto` — because a project
 the machine it is running on, and a webfont is a second network request before anybody can read
 anything.
 
-**The scale, for anything ported:**
+**The scale.** Each step is a class, declared in `@theme static`:
 
-| Size | Where |
-|---|---|
-| 11.5px | chips, counts, timestamps |
-| 12.5px | labels, secondary rows, hints |
-| 13.5px | body: task titles, menu items, buttons |
-| 15px | a sheet title, a section heading |
-| 19px | a screen title |
+| Class | Size | Where |
+|---|---|---|
+| `text-caption` | 11.5px | chips, counts, timestamps |
+| `text-label` | 12.5px | labels, secondary rows, hints |
+| `text-body` | 13.5px | body: task titles, menu items, buttons |
+| `text-title` | 15px | a sheet title, a section heading |
+| `text-headline` | 19px | a screen title, the title being edited |
+| `text-display` | 26px | the title of a page being read |
+| `text-input` | 16px | anything typed into on a phone — see below |
 
-Five sizes. The current stylesheet has fourteen, from 9px to 26px, which is not a scale but an
-accumulation — half a pixel of difference is a decision nobody made on purpose. Ported screens use
-the table above.
+Five sizes for the interface, and two that are not a matter of taste: a page read as a document
+has a title larger than any screen's, and a field on a phone has a floor set by iOS.
+
+**There is nothing else, in the TypeScript or in `app.css`.** `npm run check:tokens` refuses an arbitrary
+`text-[…px]`, Tailwind's own `text-sm` and its siblings, and a `fontSize` written as a number in a
+style object. When the steps became classes, every arbitrary size was folded onto the nearest one:
+`12px` became `text-label`, `13px` became `text-body`, `11px` and `10px` became `text-caption`, and a
+`14px` heading became `text-title`. A half-pixel either way, on purpose this time.
+
+The hand-written rules followed later, and the same way. They held **26** font sizes from 8px to
+26px — not a scale but an accumulation, half a pixel of difference being a decision nobody made on
+purpose. Each became `var(--text-…)` at the nearest step, a tie going up, and `body` with them, from
+14px to 13.5px. One heading could not take the nearest: a markdown `h1` (22px) and `h2` (18px) both
+round to 19px, so the `h1` went up to `text-display` to keep the two apart. What stays off the
+scale is named in `tokens.mjs` with the reason: the guide's diagrams, which draw the app in
+miniature; an emoji in a picker, sized as an icon; a canvas label counter-scaled against the zoom;
+and the tab bar's labels, which at the caption step ran "Aufgaben" into "Posteingang" on a 340px
+phone — measured, not assumed.
+
+**The steps carry no line height.** Every one of them replaced an arbitrary size, and those set the
+size alone; a step that also set a line height would have moved every line of text it touched,
+which is a design change of its own and not this one.
+
+**`cn.ts` has to know the steps by name.** `tailwind-merge` recognises Tailwind's own sizes and an
+arbitrary length, and files every other `text-*` under colour — so `cn('text-label', 'text-muted')`
+would come back as `text-muted`, the size deleted without a word. `TYPE_STEPS` in `cn.ts` tells it,
+and `check:tokens` fails when that list and the stylesheet disagree.
 
 **16px is the floor for anything typed into on a phone.** Below it iOS zooms the page in on focus
-and never zooms back out. The `Input` component handles this: `text-[16px] sm:text-[13.5px]`.
+and never zooms back out. The `Input` component handles this with `text-input sm:text-body`, and so
+does the chat composer. It took two fixes to get there: a placeholder that wraps counts towards a
+textarea's `scrollHeight` (61px of content in a 38px box, measured), so it is `placeholder:truncate`;
+and the field is refitted when the window changes size, because the font changes at 640px and a
+height measured at 13.5px held 16px text three pixels short.
 
 ## Layout
 
-Mobile-first. One breakpoint that matters, **900px**: below it the bottom bar and full-width sheets,
-above it the sidebar and centred dialogs. That one is about the *window*, because it decides what
-the window contains.
+Mobile-first. Two breakpoints that matter, both about the *window*, because they decide what the
+window contains:
+
+- Below **600px**, a phone held upright: the bottom bar and full-width sheets.
+- From 600px the content is a panel set into the tinted frame, and the navigation is the folded
+  rail — a phone on its side, a tablet, a window dragged half across a laptop. The bottom bar wastes
+  a landscape screen's scarcest direction; the full sidebar would take a third of the width.
+- From **900px** the sidebar has room for words, and dialogs are centred.
+
+`RAIL_QUERY` in `narrow.ts` renders the rail and the `@media` band in `app.css` lays it out; the two
+have to agree, and `check:figures` holds this paragraph to the first of them.
 
 Everything about whether a control fits is about the *content column* instead, and asks `.main` —
 see [Width is not the window](#width-is-not-the-window). The two are not interchangeable and the
@@ -256,7 +349,7 @@ hamburgers that did different things**.
 
 The rule this leaves: **if two controls can appear in one row, they need two glyphs.** Adding a path
 that duplicates an existing one is a decision to make deliberately, and there is exactly one place
-to check — `PATHS` in `components/ui.tsx`.
+to check — `PATHS` in `kernel/design-system/ui/icon.tsx`.
 
 **A property that is not set spends no words on a phone.** The task sheet's optional pickers —
 labels, cycle, module — used to say *No cycle*, *No module*, *Labels* whether or not anything was
@@ -270,8 +363,8 @@ tidiness. Below `sm` they get one row each, label at the start, control at the e
 
 ## Components
 
-The interactive primitives are Radix underneath, in `components/ui/`. Their wrappers in
-`components/ui.tsx` keep the API the screens already use.
+The primitives live one to a file in `kernel/design-system/ui/`, and the interactive ones are Radix
+underneath.
 
 | | Built on | Why not by hand |
 |---|---|---|
@@ -280,6 +373,7 @@ The interactive primitives are Radix underneath, in `components/ui/`. Their wrap
 | `Tooltip` | Radix Tooltip | appears on keyboard focus, not only under a pointer |
 | `Button` | CVA | one focus ring, one disabled state, one height table |
 | `Input`/`Select`/`Textarea` | CVA | one focus treatment, and the 16px rule above |
+| `DataTable`/`Th`/`Td`/`Tr` | CVA | what a cell is — `numeric`, `optional`, `wraps`, `lead` — as a prop, so a misspelling is a type error rather than a cell that looks slightly wrong |
 
 Still hand-written and still candidates, in the order they are worth doing: `Select` (a native one
 cannot be styled consistently or show an icon per option), `Checkbox`, `Tabs`, `Popover` for the
@@ -287,8 +381,8 @@ filter and display controls.
 
 ### Icons
 
-45 hand-drawn paths in `ui.tsx`, typed as `IconName` so a shape that does not exist is a compile
-error rather than three quiet dots. `lucide-react` is now available and is the right source for
+Hand-drawn paths in `kernel/design-system/ui/icon.tsx`, typed as `IconName` so a shape that does
+not exist is a compile error rather than three quiet dots. `lucide-react` is now available and is the right source for
 anything new; the hand-drawn set stays until a screen that uses it is ported.
 
 One stroke weight, one size per context: 16px inline, 15px in the sidebar, 13–14px inside a small
@@ -362,20 +456,24 @@ indicator was an empty circle.
 The port is deliberately incremental. The order inside one screen:
 
 1. Replace `.btn`, `.input`, `.card` with the components. Do not re-style them inline.
-2. Replace `style={{ … }}` with Tailwind classes. There are ~575 inline style props left, and they
-   are the main reason two screens that should look the same do not.
-3. Fold odd font sizes into the five-step scale and odd radii into the three tokens.
+2. Replace `style={{ … }}` with Tailwind classes. The inline style props that are left are the main
+   reason two screens that should look the same do not. A value that comes from data — a label's
+   colour, a bar's width — stays a style; a size or a corner never does.
+3. Sizes, radii and shadows are already steps — `check:tokens` sees to it, in the TypeScript and in
+   `app.css`. A rule moved out of the stylesheet keeps its step as the class of the same name.
 4. Delete the CSS class from `app.css` **once the last screen stops using it, and not before** —
    `node scripts/unstyled.mjs` after a build is how you know. This is the step that went wrong: the
    commit that added the field components deleted `.field` while seventy-six `<div class="field">`
    were still on screen, and every form in the app lost its spacing without a single error.
 5. Walk the screen with the keyboard only, and once at 390px wide.
 6. Run `npm test` — the source-level checks in `packages/web/test/forms.test.ts` catch the four
-   things a codemod breaks silently — then `npm run check:css`, `npm run check:responsive`,
-   `npm run check:contrast` and `npm run check:a11y`.
+   things a codemod breaks silently — then `npm run check:tokens`, `npm run check:css`,
+   `npm run check:responsive`, `npm run check:contrast` and `npm run check:a11y`.
 
-`app.css` is the progress bar: **1,862 lines** when the port started, **1,847** now — up from 1,713,
-because four rules the port had deleted too early came back.
+`app.css` was meant to be the progress bar: **1,862 lines** when the port started. It stopped being
+one, because the screens that arrived after the port began brought hand-written rules of their own
+faster than ported screens removed old ones, and the file grew. A line count measures the file, not
+the port. What a screen being ported can be held to is the list above, and the checks in step 6.
 
 ## What stays in CSS, and why
 
@@ -393,4 +491,24 @@ make the code worse:
   more maintainable than the twelve lines of CSS it replaces; it is the same thing, written where it
   is harder to read.
 
-Everything that is a *component* — anything that appears twice — is Tailwind.
+Everything that is a *component* — anything that appears twice — is Tailwind. Where that is not yet
+true, it is said here rather than left to be found:
+
+- **The data table** was `.task-table`, a block of descendant rules that each cell opted into by
+  class name. It is `DataTable`, `Th`, `Td` and `Tr` in `ui/data-table.tsx` now, with `numeric`,
+  `optional`, `wraps` and `lead` as props — `lead` and not `title`, which is HTML's tooltip
+  attribute. What stays a class is `table-wrap`, the box a wide table scrolls in: `check:responsive`
+  knows it by name as a scroller that is meant, and the rule that lets it shrink inside a grid is
+  about its parent, which no prop on the table can reach.
+- **The long tail.** Most of the remaining classes are used by one screen each — `secret-flag`,
+  `agenda-card`, `review-finding`, `ballot-mark` and their like. They are components of one screen,
+  and they move when that screen is next worked on, by the steps in "Porting a screen" above.
+- **Hooks.** Some class names stay on elements with no rule behind them, because the walkthrough
+  finds things by them: `check-row`, `stat`, `kpi-row`, `stat-label`, `stat-value`, `mono`, `toast`,
+  `empty`, `sheet`. `scripts/unstyled.mjs` names each with the reason, which is how a hook is told
+  apart from a class whose rule went missing.
+- **Form layouts and figure tiles** were classes and are now strings in code — `formField`,
+  `formRow`, `checkRow` in `ui/field.tsx`, the tile and its `Stat` component in `ui/stat.tsx`,
+  `pageBody` in `ui/page.ts`, `noticeWarn` in `ui/notice.ts`. Strings rather than components because
+  several hundred call sites already wrote them as classes on plain elements, and the change worth
+  making was where the styling lives, not the shape of every form.

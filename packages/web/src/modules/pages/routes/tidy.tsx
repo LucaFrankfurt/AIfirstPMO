@@ -35,12 +35,15 @@ import { Button } from '../../../kernel/design-system/ui/button';
 import { Input } from '../../../kernel/design-system/ui/field';
 import { SectionHeading } from '../../../kernel/design-system/ui/section';
 import { navItem } from '../../../kernel/design-system/ui/nav';
-import { Empty, Icon, useToast } from '../../../kernel/design-system/ui';
+import { Empty } from '../../../kernel/design-system/ui/empty';
+import { Icon } from '../../../kernel/design-system/ui/icon';
+import { useToast } from '../../../kernel/design-system/ui/toast';
 import { useMinute } from '../../../kernel/design-system/minute';
 import { STALE_DAYS, tidyPages, type Problem } from '../tidy';
 import { usePageStatuses } from '../status';
 import { trailsOf } from '../page-tree';
 import { PageBulkBar } from '../page-bulk';
+import { pageBody } from '../../../kernel/design-system/ui/page';
 
 /** What each finding is called, and the consequence that makes it one. */
 const SAYS: Record<Problem, { title: TranslationKey; why: TranslationKey }> = {
@@ -84,7 +87,7 @@ function TidyRow({ page, trails, order, selection }: {
         <span style={{ width: 16 }}>{page.icon ?? '📄'}</span>
         <span className="flex-1 min-w-0 truncate">{page.title || t('common.untitled')}</span>
         {trail.length > 0 && <span className="tidy-where hide-sm">{trail.join(' › ')}</span>}
-        <span className="text-[11.5px] text-muted hide-sm">
+        <span className="text-caption text-muted hide-sm">
           {t('page.updated', { time: relativeTime(page.updated_at) })}
         </span>
       </Link>
@@ -192,9 +195,9 @@ export function PagesTidy() {
           <Icon name="page" size={14} /> <span className="hide-sm">{t('page.listTitle')}</span>
         </Button>
       </Header>
-      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+      <div className={pageBody}>
         <Trail parts={[{ to: '/pages', label: t('page.listTitle'), icon: <Icon name="page" size={13} /> }]} />
-        <p className="text-muted text-[13.5px]" style={{ marginTop: 0 }}>{t('page.tidyIntro')}</p>
+        <p className="text-muted text-body" style={{ marginTop: 0 }}>{t('page.tidyIntro')}</p>
 
         <div className="tidy-counts">
           <Count label={t('page.tidyCountPages')} value={pages.length} />
@@ -220,14 +223,14 @@ export function PagesTidy() {
         {report.pages === 0 ? (
           <Empty emoji="🧹" title={t('page.tidyClean')} hint={t('page.tidyCleanHint')} />
         ) : findings.length === 0 ? (
-          <p className="text-muted text-[12.5px]">{t('page.filterNone')}</p>
+          <p className="text-muted text-label">{t('page.filterNone')}</p>
         ) : (
           findings.map(({ problem, pages: found }) => (
             <section key={problem} className="mt-6">
-              <h3 className="mb-1 text-sm font-semibold">
+              <h3 className="mb-1 text-title font-semibold">
                 {t(SAYS[problem].title)} <span className="text-muted">· {found.length}</span>
               </h3>
-              <p className="mb-2.5 text-[12.5px] text-muted">
+              <p className="mb-2.5 text-label text-muted">
                 {t(SAYS[problem].why)}
                 {problem === 'stale' && <> {t('page.tidyStaleDays')} {t('page.tidyDays', { count: STALE_DAYS })}.</>}
               </p>
@@ -244,15 +247,15 @@ export function PagesTidy() {
             you could no longer find. */}
         <section className="mt-8">
           <SectionHeading tight>{t('page.archivedTitle')}</SectionHeading>
-          <p className="mb-2.5 text-[12.5px] text-muted">{t('page.archivedHint')}</p>
+          <p className="mb-2.5 text-label text-muted">{t('page.archivedHint')}</p>
           {archived.length === 0
-            ? <p className="text-muted text-[12.5px]">{t('page.tidyArchiveEmpty')}</p>
+            ? <p className="text-muted text-label">{t('page.tidyArchiveEmpty')}</p>
             : archived.map((page) => (
               <div className="page-row" key={page.id}>
                 <Link to={`/pages/${page.id}`} className={cn(navItem(), 'page-row-main')}>
                   <span style={{ width: 16 }}>{page.icon ?? '📄'}</span>
                   <span className="flex-1 min-w-0 truncate">{page.title || t('common.untitled')}</span>
-                  <span className="text-[11.5px] text-muted hide-sm">
+                  <span className="text-caption text-muted hide-sm">
                     {t('page.updated', { time: relativeTime(page.updated_at) })}
                   </span>
                 </Link>
@@ -267,9 +270,9 @@ export function PagesTidy() {
 
         <section className="mt-8">
           <SectionHeading tight>{t('page.tidyTrash')}</SectionHeading>
-          <p className="mb-2.5 text-[12.5px] text-muted">{t('page.tidyTrashHint')}</p>
+          <p className="mb-2.5 text-label text-muted">{t('page.tidyTrashHint')}</p>
           {deleted.length === 0
-            ? <p className="text-muted text-[12.5px]">{t('page.tidyTrashEmpty')}</p>
+            ? <p className="text-muted text-label">{t('page.tidyTrashEmpty')}</p>
             : deleted.slice(0, 100).map((page) => (
               <div className="page-row" key={page.id}>
                 {/* Not a link: following one would open a page that is not
@@ -278,7 +281,7 @@ export function PagesTidy() {
                 <span className={cn(navItem(), 'page-row-main')}>
                   <span style={{ width: 16 }}>{page.icon ?? '📄'}</span>
                   <span className="flex-1 min-w-0 truncate">{page.title || t('common.untitled')}</span>
-                  <span className="text-[11.5px] text-muted hide-sm">
+                  <span className="text-caption text-muted hide-sm">
                     {relativeTime(Number(page.deleted_at))}
                   </span>
                 </span>

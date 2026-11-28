@@ -9,6 +9,7 @@
  *  - does the page scroll sideways
  *  - is a bar that is one row tall taller than itself
  *  - does anything in the header reach down over the tab strip
+ *  - does a header scroll sideways on a screen that is not compact
  *  - has the screen's title been squeezed to nothing
  *  - has a field been squeezed to nothing
  *  - does any box scroll by a sliver on an axis nobody meant it to have
@@ -181,6 +182,32 @@ const inspect = () => {
 
     const title = header.querySelector('h1');
     if (title && title.getBoundingClientRect().width < 8) out.push('title squeezed to nothing');
+
+    /*
+     * A header that scrolls where it was never meant to.
+     *
+     * The header is allowed to scroll sideways — on a phone, where its labels
+     * have already turned into icons and there is still not room. Everywhere
+     * else a header that scrolls is a header carrying too much, and the title
+     * rule above cannot see it: the title has a 72px floor, so it is never
+     * "nothing", only "Websit". Three screens did exactly this at 1024px — the
+     * project, My work and the wiki, up to 347px past their room in German, and
+     * 182px in English, which is what this walks in — with every check green.
+     *
+     * "Compact" is asked of the stylesheet rather than written down here: a
+     * probe carrying `hide-sm` is hidden exactly where the container query
+     * behind it says the screen is compact, so this cannot drift from the
+     * threshold the app actually uses.
+     */
+    const main = document.querySelector('.main');
+    if (main && header.scrollWidth > header.clientWidth + 1) {
+      const probe = document.createElement('span');
+      probe.className = 'hide-sm';
+      main.appendChild(probe);
+      const compact = getComputedStyle(probe).display === 'none';
+      probe.remove();
+      if (!compact) out.push(`header runs ${header.scrollWidth - header.clientWidth}px past its room on a screen that is not compact`);
+    }
 
     // A screen can carry its tabs *inside* the header — the inbox's
     // unread/all switch does — and a header child sitting on top of another

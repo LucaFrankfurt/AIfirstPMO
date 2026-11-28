@@ -23,7 +23,9 @@ import { Markdown, MarkdownEditor } from '../pages/Markdown';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Textarea } from '../../kernel/design-system/ui/field';
 import { Chip } from '../../kernel/design-system/ui/chip';
-import { Avatar, Icon, useConfirm } from '../../kernel/design-system/ui';
+import { Avatar } from '../../kernel/design-system/ui/avatar';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { useConfirm } from '../../kernel/design-system/ui/sheet';
 import { Reactions, ReactionPicker } from './reactions';
 import type { AttachTo } from '../../kernel/files/uploads';
 import { useMinute } from '../../kernel/design-system/minute';
@@ -160,7 +162,7 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
 
   return (
     <>
-      {comments.length === 0 && empty && <p className="text-muted text-[12.5px]">{empty}</p>}
+      {comments.length === 0 && empty && <p className="text-muted text-label">{empty}</p>}
       {settleable && settledCount > 0 && (
         <button type="button" className="comment-settled-toggle" aria-expanded={showSettled} onClick={() => setShowSettled(!showSettled)}>
           <Icon name={showSettled ? 'chevronDown' : 'chevronRight'} size={12} />

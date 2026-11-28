@@ -2,7 +2,9 @@ import { RELATION_KINDS, type RelationKind, type Task } from '@kolibri/shared';
 import { list, useQuery } from '../../kernel/sync/store';
 import { create, remove, update } from '../../kernel/sync/mutations';
 import { relationKey, useT } from '../../kernel/i18n/i18n';
-import { Icon, MenuButton, StateDot, type MenuItem } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { MenuButton, type MenuItem } from '../../kernel/design-system/ui/menu-button';
+import { StateDot } from '../../kernel/design-system/ui/marks';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Input } from '../../kernel/design-system/ui/field';
 import { Chip } from '../../kernel/design-system/ui/chip';
@@ -58,14 +60,14 @@ export function Relations({ task, onOpen }: { task: Task; onOpen: (task: Task) =
   return (
     <section className="mb-[18px]">
       <div className="flex items-center gap-2 mb-1.5">
-        <strong className="text-[13.5px]">{t('relation.title')}</strong>
+        <strong className="text-body">{t('relation.title')}</strong>
         <span className="flex-1 min-w-0" />
         <MenuButton variant="ghost" size="sm" items={addItems} search empty={t('relation.noCandidates')}>
           <Icon name="link" size={14} /> {t('relation.link')}
         </MenuButton>
       </div>
 
-      {!rows.length && <span className="text-muted text-[12.5px]">{t('relation.none')}</span>}
+      {!rows.length && <span className="text-muted text-label">{t('relation.none')}</span>}
 
       {rows.map((row) => {
         const state = stateOf(row.other);
@@ -74,11 +76,11 @@ export function Relations({ task, onOpen }: { task: Task; onOpen: (task: Task) =
             <Chip>{t(relationKey(row.kind))}</Chip>
             <Button variant="ghost" size="sm" className="flex-1 min-w-0" style={{ justifyContent: 'flex-start' }} onClick={() => onOpen(row.other)}>
               <StateDot group={state?.group_key} color={state?.color} />
-              <span className="mono text-muted">{row.other.identifier}</span>
+              <span className="mono font-mono text-label text-muted">{row.other.identifier}</span>
               <span className="truncate">{row.other.title}</span>
             </Button>
             {row.ownsLag && (
-              <label className="flex items-center gap-1 text-[12.5px]" title={t('relation.lagHint')}>
+              <label className="flex items-center gap-1 text-label" title={t('relation.lagHint')}>
                 <span className="text-muted hide-sm">{t('relation.lag')}</span>
                 <Input type="number" min={0} max={365} style={{ width: 62 }}
                   aria-label={t('relation.lag')}

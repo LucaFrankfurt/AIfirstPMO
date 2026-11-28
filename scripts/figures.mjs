@@ -102,6 +102,26 @@ const { capabilities, endpoints, exceptions, modules, ports, rings } = (() => {
 
 const FIGURES = [
   {
+    /*
+     * The type floor for a field on a phone, which design.md states and the
+     * stylesheet declares. Two places, one number: the stylesheet is the source.
+     */
+    what: 'the font size below which iOS zooms a focused field',
+    actual: Number(read('packages/web/src/styles/app.css').match(/--text-input:\s*(\d+)px/)[1]),
+    claims: [{ file: 'docs/design.md', pattern: prose('\\*\\*(\\d+)px is the floor for anything typed into') }],
+  },
+  {
+    // The window band of the navigation rail, from the query that renders it.
+    what: 'the window width the rail starts at',
+    actual: Number(read('packages/web/src/kernel/design-system/narrow.ts').match(/RAIL_QUERY = '\(min-width: (\d+)px\)/)[1]),
+    claims: [{ file: 'docs/design.md', pattern: prose('Below \\*\\*(\\d+)px\\*\\*, a phone held upright') }],
+  },
+  {
+    what: 'the window width the sidebar has room for words from',
+    actual: Number(read('packages/web/src/kernel/design-system/narrow.ts').match(/RAIL_QUERY = '[^']*max-width: (\d+)\.98px/)[1]) + 1,
+    claims: [{ file: 'docs/design.md', pattern: prose('From \\*\\*(\\d+)px\\*\\* the sidebar has room') }],
+  },
+  {
     what: 'capabilities',
     actual: capabilities.count,
     claims: [{ file: 'docs/modules.md', pattern: prose('There are \\*\\*(\\d+)\\*\\* capabilities') },
@@ -514,6 +534,9 @@ const like = (stated, actual) => {
  * equals what the tree says", a record says "this is what the tree said then".
  */
 const HISTORY = [
+  { file: 'docs/design.md', pattern: prose('The first run reported \\*\\*(\\d+) problems on desktop'), what: 'what check:a11y found on its first run' },
+  { file: 'docs/design.md', pattern: prose('progress bar: \\*\\*(\\d),\\d{3} lines\\*\\*'), what: 'app.css when the Tailwind port started' },
+  { file: 'docs/design.md', pattern: prose('They held \\*\\*(\\d+)\\*\\* font sizes'), what: 'distinct font sizes in app.css before check:tokens read it, counted then' },
   { file: 'docs/modules.md', pattern: prose('\\*\\*(\\d+)\\*\\* reads — counted when step 9 shipped'),
     what: 'reads bypassing useQuery when step 9 shipped, counted by reading the call sites' },
   { file: 'docs/modules.md', pattern: prose('was \\*\\*(\\d+) lines\\*\\*'), what: 'notifications, before the write path handed its meaning back' },
@@ -553,6 +576,7 @@ const BOLD = {
   'CLAUDE.md': /\*\*(\d[\d ]*\d|\d)/dg,
   'docs/modules.md': /\*\*(\d[\d ]*\d|\d)/dg,
   'docs/module-map.html': /<(?:strong|b)>\s*(\d[\d ]*\d|\d)/dg,
+  'docs/design.md': /\*\*(\d[\d ]*\d|\d)/dg,
 };
 
 const fix = process.argv.includes('--fix');

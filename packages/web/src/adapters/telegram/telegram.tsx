@@ -15,7 +15,8 @@ import { api } from '../../kernel/sync/api';
 import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
 import { Button } from '../../kernel/design-system/ui/button';
 import { SectionHeading } from '../../kernel/design-system/ui/section';
-import { Icon, useToast } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { useToast } from '../../kernel/design-system/ui/toast';
 
 interface Status {
   /** Whether an operator configured a bot on this instance at all. */
@@ -107,16 +108,16 @@ export function TelegramConnection() {
   return (
     <>
       <SectionHeading>{t('telegram.title')}</SectionHeading>
-      <p className="text-[12px] text-muted mb-2">{t('telegram.hint')}</p>
+      <p className="text-label text-muted mb-2">{t('telegram.hint')}</p>
 
       {status.linked ? (
         <>
-          <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mb-2.5">
+          <div className="rounded border border-line bg-raised p-3.5 mb-2.5">
             <div className="flex items-center gap-2" style={{ gap: 7 }}>
               <Icon name="check" size={15} />
               <strong className="flex-1 min-w-0">{t('telegram.connectedTitle')}</strong>
             </div>
-            <span className="soft text-[12.5px]">{t('telegram.connectedBody')}</span>
+            <span className="text-soft text-label">{t('telegram.connectedBody')}</span>
           </div>
 
           <div className="flex items-center flex-wrap gap-1.5 mb-1">
@@ -146,7 +147,7 @@ export function TelegramConnection() {
             {PREFERENCES.map((option) => (
               <button
                 key={option.value}
-                className="rounded-[var(--radius)] border border-line bg-raised p-3.5"
+                className="rounded border border-line bg-raised p-3.5"
                 style={{
                   textAlign: 'left',
                   borderColor: status.preference === option.value ? 'var(--accent)' : 'var(--line)',
@@ -158,7 +159,7 @@ export function TelegramConnection() {
                   <strong className="flex-1 min-w-0">{t(option.label)}</strong>
                   {status.preference === option.value && <Icon name="check" size={15} />}
                 </div>
-                <span className="text-muted text-[12.5px]">{t(option.hint)}</span>
+                <span className="text-muted text-label">{t(option.hint)}</span>
               </button>
             ))}
           </div>
@@ -169,11 +170,11 @@ export function TelegramConnection() {
             <Icon name="send" size={14} /> {busy ? t('action.working') : t('telegram.connect')}
           </Button>
           {pending && (
-            <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mt-2.5">
-              <span className="soft text-[12.5px]">{t('telegram.waiting')}</span>
+            <div className="rounded border border-line bg-raised p-3.5 mt-2.5">
+              <span className="text-soft text-label">{t('telegram.waiting')}</span>
               {/* The popup may have been blocked, and on a desktop without
                   Telegram installed the link is the only way through. */}
-              <a href={pending.url} target="_blank" rel="noopener noreferrer" className="mono text-[12.5px]">
+              <a href={pending.url} target="_blank" rel="noopener noreferrer" className="mono font-mono text-label">
                 {pending.url}
               </a>
             </div>

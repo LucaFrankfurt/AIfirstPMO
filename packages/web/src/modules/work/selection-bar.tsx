@@ -15,7 +15,12 @@ import type { Selection } from '../../kernel/design-system/selection';
 import { useLabels, useStates } from './task-parts';
 import { Button } from '../../kernel/design-system/ui/button';
 import { navCount } from '../../kernel/design-system/ui/nav';
-import { Avatar, Icon, MenuButton, PriorityBars, StateDot, useConfirm, useToast, type MenuEntry, type MenuItem } from '../../kernel/design-system/ui';
+import { Avatar } from '../../kernel/design-system/ui/avatar';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { MenuButton, type MenuEntry, type MenuItem } from '../../kernel/design-system/ui/menu-button';
+import { PriorityBars, StateDot } from '../../kernel/design-system/ui/marks';
+import { useConfirm } from '../../kernel/design-system/ui/sheet';
+import { useToast } from '../../kernel/design-system/ui/toast';
 
 /**
  * The bar that appears once something is selected. Fixed to the bottom, above
@@ -182,7 +187,7 @@ export function SelectionBar({ selection, tasks }: { selection: Selection; tasks
           </>
         ) : (
           // Saying why is better than an action that silently does nothing.
-          <span className="text-muted hide-sm text-[12.5px]">{t('select.mixedProjects')}</span>
+          <span className="text-muted hide-sm text-label">{t('select.mixedProjects')}</span>
         )}
 
         <MenuButton variant="secondary" size="sm" items={priorityItems}>

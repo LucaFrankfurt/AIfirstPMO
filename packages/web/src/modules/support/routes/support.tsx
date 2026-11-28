@@ -21,7 +21,11 @@ import { cn } from '../../../kernel/design-system/cn';
 import { briefWhen } from '../../../kernel/design-system/format';
 import { useMinute } from '../../../kernel/design-system/minute';
 import { useOpenTask } from '../../../kernel/design-system/navigation';
-import { Avatar, Empty, Icon, MenuButton, useAction, useToast } from '../../../kernel/design-system/ui';
+import { Avatar } from '../../../kernel/design-system/ui/avatar';
+import { Empty } from '../../../kernel/design-system/ui/empty';
+import { Icon } from '../../../kernel/design-system/ui/icon';
+import { MenuButton } from '../../../kernel/design-system/ui/menu-button';
+import { useAction, useToast } from '../../../kernel/design-system/ui/toast';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { Chip } from '../../../kernel/design-system/ui/chip';
 import { Input, Select } from '../../../kernel/design-system/ui/field';
@@ -108,12 +112,12 @@ export function SupportInbox() {
             />
           )}
           {!widgets.length && (
-            <p className="text-[12.5px] text-muted">
+            <p className="text-label text-muted">
               {t('support.noWidgets')} <Link className="text-accent" to="/settings?tab=widgets">{t('support.setUp')}</Link>
             </p>
           )}
           {widgets.length > 0 && !conversations.length && (
-            <p className="text-[12.5px] text-muted">
+            <p className="text-label text-muted">
               {terms.length ? t('support.noneFound') : t(filter === 'open' ? 'support.noneOpen' : 'support.noneResolved')}
             </p>
           )}
@@ -281,7 +285,7 @@ function Answer({ conversation, widget, onBack }: { conversation: Conversation; 
         : message.body,
       at: message.created_at,
       meta: bot ? <span>{t('support.assistantLabel')}</span> : undefined,
-      below: sources.length ? <span className="mt-0.5 px-1 text-[11px] text-muted">{t('support.sources')}: {sources.join(', ')}</span> : undefined,
+      below: sources.length ? <span className="mt-0.5 px-1 text-caption text-muted">{t('support.sources')}: {sources.join(', ')}</span> : undefined,
       files: filesOf(message).map((file) => ({ key: file.hash, name: file.name, type: file.type, src: fileSrc(fileUrl(file)), width: file.width, height: file.height })),
     };
   });
@@ -335,7 +339,7 @@ function Answer({ conversation, widget, onBack }: { conversation: Conversation; 
               {t(conversation.verified ? 'support.verified' : 'support.unverified')}
             </Chip>
           </span>
-          <div className="truncate text-[12.5px] text-muted">
+          <div className="truncate text-label text-muted">
             {[conversation.visitor_email, widget?.name].filter(Boolean).join(' · ')}
           </div>
         </div>
@@ -396,10 +400,10 @@ function Answer({ conversation, widget, onBack }: { conversation: Conversation; 
         lines={lines}
         typing={typing ? visitorLabel(conversation) : false}
         seenAt={conversation.visitor_read_at}
-        empty={<p className="text-center text-[12.5px] text-muted">{t('support.emptyThread')}</p>}
+        empty={<p className="text-center text-label text-muted">{t('support.emptyThread')}</p>}
       />
       {awaitsReply(conversation) && conversation.visitor_email && (
-        <p className="m-0 px-4 pb-1 text-[11.5px] text-muted">{t('support.emailFallback')}</p>
+        <p className="m-0 px-4 pb-1 text-caption text-muted">{t('support.emailFallback')}</p>
       )}
       {canWrite && (
         <Composer

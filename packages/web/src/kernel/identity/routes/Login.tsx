@@ -8,7 +8,7 @@ import { AuthLayout } from '../AuthLayout';
 import { Button, buttonVariants } from '../../design-system/ui/button';
 import { Input, Label } from '../../design-system/ui/field';
 import { cn } from '../../design-system/cn';
-import { Icon } from '../../design-system/ui';
+import { Icon } from '../../design-system/ui/icon';
 
 export function Login() {
   const { t } = useI18n();
@@ -144,7 +144,7 @@ export function Login() {
             <a className={buttonVariants({ variant: 'primary', size: 'lg', block: true })} href={ssoHref}>
               <Icon name="shield" size={15} /> {t('login.ssoContinue', { provider: sso.label })}
             </a>
-            <p className="text-muted text-[12.5px]" style={{ margin: '12px 0 0' }}>{t('login.ssoOnlyHint')}</p>
+            <p className="text-muted text-label" style={{ margin: '12px 0 0' }}>{t('login.ssoOnlyHint')}</p>
           </>
         ) : (
           <>
@@ -203,7 +203,7 @@ export function Login() {
             meant reinstalling the app. Naming the host also answers the first
             question a wrong password raises on a phone, which is "wrong where?". */}
         {isPackaged() && serverOrigin() && (
-          <p className="text-muted text-[12.5px]" style={{ margin: '16px 0 0' }}>
+          <p className="text-muted text-label" style={{ margin: '16px 0 0' }}>
             {t('server.signingInTo', { host: new URL(serverOrigin()).host })}{' · '}
             <button type="button" className="auth-switch" onClick={changeServer}>{t('server.change')}</button>
           </p>
@@ -275,7 +275,7 @@ export function AcceptInvite() {
         {error && <div className="error" role="alert">{error}</div>}
 
         {user && (
-          <p className="text-muted text-[12.5px]" style={{ margin: '0 0 12px' }}>
+          <p className="text-muted text-label" style={{ margin: '0 0 12px' }}>
             {t('login.signedInAs', { email: user.email ?? '' })}
           </p>
         )}

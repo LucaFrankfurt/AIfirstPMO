@@ -8,7 +8,7 @@
  */
 import { useT } from '../../kernel/i18n/i18n';
 import { Conn, Frame, Key, MiniBox, MiniChip, MiniTask, Row, Stage } from './explain';
-import { Icon } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
 
 /* ------------------------------------------------------------- overview */
 
@@ -475,7 +475,7 @@ export function ChatDiagram() {
               <MiniChip tone={step === 0 ? 'accent' : undefined}>{t('guide.chat.offline')}</MiniChip>
             </Row>
             <div className="gx-field small">{t('guide.chat.said1')}</div>
-            <div className="gx-muted gx-tiny mono">{t('guide.chat.derivedId')}</div>
+            <div className="gx-muted gx-tiny mono font-mono text-label">{t('guide.chat.derivedId')}</div>
           </Frame>
 
           <Conn on={step >= 2} dir="right" tone="ok" />
@@ -489,7 +489,7 @@ export function ChatDiagram() {
                 <MiniChip tone={step === 0 ? 'accent' : undefined}>{t('guide.chat.offline')}</MiniChip>
               </Row>
               <div className="gx-field small">{t('guide.chat.said2')}</div>
-              <div className="gx-muted gx-tiny mono">{t('guide.chat.derivedId')}</div>
+              <div className="gx-muted gx-tiny mono font-mono text-label">{t('guide.chat.derivedId')}</div>
             </Frame>
 
             <Conn on={step >= 3} dir="down" tone="ok" />

@@ -24,7 +24,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Header } from '../../../kernel/design-system/chrome';
-import { Empty, Icon, Sheet, failure, useAction, useToast } from '../../../kernel/design-system/ui';
+import { Empty } from '../../../kernel/design-system/ui/empty';
+import { Icon } from '../../../kernel/design-system/ui/icon';
+import { Sheet } from '../../../kernel/design-system/ui/sheet';
+import { failure, useAction, useToast } from '../../../kernel/design-system/ui/toast';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { Input } from '../../../kernel/design-system/ui/field';
 import { SectionHeading } from '../../../kernel/design-system/ui/section';
@@ -34,6 +37,7 @@ import { useT } from '../../../kernel/i18n/i18n';
 import { useSession } from '../../../kernel/identity/session';
 import { useTabStrip } from '../../../kernel/design-system/tab-strip';
 import { TabButton, TabList } from '../../../kernel/design-system/ui/tabs';
+import { pageBody } from '../../../kernel/design-system/ui/page';
 
 interface Hit {
   id: string;
@@ -154,7 +158,7 @@ export function MailScreen() {
         ))}
       </TabList>
 
-      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+      <div className={pageBody}>
         <form
           className="flex items-center gap-2"
           onSubmit={(event) => {
@@ -178,8 +182,8 @@ export function MailScreen() {
             <Icon name="search" size={14} />
           </Button>
         </form>
-        <p className="text-[12px] text-muted mt-1">{t('mail.searchHint')}</p>
-        {error && <p className="text-[12px] text-danger">{error}</p>}
+        <p className="text-label text-muted mt-1">{t('mail.searchHint')}</p>
+        {error && <p className="text-label text-danger">{error}</p>}
 
         {/* A failed search is the error above, not "0 results" under it. */}
         {tab === 'search' && !error && (
@@ -214,20 +218,20 @@ function Results({ hits, total, searched, loading, onOpen }: {
   if (!hits.length) return <Empty title={t('mail.results', { count: 0 })} />;
   return (
     <>
-      <p className="text-[12px] text-muted mt-3">
+      <p className="text-label text-muted mt-3">
         {t('mail.results', { count: total })} · {t('mail.searched', { mailboxes: searched.join(', ') })}
       </p>
       {hits.map((hit) => (
-        <button key={hit.id} className="w-full text-left rounded-[var(--radius)] border border-line bg-raised p-2 mb-2" onClick={() => onOpen(hit.id)}>
+        <button key={hit.id} className="w-full text-left rounded border border-line bg-raised p-2 mb-2" onClick={() => onOpen(hit.id)}>
           <div className="flex items-center gap-2">
             <span className="flex-1 min-w-0 truncate">{hit.subject || '—'}</span>
             {!!hit.has_attachments && <Icon name="attach" size={13} />}
             <Chip>{hit.mailbox}</Chip>
           </div>
-          <div className="text-[12px] text-muted truncate">
+          <div className="text-label text-muted truncate">
             {hit.from_name || hit.from_address} · {new Date(hit.sent_at).toISOString().slice(0, 10)}
           </div>
-          <div className="text-[12px] text-muted truncate">{hit.snippet}</div>
+          <div className="text-label text-muted truncate">{hit.snippet}</div>
         </button>
       ))}
     </>
@@ -269,18 +273,18 @@ function Documents({ query }: { query: string }) {
   }, [workspaceId, query]);
 
   if (loading) return <div className="skeleton mt-3" style={{ height: 10 }} />;
-  if (failed) return <p className="text-[12px] text-danger mt-3">{t('common.loadFailed', { reason: failed })}</p>;
+  if (failed) return <p className="text-label text-danger mt-3">{t('common.loadFailed', { reason: failed })}</p>;
   if (!rows.length) return <Empty title={t('mail.results', { count: 0 })} />;
   return (
     <>
-      <p className="text-[12px] text-muted mt-3">{t('mail.documentsHint')}</p>
+      <p className="text-label text-muted mt-3">{t('mail.documentsHint')}</p>
       {rows.map((row) => (
-        <div key={row.id} className="rounded-[var(--radius)] border border-line bg-raised p-2 mb-2">
+        <div key={row.id} className="rounded border border-line bg-raised p-2 mb-2">
           <div className="flex items-center gap-2">
             <span className="flex-1 min-w-0 truncate">{row.subject || '—'}</span>
             <Chip>{row.mailbox}</Chip>
           </div>
-          <div className="text-[12px] text-muted truncate">
+          <div className="text-label text-muted truncate">
             {row.from_name || row.from_address} · {new Date(row.sent_at).toISOString().slice(0, 10)}
           </div>
           {/* The reason, not the score. A list that says "14" is one somebody
@@ -318,19 +322,19 @@ function Numbers({ query }: { query: string }) {
   }, [workspaceId, query]);
 
   // A failure used to leave the skeleton up for good.
-  if (failed) return <p className="text-[12px] text-danger mt-3">{t('common.loadFailed', { reason: failed })}</p>;
+  if (failed) return <p className="text-label text-danger mt-3">{t('common.loadFailed', { reason: failed })}</p>;
   if (!stats) return <div className="skeleton mt-3" style={{ height: 10 }} />;
   const peak = Math.max(1, ...stats.per_month.map((one) => one.total));
   return (
     <>
-      <p className="text-[12px] text-muted mt-3">
+      <p className="text-label text-muted mt-3">
         {t('mail.results', { count: stats.total })}
         {stats.covers.from && ` · ${t('mail.coverage', { from: stats.covers.from, to: stats.covers.to ?? '' })}`}
       </p>
 
       <SectionHeading>{t('mail.perMonth')}</SectionHeading>
       {stats.per_month.map((month) => (
-        <div key={month.month} className="flex items-center gap-2 text-[12px]">
+        <div key={month.month} className="flex items-center gap-2 text-label">
           <span style={{ width: 64 }}>{month.month}</span>
           {/* A bar rather than a chart library: one number per row, and the
               width is the whole story. */}
@@ -341,14 +345,14 @@ function Numbers({ query }: { query: string }) {
 
       <SectionHeading>{t('mail.topSenders')}</SectionHeading>
       {stats.top_senders.slice(0, 12).map((sender) => (
-        <div key={sender.address} className="flex items-center gap-2 text-[12px]">
+        <div key={sender.address} className="flex items-center gap-2 text-label">
           <span className="flex-1 min-w-0 truncate">{sender.name || sender.address}</span>
           <span className="text-muted">{sender.count}</span>
         </div>
       ))}
 
       <SectionHeading>{t('mail.response')}</SectionHeading>
-      <p className="text-[12px] text-muted">
+      <p className="text-label text-muted">
         {stats.response.measurable
           ? t('mail.minutes', { count: stats.response.median_minutes ?? 0 })
           : t('mail.responseUnmeasurable')}
@@ -361,7 +365,7 @@ function Message({ message, onClose }: { message: Detail; onClose: () => void })
   const t = useT();
   return (
     <Sheet onClose={onClose} title={message.subject || '—'}>
-      <div className="text-[12px] text-muted">
+      <div className="text-label text-muted">
         {message.from_name ? `${message.from_name} <${message.from_address}>` : message.from_address}
         {' · '}{new Date(message.sent_at).toISOString().slice(0, 16).replace('T', ' ')}
         {' · '}{message.mailbox}
@@ -377,8 +381,8 @@ function Message({ message, onClose }: { message: Detail; onClose: () => void })
           stranger's mail server; the fetcher already flattened any HTML part to
           text, and rendering it here would undo that in the one place where the
           origin is this app's own. */}
-      <pre className="whitespace-pre-wrap text-[13px] mt-3">{message.body}</pre>
-      <p className="text-[12px] text-muted">{t('mail.thread')}</p>
+      <pre className="whitespace-pre-wrap text-body mt-3">{message.body}</pre>
+      <p className="text-label text-muted">{t('mail.thread')}</p>
     </Sheet>
   );
 }

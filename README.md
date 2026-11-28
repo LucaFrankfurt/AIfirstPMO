@@ -315,6 +315,7 @@ npm run dev:web        # :5173, proxies /api to :4000
 npm test              # API, sync merge, permissions, uploads, injection, MCP, SMTP, S3, translations
 npm run typecheck     # every package, plus the client test project
 npm run check:compose # every setting the server reads is reachable from a deployment
+npm run check:tokens  # every font size, radius and shadow in the client is a step of the scale
 ```
 
 The mail tests run against a real SMTP server implemented in the test, and the storage tests against
@@ -337,7 +338,7 @@ KOLIBRI_LOCALE=fr node scripts/smoke.mjs  # and the French one
 
 npm run check:openapi     # docs/openapi.json, against the registry and every route file
 npm run check:css         # every class the source uses is actually defined — no build needed
-npm run check:responsive  # 47 screens, 340px to 1600px in 20px steps, looking for overflow
+npm run check:responsive  # 48 screens, 340px to 1600px in 20px steps, looking for overflow
 npm run check:contrast    # WCAG ratios for every element that renders text, light and dark
 npm run check:a11y        # names, keyboard reach, focus rings, landmarks, 24px targets
 npm run check:packaged    # the iOS/Android way in: bundle on its own origin, server elsewhere

@@ -25,7 +25,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { findAnchor, makeAnchor, sameQuote, textAnchor, type Anchor, type Comment, type Found } from '@kolibri/shared';
 import { useT } from '../../kernel/i18n/i18n';
-import { Icon } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
 
 export interface Pending {
   anchor: Anchor;

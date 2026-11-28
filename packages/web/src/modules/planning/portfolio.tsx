@@ -16,9 +16,14 @@ import { shortDate, today } from '../../kernel/design-system/format';
 import { useI18n, useT, type TranslationKey } from '../../kernel/i18n/i18n';
 import { byId, list, useQuery } from '../../kernel/sync/store';
 import { useFeature, useSession } from '../../kernel/identity/session';
-import { Bars, Stat } from './insights';
+import { Bars } from './insights';
+import { Stat } from '../../kernel/design-system/ui/stat';
 import { Table } from '../../kernel/design-system/ui/table';
-import { Empty, Icon } from '../../kernel/design-system/ui';
+import { Empty } from '../../kernel/design-system/ui/empty';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { pageBody } from '../../kernel/design-system/ui/page';
+import { statRow } from '../../kernel/design-system/ui/stat';
+import { DataTable, Td, Th, Tr } from '../../kernel/design-system/ui/data-table';
 
 const DAY = 86_400_000;
 
@@ -235,11 +240,11 @@ export function Portfolio() {
   }
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+    <div className={pageBody}>
       {/* The screen had four numbers, three charts and nothing naming any of
           it — the one route in the app with no heading of its own. */}
-      <h1 className="text-base m-0 mb-2.5">{t('portfolio.title')}</h1>
-      <div className="kpi-row">
+      <h1 className="text-title m-0 mb-2.5">{t('portfolio.title')}</h1>
+      <div className={statRow}>
         <Stat label={t('portfolio.projects')} value={String(projects.length)} />
         <Stat label={t('portfolio.open')} value={String(totals.open)} hint={t('portfolio.acrossAll')} />
         <Stat label={t('portfolio.finishedMonth')} value={String(totals.doneThisMonth)} hint={t('insights.last30')} />
@@ -254,10 +259,10 @@ export function Portfolio() {
       <h2 className="chart-title">{t('portfolio.roadmap')}</h2>
       {bars.length
         ? <Roadmap bars={bars} from={range.from} to={range.to} />
-        : <p className="text-muted text-[13.5px]">{t('portfolio.noDates')}</p>}
+        : <p className="text-muted text-body">{t('portfolio.noDates')}</p>}
 
       {undated.length > 0 && (
-        <p className="text-muted text-[12.5px] mt-2.5">
+        <p className="text-muted text-label mt-2.5">
           <Icon name="calendar" size={12} /> {t('portfolio.undated', { names: undated.map((p) => p.name).join(', ') })}
         </p>
       )}
@@ -274,15 +279,15 @@ export function Portfolio() {
 
       <h2 className="chart-title mt-[22px]">{t('portfolio.status')}</h2>
       <div className="table-wrap">
-        <table className="task-table">
+        <DataTable>
           <thead>
             <tr>
-              <th>{t('portfolio.project')}</th>
-              <th>{t('project.statusLabel')}</th>
-              <th className="narrow">{t('project.lead')}</th>
-              <th className="narrow">{t('project.targetDate')}</th>
-              <th>{t('portfolio.progress')}</th>
-              <th className="narrow">{t('portfolio.overdue')}</th>
+              <Th>{t('portfolio.project')}</Th>
+              <Th>{t('project.statusLabel')}</Th>
+              <Th optional>{t('project.lead')}</Th>
+              <Th optional>{t('project.targetDate')}</Th>
+              <Th>{t('portfolio.progress')}</Th>
+              <Th optional>{t('portfolio.overdue')}</Th>
             </tr>
           </thead>
           <tbody>
@@ -291,18 +296,18 @@ export function Portfolio() {
               const total = counts.open + counts.done;
               const lead = byId('user', project.lead_id ?? undefined);
               return (
-                <tr key={project.id}>
-                  <td>{project.icon} {project.name}</td>
-                  <td>{t(projectStatusKey(project.status))}</td>
-                  <td className="narrow">{lead?.name ?? '—'}</td>
-                  <td className="narrow">{project.target_date ? shortDate(project.target_date) : '—'}</td>
-                  <td>{total ? `${Math.round((counts.done / total) * 100)}% · ${counts.done}/${total}` : '—'}</td>
-                  <td className="narrow">{counts.overdue || ''}</td>
-                </tr>
+                <Tr key={project.id}>
+                  <Td>{project.icon} {project.name}</Td>
+                  <Td>{t(projectStatusKey(project.status))}</Td>
+                  <Td optional>{lead?.name ?? '—'}</Td>
+                  <Td optional>{project.target_date ? shortDate(project.target_date) : '—'}</Td>
+                  <Td>{total ? `${Math.round((counts.done / total) * 100)}% · ${counts.done}/${total}` : '—'}</Td>
+                  <Td optional>{counts.overdue || ''}</Td>
+                </Tr>
               );
             })}
           </tbody>
-        </table>
+        </DataTable>
       </div>
     </div>
   );

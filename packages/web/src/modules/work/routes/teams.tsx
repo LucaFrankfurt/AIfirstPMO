@@ -3,7 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { isDoneGroup } from '@kolibri/shared';
 import { keyFromName } from '../../../kernel/design-system/text';
 import { Header } from '../../../kernel/design-system/chrome';
-import { Avatar, Empty, Icon, MenuButton, Progress, useConfirm } from '../../../kernel/design-system/ui';
+import { Avatar } from '../../../kernel/design-system/ui/avatar';
+import { Empty } from '../../../kernel/design-system/ui/empty';
+import { Icon } from '../../../kernel/design-system/ui/icon';
+import { MenuButton } from '../../../kernel/design-system/ui/menu-button';
+import { Progress } from '../../../kernel/design-system/ui/progress';
+import { useConfirm } from '../../../kernel/design-system/ui/sheet';
 import { create, remove, update } from '../../../kernel/sync/mutations';
 import { byId, list, useQuery } from '../../../kernel/sync/store';
 import { useCanWrite, useMembers, useSession } from '../../../kernel/identity/session';
@@ -11,6 +16,7 @@ import { Button } from '../../../kernel/design-system/ui/button';
 import { Input } from '../../../kernel/design-system/ui/field';
 import { Chip, chipVariants } from '../../../kernel/design-system/ui/chip';
 import { useT } from '../../../kernel/i18n/i18n';
+import { pageBody } from '../../../kernel/design-system/ui/page';
 
 export function Teams() {
   const t = useT();
@@ -28,7 +34,7 @@ export function Teams() {
   return (
     <>
       <Header title={t('team.title')} />
-      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+      <div className={pageBody}>
         {canWrite && (
           <form
             className="flex items-center gap-2 mb-4"
@@ -67,9 +73,9 @@ export function Teams() {
             const done = tasks.filter((task) => isDoneGroup(byId('state', task.state_id)?.group_key)).length;
 
             return (
-              <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5" key={team.id}>
+              <div className="rounded border border-line bg-raised p-3.5" key={team.id}>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-lg">{team.icon ?? '👥'}</span>
+                  <span className="text-headline">{team.icon ?? '👥'}</span>
                   {/* Borderless, so it does not look like a field — which is
                       the point visually and the problem otherwise: nothing on
                       it said what typing here would change. */}
@@ -122,11 +128,11 @@ export function Teams() {
                       <Avatar user={person} size={16} /> {person.name}
                     </span>
                   ))}
-                  {!people.length && <span className="text-muted text-[12.5px]">{t('team.noMembers')}</span>}
+                  {!people.length && <span className="text-muted text-label">{t('team.noMembers')}</span>}
                 </div>
 
                 <Progress value={done} total={tasks.length} />
-                <div className="flex items-center gap-2 text-muted text-[12.5px] mt-1.5">
+                <div className="flex items-center gap-2 text-muted text-label mt-1.5">
                   <span>{t('team.projectCount', { count: teamProjects.length })}</span>
                   <span className="flex-1 min-w-0" />
                   <span>{t('team.tasksDone', { done, total: tasks.length })}</span>

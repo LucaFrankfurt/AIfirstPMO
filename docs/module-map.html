@@ -354,9 +354,9 @@ footer {
 
   <div class="tally">
 <!-- generated: tally -->
-    <div><span class="v num">421</span><span class="k">source files</span></div>
+    <div><span class="v num">457</span><span class="k">source files</span></div>
     <div><span class="v num">53</span><span class="k">modules</span></div>
-    <div><span class="v num">135 923</span><span class="k">lines</span></div>
+    <div><span class="v num">137 429</span><span class="k">lines</span></div>
 <!-- end -->
     <div><span class="v num">68</span><span class="k">entities</span></div>
     <div><span class="v num">169</span><span class="k">endpoints</span></div>
@@ -428,7 +428,7 @@ footer {
 <!-- ══════════════════════════════════════════════ 02 inventory ══ -->
 <section id="inventory">
 <!-- generated: files -->
-  <span class="eyebrow">02 — All 421 files, sorted</span>
+  <span class="eyebrow">02 — All 457 files, sorted</span>
 <!-- end -->
   <h2>The inventory</h2>
   <div class="stack">
@@ -441,10 +441,10 @@ footer {
 
     <div class="legend" role="list">
 <!-- generated: legend -->
-      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 36 506 lines, 27%</span>
-      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 66 435 lines, 49%</span>
-      <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 30 194 lines, 22%</span>
-      <span role="listitem"><i style="background: var(--shell)"></i> Shell — 2 788 lines, 2%</span>
+      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 37 215 lines, 27%</span>
+      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 66 961 lines, 49%</span>
+      <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 30 433 lines, 22%</span>
+      <span role="listitem"><i style="background: var(--shell)"></i> Shell — 2 820 lines, 2%</span>
 <!-- end -->
     </div>
 
@@ -626,7 +626,7 @@ footer {
           <code>task-parts.tsx</code>, which both files already imported <code>GroupBy</code> from.
         </p>
         <p class="fix"><strong>Closed by step 10.</strong> The folder of 53 components is
-          <code>kernel/design-system</code> now — 35 files, the primitives under <code>ui/</code> —
+          <code>kernel/design-system</code> now — 49 files, the primitives under <code>ui/</code> —
           and the cross-capability imports it worried about are no longer invisible: a project page
           hosting the KPI and budget panels is a row in the table further down, kept acyclic by
           rule 6.</p>
@@ -1028,8 +1028,8 @@ footer {
       <code>architecture.md</code> accepts is still accepted.
     </li>
     <li>
-      <strong><code>i18n</code> stays the largest kernel module.</strong> 12 390 lines is three
-      catalogues of 3 723 keys. Step 2 stops shipping the two nobody asked for; it does not make the
+      <strong><code>i18n</code> stays the largest kernel module.</strong> 12 450 lines is three
+      catalogues of 3 742 keys. Step 2 stops shipping the two nobody asked for; it does not make the
       catalogues smaller, and it should not — a compile error on a missing key is worth more than the
       file size.
     </li>
@@ -1145,7 +1145,7 @@ footer {
           <tr><td>kernel → a capability</td><td class="n">5</td><td class="n"><b>0</b></td></tr>
           <tr><td>kernel → an adapter</td><td class="n">3</td><td class="n"><b>0</b></td></tr>
           <tr><td>capability → an adapter</td><td class="n">12</td><td class="n"><b>0</b></td></tr>
-          <tr><td>capability → another capability</td><td class="n">14</td><td class="n">25</td></tr>
+          <tr><td>capability → another capability</td><td class="n">14</td><td class="n">26</td></tr>
           <tr><td>adapter → a capability <span class="dim">(inward — allowed)</span></td><td class="n">1</td><td class="n">32</td></tr>
 <!-- end -->
         </tbody>
@@ -1281,7 +1281,7 @@ footer {
       <code>work</code> imports <code>planning</code> because the timeline view of a task list is a
       Gantt chart; no inversion changes that, and a registry invented per one-off relationship would
       be the counted budget this document argues against, in a costume. What they can be is
-      <em>ordered</em>, and they already are — 25 imports across 22 module pairs, generated
+      <em>ordered</em>, and they already are — 26 imports across 22 module pairs, generated
       from the import graph rather than remembered:
     </p>
     <div class="scroller">
@@ -1420,51 +1420,51 @@ footer {
 <script>
 /* generated: inventory */
 const MODULES = [
-{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":12390,"biggest":"kernel/i18n/locales/en.ts","biggestLines":3895},
+{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":12450,"biggest":"kernel/i18n/locales/en.ts","biggestLines":3915},
 {"ring":"kernel","name":"registry","flag":"","files":9,"lines":4652,"biggest":"kernel/registry/types.ts","biggestLines":3043},
-{"ring":"kernel","name":"design-system","flag":"","files":35,"lines":3515,"biggest":"kernel/design-system/ui.tsx","biggestLines":710},
+{"ring":"kernel","name":"design-system","flag":"","files":49,"lines":4155,"biggest":"kernel/design-system/conversation.tsx","biggestLines":487},
 {"ring":"kernel","name":"write-path","flag":"","files":3,"lines":2940,"biggest":"kernel/write-path/repo.ts","biggestLines":1391},
 {"ring":"kernel","name":"sync","flag":"","files":8,"lines":2842,"biggest":"kernel/sync/routes/sync.ts","biggestLines":713},
 {"ring":"kernel","name":"platform","flag":"","files":11,"lines":2526,"biggest":"kernel/platform/env.ts","biggestLines":670},
-{"ring":"kernel","name":"identity","flag":"","files":10,"lines":2445,"biggest":"kernel/identity/routes/auth.ts","biggestLines":586},
-{"ring":"kernel","name":"search","flag":"","files":9,"lines":2400,"biggest":"kernel/search/routes/search.tsx","biggestLines":498},
-{"ring":"kernel","name":"files","flag":"","files":10,"lines":1301,"biggest":"kernel/files/zip.ts","biggestLines":327},
+{"ring":"kernel","name":"identity","flag":"","files":10,"lines":2448,"biggest":"kernel/identity/routes/auth.ts","biggestLines":586},
+{"ring":"kernel","name":"search","flag":"","files":9,"lines":2404,"biggest":"kernel/search/routes/search.tsx","biggestLines":501},
+{"ring":"kernel","name":"files","flag":"","files":10,"lines":1303,"biggest":"kernel/files/zip.ts","biggestLines":327},
 {"ring":"kernel","name":"feedback","flag":"","files":8,"lines":1171,"biggest":"feedback/src/kernel/feedback/input.ts","biggestLines":251},
 {"ring":"kernel","name":"mail","flag":"","files":3,"lines":324,"biggest":"kernel/mail/mailbox.ts","biggestLines":154},
-{"ring":"capability","name":"pages","flag":"","files":49,"lines":17170,"biggest":"modules/pages/routes/pages.tsx","biggestLines":1387},
-{"ring":"capability","name":"work","flag":"","files":24,"lines":6916,"biggest":"modules/work/views.tsx","biggestLines":1132},
-{"ring":"capability","name":"products","flag":"products","files":4,"lines":5338,"biggest":"modules/products/routes/products.tsx","biggestLines":2881},
-{"ring":"capability","name":"planning","flag":"","files":12,"lines":4817,"biggest":"modules/planning/routes/projects.tsx","biggestLines":1701},
-{"ring":"capability","name":"operations","flag":"","files":11,"lines":4049,"biggest":"modules/operations/routes/settings.tsx","biggestLines":1202},
-{"ring":"capability","name":"mail","flag":"mail","files":15,"lines":3272,"biggest":"modules/mail/settings.tsx","biggestLines":556},
-{"ring":"capability","name":"budgets","flag":"budget","files":4,"lines":3261,"biggest":"modules/budgets/routes/budgets.tsx","biggestLines":1701},
-{"ring":"capability","name":"support","flag":"support","files":8,"lines":2473,"biggest":"modules/support/assistant.ts","biggestLines":583},
-{"ring":"capability","name":"chat","flag":"","files":6,"lines":2442,"biggest":"modules/chat/routes/chat.tsx","biggestLines":1352},
-{"ring":"capability","name":"incidents","flag":"incidents","files":7,"lines":2001,"biggest":"modules/incidents/incident-parts.tsx","biggestLines":466},
-{"ring":"capability","name":"kpis","flag":"kpi","files":4,"lines":1872,"biggest":"modules/kpis/routes/kpis.tsx","biggestLines":972},
-{"ring":"capability","name":"guide","flag":"","files":6,"lines":1666,"biggest":"modules/guide/diagrams.tsx","biggestLines":628},
-{"ring":"capability","name":"meetings","flag":"meetings","files":4,"lines":1651,"biggest":"modules/meetings/meeting-parts.tsx","biggestLines":738},
-{"ring":"capability","name":"infrastructure","flag":"infrastructure","files":4,"lines":1642,"biggest":"modules/infrastructure/landscape.tsx","biggestLines":582},
-{"ring":"capability","name":"automation","flag":"","files":3,"lines":1524,"biggest":"modules/automation/settings.tsx","biggestLines":739},
-{"ring":"capability","name":"time","flag":"time","files":6,"lines":1504,"biggest":"modules/time/rates.tsx","biggestLines":581},
-{"ring":"capability","name":"secrets","flag":"secrets","files":6,"lines":1412,"biggest":"modules/secrets/routes/secrets.tsx","biggestLines":496},
-{"ring":"capability","name":"decisions","flag":"decisions","files":5,"lines":1131,"biggest":"modules/decisions/decision-parts.tsx","biggestLines":282},
-{"ring":"capability","name":"ai-review","flag":"ai","files":7,"lines":831,"biggest":"modules/ai-review/review.ts","biggestLines":200},
+{"ring":"capability","name":"pages","flag":"","files":49,"lines":17243,"biggest":"modules/pages/routes/pages.tsx","biggestLines":1410},
+{"ring":"capability","name":"work","flag":"","files":24,"lines":6985,"biggest":"modules/work/views.tsx","biggestLines":1148},
+{"ring":"capability","name":"products","flag":"products","files":14,"lines":5548,"biggest":"modules/products/product.ts","biggestLines":1809},
+{"ring":"capability","name":"planning","flag":"","files":18,"lines":4810,"biggest":"modules/planning/routes/projects.tsx","biggestLines":589},
+{"ring":"capability","name":"operations","flag":"","files":11,"lines":4058,"biggest":"modules/operations/routes/settings.tsx","biggestLines":1207},
+{"ring":"capability","name":"budgets","flag":"budget","files":9,"lines":3351,"biggest":"modules/budgets/budget.ts","biggestLines":862},
+{"ring":"capability","name":"mail","flag":"mail","files":15,"lines":3278,"biggest":"modules/mail/settings.tsx","biggestLines":558},
+{"ring":"capability","name":"support","flag":"support","files":8,"lines":2480,"biggest":"modules/support/assistant.ts","biggestLines":583},
+{"ring":"capability","name":"chat","flag":"","files":6,"lines":2447,"biggest":"modules/chat/routes/chat.tsx","biggestLines":1357},
+{"ring":"capability","name":"incidents","flag":"incidents","files":7,"lines":2009,"biggest":"modules/incidents/incident-parts.tsx","biggestLines":468},
+{"ring":"capability","name":"kpis","flag":"kpi","files":4,"lines":1880,"biggest":"modules/kpis/routes/kpis.tsx","biggestLines":980},
+{"ring":"capability","name":"guide","flag":"","files":6,"lines":1670,"biggest":"modules/guide/diagrams.tsx","biggestLines":628},
+{"ring":"capability","name":"meetings","flag":"meetings","files":4,"lines":1660,"biggest":"modules/meetings/meeting-parts.tsx","biggestLines":743},
+{"ring":"capability","name":"infrastructure","flag":"infrastructure","files":4,"lines":1649,"biggest":"modules/infrastructure/landscape.tsx","biggestLines":583},
+{"ring":"capability","name":"automation","flag":"","files":3,"lines":1529,"biggest":"modules/automation/settings.tsx","biggestLines":744},
+{"ring":"capability","name":"time","flag":"time","files":6,"lines":1519,"biggest":"modules/time/rates.tsx","biggestLines":593},
+{"ring":"capability","name":"secrets","flag":"secrets","files":6,"lines":1419,"biggest":"modules/secrets/routes/secrets.tsx","biggestLines":501},
+{"ring":"capability","name":"decisions","flag":"decisions","files":5,"lines":1136,"biggest":"modules/decisions/decision-parts.tsx","biggestLines":283},
+{"ring":"capability","name":"ai-review","flag":"ai","files":7,"lines":832,"biggest":"modules/ai-review/review.ts","biggestLines":200},
 {"ring":"capability","name":"notifications","flag":"","files":2,"lines":562,"biggest":"modules/notifications/effects.ts","biggestLines":480},
-{"ring":"capability","name":"trash","flag":"","files":2,"lines":514,"biggest":"modules/trash/trash.ts","biggestLines":281},
-{"ring":"capability","name":"intake","flag":"","files":1,"lines":229,"biggest":"modules/intake/intake.tsx","biggestLines":229},
-{"ring":"capability","name":"share","flag":"","files":1,"lines":158,"biggest":"modules/share/share.tsx","biggestLines":158},
+{"ring":"capability","name":"trash","flag":"","files":2,"lines":510,"biggest":"modules/trash/trash.ts","biggestLines":281},
+{"ring":"capability","name":"intake","flag":"","files":1,"lines":226,"biggest":"modules/intake/intake.tsx","biggestLines":226},
+{"ring":"capability","name":"share","flag":"","files":1,"lines":160,"biggest":"modules/share/share.tsx","biggestLines":160},
 {"ring":"adapter","name":"mcp","flag":"","files":21,"lines":12626,"biggest":"adapters/mcp/tools/products.ts","biggestLines":2160},
-{"ring":"adapter","name":"transfer","flag":"","files":8,"lines":3779,"biggest":"adapters/transfer/transfer.ts","biggestLines":890},
+{"ring":"adapter","name":"transfer","flag":"","files":9,"lines":4015,"biggest":"adapters/transfer/transfer.ts","biggestLines":890},
 {"ring":"adapter","name":"webhooks","flag":"","files":7,"lines":2007,"biggest":"adapters/webhooks/foreign.ts","biggestLines":747},
 {"ring":"adapter","name":"widget","flag":"","files":7,"lines":1853,"biggest":"adapters/widget/visitor.tsx","biggestLines":733},
 {"ring":"adapter","name":"mail","flag":"","files":8,"lines":1589,"biggest":"adapters/mail/mail.ts","biggestLines":473},
 {"ring":"adapter","name":"imap","flag":"","files":4,"lines":1194,"biggest":"adapters/imap/imap.ts","biggestLines":371},
 {"ring":"adapter","name":"oauth","flag":"","files":4,"lines":978,"biggest":"adapters/oauth/routes/oauth.ts","biggestLines":515},
 {"ring":"adapter","name":"kolibri","flag":"","files":3,"lines":905,"biggest":"feedback/src/adapters/kolibri/preflight.ts","biggestLines":598},
-{"ring":"adapter","name":"push","flag":"","files":6,"lines":864,"biggest":"adapters/push/app.tsx","biggestLines":270},
+{"ring":"adapter","name":"push","flag":"","files":6,"lines":866,"biggest":"adapters/push/app.tsx","biggestLines":271},
 {"ring":"adapter","name":"share","flag":"","files":3,"lines":810,"biggest":"adapters/share/routes/share.ts","biggestLines":650},
-{"ring":"adapter","name":"telegram","flag":"","files":5,"lines":765,"biggest":"adapters/telegram/telegram.ts","biggestLines":467},
+{"ring":"adapter","name":"telegram","flag":"","files":5,"lines":766,"biggest":"adapters/telegram/telegram.ts","biggestLines":467},
 {"ring":"adapter","name":"s3","flag":"","files":3,"lines":649,"biggest":"adapters/s3/s3.ts","biggestLines":347},
 {"ring":"adapter","name":"capture","flag":"","files":4,"lines":622,"biggest":"feedback/src/adapters/capture/capture.ts","biggestLines":385},
 {"ring":"adapter","name":"relay","flag":"","files":5,"lines":483,"biggest":"adapters/relay/relay.ts","biggestLines":156},
@@ -1472,7 +1472,7 @@ const MODULES = [
 {"ring":"adapter","name":"calendar","flag":"","files":2,"lines":409,"biggest":"adapters/calendar/routes/calendar.ts","biggestLines":251},
 {"ring":"adapter","name":"native","flag":"","files":1,"lines":169,"biggest":"adapters/native/files.ts","biggestLines":169},
 {"ring":"adapter","name":"react","flag":"","files":1,"lines":82,"biggest":"feedback/src/adapters/react/reporter.tsx","biggestLines":82},
-{"ring":"shell","name":"shell","flag":"","files":22,"lines":2788,"biggest":"AppShell.tsx","biggestLines":642}
+{"ring":"shell","name":"shell","flag":"","files":22,"lines":2820,"biggest":"AppShell.tsx","biggestLines":667}
 ];
 /* end */
 

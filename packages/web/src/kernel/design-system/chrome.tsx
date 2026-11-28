@@ -17,7 +17,7 @@ import { chipDot } from './ui/chip';
 import { Button } from './ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { useMinute } from './minute';
-import { Icon } from './ui';
+import { Icon } from './ui/icon';
 
 /* ------------------------------------------------------------ sync status */
 
@@ -91,7 +91,7 @@ function SyncPill() {
   return (
     <Popover>
       <PopoverTrigger asChild>{pill}</PopoverTrigger>
-      <PopoverContent align="end" className="w-80 max-w-[90vw] p-3 text-[13px]">
+      <PopoverContent align="end" className="w-80 max-w-[90vw] p-3 text-body">
         <ul className="m-0 flex max-h-64 list-none flex-col gap-2 overflow-auto p-0">
           {refused.map((change) => (
             <li key={change.id} className="min-w-0">

@@ -14,7 +14,8 @@ import { api } from '../../kernel/sync/api';
 import { useT } from '../../kernel/i18n/i18n';
 import { buttonVariants } from '../../kernel/design-system/ui/button';
 import { SectionHeading } from '../../kernel/design-system/ui/section';
-import { Icon, useToast } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { useToast } from '../../kernel/design-system/ui/toast';
 import { isPackaged } from '../../kernel/sync/server';
 import { AppPushToggle } from './app';
 
@@ -108,9 +109,9 @@ function WebPushToggle() {
   return (
     <>
       <SectionHeading>{t('push.title')}</SectionHeading>
-      <p className="text-[12px] text-muted mb-2">{t('push.hint')}</p>
+      <p className="text-label text-muted mb-2">{t('push.hint')}</p>
       {state === 'denied' ? (
-        <p className="text-muted text-[12.5px]">{t('push.denied')}</p>
+        <p className="text-muted text-label">{t('push.denied')}</p>
       ) : (
         <button
           className={buttonVariants({ variant: state === 'on' ? 'secondary' : 'primary' })}

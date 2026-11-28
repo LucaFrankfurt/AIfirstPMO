@@ -15,8 +15,11 @@ import { Button } from '../design-system/ui/button';
 import { Input } from '../design-system/ui/field';
 import { SectionHeading } from '../design-system/ui/section';
 import { Chip } from '../design-system/ui/chip';
-import { Icon, Sheet, failure, useAction, useToast } from '../design-system/ui';
+import { Icon } from '../design-system/ui/icon';
+import { Sheet } from '../design-system/ui/sheet';
+import { failure, useAction, useToast } from '../design-system/ui/toast';
 import { useMinute } from '../design-system/minute';
+import { formField } from '../../kernel/design-system/ui/field';
 
 /* ------------------------------------------------------------ two factor */
 
@@ -71,12 +74,12 @@ export function TwoFactor() {
   return (
     <>
       <SectionHeading>{t('security.twoFactor')}</SectionHeading>
-      <p className="text-[12px] text-muted mb-2">{t('security.twoFactorHint')}</p>
+      <p className="text-label text-muted mb-2">{t('security.twoFactorHint')}</p>
 
       {recovery && (
-        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mb-3">
-          <strong className="text-[13.5px]">{t('security.recoveryTitle')}</strong>
-          <p className="text-[12px] text-muted">{t('security.recoveryHint')}</p>
+        <div className="rounded border border-line bg-raised p-3.5 mb-3">
+          <strong className="text-body">{t('security.recoveryTitle')}</strong>
+          <p className="text-label text-muted">{t('security.recoveryHint')}</p>
           <div className="recovery-codes">
             {recovery.map((one) => <code key={one}>{one}</code>)}
           </div>
@@ -98,15 +101,15 @@ export function TwoFactor() {
           </Button>
         </div>
       ) : setup ? (
-        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
-          <p className="text-[12px] text-muted">{t('security.scanHint')}</p>
+        <div className="rounded border border-line bg-raised p-3.5">
+          <p className="text-label text-muted">{t('security.scanHint')}</p>
           {/* The URI as text rather than a QR image: drawing one needs a
               library, and every authenticator app takes a typed secret. */}
-          <div className="field">
+          <div className={formField}>
             <label htmlFor="totp-secret">{t('security.secret')}</label>
             <Input id="totp-secret" readOnly value={setup.secret.replace(/(.{4})/g, '$1 ').trim()} />
           </div>
-          <div className="field">
+          <div className={formField}>
             <label htmlFor="totp-code">{t('security.enterCode')}</label>
             <Input
               id="totp-code" inputMode="numeric" autoComplete="one-time-code"
@@ -127,12 +130,12 @@ export function TwoFactor() {
         <Button onClick={() => void start()}>{t('security.turnOn')}</Button>
       )}
 
-      {failed && <p className="text-[12px] text-danger mt-2">{failed}</p>}
+      {failed && <p className="text-label text-danger mt-2">{failed}</p>}
       {off && (
         <Sheet title={t('security.turnOff')} onClose={() => setOff(null)}>
           <form onSubmit={(event) => { event.preventDefault(); void turnOff(); }}>
-            <p className="text-[13px] mb-3">{t('security.turnOffConfirm')}</p>
-            <div className="field">
+            <p className="text-body mb-3">{t('security.turnOffConfirm')}</p>
+            <div className={formField}>
               <label htmlFor="totp-off-password">{t('security.passwordToTurnOff')}</label>
               <Input
                 id="totp-off-password" type="password" autoComplete="current-password" autoFocus
@@ -140,7 +143,7 @@ export function TwoFactor() {
                 onChange={(event) => setOff({ ...off, password: event.target.value })}
               />
             </div>
-            {off.failed && <p className="text-[12px] text-danger mb-2">{off.failed}</p>}
+            {off.failed && <p className="text-label text-danger mb-2">{off.failed}</p>}
             <div className="flex items-center justify-end gap-2">
               <Button type="button" onClick={() => setOff(null)}>{t('action.cancel')}</Button>
               <Button type="submit" variant="danger" disabled={!off.password || off.busy}>{t('security.turnOff')}</Button>
@@ -170,8 +173,8 @@ export function Sessions() {
   return (
     <>
       <SectionHeading>{t('security.devices')}</SectionHeading>
-      <p className="text-[12px] text-muted mb-2">{t('security.devicesHint')}</p>
-      <div className="rounded-[var(--radius)] border border-line bg-raised p-0">
+      <p className="text-label text-muted mb-2">{t('security.devicesHint')}</p>
+      <div className="rounded border border-line bg-raised p-0">
         {(rows ?? []).map((row) => (
           <div className="flex items-center gap-2 trash-row" key={row.id} style={{ gap: 9 }}>
             <Icon name={row.current ? 'check' : 'users'} size={14} />
@@ -179,7 +182,7 @@ export function Sessions() {
               {describe(row.user_agent) || t('security.unknownDevice')}
             </span>
             {row.current && <Chip>{t('security.thisDevice')}</Chip>}
-            <span className="text-muted text-[12.5px]">{relativeTime(row.last_used_at ?? row.created_at)}</span>
+            <span className="text-muted text-label">{relativeTime(row.last_used_at ?? row.created_at)}</span>
             <Button variant="ghost" size="sm" disabled={action.busy}
               onClick={() => void action.run(async () => {
                 await api.revokeSession(row.id);
@@ -194,8 +197,8 @@ export function Sessions() {
             </Button>
           </div>
         ))}
-        {failed && <div className="trash-row text-danger text-[12.5px]">{t('common.loadFailed', { reason: failed })}</div>}
-        {!failed && rows && !rows.length && <div className="trash-row text-muted text-[12.5px]">{t('security.noDevices')}</div>}
+        {failed && <div className="trash-row text-danger text-label">{t('common.loadFailed', { reason: failed })}</div>}
+        {!failed && rows && !rows.length && <div className="trash-row text-muted text-label">{t('security.noDevices')}</div>}
       </div>
     </>
   );

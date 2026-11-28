@@ -13,20 +13,24 @@ import { cva } from 'class-variance-authority';
  * apart. `NavLink` sets it for free.
  */
 export const navItem = cva(
-  'flex w-full min-h-[34px] cursor-pointer select-none items-center gap-2.5 rounded-[var(--radius-sm)] '
-  + 'border-none bg-transparent px-2.5 py-1.5 text-left text-[13.5px] text-soft transition-colors '
+  // "You are here" is the accent's job (design.md), so the current row is the
+  // accent's container colour, a pill: Material's active indicator. It used to
+  // be `bg-active`, the same grey as a pressed button, which said "something
+  // happened here" rather than "this is where you are".
+  'flex w-full min-h-[34px] cursor-pointer select-none items-center gap-2.5 rounded-full '
+  + 'border-none bg-transparent px-3 py-1.5 text-left text-body text-soft transition-colors '
   + 'hover:bg-hover hover:text-fg outline-none focus-visible:ring-2 focus-visible:ring-accent/60 '
-  + 'aria-[current=page]:bg-active aria-[current=page]:font-medium aria-[current=page]:text-fg',
+  + 'aria-[current=page]:bg-accent-soft aria-[current=page]:font-medium aria-[current=page]:text-accent',
   {
     variants: {
-      active: { true: 'bg-active font-medium text-fg', false: '' },
+      active: { true: 'bg-accent-soft font-medium text-accent hover:bg-accent-soft hover:text-accent', false: '' },
     },
     defaultVariants: { active: false },
   },
 );
 
 /** The number at the end of a nav row — unread, open, whatever it counts. */
-export const navCount = 'ms-auto text-[11.5px] text-muted tabular-nums';
+export const navCount = 'ms-auto text-caption text-muted tabular-nums';
 
 /**
  * The same row with the words taken away: one square, for the folded sidebar.
@@ -40,6 +44,6 @@ export const navCount = 'ms-auto text-[11.5px] text-muted tabular-nums';
  */
 export const navRailItem =
   'relative flex size-9 shrink-0 cursor-pointer select-none items-center justify-center '
-  + 'rounded-[var(--radius-sm)] border-none bg-transparent p-0 text-soft transition-colors '
+  + 'rounded-full border-none bg-transparent p-0 text-soft transition-colors '
   + 'hover:bg-hover hover:text-fg outline-none focus-visible:ring-2 focus-visible:ring-accent/60 '
-  + 'aria-[current=page]:bg-active aria-[current=page]:text-fg';
+  + 'aria-[current=page]:bg-accent-soft aria-[current=page]:text-accent';

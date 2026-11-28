@@ -19,12 +19,18 @@ import { today } from '../../kernel/design-system/format';
 import { create, remove } from '../../kernel/sync/mutations';
 import { list, useQuery } from '../../kernel/sync/store';
 import { useMembers, useSeesMoney } from '../../kernel/identity/session';
-import { Empty, Icon, Sheet, useConfirm } from '../../kernel/design-system/ui';
+import { Empty } from '../../kernel/design-system/ui/empty';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { Sheet, useConfirm } from '../../kernel/design-system/ui/sheet';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Chip } from '../../kernel/design-system/ui/chip';
-import { Input, Select } from '../../kernel/design-system/ui/field';
+import { Input, Select, formField, formRow } from '../../kernel/design-system/ui/field';
 import { SectionHeading } from '../../kernel/design-system/ui/section';
 import { MoneyInput, asMoney } from '../../kernel/design-system/ui/money';
+import { pageBody } from '../../kernel/design-system/ui/page';
+import { statHint, statLabel, statRow, statTile, statValue } from '../../kernel/design-system/ui/stat';
+import { cn } from '../../kernel/design-system/cn';
+import { DataTable, Td, Th, Tr, tableCell } from '../../kernel/design-system/ui/data-table';
 
 export const rateKindKey = (kind: string): TranslationKey => `rate.kind.${kind}` as TranslationKey;
 
@@ -98,7 +104,7 @@ export function Timesheet() {
     new Date(`${day}T00:00:00Z`).toLocaleDateString(currentLocale(), { day: 'numeric', month: 'short', timeZone: 'UTC' });
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+    <div className={pageBody}>
       <div className="week-bar">
         <Button size="icon" aria-label={t('timesheet.previous')} onClick={() => setWeek(weekStart(shift(week, -1)))}>
           <Icon name="chevronLeft" size={15} />
@@ -126,57 +132,63 @@ export function Timesheet() {
       ) : (
         <>
           <div className="table-wrap">
-            <table className="task-table timesheet">
+            {/* A grid people scan down a column of: every figure tabular and at
+                least 68px wide, so the days line up whatever is in them, and the
+                weekend tinted rather than hidden — Saturday with work on it is
+                worth noticing, and a column that is not there cannot be. The
+                headings stand on the bottom edge, where a day's two lines and
+                the other columns' one line agree. */}
+            <DataTable>
               <thead>
                 <tr>
-                  <th>{by === 'user' ? t('timesheet.person') : t('budget.project')}</th>
+                  <Th className="align-bottom">{by === 'user' ? t('timesheet.person') : t('budget.project')}</Th>
                   {sheet.days.map((day, index) => (
-                    <th key={day} className={`num${index >= 5 ? ' weekend' : ''}`}>
-                      <span className="day-name">{dayLabel(day)}</span>
-                      <span className="day-date">{dayNumber(day)}</span>
-                    </th>
+                    <Th key={day} numeric className={cn('min-w-17 align-bottom', index >= 5 && 'bg-sunken')}>
+                      <span className="block font-semibold">{dayLabel(day)}</span>
+                      <span className="block text-caption font-normal text-muted">{dayNumber(day)}</span>
+                    </Th>
                   ))}
-                  <th className="num">{t('timesheet.total')}</th>
-                  {seesMoney && <th className="num">{t('rate.cost')}</th>}
+                  <Th numeric className="min-w-17 align-bottom">{t('timesheet.total')}</Th>
+                  {seesMoney && <Th numeric className="min-w-17 align-bottom">{t('rate.cost')}</Th>}
                 </tr>
               </thead>
               <tbody>
                 {sheet.rows.map((row) => (
-                  <tr key={row.key}>
-                    <td className="title">
+                  <Tr key={row.key}>
+                    <Td lead>
                       {row.key ? nameOf.get(row.key) ?? t('timesheet.unknown') : t('timesheet.noProject')}
                       {seesMoney && row.unratedMinutes > 0 && (
                         <span className="row-sub">{t('rate.unrated', { hours: duration(row.unratedMinutes) })}</span>
                       )}
-                    </td>
+                    </Td>
                     {row.days.map((minutes, index) => (
-                      <td key={index} className={`num${index >= 5 ? ' weekend' : ''}`}>
+                      <Td key={index} numeric className={cn('min-w-17', index >= 5 && 'bg-sunken')}>
                         {/* An empty cell rather than "0h". A zero in every gap
                             is a grid nobody can find the worked days in. */}
                         {minutes ? duration(minutes) : ''}
-                      </td>
+                      </Td>
                     ))}
-                    <td className="num"><strong>{duration(row.minutes)}</strong></td>
-                    {seesMoney && <td className="num"><Money of={row.cost} /></td>}
-                  </tr>
+                    <Td numeric className="min-w-17"><strong>{duration(row.minutes)}</strong></Td>
+                    {seesMoney && <Td numeric className="min-w-17"><Money of={row.cost} /></Td>}
+                  </Tr>
                 ))}
               </tbody>
               <tfoot>
-                <tr>
-                  <th>{t('timesheet.total')}</th>
+                <tr className="border-t border-line-strong">
+                  <th className={tableCell()}>{t('timesheet.total')}</th>
                   {sheet.perDay.map((minutes, index) => (
-                    <th key={index} className={`num${index >= 5 ? ' weekend' : ''}`}>
+                    <th key={index} className={cn(tableCell({ numeric: true }), 'min-w-17', index >= 5 && 'bg-sunken')}>
                       {minutes ? duration(minutes) : ''}
                     </th>
                   ))}
-                  <th className="num">{duration(sheet.totals.minutes)}</th>
-                  {seesMoney && <th className="num"><Money of={sheet.totals.cost} /></th>}
+                  <th className={cn(tableCell({ numeric: true }), 'min-w-17')}>{duration(sheet.totals.minutes)}</th>
+                  {seesMoney && <th className={cn(tableCell({ numeric: true }), 'min-w-17')}><Money of={sheet.totals.cost} /></th>}
                 </tr>
               </tfoot>
-            </table>
+            </DataTable>
           </div>
           {seesMoney && sheet.totals.unratedMinutes > 0 && (
-            <p className="mt-2 text-[12px] text-muted">{t('rate.unratedHint')}</p>
+            <p className="mt-2 text-label text-muted">{t('rate.unratedHint')}</p>
           )}
         </>
       )}
@@ -244,7 +256,7 @@ export function CostReport() {
   }
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+    <div className={pageBody}>
       <div className="week-bar flex-wrap">
         <Select
           className="w-auto"
@@ -270,94 +282,94 @@ export function CostReport() {
         </label>
       </div>
 
-      <div className="kpi-row">
-        <div className="stat">
-          <span className="stat-label">{t('rate.cost')}</span>
-          <strong className="stat-value"><Money of={totals.cost} compact /></strong>
+      <div className={statRow}>
+        <div className={statTile}>
+          <span className={statLabel}>{t('rate.cost')}</span>
+          <strong className={statValue}><Money of={totals.cost} compact /></strong>
           {totals.unratedMinutes > 0 && (
-            <span className="stat-hint">{t('rate.unrated', { hours: duration(totals.unratedMinutes) })}</span>
+            <span className={statHint}>{t('rate.unrated', { hours: duration(totals.unratedMinutes) })}</span>
           )}
         </div>
-        <div className="stat">
-          <span className="stat-label">{t('rate.revenue')}</span>
-          <strong className="stat-value"><Money of={totals.revenue} compact /></strong>
-          <span className="stat-hint">{t('rate.revenueHint')}</span>
+        <div className={statTile}>
+          <span className={statLabel}>{t('rate.revenue')}</span>
+          <strong className={statValue}><Money of={totals.revenue} compact /></strong>
+          <span className={statHint}>{t('rate.revenueHint')}</span>
         </div>
-        <div className="stat">
-          <span className="stat-label">{t('rate.margin')}</span>
-          <strong className="stat-value"><Money of={totals.margin} compact /></strong>
-          <span className="stat-hint">{t('rate.marginHint')}</span>
+        <div className={statTile}>
+          <span className={statLabel}>{t('rate.margin')}</span>
+          <strong className={statValue}><Money of={totals.margin} compact /></strong>
+          <span className={statHint}>{t('rate.marginHint')}</span>
         </div>
-        <div className="stat">
-          <span className="stat-label">{t('rate.billableShare')}</span>
-          <strong className="stat-value">
+        <div className={statTile}>
+          <span className={statLabel}>{t('rate.billableShare')}</span>
+          <strong className={statValue}>
             {totals.billableShare === null ? '—' : `${Math.round(totals.billableShare * 100)}%`}
           </strong>
-          <span className="stat-hint">{duration(totals.billableMinutes)} / {duration(totals.minutes)}</span>
+          <span className={statHint}>{duration(totals.billableMinutes)} / {duration(totals.minutes)}</span>
         </div>
       </div>
 
       <SectionHeading tight>{t('rate.perProject')}</SectionHeading>
       <div className="table-wrap">
-        <table className="task-table">
+        <DataTable>
           <thead>
             <tr>
-              <th>{t('budget.project')}</th>
-              <th className="num">{t('rate.hours')}</th>
-              <th className="num">{t('rate.billable')}</th>
-              <th className="num">{t('rate.cost')}</th>
-              <th className="num">{t('rate.revenue')}</th>
-              <th className="num">{t('rate.margin')}</th>
+              <Th>{t('budget.project')}</Th>
+              <Th numeric>{t('rate.hours')}</Th>
+              <Th numeric>{t('rate.billable')}</Th>
+              <Th numeric>{t('rate.cost')}</Th>
+              <Th numeric>{t('rate.revenue')}</Th>
+              <Th numeric>{t('rate.margin')}</Th>
             </tr>
           </thead>
           <tbody>
             {perProject.map((row) => (
-              <tr key={row.key}>
-                <td className="title">
+              <Tr key={row.key}>
+                <Td lead>
                   {row.name}
                   {row.unratedMinutes > 0 && (
                     <span className="row-sub">{t('rate.unrated', { hours: duration(row.unratedMinutes) })}</span>
                   )}
-                </td>
-                <td className="num">{duration(row.minutes)}</td>
-                <td className="num">{duration(row.billableMinutes)}</td>
-                <td className="num"><Money of={row.cost} /></td>
-                <td className="num"><Money of={row.revenue} /></td>
-                <td className="num"><Money of={row.margin} /></td>
-              </tr>
+                </Td>
+                <Td numeric>{duration(row.minutes)}</Td>
+                <Td numeric>{duration(row.billableMinutes)}</Td>
+                <Td numeric><Money of={row.cost} /></Td>
+                <Td numeric><Money of={row.revenue} /></Td>
+                <Td numeric><Money of={row.margin} /></Td>
+              </Tr>
             ))}
           </tbody>
-        </table>
+        </DataTable>
       </div>
 
       <SectionHeading>{t('rate.perPerson')}</SectionHeading>
       <div className="table-wrap">
-        <table className="task-table">
+        <DataTable>
           <thead>
             <tr>
-              <th>{t('timesheet.person')}</th>
-              <th className="num">{t('rate.hours')}</th>
-              <th className="num">{t('rate.billable')}</th>
-              <th className="num">{t('rate.billableShare')}</th>
-              {target > 0 && <th className="num">{t('rate.againstTarget')}</th>}
+              <Th>{t('timesheet.person')}</Th>
+              <Th numeric>{t('rate.hours')}</Th>
+              <Th numeric>{t('rate.billable')}</Th>
+              <Th numeric>{t('rate.billableShare')}</Th>
+              {target > 0 && <Th numeric>{t('rate.againstTarget')}</Th>}
             </tr>
           </thead>
           <tbody>
             {perPerson.map((row) => (
-              <tr key={row.key}>
-                <td className="title">{nameOf.get(row.key) ?? t('timesheet.unknown')}</td>
-                <td className="num">{duration(row.minutes)}</td>
-                <td className="num">{duration(row.billableMinutes)}</td>
-                <td className="num">{row.share === null ? '—' : `${Math.round(row.share * 100)}%`}</td>
+              <Tr key={row.key}>
+                <Td lead>{nameOf.get(row.key) ?? t('timesheet.unknown')}</Td>
+                <Td numeric>{duration(row.minutes)}</Td>
+                <Td numeric>{duration(row.billableMinutes)}</Td>
+                <Td numeric>{row.share === null ? '—' : `${Math.round(row.share * 100)}%`}</Td>
                 {target > 0 && (
-                  <td className="num">{row.againstTarget === null ? '—' : `${Math.round(row.againstTarget * 100)}%`}</td>
+                  <Td numeric>{row.againstTarget === null ? '—' : `${Math.round(row.againstTarget * 100)}%`}</Td>
                 )}
-              </tr>
+              </Tr>
             ))}
           </tbody>
-        </table>
+        </DataTable>
       </div>
-      <p className="mt-2 text-[12px] text-muted">{t('rate.targetHint')}</p>
+      <p className="mt-2 text-label text-muted">{t('rate.targetHint')}</p>
     </div>
   );
 }
@@ -417,13 +429,13 @@ export function RateSettings() {
 
   return (
     <>
-      <p className="text-[13px] text-muted">{t('rate.settingsHint')}</p>
+      <p className="text-body text-muted">{t('rate.settingsHint')}</p>
       <Button variant="primary" size="sm" onClick={() => setAdding(true)}>
         <Icon name="plus" size={14} /> {t('rate.add')}
       </Button>
 
       {!groups.length ? (
-        <p className="mt-3 text-[13px] text-muted">{t('rate.none')}</p>
+        <p className="mt-3 text-body text-muted">{t('rate.none')}</p>
       ) : (
         groups.map((group) => {
           const current = resolveRate(rates, {
@@ -512,8 +524,8 @@ function RateForm({ members, projects, onClose }: {
         </Button>
       )}
     >
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="r-amount">{t('rate.amount')}</label>
           <MoneyInput
             id="r-amount"
@@ -522,7 +534,7 @@ function RateForm({ members, projects, onClose }: {
             onChange={(amount) => setForm({ ...form, amount })}
           />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="r-currency">{t('budget.currency')}</label>
           <Input
             id="r-currency"
@@ -531,7 +543,7 @@ function RateForm({ members, projects, onClose }: {
             onChange={(event) => setForm({ ...form, currency: event.target.value.toUpperCase() })}
           />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="r-kind">{t('rate.kindLabel')}</label>
           <Select
             id="r-kind"
@@ -543,15 +555,15 @@ function RateForm({ members, projects, onClose }: {
         </div>
       </div>
 
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="r-user">{t('rate.who')}</label>
           <Select id="r-user" value={form.user_id} onChange={(event) => setForm({ ...form, user_id: event.target.value })}>
             <option value="">{t('rate.anybody')}</option>
             {members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
           </Select>
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="r-project">{t('rate.where')}</label>
           <Select id="r-project" value={form.project_id} onChange={(event) => setForm({ ...form, project_id: event.target.value })}>
             <option value="">{t('rate.everywhere')}</option>
@@ -560,13 +572,13 @@ function RateForm({ members, projects, onClose }: {
         </div>
       </div>
 
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="r-from">{t('rate.startsOn')}</label>
         <Input id="r-from" type="date" value={form.starts_on} onChange={(event) => setForm({ ...form, starts_on: event.target.value })} />
-        <span className="text-[12px] text-muted">{t('rate.startsOnHint')}</span>
+        <span className="text-label text-muted">{t('rate.startsOnHint')}</span>
       </div>
 
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="r-note">{t('budget.adjNote')}</label>
         <Input id="r-note" value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} />
       </div>
