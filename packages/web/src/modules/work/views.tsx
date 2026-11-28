@@ -18,7 +18,11 @@ import {
   type BaseGroupBy, type Implied, type ViewConfig,
 } from './task-parts';
 import { setFieldValue, useFields } from './fields';
-import { Avatar, AvatarStack, Empty, Icon, MenuButton, PriorityBars, StateDot, isMenuGroup, type MenuEntry, type MenuGroup } from '../../kernel/design-system/ui';
+import { Avatar, AvatarStack } from '../../kernel/design-system/ui/avatar';
+import { Empty } from '../../kernel/design-system/ui/empty';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { MenuButton, isMenuGroup, type MenuEntry, type MenuGroup } from '../../kernel/design-system/ui/menu-button';
+import { PriorityBars, StateDot } from '../../kernel/design-system/ui/marks';
 import { QueryBox } from './query-box';
 import { SavedViews } from './saved-views';
 import { SelectBox, type Selection } from '../../kernel/design-system/selection';
@@ -29,6 +33,8 @@ import { cn } from '../../kernel/design-system/cn';
 import { navCount } from '../../kernel/design-system/ui/nav';
 import { Popover, PopoverContent, PopoverTrigger } from '../../kernel/design-system/ui/popover';
 import { GanttView } from '../planning/gantt';
+import { Progress } from '../../kernel/design-system/ui/progress';
+import { Segmented, SegmentedItem } from '../../kernel/design-system/ui/segmented';
 
 const PRIORITY_RANK = Object.fromEntries(PRIORITIES.map((p, i) => [p, i]));
 
@@ -378,21 +384,20 @@ export function ViewControls({
       {/* Four buttons side by side are right where there is room and too many
           on a phone, where the header also carries saved views, filter, display
           and the add button. Same choice, one button. */}
-      <div className="flex items-center not-sm gap-0.5" style={{ border: '1px solid var(--line-strong)', borderRadius: 7, padding: 2 }}>
+      <Segmented className="not-sm">
         {BUILT_LAYOUTS.map((layout) => (
-          <button
+          <SegmentedItem
             key={layout}
-            className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), view.layout === layout && 'bg-active text-fg')}
-            style={view.layout === layout ? { background: 'var(--bg-active)' } : undefined}
+            className="w-8 px-0"
+            pressed={view.layout === layout}
             onClick={() => onChange({ ...view, layout })}
             title={t(LAYOUT_KEY[layout])}
             aria-label={t(LAYOUT_KEY[layout])}
-            aria-pressed={view.layout === layout}
           >
             <Icon name={layout} size={14} />
-          </button>
+          </SegmentedItem>
         ))}
-      </div>
+      </Segmented>
       <MenuButton
         className={cn(buttonVariants({ size: 'sm' }), 'only-sm')}
         title={t(LAYOUT_KEY[view.layout])}
@@ -756,7 +761,7 @@ export function BoardView({
               </Fragment>
             ))}
             {overColumn === group.id && overIndex !== null && overIndex >= group.tasks.length && <div className="drop-line" />}
-            {!group.tasks.length && <span className="text-muted text-[12.5px]" style={{ padding: '6px 2px' }}>{t('common.empty')}</span>}
+            {!group.tasks.length && <span className="text-muted text-label" style={{ padding: '6px 2px' }}>{t('common.empty')}</span>}
           </div>
         </div>
       ))}
@@ -779,7 +784,7 @@ export function BoardView({
               <button type="button" onClick={() => setDraftColumn('')}>
                 <Icon name="plus" size={14} /> {t('project.addColumn')}
               </button>
-              <span className="text-muted text-[12px]">{t('project.addColumnHint')}</span>
+              <span className="text-muted text-label">{t('project.addColumnHint')}</span>
             </>
           ) : (
             // In place rather than a dialog. Adding three columns in a row is
@@ -820,7 +825,7 @@ export function BoardView({
                   {t('action.cancel')}
                 </Button>
               </div>
-              <span className="text-muted text-[12px]">{t('project.addColumnHint')}</span>
+              <span className="text-muted text-label">{t('project.addColumnHint')}</span>
             </form>
           )}
         </div>
@@ -898,7 +903,7 @@ export function CalendarView({ tasks, onOpen }: { tasks: Task[]; onOpen: (task: 
                 <Popover open={openDay === key} onOpenChange={(open) => setOpenDay(open ? key : null)}>
                   <PopoverTrigger asChild>
                     <button
-                      type="button" className="text-muted text-[10px] text-start hover:text-fg"
+                      type="button" className="text-muted text-caption text-start hover:text-fg"
                       aria-label={t('view.moreOnDay', { count: items.length - 4, date: shortDate(key) })}
                     >
                       +{items.length - 4}
@@ -908,7 +913,7 @@ export function CalendarView({ tasks, onOpen }: { tasks: Task[]; onOpen: (task: 
                     {items.map((task) => (
                       <button
                         type="button" key={task.id} title={task.title}
-                        className="truncate rounded px-2 py-1 text-start text-[12.5px] hover:bg-hover"
+                        className="truncate rounded-sm px-2 py-1 text-start text-label hover:bg-hover"
                         onClick={() => { setOpenDay(null); onOpen(task); }}
                       >
                         {task.title}
@@ -1120,12 +1125,12 @@ export function CycleProgress({ cycleId }: { cycleId: string }) {
   const cycle = byId('cycle', cycleId);
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-2 text-[12.5px]">
+      <div className="flex items-center gap-2 text-label">
         <span className="flex-1 min-w-0 truncate">{cycle?.name}</span>
         <span className="text-muted">{done}/{tasks.length}</span>
       </div>
-      <div className="progress"><i style={{ width: `${tasks.length ? (done / tasks.length) * 100 : 0}%` }} /></div>
-      {cycle?.end_date && <span className="text-muted text-[11.5px]">{t('cycle.endsOn', { date: shortDate(cycle.end_date) })}</span>}
+      <Progress value={done} total={tasks.length} />
+      {cycle?.end_date && <span className="text-muted text-caption">{t('cycle.endsOn', { date: shortDate(cycle.end_date) })}</span>}
     </div>
   );
 }

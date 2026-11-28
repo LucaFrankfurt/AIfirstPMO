@@ -10,7 +10,12 @@ import { MarkdownEditor } from '../pages/Markdown';
 import { useStates } from './task-parts';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Input } from '../../kernel/design-system/ui/field';
-import { Avatar, Icon, MenuButton, PriorityBars, Sheet, StateDot, useToast, type MenuItem } from '../../kernel/design-system/ui';
+import { Avatar } from '../../kernel/design-system/ui/avatar';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { MenuButton, type MenuItem } from '../../kernel/design-system/ui/menu-button';
+import { PriorityBars, StateDot } from '../../kernel/design-system/ui/marks';
+import { Sheet } from '../../kernel/design-system/ui/sheet';
+import { useToast } from '../../kernel/design-system/ui/toast';
 import { Chip } from '../../kernel/design-system/ui/chip';
 import { today } from '../../kernel/design-system/format';
 
@@ -191,14 +196,14 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
                 submit(false);
               }
             }}
-            className="text-base mb-2.5"
+            className="text-input mb-2.5"
           />
 
           {/* What the line was read as. Shown rather than only applied, because a
               parser that quietly changes the priority is a parser nobody
               trusts — and the token is still in the box to be deleted. */}
           {parsed.found.length > 0 && (
-            <p className="flex items-center flex-wrap gap-1.5 mb-2.5 text-[12.5px] text-muted">
+            <p className="flex items-center flex-wrap gap-1.5 mb-2.5 text-label text-muted">
               <Icon name="sparkle" size={13} />
               {t('quickAdd.read')}
               {parsed.found.map((entry) => (
@@ -207,7 +212,7 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
             </p>
           )}
           {!parsed.found.length && title.trim().length > 2 && (
-            <p className="mb-2.5 text-[12px] text-muted font-mono truncate">{QUICK_ADD_SYNTAX}</p>
+            <p className="mb-2.5 text-label text-muted font-mono truncate">{QUICK_ADD_SYNTAX}</p>
           )}
 
           <div className="flex items-center flex-wrap gap-1.5 mb-2.5">
@@ -252,7 +257,7 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
                 placeholder on some browsers and nothing at all on others, so on
                 a phone it arrived as a blank box between two labelled chips and
                 read as a field that had failed to load. The word is the fix. */}
-            <label className="flex items-center gap-1.5 text-[12.5px]">
+            <label className="flex items-center gap-1.5 text-label">
               <span className="text-muted">{t('task.due')}</span>
               <Input
                 type="date" style={{ width: 152 }} aria-label={t('task.due')}

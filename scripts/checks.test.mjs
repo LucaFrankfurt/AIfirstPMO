@@ -489,6 +489,65 @@ const BREAKS = [
       "export function registerSearchRoutes(router: Router): void {\n  router.get('/api/search/:q/near', () => ({}));\n  router.get('/api/search/near', () => ({}));"),
     says: /two routes want the operationId getSearchNear/,
   },
+  {
+    what: 'a font size written as a number rather than a step',
+    script: 'tokens.mjs',
+    break: (t) => t.edit('packages/web/src/kernel/design-system/ui/section.tsx',
+      "'mb-2 text-title font-semibold'", "'mb-2 sm:text-[14px] font-semibold'"),
+    says: /kernel\/design-system\/ui\/section\.tsx:\d+\n\s+sm:text-\[14px\]\s+→\s+a step: text-caption 11\.5px/,
+  },
+  {
+    // The workaround the broken `rounded` taught: eighty-one of these.
+    what: 'a radius spelled out instead of named',
+    script: 'tokens.mjs',
+    break: (t) => t.edit('packages/web/src/kernel/design-system/ui/dialog.tsx',
+      'rounded-t-xl', 'rounded-t-[var(--radius-xl)]'),
+    says: /ui\/dialog\.tsx:\d+\n\s+rounded-t-\[var\(--radius-xl\)\]\s+→\s+[\w-]+(, [\w-]+)* or rounded-full/,
+  },
+  {
+    what: "one of Tailwind's own steps, which the theme removed",
+    script: 'tokens.mjs',
+    break: (t) => t.edit('packages/web/src/kernel/design-system/ui/button.tsx',
+      "lg: 'h-11 rounded-full px-5 text-body',", "lg: 'h-11 rounded-md px-5 text-sm',"),
+    says: /ui\/button\.tsx:\d+\n\s+text-sm\s+→[\s\S]*ui\/button\.tsx:\d+\n\s+rounded-md\s+→/,
+  },
+  {
+    what: 'a size in a style object, which is the same thing with other punctuation',
+    script: 'tokens.mjs',
+    break: (t) => t.edit('packages/web/src/App.tsx',
+      'alt="" className="rounded" />', 'alt="" style={{ borderRadius: 12 }} />'),
+    says: /App\.tsx:\d+\n\s+borderRadius: 12/,
+  },
+  {
+    // The one that would pass every other check: the class exists, the CSS is
+    // generated, and `cn` deletes it from every element that also has a colour.
+    what: 'a type step the stylesheet declares and cn() was never told about',
+    script: 'tokens.mjs',
+    break: (t) => t.edit('packages/web/src/styles/app.css',
+      '  --text-display: 26px;', '  --text-display: 26px;\n  --text-micro: 10px;'),
+    says: /text-micro is declared in app\.css and missing from TYPE_STEPS in cn\.ts/,
+  },
+  {
+    // Pinned dark and the OS's dark are two copies; change one and the app
+    // looks different depending on which way somebody arrived at dark.
+    what: 'a dark colour changed in one of the two dark blocks only',
+    script: 'tokens.mjs',
+    break: (t) => {
+      const css = t.read('packages/web/src/styles/app.css');
+      const pinned = css.indexOf(":root[data-theme='dark'] {");
+      const at = css.indexOf('--fg-muted:', pinned);
+      const end = css.indexOf(';', at);
+      t.write('packages/web/src/styles/app.css', `${css.slice(0, at)}--fg-muted: #777777${css.slice(end)}`);
+    },
+    says: /--fg-muted is oklch\(.+?\)\) when the OS asks for dark and #777777 when dark is pinned/,
+  },
+  {
+    what: 'an exception kept after the value it excused has gone',
+    script: 'tokens.mjs',
+    break: (t) => t.edit('scripts/tokens.mjs', 'const EXCEPTIONS = [];',
+      "const EXCEPTIONS = [{ file: 'App.tsx', token: 'text-[9px]', why: 'a case in checks.test.mjs' }];"),
+    says: /the exception for text-\[9px\] in App\.tsx matches nothing any more/,
+  },
 ];
 
 describe('the checks catch what they were written to catch', { concurrency: 8 }, () => {
@@ -530,6 +589,12 @@ describe('and pass on a tree with nothing wrong with it', { concurrency: 2 }, ()
     const { code, out } = await tree().run('schema.mjs');
     assert.equal(code, 0, out);
     assert.match(out, /every column reaches a database that already exists/);
+  });
+
+  it('tokens.mjs', async () => {
+    const { code, out } = await tree().run('tokens.mjs');
+    assert.equal(code, 0, out);
+    assert.match(out, /every size, radius and shadow is a step \(\d+ type steps, \d+ radii, \d+ shadows; 0 exceptions, all named\), and both dark blocks set the same \d+ values/);
   });
 });
 

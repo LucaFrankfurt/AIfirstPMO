@@ -17,7 +17,7 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
-import { twMerge } from 'tailwind-merge';
+import { cn } from '../src/kernel/design-system/cn.ts';
 import { en } from '../src/kernel/i18n/locales/en.ts';
 
 const SRC = new URL('../src', import.meta.url).pathname;
@@ -133,6 +133,11 @@ describe('every label', () => {
  * `cn()` — which is `twMerge` — resolves exactly this, last one wins. So the
  * check is: does merging the string change it? If it does, the string is
  * asking for two things at once and only one of them is happening.
+ *
+ * It merges through `cn` itself and not through a bare `twMerge`, because the
+ * two disagree about the type steps: a bare one files `text-label` under
+ * colour and would report every `text-label text-muted` in the app as a
+ * conflict. What matters is what the app's own merge does with the string.
  */
 describe('every className literal', () => {
   it('does not contain a utility that another one in the same string overrides', () => {
@@ -144,7 +149,7 @@ describe('every className literal', () => {
         // what it will contain, and those call sites go through `cn()` anyway.
         if (raw.includes('${')) continue;
         const tokens = raw.split(/\s+/).filter(Boolean);
-        const merged = twMerge(tokens.join(' ')).split(/\s+/).filter(Boolean);
+        const merged = cn(tokens.join(' ')).split(/\s+/).filter(Boolean);
         if (merged.length === tokens.length) continue;
         const lost = tokens.filter((token) => !merged.includes(token));
         const line = text.slice(0, match.index).split('\n').length;
@@ -288,19 +293,22 @@ describe('fields side by side', () => {
   const rows = files.flatMap(({ path, text }) => {
     const lines = text.split('\n');
     return lines.flatMap((line, i) =>
-      /className="[^"]*\bitems-center\b[^"]*"/.test(line) && /className="field[ "]/.test(lines[i + 1] ?? '')
+      // `formField` is the same wrapper since the class moved into the code; a
+      // pattern that only knew the old spelling would pass every file by
+      // looking at none of them.
+      /className="[^"]*\bitems-center\b[^"]*"/.test(line) && /className=(?:"field[ "]|\{(?:cn\()?formField\b)/.test(lines[i + 1] ?? '')
         ? [`${path.slice(SRC.length + 1)}:${i + 1}`]
         : []);
   });
 
-  it('is a .field-row, not a centred flex line', () => {
+  it('is a formRow, not a centred flex line', () => {
     assert.deepEqual(rows, [], `field(s) centred against a taller neighbour: ${rows.join(', ')}`);
   });
 
   it('never has its alignment undone inline', () => {
     const patched = files.flatMap(({ path, text }) =>
       [...text.matchAll(/alignItems:\s*'flex-start'/g)].map((m) => `${path.slice(SRC.length + 1)}:${text.slice(0, m.index).split('\n').length}`));
-    assert.deepEqual(patched, [], `inline alignment patch(es) — use .field-row: ${patched.join(', ')}`);
+    assert.deepEqual(patched, [], `inline alignment patch(es) — use formRow: ${patched.join(', ')}`);
   });
 });
 
@@ -346,7 +354,10 @@ describe('a project made and a project changed', () => {
 });
 
 describe('a product made', () => {
-  const source = readFileSync(join(SRC, 'modules/products/routes/products.tsx'), 'utf8');
+  // The form moved out of the route file when that file was split; this read
+  // the route for a while afterwards, found no create call, and the two cases
+  // below stopped registering — the suite went green by running two fewer tests.
+  const source = readFileSync(join(SRC, 'modules/products/product-form.tsx'), 'utf8');
 
   /**
    * What the create call is allowed to decide on the form's behalf.
@@ -492,7 +503,7 @@ describe('a create or edit sheet with typed input', () => {
     ['modules/budgets/routes/budgets.tsx', 'BudgetForm'],
     ['modules/budgets/routes/budgets.tsx', 'LineForm'],
     ['modules/budgets/routes/budgets.tsx', 'ActualForm'],
-    ['modules/products/routes/products.tsx', 'ProductForm'],
+    ['modules/products/product-form.tsx', 'ProductForm'],
   ];
 
   it('asks before closing', () => {
@@ -502,7 +513,7 @@ describe('a create or edit sheet with typed input', () => {
 
   it('creates a task on a plain Enter in the title', () => {
     const quick = functionBody('modules/work/QuickAdd.tsx', 'QuickAdd');
-    const handler = quick.slice(quick.indexOf('onKeyDown='), quick.indexOf('className="text-base'));
+    const handler = quick.slice(quick.indexOf('onKeyDown='), quick.indexOf('className="text-input'));
     assert.match(handler, /event\.key === 'Enter'/);
     assert.doesNotMatch(handler, /metaKey|ctrlKey/, 'Enter only submits with a modifier held');
   });

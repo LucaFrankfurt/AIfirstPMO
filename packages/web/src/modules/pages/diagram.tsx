@@ -21,7 +21,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useT } from '../../kernel/i18n/i18n';
-import { Icon } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
 import { Dialog, DialogContent, DialogTitle } from '../../kernel/design-system/ui/dialog';
 import {
   centre, fit, grip, hold, pinch, STEP, wheelFactor, zoomAt,

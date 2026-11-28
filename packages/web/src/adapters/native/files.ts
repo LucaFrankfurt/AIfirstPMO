@@ -30,7 +30,7 @@ import { FileTransfer } from '@capacitor/file-transfer';
 import { Directory, Filesystem } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { currentLocale, translate, type TranslationKey } from '../../kernel/i18n/i18n';
-import { TOAST_EVENT } from '../../kernel/design-system/ui';
+import { TOAST_EVENT } from '../../kernel/design-system/ui/toast';
 import { onSave } from '../../kernel/files/save';
 import { authHeaders, filePath, isPackaged, serverUrl } from '../../kernel/sync/server';
 

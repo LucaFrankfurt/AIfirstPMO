@@ -8,7 +8,8 @@ import { useOpenTask } from './kernel/design-system/navigation';
 import { DESTINATIONS, enabled } from './kernel/design-system/nav';
 import { useCanWrite, useFeatures, useMe, useSession } from './kernel/identity/session';
 import { useT } from './kernel/i18n/i18n';
-import { Icon, StateDot } from './kernel/design-system/ui';
+import { Icon } from './kernel/design-system/ui/icon';
+import { StateDot } from './kernel/design-system/ui/marks';
 import { stateOf } from './modules/work/task-parts';
 
 interface Command {
@@ -228,7 +229,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
                     >
                       <Icon name={command.icon} size={15} />
                       <span className="flex-1 min-w-0 truncate">{command.title}</span>
-                      {command.hint && <span className="text-muted mono">{command.hint}</span>}
+                      {command.hint && <span className="text-muted mono font-mono text-label">{command.hint}</span>}
                     </button>
                   ))}
                 </div>

@@ -13,7 +13,7 @@ import {
   formatMeasure, parseMeasure, type Kpi, type KpiProgress, type MeasureHealth, type SeriesPoint,
 } from '@kolibri/shared';
 import { Table } from '../../kernel/design-system/ui/table';
-import { Icon } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
 import { Chip } from '../../kernel/design-system/ui/chip';
 import { Input } from '../../kernel/design-system/ui/field';
 import { currentLocale, useT, type TranslationKey } from '../../kernel/i18n/i18n';

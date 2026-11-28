@@ -15,7 +15,9 @@ import { update } from './kernel/sync/mutations';
 import { useCanWrite, useFeatures, useMe, useSession } from './kernel/identity/session';
 import { useT } from './kernel/i18n/i18n';
 import { enabled, PLANNING_DESTINATIONS, WORKSPACE_DESTINATIONS } from './kernel/design-system/nav';
-import { Avatar, Icon, MenuButton, type MenuItem } from './kernel/design-system/ui';
+import { Avatar } from './kernel/design-system/ui/avatar';
+import { Icon } from './kernel/design-system/ui/icon';
+import { MenuButton, type MenuItem } from './kernel/design-system/ui/menu-button';
 import { useActiveProject } from './kernel/design-system/active-project';
 import { backgroundOf } from './kernel/design-system/navigation';
 import { isDrag, idFrom, PROJECT_DRAG, startDrag, TASK_DRAG } from './kernel/design-system/drag';
@@ -27,6 +29,7 @@ import { CommandPalette } from './CommandPalette';
 import { QuickAdd } from './modules/work/QuickAdd';
 import { useRefile } from './modules/work/task-parts';
 import { useUnreadMessages } from './modules/chat/unread';
+import { RAIL_QUERY, useMedia } from './kernel/design-system/narrow';
 
 /** Which project branches this device has folded. Never synced — see below. */
 const COLLAPSED_KEY = 'kolibri.collapsed-projects';
@@ -72,8 +75,10 @@ const RailButton = ({ icon, label, accent, onClick }: {
 }) => (
   <button type="button" className={navRailItem} onClick={onClick} title={label} aria-label={label}>
     {accent ? (
-      <span style={{ background: 'var(--accent)', color: 'var(--accent-fg)', width: 28, height: 28, borderRadius: 'var(--radius-sm)', display: 'grid', placeItems: 'center' }}>
-        <Icon name={icon} size={16} />
+      // The create action in the accent's container, as it is in the open
+      // sidebar and on the phone's bar: one shape for "new" everywhere.
+      <span className="grid size-9 place-items-center rounded bg-accent-soft text-accent">
+        <Icon name={icon} size={18} />
       </span>
     ) : (
       <Icon name={icon} size={16} />
@@ -140,6 +145,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setFolded(next);
     try { localStorage.setItem(FOLDED_KEY, next ? '1' : '0'); } catch { /* private window */ }
   };
+  // The rail is the sidebar folded — by choice on a wide screen, by the width
+  // of the window between a phone and a desktop.
+  const tablet = useMedia(RAIL_QUERY);
+  const rail = folded || tablet;
 
   const [dragging, setDragging] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
@@ -285,7 +294,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   ];
 
   return (
-    <div className={`shell${folded ? ' nav-folded' : ''}`}>
+    <div className={`shell${rail ? ' nav-folded' : ''}`}>
       <a
         className="skip-link" href="#content"
         onClick={(event) => {
@@ -300,9 +309,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Labelled, because a second `<aside>` appears on the chat screen and a
           rotor listing "complementary" twice tells nobody which is which. */}
       <aside className="sidebar" aria-label={t('nav.sidebar')}>
-        {folded ? (
+        {rail ? (
           <>
-            <RailButton icon="sidebar" label={t('nav.unfoldSidebar')} onClick={() => fold(false)} />
+            {/* Between 600 and 900px the rail is the layout, not a choice, and
+                there is no room to unfold into. */}
+            {!tablet && <RailButton icon="sidebar" label={t('nav.unfoldSidebar')} onClick={() => fold(false)} />}
             {canWrite && (
               <RailButton icon="plus" label={t('nav.newTask')} accent onClick={() => setAdding(true)} />
             )}
@@ -337,7 +348,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 key={project.id} to={`/projects/${project.id}`} className={navRailItem}
                 title={project.name} aria-label={project.name}
               >
-                <span style={{ fontSize: 15, lineHeight: 1 }}>{project.icon ?? '•'}</span>
+                <span className="text-title leading-none">{project.icon ?? '•'}</span>
               </NavLink>
             ))}
 
@@ -351,7 +362,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <>
             <div className="flex items-center gap-0.5">
               <MenuButton items={workspaceItems} className={navItem()} title={t('nav.switchWorkspace')}>
-                <img src="/icon.svg" alt="" width={20} height={20} style={{ borderRadius: 5 }} />
+                <img src="/icon.svg" alt="" width={20} height={20} className="rounded-sm" />
                 <span className="flex-1 min-w-0 truncate font-semibold">
                   {session?.workspaces.find((w) => w.id === workspaceId)?.name ?? t('app.name')}
                 </span>
@@ -363,8 +374,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
 
             {canWrite && (
-              <Button variant="primary" style={{ margin: '6px 4px 10px' }} onClick={() => setAdding(true)}>
-                <Icon name="plus" size={15} /> {t('nav.newTask')}
+              <Button variant="soft" size="lg" className="mx-1 mb-2.5 mt-1.5 justify-start gap-3 rounded-lg px-4 font-semibold" onClick={() => setAdding(true)}>
+                <Icon name="plus" size={18} /> {t('nav.newTask')}
               </Button>
             )}
 
@@ -471,15 +482,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           * something a translator can see rather than something they discover.
           */}
         <nav className="tabbar" aria-label={t('nav.tabbar')}>
+          {/* Each icon sits in a `tab-icon`: the pill that marks the current
+              tab, Material's active indicator, drawn behind the icon rather
+              than as a colour on the word. */}
           <NavLink to="/" end>
-            <Icon name="home" size={20} />
+            <span className="tab-icon"><Icon name="home" size={20} /></span>
             <span className="tab-label">{t('nav.bar.myWork')}</span>
           </NavLink>
           <NavLink to="/inbox">
-            <Icon name="inbox" size={20} />
-            {/* Out of the flow, or it pushes the label down and this one item
-                stands a few pixels lower than the five beside it. */}
-            {unread > 0 && <span className="badge-dot size-1.5 rounded-full bg-accent" />}
+            <span className="tab-icon">
+              <Icon name="inbox" size={20} />
+              {/* Out of the flow, or it pushes the label down and this one item
+                  stands a few pixels lower than the five beside it. */}
+              {unread > 0 && <span className="badge-dot size-1.5 rounded-full bg-accent" />}
+            </span>
             <span className="tab-label">{t('nav.bar.inbox')}</span>
           </NavLink>
           {/* Beside the inbox, because they are the two surfaces other people
@@ -487,25 +503,34 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               answered in seconds, filed under the menu you open last, on the
               device most likely to be the only one somebody has. */}
           <NavLink to="/chat">
-            <Icon name="chat" size={20} />
-            {unreadMessages > 0 && <span className="badge-dot size-1.5 rounded-full bg-accent" />}
+            <span className="tab-icon">
+              <Icon name="chat" size={20} />
+              {unreadMessages > 0 && <span className="badge-dot size-1.5 rounded-full bg-accent" />}
+            </span>
             <span className="tab-label">{t('nav.bar.chat')}</span>
           </NavLink>
+          {/*
+            * In the bar, shaped like a floating action button, rather than
+            * floating. A button over the content is what Material draws, and on
+            * this app it would sit on the chat composer, the selection bar and
+            * the messages at the foot of the screen — all three live exactly
+            * where a FAB goes. Here it covers nothing.
+            */}
           <button
-            className={navItem()} style={{ width: 'auto', justifyContent: 'center' }}
+            type="button" className="tab-add"
             onClick={() => setAdding(true)} aria-label={t('nav.newTask')}
             hidden={!canWrite}
           >
-            <span style={{ background: 'var(--accent)', color: 'var(--accent-fg)', width: 34, height: 34, borderRadius: 12, display: 'grid', placeItems: 'center' }}>
-              <Icon name="plus" size={19} />
+            <span className="grid h-10 w-12 place-items-center rounded-lg bg-accent-soft text-accent">
+              <Icon name="plus" size={22} />
             </span>
           </button>
           <NavLink to="/search">
-            <Icon name="search" size={20} />
+            <span className="tab-icon"><Icon name="search" size={20} /></span>
             <span className="tab-label">{t('nav.bar.search')}</span>
           </NavLink>
           <NavLink to="/more">
-            <Icon name="menu" size={20} />
+            <span className="tab-icon"><Icon name="menu" size={20} /></span>
             <span className="tab-label">{t('nav.bar.more')}</span>
           </NavLink>
         </nav>

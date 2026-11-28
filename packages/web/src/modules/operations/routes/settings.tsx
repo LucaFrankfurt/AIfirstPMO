@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Header, THEME_KEY, useTheme } from '../../../kernel/design-system/chrome';
-import { Avatar, Empty, Icon, Sheet, failure, useAction, useConfirm, useToast } from '../../../kernel/design-system/ui';
+import { Avatar } from '../../../kernel/design-system/ui/avatar';
+import { Empty } from '../../../kernel/design-system/ui/empty';
+import { Icon } from '../../../kernel/design-system/ui/icon';
+import { Sheet, useConfirm } from '../../../kernel/design-system/ui/sheet';
+import { failure, useAction, useToast } from '../../../kernel/design-system/ui/toast';
 import { GuideHint } from '../../guide/hint';
 import { api } from '../../../kernel/sync/api';
 import { relativeTime } from '../../../kernel/design-system/format';
@@ -18,7 +22,7 @@ import { PushToggle } from '../../../adapters/push/push';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { buttonVariants } from '../../../kernel/design-system/ui/button';
 import { cn } from '../../../kernel/design-system/cn';
-import { Input, Select, Textarea } from '../../../kernel/design-system/ui/field';
+import { Input, Select, Textarea, checkRow, formField } from '../../../kernel/design-system/ui/field';
 import { SectionHeading } from '../../../kernel/design-system/ui/section';
 import { RateSettings } from '../../time/rates';
 import { PageStatusSettings } from '../../pages/status';
@@ -32,6 +36,7 @@ import { InstanceSettings } from '../instance';
 import { useTabStrip } from '../../../kernel/design-system/tab-strip';
 import { TabButton, TabList } from '../../../kernel/design-system/ui/tabs';
 import { useMinute } from '../../../kernel/design-system/minute';
+import { pageBody } from '../../../kernel/design-system/ui/page';
 
 type Tab = 'profile' | 'notifications' | 'workspace' | 'members' | 'rates' | 'mailboxes' | 'widgets' | 'automation' | 'api' | 'data' | 'instance';
 
@@ -89,7 +94,7 @@ export function Settings() {
           </TabButton>
         ))}
       </TabList>
-      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5" style={{ maxWidth: 680 }}>
+      <div className={pageBody} style={{ maxWidth: 680 }}>
         {tab === 'profile' && <Profile />}
         {tab === 'notifications' && <Notifications />}
         {tab === 'workspace' && <WorkspaceSettings />}
@@ -125,7 +130,7 @@ function Profile() {
         <Avatar user={user ?? undefined} size={48} />
         <div className="flex-1 min-w-0">
           <strong>{user?.name}</strong>
-          <div className="text-muted text-[12.5px]">{user?.email}</div>
+          <div className="text-muted text-label">{user?.email}</div>
         </div>
         <label className={buttonVariants({ size: 'sm' })}>
           {uploading ? t('editor.uploading') : t('profile.changePicture')}
@@ -165,11 +170,11 @@ function Profile() {
         )}
       </div>
 
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="me-name">{t('profile.displayName')}</label>
         <Input id="me-name" value={name} onChange={(event) => setName(event.target.value)} />
       </div>
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="me-bio">{t('profile.bio')}</label>
         <Textarea id="me-bio" style={{ minHeight: 70 }} value={bio ?? ''} onChange={(event) => setBio(event.target.value)} />
       </div>
@@ -198,11 +203,11 @@ function Profile() {
       >
         {(Object.keys(LOCALE_NAMES) as Locale[]).map((value) => <option key={value} value={value}>{localeLabel(value)}</option>)}
       </Select>
-      <span className="text-[12px] text-muted mt-1" style={{ display: 'block' }}>{t('profile.languageHint')}</span>
+      <span className="text-label text-muted mt-1" style={{ display: 'block' }}>{t('profile.languageHint')}</span>
       {/* Said where it is chosen, so nobody finds out from an odd sentence
           three screens later. */}
       {UNREVIEWED[locale] && (
-        <span className="text-[12px] text-danger mt-0.5" style={{ display: 'block' }}>{t('profile.languageUnreviewed')}</span>
+        <span className="text-label text-danger mt-0.5" style={{ display: 'block' }}>{t('profile.languageUnreviewed')}</span>
       )}
 
       <SectionHeading>{t('profile.appearance')}</SectionHeading>
@@ -308,12 +313,12 @@ function Suppressions() {
   return (
     <>
       <SectionHeading>{t('mail.suppressed')}</SectionHeading>
-      <p className="text-[12px] text-muted mb-2">{t('mail.suppressedHint')}</p>
-      {failed && <p className="text-[12.5px] text-danger">{t('common.loadFailed', { reason: failed })}</p>}
+      <p className="text-label text-muted mb-2">{t('mail.suppressedHint')}</p>
+      {failed && <p className="text-label text-danger">{t('common.loadFailed', { reason: failed })}</p>}
       {rows.map((row) => (
         <div className="flex items-center gap-2" key={row.email} style={{ gap: 8, padding: '5px 0' }}>
-          <span className="flex-1 min-w-0 truncate text-[13.5px]">{row.email}</span>
-          <span className="text-muted text-[12.5px]" title={row.detail ?? ''}>{row.reason}</span>
+          <span className="flex-1 min-w-0 truncate text-body">{row.email}</span>
+          <span className="text-muted text-label" title={row.detail ?? ''}>{row.reason}</span>
           <Button size="sm" disabled={action.busy}
             onClick={() => void action.run(async () => {
               await api.delete(`/api/mail/suppressions/${encodeURIComponent(row.email)}`);
@@ -354,12 +359,12 @@ function Notifications() {
 
   return (
     <>
-      <p className="text-muted text-[13.5px]">
+      <p className="text-muted text-body">
         {t('notify.intro', { window: batchWindow(t, status?.batchSeconds ?? 120) })}
       </p>
 
       <SectionHeading>{t('notify.digest')}</SectionHeading>
-      <p className="text-[12px] text-muted mb-2">{t('notify.digestHint')}</p>
+      <p className="text-label text-muted mb-2">{t('notify.digestHint')}</p>
       <div className="flex items-center flex-wrap gap-1.5 mb-1.5">
         {(['off', 'daily', 'weekly'] as const).map((option) => (
           <button
@@ -383,7 +388,7 @@ function Notifications() {
         {PREFERENCES.map((option) => (
           <button
             key={option.value}
-            className="rounded-[var(--radius)] border border-line bg-raised p-3.5"
+            className="rounded border border-line bg-raised p-3.5"
             style={{
               textAlign: 'left',
               borderColor: status?.preference === option.value ? 'var(--accent)' : 'var(--line)',
@@ -395,7 +400,7 @@ function Notifications() {
               <strong className="flex-1 min-w-0">{t(option.label)}</strong>
               {status?.preference === option.value && <Icon name="check" size={15} />}
             </div>
-            <span className="text-muted text-[12.5px]">{t(option.hint)}</span>
+            <span className="text-muted text-label">{t(option.hint)}</span>
           </button>
         ))}
       </div>
@@ -409,24 +414,24 @@ function Notifications() {
       <SectionHeading>{t('notify.delivery')}</SectionHeading>
       {status?.mode === 'test-inbox' && (
         <div
-          className="rounded-[var(--radius)] border border-line bg-raised p-3.5"
+          className="rounded border border-line bg-raised p-3.5"
           style={{ marginBottom: 10, borderColor: 'var(--warn)', background: 'color-mix(in srgb, var(--warn) 8%, transparent)' }}
         >
           <div className="flex items-center gap-2 mb-1" style={{ gap: 7 }}>
             <Icon name="bell" size={15} />
             <strong>{t('notify.captureTitle')}</strong>
           </div>
-          <span className="soft text-[12.5px]">
+          <span className="text-soft text-label">
             {t('notify.captureBody', { host: status.host ?? '' })}
           </span>
         </div>
       )}
       {status?.enabled ? (
         <>
-          <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mb-2.5">
+          <div className="rounded border border-line bg-raised p-3.5 mb-2.5">
             <div className="flex items-center gap-2">
               <span className="flex-1 min-w-0">{t(status.transport === 'scaleway' ? 'notify.api' : 'notify.relay')}</span>
-              <strong className="mono">{status.host}</strong>
+              <strong className="mono font-mono text-label">{status.host}</strong>
               {/* Said where somebody would look for it: an unencrypted relay is
                   a deliberate choice for a capture inbox and a mistake
                   everywhere else, and the settings screen is the only place it
@@ -436,7 +441,7 @@ function Notifications() {
               )}
               {status.mode === 'test-inbox' && <span className={chipVariants()} style={{ color: 'var(--warn)' }}>{t('notify.captureChip')}</span>}
             </div>
-            <div className="flex items-center gap-2"><span className="flex-1 min-w-0">{t('notify.sender')}</span><strong className="mono">{status.from}</strong></div>
+            <div className="flex items-center gap-2"><span className="flex-1 min-w-0">{t('notify.sender')}</span><strong className="mono font-mono text-label">{status.from}</strong></div>
             <div className="flex items-center gap-2"><span className="flex-1 min-w-0">{t('notify.queued')}</span><strong>{status.pending}</strong></div>
           </div>
           <Button
@@ -458,7 +463,7 @@ function Notifications() {
           </Button>
         </>
       ) : failed ? (
-        <p className="text-[12.5px] text-danger">{t('common.loadFailed', { reason: failed })}</p>
+        <p className="text-label text-danger">{t('common.loadFailed', { reason: failed })}</p>
       ) : (
         <Empty
           emoji="✉️"
@@ -492,10 +497,10 @@ function WorkspaceSettings() {
 
   return (
     <>
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="ws-name">{t('workspace.name')}</label>
         <Input id="ws-name" value={name} disabled={!canEdit} onChange={(event) => setName(event.target.value)} />
-        {!canEdit && <span className="text-[12px] text-muted">{t('workspace.adminOnly')}</span>}
+        {!canEdit && <span className="text-label text-muted">{t('workspace.adminOnly')}</span>}
       </div>
       <Button variant="primary" disabled={!canEdit || action.busy}
         onClick={() => void action.run(async () => {
@@ -511,7 +516,7 @@ function WorkspaceSettings() {
           a unit there is nothing to compare the logged time against — see
           `WorkspaceFeatures` in the registry. */}
       <SectionHeading>{t('workspace.features')}</SectionHeading>
-      <label className="check-row">
+      <label className={checkRow}>
         <input
           type="checkbox"
           checked={!!workspace?.features?.time}
@@ -524,14 +529,14 @@ function WorkspaceSettings() {
         />
         <span>
           <span>{t('workspace.featureTime')}</span>
-          <span className="text-[12px] text-muted">{t('workspace.featureTimeHint')}</span>
+          <span className="text-label text-muted">{t('workspace.featureTimeHint')}</span>
         </span>
       </label>
 
       {/* The estate. Independent of budgets on purpose: what runs where is
           worth writing down whether or not anybody is costing it, and the two
           only meet when both are on. */}
-      <label className="check-row">
+      <label className={checkRow}>
         <input
           type="checkbox"
           checked={!!workspace?.features?.infrastructure}
@@ -544,14 +549,14 @@ function WorkspaceSettings() {
         />
         <span>
           <span>{t('workspace.featureEstate')}</span>
-          <span className="text-[12px] text-muted">{t('workspace.featureEstateHint')}</span>
+          <span className="text-label text-muted">{t('workspace.featureEstateHint')}</span>
         </span>
       </label>
 
       {/* Off by default like the rest, and for a reason of its own: money is
           the one thing here that everybody in a workspace can see the moment
           it exists. Turning it off hides the screens; the figures stay. */}
-      <label className="check-row">
+      <label className={checkRow}>
         <input
           type="checkbox"
           checked={!!workspace?.features?.budget}
@@ -564,7 +569,7 @@ function WorkspaceSettings() {
         />
         <span>
           <span>{t('workspace.featureBudget')}</span>
-          <span className="text-[12px] text-muted">{t('workspace.featureBudgetHint')}</span>
+          <span className="text-label text-muted">{t('workspace.featureBudgetHint')}</span>
         </span>
       </label>
 
@@ -572,7 +577,7 @@ function WorkspaceSettings() {
           organisation has decided to spend, a product is money it hopes to take
           in, and a team modelling what it sells is not thereby tracking what it
           spends. The two meet in one word — the cost category. */}
-      <label className="check-row">
+      <label className={checkRow}>
         <input
           type="checkbox"
           checked={!!workspace?.features?.products}
@@ -585,7 +590,7 @@ function WorkspaceSettings() {
         />
         <span>
           <span>{t('workspace.featureProducts')}</span>
-          <span className="text-[12px] text-muted">{t('workspace.featureProductsHint')}</span>
+          <span className="text-label text-muted">{t('workspace.featureProductsHint')}</span>
         </span>
       </label>
 
@@ -593,7 +598,7 @@ function WorkspaceSettings() {
           promise rather than a preference: a half-adopted vault — three keys in
           it and eleven still in the handbook — is worse than none, because it
           makes people believe the handbook has been cleaned up. */}
-      <label className="check-row">
+      <label className={checkRow}>
         <input
           type="checkbox"
           checked={!!workspace?.features?.secrets}
@@ -606,14 +611,14 @@ function WorkspaceSettings() {
         />
         <span>
           <span>{t('workspace.featureSecrets')}</span>
-          <span className="text-[12px] text-muted">{t('workspace.featureSecretsHint')}</span>
+          <span className="text-label text-muted">{t('workspace.featureSecretsHint')}</span>
         </span>
       </label>
 
       {/* Independent of the other three. A team measuring lead time is not
           thereby costing servers; the only thing KPIs borrow from elsewhere is
           the milestone, which every workspace already has. */}
-      <label className="check-row">
+      <label className={checkRow}>
         <input
           type="checkbox"
           checked={!!workspace?.features?.kpi}
@@ -626,7 +631,7 @@ function WorkspaceSettings() {
         />
         <span>
           <span>{t('workspace.featureKpi')}</span>
-          <span className="text-[12px] text-muted">{t('workspace.featureKpiHint')}</span>
+          <span className="text-label text-muted">{t('workspace.featureKpiHint')}</span>
         </span>
       </label>
 
@@ -634,7 +639,7 @@ function WorkspaceSettings() {
           gets a switch of its own rather than arriving with the tasks: a team
           that has not decided how it decides will use one to avoid a
           conversation. */}
-      <label className="check-row">
+      <label className={checkRow}>
         <input
           type="checkbox"
           checked={!!workspace?.features?.decisions}
@@ -647,14 +652,14 @@ function WorkspaceSettings() {
         />
         <span>
           <span>{t('workspace.featureDecisions')}</span>
-          <span className="text-[12px] text-muted">{t('workspace.featureDecisionsHint')}</span>
+          <span className="text-label text-muted">{t('workspace.featureDecisionsHint')}</span>
         </span>
       </label>
 
       {/* Meetings are for members: a guest is on a project, not in the room
           where the projects are compared, and the agenda never reaches a
           guest's device. Saying so here is cheaper than the surprise. */}
-      <label className="check-row">
+      <label className={checkRow}>
         <input
           type="checkbox"
           checked={!!workspace?.features?.meetings}
@@ -667,14 +672,14 @@ function WorkspaceSettings() {
         />
         <span>
           <span>{t('workspace.featureMeetings')}</span>
-          <span className="text-[12px] text-muted">{t('workspace.featureMeetingsHint')}</span>
+          <span className="text-label text-muted">{t('workspace.featureMeetingsHint')}</span>
         </span>
       </label>
 
       {/* Incidents are for members too: a record of what broke, what it cost
           and why is a sentence about the company, and it never reaches a
           guest's device. Saying so here is cheaper than the surprise. */}
-      <label className="check-row">
+      <label className={checkRow}>
         <input
           type="checkbox"
           checked={!!workspace?.features?.incidents}
@@ -687,7 +692,7 @@ function WorkspaceSettings() {
         />
         <span>
           <span>{t('workspace.featureIncidents')}</span>
-          <span className="text-[12px] text-muted">{t('workspace.featureIncidentsHint')}</span>
+          <span className="text-label text-muted">{t('workspace.featureIncidentsHint')}</span>
         </span>
       </label>
 
@@ -695,7 +700,7 @@ function WorkspaceSettings() {
           holds a credential to somebody else's mail server and a copy of what
           is in it. Switching it off hides the screens and stops MCP reading;
           only disconnecting a mailbox deletes the copy. */}
-      <label className="check-row">
+      <label className={checkRow}>
         <input
           type="checkbox"
           checked={!!workspace?.features?.mail}
@@ -708,13 +713,13 @@ function WorkspaceSettings() {
         />
         <span>
           <span>{t('workspace.featureMail')}</span>
-          <span className="text-[12px] text-muted">{t('workspace.featureMailHint')}</span>
+          <span className="text-label text-muted">{t('workspace.featureMailHint')}</span>
         </span>
       </label>
 
       {/* The first switch that lets people outside the workspace write to it
           live. Off closes every widget at once; the conversations stay. */}
-      <label className="check-row">
+      <label className={checkRow}>
         <input
           type="checkbox"
           checked={!!workspace?.features?.support}
@@ -727,7 +732,7 @@ function WorkspaceSettings() {
         />
         <span>
           <span>{t('workspace.featureSupport')}</span>
-          <span className="text-[12px] text-muted">{t('workspace.featureSupportHint')}</span>
+          <span className="text-label text-muted">{t('workspace.featureSupportHint')}</span>
         </span>
       </label>
 
@@ -735,7 +740,7 @@ function WorkspaceSettings() {
           is a key in the environment, which is not a thing an admin can set
           from here — so when there is no model the row says who to ask rather
           than offering a switch that would do nothing. */}
-      <label className="check-row">
+      <label className={checkRow}>
         <input
           type="checkbox"
           checked={!!workspace?.features?.ai}
@@ -748,7 +753,7 @@ function WorkspaceSettings() {
         />
         <span>
           <span>{t('workspace.featureAi')}</span>
-          <span className="text-[12px] text-muted">
+          <span className="text-label text-muted">
             {aiProvider
               ? t('workspace.featureAiHint', { provider: aiProvider })
               : t('workspace.featureAiUnset')}
@@ -815,15 +820,15 @@ function Members() {
 
   return (
     <>
-      {failed && <p className="text-[12.5px] text-danger">{t('common.loadFailed', { reason: failed })}</p>}
+      {failed && <p className="text-label text-danger">{t('common.loadFailed', { reason: failed })}</p>}
       {members.map((member) => (
         <div className="flex items-center gap-2" key={member.user_id} style={{ padding: '8px 0', borderTop: '1px solid var(--line)' }}>
           <Avatar user={{ id: member.user_id, name: member.name, avatar_url: member.avatar_url }} size={30} />
           <div className="flex-1 min-w-0">
             <div className="truncate">{member.name}</div>
-            <div className="text-muted truncate text-[12.5px]">{member.email}</div>
+            <div className="text-muted truncate text-label">{member.email}</div>
           </div>
-          {member.last_seen_at && <span className="text-muted text-[11.5px]">{relativeTime(member.last_seen_at)}</span>}
+          {member.last_seen_at && <span className="text-muted text-caption">{relativeTime(member.last_seen_at)}</span>}
           {canManage ? (
             <Select style={{ width: 110 }} value={member.role} disabled={action.busy}
               onChange={(event) => {
@@ -878,7 +883,7 @@ function Members() {
           </Button>
           {invites.map((invite) => (
             <div className="flex items-center gap-2" key={invite.id} style={{ padding: '6px 0', borderTop: '1px solid var(--line)' }}>
-              <code className="mono flex-1 min-w-0 truncate">{location.origin}/invite/{invite.code}</code>
+              <code className="mono font-mono text-label flex-1 min-w-0 truncate">{location.origin}/invite/{invite.code}</code>
               <Chip>{t(roleKey(invite.role))}</Chip>
               <Button variant="ghost" size="iconSm" title={t('action.copyLink')}
                 onClick={() => {
@@ -929,7 +934,7 @@ function CalendarFeed() {
     <>
       {dialog}
       <SectionHeading>{t('calendar.title')}</SectionHeading>
-      <p className="text-muted text-[13px] mb-2">{t('calendar.intro')}</p>
+      <p className="text-muted text-body mb-2">{t('calendar.intro')}</p>
 
       {!url ? (
         <Button onClick={async () => setUrl((await api.calendarOn()).url)}>
@@ -938,12 +943,12 @@ function CalendarFeed() {
       ) : (
         <>
           <div className="flex items-center gap-2 flex-wrap">
-            <Input readOnly value={url} onFocus={(event) => event.currentTarget.select()} className="flex-1 min-w-0 font-mono text-[12px]" aria-label={t('calendar.title')} />
+            <Input readOnly value={url} onFocus={(event) => event.currentTarget.select()} className="flex-1 min-w-0 mono font-mono" aria-label={t('calendar.title')} />
             <Button size="sm" onClick={() => copy(url)}>
               <Icon name="copy" size={14} /> {t('action.copy')}
             </Button>
           </div>
-          <p className="text-muted text-[12.5px] mt-2">{t('calendar.paste')}</p>
+          <p className="text-muted text-label mt-2">{t('calendar.paste')}</p>
           <div className="flex items-center gap-2 flex-wrap mt-2">
             <Button size="sm" onClick={() => copy(`${url}?kind=todo`)}>
               <Icon name="list" size={14} /> {t('calendar.asTasks')}
@@ -1019,7 +1024,7 @@ function ApiSettings() {
 
   return (
     <>
-      <p className="text-muted text-[13.5px]">{t('api.intro')}</p>
+      <p className="text-muted text-body">{t('api.intro')}</p>
       <GuideHint to="assistant" />
 
       <SectionHeading>{t('api.tokens')}</SectionHeading>
@@ -1040,11 +1045,11 @@ function ApiSettings() {
           zur Wahl. Das Häkchen entscheidet, ob diese Bindung eine Voreinstellung
           ist oder eine Grenze — zwei verschiedene Dinge, die vorher nur eines
           sein konnten. */}
-      <label className="check-row">
+      <label className={checkRow}>
         <input type="checkbox" checked={confined} onChange={(event) => setConfined(event.target.checked)} />
         <span>{t('api.tokenConfine', { workspace: scopeLabel(workspaceId) })}</span>
       </label>
-      <p className="text-muted text-[12.5px] mb-3">
+      <p className="text-muted text-label mb-3">
         {t(confined ? 'api.tokenConfinedTo' : 'api.tokenBoundTo', { workspace: scopeLabel(workspaceId) })}
       </p>
 
@@ -1053,14 +1058,14 @@ function ApiSettings() {
           <div className="flex-1 min-w-0">
             <div className="truncate">{token.name}</div>
             <div className="text-muted truncate" title={token.workspace_id ?? undefined}>
-              <span className="mono">{token.prefix}… · {token.scopes}</span>
+              <span className="mono font-mono text-label">{token.prefix}… · {token.scopes}</span>
               {' · '}
               {t(token.confined ? 'api.tokenScopeConfined' : 'api.tokenScopeDefault', {
                 workspace: scopeLabel(token.workspace_id),
               })}
             </div>
           </div>
-          <span className="text-muted text-[11.5px]">
+          <span className="text-muted text-caption">
             {token.last_used_at ? t('api.usedAgo', { time: relativeTime(token.last_used_at) }) : t('api.neverUsed')}
           </span>
           <Button variant="ghost" size="iconSm" title={t('api.revoke')} disabled={action.busy}
@@ -1078,25 +1083,25 @@ function ApiSettings() {
         </div>
       ))}
       {failed
-        ? <p className="text-[12.5px] text-danger">{t('common.loadFailed', { reason: failed })}</p>
-        : !tokens.length && <span className="text-muted text-[12.5px]">{t('api.noTokens')}</span>}
+        ? <p className="text-label text-danger">{t('common.loadFailed', { reason: failed })}</p>
+        : !tokens.length && <span className="text-muted text-label">{t('api.noTokens')}</span>}
 
       <SectionHeading>{t('api.connect')}</SectionHeading>
-      <pre className="md text-[12.5px]" style={{ background: 'var(--bg-sunken)', border: '1px solid var(--line)', padding: 12, borderRadius: 10, overflowX: 'auto' }}>
+      <pre className="md text-label rounded" style={{ background: 'var(--bg-sunken)', border: '1px solid var(--line)', padding: 12, overflowX: 'auto' }}>
         {snippet}
       </pre>
       <div className="flex items-center gap-2 mt-2">
         <Button size="sm" onClick={() => { void navigator.clipboard?.writeText(snippet); toast(t('api.configCopied')); }}>
           <Icon name="copy" size={14} /> {t('api.copyConfig')}
         </Button>
-        <span className="text-muted text-[12.5px]">
+        <span className="text-muted text-label">
           {t('api.orDirect')}
         </span>
       </div>
       {/* Claude on the web has one box for a URL and nowhere to put a token, so
           it signs in instead. Nothing to configure here — the address is the
           whole of it. */}
-      <p className="text-muted text-[12.5px] mt-3">
+      <p className="text-muted text-label mt-3">
         {t('api.onTheWeb', { url: location.origin })}
       </p>
 
@@ -1105,7 +1110,7 @@ function ApiSettings() {
       {created && (
         <Sheet title={t('api.copyNow')} onClose={() => setCreated(null)}>
           <p className="text-muted">{t('api.copyNowHint')}</p>
-          <code className="mono" style={{ display: 'block', wordBreak: 'break-all', background: 'var(--bg-sunken)', padding: 12, borderRadius: 8 }}>
+          <code className="mono font-mono text-label rounded-sm" style={{ display: 'block', wordBreak: 'break-all', background: 'var(--bg-sunken)', padding: 12 }}>
             {created}
           </code>
           <Button variant="primary" block className="mt-3"
@@ -1152,9 +1157,9 @@ function DataSettings() {
       <div className="my-2 h-px bg-line" style={{ margin: '22px 0' }} />
 
       <SectionHeading tight>{t('data.offlineCopy')}</SectionHeading>
-      <p className="text-muted text-[13.5px]">{t('data.offlineIntro')}</p>
+      <p className="text-muted text-body">{t('data.offlineIntro')}</p>
       <GuideHint to="sync" />
-      <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mb-3.5">
+      <div className="rounded border border-line bg-raised p-3.5 mb-3.5">
         <div className="flex items-center gap-2"><span className="flex-1 min-w-0">{t('data.localData')}</span><strong>{mb(estimate?.usage)}</strong></div>
         <div className="flex items-center gap-2"><span className="flex-1 min-w-0">{t('data.available')}</span><strong>{mb(estimate?.quota)}</strong></div>
         <div className="flex items-center gap-2">

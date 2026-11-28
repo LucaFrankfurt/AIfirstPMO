@@ -22,7 +22,10 @@ import {
   type Incident, type IncidentResolution, type IncidentStatus, type Page, type Task,
 } from '@kolibri/shared';
 import { Header, Trail } from '../../../kernel/design-system/chrome';
-import { Empty, Icon, MenuButton, useConfirm } from '../../../kernel/design-system/ui';
+import { Empty } from '../../../kernel/design-system/ui/empty';
+import { Icon } from '../../../kernel/design-system/ui/icon';
+import { MenuButton } from '../../../kernel/design-system/ui/menu-button';
+import { useConfirm } from '../../../kernel/design-system/ui/sheet';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { Chip } from '../../../kernel/design-system/ui/chip';
 import { Input, Label, Select, Textarea } from '../../../kernel/design-system/ui/field';
@@ -36,7 +39,7 @@ import { byId, list, useQuery, useRow } from '../../../kernel/sync/store';
 import { useCanWrite, useFeature, useMe } from '../../../kernel/identity/session';
 import { now } from '../../../kernel/sync/clock';
 import { Attachments } from '../../../kernel/files/Attachments';
-import { Stat } from '../../planning/insights';
+import { Stat } from '../../../kernel/design-system/ui/stat';
 import {
   IncidentFields, IncidentForm, IncidentRow, PriorityChip, StatusChip, categoryKey, resolutionKey, statusKey,
   useApplications, useImpactWords,
@@ -44,6 +47,7 @@ import {
 import { Timeline, useChangeWords, useTimeline } from '../timeline';
 import { ApplicationsPanel } from '../applications';
 import { fileReview } from '../review';
+import { statRow } from '../../../kernel/design-system/ui/stat';
 
 function SwitchedOff() {
   const t = useT();
@@ -90,7 +94,7 @@ export function IncidentIndex() {
       </Header>
 
       <div className="mx-auto flex max-w-[900px] flex-col gap-4 px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
-        <div className="kpi-row">
+        <div className={statRow}>
           <Stat label={t('incident.statActive')} value={String(active.length)} onSelect={() => setTab('active')} active={tab === 'active'} />
           <Stat label={t('incident.statReview')} value={String(month.awaitingReview)} onSelect={() => setTab('review')} active={tab === 'review'} />
           <Stat label={t('incident.statMttr')} value={formatDuration(month.mttrMs)} hint={t('incident.last30')} />
@@ -191,13 +195,13 @@ export function IncidentDetail() {
           <StatusChip status={incident.status} />
           {!!incident.major && <Chip tone="on">{t('incident.major')}</Chip>}
           <Chip>{t(categoryKey(incident.category))}</Chip>
-          {hit.length > 0 && <span className="text-[12px] text-muted">{hit.join(', ')}</span>}
+          {hit.length > 0 && <span className="text-label text-muted">{hit.join(', ')}</span>}
         </div>
 
         {/* The three clocks a review is about. Each says "—" when one of its
             ends was never written down rather than guessing one from when
             the record was opened. */}
-        <div className="kpi-row">
+        <div className={statRow}>
           <Stat
             label={t('incident.clock.impact')}
             value={formatDuration(clocks.impactMs)}
@@ -310,7 +314,7 @@ function Resolution({ incident, disabled }: { incident: Incident; disabled: bool
           >
             {t('incident.resolve')}
           </Button>
-          {!incident.resolution_code && <span className="ml-2 text-[12px] text-muted">{t('incident.resolveNeedsCode')}</span>}
+          {!incident.resolution_code && <span className="ml-2 text-label text-muted">{t('incident.resolveNeedsCode')}</span>}
         </div>
       )}
     </div>
@@ -342,12 +346,12 @@ function Links({ incident, disabled }: { incident: Incident; disabled: boolean }
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1.5">
-        <span className="text-[12px] text-muted">{t('incident.linkedPages')}</span>
+        <span className="text-label text-muted">{t('incident.linkedPages')}</span>
         <ul className="flex list-none flex-col gap-1 p-0">
           {linkedPages.map((pageId) => {
             const page = byId('page', pageId) as Page | undefined;
             return (
-              <li key={pageId} className="flex items-center gap-2 text-[13px]">
+              <li key={pageId} className="flex items-center gap-2 text-body">
                 {page && !page.deleted_at
                   ? <Link to={`/pages/${pageId}`} className="inline-flex min-h-6 items-center">{page.icon ? `${page.icon} ` : ''}{page.title}</Link>
                   : <span className="text-muted">{t('incident.pageUnavailable')}</span>}
@@ -363,12 +367,12 @@ function Links({ incident, disabled }: { incident: Incident; disabled: boolean }
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <span className="text-[12px] text-muted">{t('incident.followUps')}</span>
+        <span className="text-label text-muted">{t('incident.followUps')}</span>
         <ul className="flex list-none flex-col gap-1 p-0">
           {linkedTasks.map((taskId) => {
             const task = byId('task', taskId) as Task | undefined;
             return (
-              <li key={taskId} className="flex items-center gap-2 text-[13px]">
+              <li key={taskId} className="flex items-center gap-2 text-body">
                 {task && !task.deleted_at
                   ? <Link to={`/t/${taskId}`} className="inline-flex min-h-6 items-center">{task.identifier} {task.title}{task.completed_at ? ` ✓` : ''}</Link>
                   : <span className="text-muted">{t('incident.taskUnavailable')}</span>}

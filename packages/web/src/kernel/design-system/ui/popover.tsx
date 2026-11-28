@@ -1,6 +1,7 @@
 import * as Primitive from '@radix-ui/react-popover';
 import type { ComponentProps } from 'react';
 import { cn } from '../cn';
+import { floatingSurface } from './surface';
 
 /**
  * A panel hung off a button, for the things a menu is the wrong shape for.
@@ -23,7 +24,7 @@ export function PopoverContent({ className, sideOffset = 6, ...props }: Componen
         sideOffset={sideOffset}
         collisionPadding={10}
         className={cn(
-          'z-50 rounded-[var(--radius)] border border-line bg-raised p-1 shadow-[var(--shadow)]',
+          'z-50 p-1', floatingSurface,
           'data-[state=open]:animate-in data-[state=closed]:animate-out motion-reduce:animate-none',
           className,
         )}

@@ -30,7 +30,11 @@ import { BOARD_ICON } from '../blocks';
 import { copyBoards, downloadBoards } from '../boards';
 import { useBoardAi } from '../../ai-review/board-ai';
 import { Attachments } from '../../../kernel/files/Attachments';
-import { Empty, Icon, MenuButton, useConfirm, useToast } from '../../../kernel/design-system/ui';
+import { Empty } from '../../../kernel/design-system/ui/empty';
+import { Icon } from '../../../kernel/design-system/ui/icon';
+import { MenuButton } from '../../../kernel/design-system/ui/menu-button';
+import { useConfirm } from '../../../kernel/design-system/ui/sheet';
+import { useToast } from '../../../kernel/design-system/ui/toast';
 import { ShareSheet } from '../../share/share';
 import { useHighlights, useSelectionAnchor } from '../annotate';
 import { relativeTime } from '../../../kernel/design-system/format';
@@ -49,6 +53,7 @@ import { useSelection } from '../../../kernel/design-system/selection';
 import { useT, type TranslationKey } from '../../../kernel/i18n/i18n';
 import { cn } from '../../../kernel/design-system/cn';
 import { useMinute } from '../../../kernel/design-system/minute';
+import { pageBody } from '../../../kernel/design-system/ui/page';
 
 /**
  * The headings of a page, as something to jump by.
@@ -527,7 +532,7 @@ export function PagesIndex() {
           </Button>
         )}
       </Header>
-      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+      <div className={pageBody}>
         {!pages.length ? (
           <Empty
             emoji="📓" title={t('page.emptyTitle')}
@@ -538,21 +543,21 @@ export function PagesIndex() {
           <>
             {pinned.length > 0 && (
               <>
-                <h2 className="mb-2 text-sm font-semibold">{t('page.pinned')}</h2>
+                <h2 className="mb-2 text-title font-semibold">{t('page.pinned')}</h2>
                 <div className="mb-6 grid gap-3 sm:grid-cols-2">
                   {pinned.map((page) => <PageCard key={page.id} page={page} />)}
                 </div>
               </>
             )}
-            <h2 className="mb-2 text-sm font-semibold">{t('page.recentlyEdited')}</h2>
+            <h2 className="mb-2 text-title font-semibold">{t('page.recentlyEdited')}</h2>
             {/* Links, not buttons that navigate: a page is a thing people open
                 in a second tab, and a button cannot be. */}
             <div className="mb-6 grid gap-3 sm:grid-cols-2">
               {recent.map((page) => <PageCard key={page.id} page={page} />)}
             </div>
             <div className="flex items-center flex-wrap gap-2 mb-2">
-              <h2 className="text-sm font-semibold">{t('page.all')}</h2>
-              {!drawn && canDrag && !picking && !flat && <span className="text-[12px] text-muted hide-sm">{t('page.dragHint')}</span>}
+              <h2 className="text-title font-semibold">{t('page.all')}</h2>
+              {!drawn && canDrag && !picking && !flat && <span className="text-label text-muted hide-sm">{t('page.dragHint')}</span>}
               <span className="flex-1 min-w-0" />
               {!drawn && (
                 <>
@@ -635,7 +640,7 @@ export function PagesIndex() {
             {drawn ? (
               <PageGraph nodes={graph.nodes} edges={graph.edges} />
             ) : keep?.size === 0 ? (
-              <p className="text-muted text-[12.5px]">{filtering ? t('page.filterNoMatch') : t('page.filterNone')}</p>
+              <p className="text-muted text-label">{filtering ? t('page.filterNoMatch') : t('page.filterNone')}</p>
             ) : grouping === 'tree' ? (
               <PageTree
                 pages={pages}
@@ -656,7 +661,7 @@ export function PagesIndex() {
                       <span>{section.label}</span>
                       {/* What the section shows: its matches while a filter
                           runs, not the whole branch set behind them. */}
-                      <span className="text-muted text-[12px] font-normal">
+                      <span className="text-muted text-label font-normal">
                         {matched ? section.pages.filter((page) => matched.has(page.id)).length : section.pages.length}
                       </span>
                     </span>
@@ -668,7 +673,7 @@ export function PagesIndex() {
                         <span className="flex-1 min-w-0 truncate">{page.title || t('common.untitled')}</span>
                         {/* The path, because out of the tree "Preise" could be
                             any of four pages and where it hangs says which. */}
-                        <span className="text-[11.5px] text-muted truncate hide-sm" style={{ maxWidth: '40%' }}>
+                        <span className="text-caption text-muted truncate hide-sm" style={{ maxWidth: '40%' }}>
                           {(trails.get(page.id) ?? []).map((parent) => parent.title || t('common.untitled')).join(' › ')}
                         </span>
                         <PageStatusChip page={page} dot />
@@ -692,8 +697,8 @@ export function PagesIndex() {
 
             {canWrite && unwritten.length > 0 && (
               <section className="mt-7">
-                <h2 className="mb-1 text-sm font-semibold">{t('page.unwritten')}</h2>
-                <p className="mb-3 text-[12.5px] text-muted">{t('page.unwrittenHint')}</p>
+                <h2 className="mb-1 text-title font-semibold">{t('page.unwritten')}</h2>
+                <p className="mb-3 text-label text-muted">{t('page.unwrittenHint')}</p>
                 {unwritten.slice(0, 8).map((entry) => (
                   <Link
                     key={entry.title}
@@ -706,7 +711,7 @@ export function PagesIndex() {
                           like a paperclip in one of the three it fell back to. */}
                       <span style={{ width: 16 }} className="text-muted"><Icon name="pencil" size={13} /></span>
                       <span className="flex-1 min-w-0 truncate">{entry.title}</span>
-                      <span className="text-[11.5px] text-muted hide-sm">
+                      <span className="text-caption text-muted hide-sm">
                         {t('page.wantedBy', { count: entry.from.length })}
                       </span>
                     </span>
@@ -737,7 +742,7 @@ function PageCard({ page }: { page: Page }) {
   return (
     <Link
       to={`/pages/${page.id}`}
-      className="flex min-w-0 flex-col gap-1 rounded-[var(--radius)] border border-line bg-raised p-3.5 text-left transition-colors hover:border-line-strong hover:bg-hover outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+      className="flex min-w-0 flex-col gap-1 rounded border border-line bg-raised p-3.5 text-left transition-colors hover:border-line-strong hover:bg-hover outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
     >
       <span className="flex items-center gap-2">
         <span aria-hidden="true">{page.icon ?? '📄'}</span>
@@ -745,8 +750,8 @@ function PageCard({ page }: { page: Page }) {
         <PageTypeChip page={page} dot />
         <PageStatusChip page={page} dot />
       </span>
-      <p className="m-0 text-[12.5px] text-muted">{page.format === 'canvas' ? t('canvas.kind') : page.format === 'board' ? t('board.kind') : pageExcerpt(page.content, page.format, 110) || t('page.emptyPage')}</p>
-      <span className="text-[11.5px] text-muted">{t('page.updated', { time: relativeTime(page.updated_at) })}</span>
+      <p className="m-0 text-label text-muted">{page.format === 'canvas' ? t('canvas.kind') : page.format === 'board' ? t('board.kind') : pageExcerpt(page.content, page.format, 110) || t('page.emptyPage')}</p>
+      <span className="text-caption text-muted">{t('page.updated', { time: relativeTime(page.updated_at) })}</span>
     </Link>
   );
 }
@@ -1153,7 +1158,7 @@ export function PageDetail() {
           onRename={renameTo} printRequest={printRequest} thread={(props) => <Comments {...props} />}
         />
       ) : (
-      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5 page-with-tree">
+      <div className={cn(pageBody, 'page-with-tree')}>
         {/*
           * The tree, beside the page rather than one screen back.
           *
@@ -1183,7 +1188,7 @@ export function PageDetail() {
               </Button>
             </div>
             {keep?.size === 0
-              ? <p className="text-muted text-[12px]">{t('page.filterNone')}</p>
+              ? <p className="text-muted text-label">{t('page.filterNone')}</p>
               : <PageTree pages={siblings} activeId={id} canWrite={canWrite} folds={folds} keep={keep} matched={matched} />}
           </aside>
         ) : (
@@ -1224,7 +1229,7 @@ export function PageDetail() {
                 onChange={(next) => update('page', id, { icon: next })}
               />
               <Input
-                className="flex-1 min-w-0 font-semibold" style={{ fontSize: 19 }} value={title}
+                className="flex-1 min-w-0 font-semibold text-headline" value={title}
                 aria-label={t('page.titleLabel')}
                 onChange={(event) => setTitle(event.target.value)}
                 onBlur={commitTitle}
@@ -1237,12 +1242,12 @@ export function PageDetail() {
             {/* Quiet, and only while it is true: somebody wanting to know why a
                 sentence appeared under their cursor should be able to find out,
                 and nobody else should have to look at it. */}
-            {merged && <span className="text-[12px] text-muted mt-1.5" style={{ display: 'block' }}>{t('page.mergedIn')}</span>}
+            {merged && <span className="text-label text-muted mt-1.5" style={{ display: 'block' }}>{t('page.mergedIn')}</span>}
           </>
         ) : (
           <>
-            <h1 style={{ fontSize: 26, marginBottom: 6 }}>{page.title || t('common.untitled')}</h1>
-            <div className="flex items-center gap-2 text-muted text-[12.5px] mb-[18px]">
+            <h1 className="text-display" style={{ marginBottom: 6 }}>{page.title || t('common.untitled')}</h1>
+            <div className="flex items-center gap-2 text-muted text-label mb-[18px]">
               <span>{author ? t('page.byAuthor', { name: author.name }) : ''}</span>
               <span>· {t('page.updatedAgo', { time: relativeTime(page.updated_at) })}</span>
               {page.project_id && <span>· {byId('project', page.project_id)?.name}</span>}
@@ -1322,7 +1327,7 @@ export function PageDetail() {
                   <span aria-hidden="true">{from.icon ?? '📄'}</span>
                   <strong className="flex-1 min-w-0 truncate">{from.title || t('common.untitled')}</strong>
                 </span>
-                {context && <span className="text-[12.5px] text-muted">{context}</span>}
+                {context && <span className="text-label text-muted">{context}</span>}
               </Link>
             ))}
           </section>
@@ -1341,7 +1346,7 @@ export function PageDetail() {
           <section style={{ marginTop: 32, borderTop: '1px solid var(--line)', paddingTop: 18 }}>
             <div className="flex items-center gap-2 mb-3">
               <SectionHeading tight>{t('page.discussion')}</SectionHeading>
-              <span className="text-muted text-[12.5px]">· {t('annotate.hint')}</span>
+              <span className="text-muted text-label">· {t('annotate.hint')}</span>
             </div>
             <Comments
               target={{ page_id: id }}

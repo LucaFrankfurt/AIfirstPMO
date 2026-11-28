@@ -35,7 +35,8 @@ import { HEADING_PREFIX, usePageHref } from './page-links';
 import { cn } from '../../kernel/design-system/cn';
 import { buttonVariants } from '../../kernel/design-system/ui/button';
 import { Input, Textarea } from '../../kernel/design-system/ui/field';
-import { Icon, useLightbox } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { useLightbox } from '../../kernel/design-system/ui/lightbox';
 import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
 
 /* ---------------------------------------------------------------- reading */
@@ -269,7 +270,7 @@ export function HtmlEditor({ value, onChange, minHeight = 420, attachTo }: {
         )}
         {source && button('tidy', 'editor.tidy', <Icon name="sparkle" size={14} />, () => onChange(formatHtml(value)))}
         <span className="flex-1 min-w-0" />
-        {busy && <span className="text-muted text-[12.5px]">{t('editor.uploading')}</span>}
+        {busy && <span className="text-muted text-label">{t('editor.uploading')}</span>}
         <button
           type="button"
           className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), source && 'bg-active text-fg')}
@@ -309,7 +310,7 @@ export function HtmlEditor({ value, onChange, minHeight = 420, attachTo }: {
 
       {source ? (
         <Textarea
-          className="mono"
+          className="mono font-mono"
           style={{ minHeight }}
           value={value}
           spellCheck={false}
@@ -352,7 +353,7 @@ export function HtmlEditor({ value, onChange, minHeight = 420, attachTo }: {
           }}
         />
       )}
-      <p className="text-[12px] text-muted mt-1.5">{source ? t('editor.htmlHint') : t('editor.visualHint')}</p>
+      <p className="text-label text-muted mt-1.5">{source ? t('editor.htmlHint') : t('editor.visualHint')}</p>
     </div>
   );
 }

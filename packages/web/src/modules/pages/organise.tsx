@@ -21,7 +21,9 @@ import { useT } from '../../kernel/i18n/i18n';
 import { create, createPage, remove, update } from '../../kernel/sync/mutations';
 import { byId, list, useQuery } from '../../kernel/sync/store';
 import { useCanWrite, useMe, useSession } from '../../kernel/identity/session';
-import { Icon, MenuButton, useConfirm, type MenuGroup, type MenuItem } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { MenuButton, type MenuGroup, type MenuItem } from '../../kernel/design-system/ui/menu-button';
+import { useConfirm } from '../../kernel/design-system/ui/sheet';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Input } from '../../kernel/design-system/ui/field';
 import { Chip, chipDot } from '../../kernel/design-system/ui/chip';
@@ -58,7 +60,7 @@ export function PageTypeChip({ page, dot }: { page: Pick<Page, 'type_id'>; dot?:
   const type = typeOf(page, types);
   if (!type) return null;
   if (dot) {
-    return <span aria-label={type.name} title={type.name} style={{ fontSize: 12 }}>{type.icon ?? '•'}</span>;
+    return <span aria-label={type.name} title={type.name} className="text-label">{type.icon ?? '•'}</span>;
   }
   return (
     <Chip title={type.name}>
@@ -113,7 +115,7 @@ export function PageTypeSettings() {
       <div className="flex items-center gap-2" style={{ margin: '18px 0 8px' }}>
         <SectionHeading tight>{t('page.types')}</SectionHeading>
       </div>
-      <p className="mt-0 mb-2.5 text-[12.5px] text-muted">{t('page.typesHint')}</p>
+      <p className="mt-0 mb-2.5 text-label text-muted">{t('page.typesHint')}</p>
       {types.map((type, at) => (
         <div className="stack-card" key={type.id}>
           <div className="flex items-center gap-2">
@@ -427,13 +429,13 @@ export function SeriesEntries({ page, entries }: { page: Page; entries: Page[] }
           </Button>
         ))}
       </div>
-      <p className="mt-0 mb-2 text-[12.5px] text-muted">{t('page.seriesHint')}</p>
-      {!newest.length && <p className="text-muted text-[12.5px]">{t('page.seriesNone')}</p>}
+      <p className="mt-0 mb-2 text-label text-muted">{t('page.seriesHint')}</p>
+      {!newest.length && <p className="text-muted text-label">{t('page.seriesNone')}</p>}
       {newest.map((entry) => (
         <Link key={entry.id} to={`/pages/${entry.id}`} className="task-row text-left" style={{ width: '100%' }}>
           <span aria-hidden="true">{entry.icon ?? '📄'}</span>
           <span className="flex-1 min-w-0 truncate">{entry.title || t('common.untitled')}</span>
-          <span className="text-[11.5px] text-muted">{entryDay(entry)}</span>
+          <span className="text-caption text-muted">{entryDay(entry)}</span>
         </Link>
       ))}
     </section>

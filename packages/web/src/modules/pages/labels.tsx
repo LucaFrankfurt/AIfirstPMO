@@ -17,7 +17,8 @@ import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
 import { create, remove, update } from '../../kernel/sync/mutations';
 import { list, useQuery } from '../../kernel/sync/store';
 import { useCanWrite, useSession } from '../../kernel/identity/session';
-import { Icon, useConfirm } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { useConfirm } from '../../kernel/design-system/ui/sheet';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Input, Select } from '../../kernel/design-system/ui/field';
 import { SectionHeading } from '../../kernel/design-system/ui/section';
@@ -45,7 +46,7 @@ export function WorkspaceLabelSettings() {
       <div className="flex items-center gap-2" style={{ margin: '18px 0 8px' }}>
         <SectionHeading tight>{t('labels.workspace')}</SectionHeading>
       </div>
-      <p className="mt-0 mb-2.5 text-[12.5px] text-muted">{t('labels.workspaceHint')}</p>
+      <p className="mt-0 mb-2.5 text-label text-muted">{t('labels.workspaceHint')}</p>
       {labels.map((label) => (
         <div className="stack-card" key={label.id}>
           <div className="flex items-center gap-2 flex-wrap">

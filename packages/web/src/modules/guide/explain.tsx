@@ -19,7 +19,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
 import { Button } from '../../kernel/design-system/ui/button';
-import { Icon } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
 
 /* --------------------------------------------------------------- motion */
 

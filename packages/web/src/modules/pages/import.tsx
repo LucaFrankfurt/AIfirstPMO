@@ -29,7 +29,9 @@ import { useMe, useSession } from '../../kernel/identity/session';
 import { useT } from '../../kernel/i18n/i18n';
 import { cn } from '../../kernel/design-system/cn';
 import { Button } from '../../kernel/design-system/ui/button';
-import { Icon, Sheet, useToast } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { Sheet } from '../../kernel/design-system/ui/sheet';
+import { useToast } from '../../kernel/design-system/ui/toast';
 import { buttonVariants } from '../../kernel/design-system/ui/button';
 
 /** What the extension says, before anything looks inside the file. */
@@ -255,19 +257,19 @@ export function ImportPages({ parentId, projectId, onClose }: {
       </div>
 
       {refused.length > 0 && (
-        <p className="text-[12.5px] text-danger mt-2.5">{t('page.importRefused', { names: refused.join(', ') })}</p>
+        <p className="text-label text-danger mt-2.5">{t('page.importRefused', { names: refused.join(', ') })}</p>
       )}
 
       {files.length > 0 && (
         <>
           <div className="flex flex-wrap items-center gap-3 mt-3.5">
             {anyHtml && (
-              <label className="flex items-center gap-1.5 text-[13px]">
+              <label className="flex items-center gap-1.5 text-body">
                 <input type="checkbox" checked={keepHtml} onChange={(event) => setKeepHtml(event.target.checked)} />
                 {t('page.importKeepHtml')}
               </label>
             )}
-            <label className={cn('flex items-center gap-1.5 text-[13px]', !splittable && 'text-muted')}>
+            <label className={cn('flex items-center gap-1.5 text-body', !splittable && 'text-muted')}>
               <input
                 type="checkbox" checked={split && splittable} disabled={!splittable}
                 onChange={(event) => setSplit(event.target.checked)}
@@ -279,11 +281,11 @@ export function ImportPages({ parentId, projectId, onClose }: {
               {t('action.clear')}
             </Button>
           </div>
-          <p className="text-[12.5px] text-muted mt-1.5 mb-2.5">
+          <p className="text-label text-muted mt-1.5 mb-2.5">
             {parentId ? t('page.importUnderPage') : t('page.importAtTop')}
           </p>
           {(linked > 0 || unlinked > 0) && (
-            <p className="text-[12.5px] text-muted mt-0 mb-2.5">
+            <p className="text-label text-muted mt-0 mb-2.5">
               {t('page.importLinks', { count: linked })}
               {unlinked > 0 && ` ${t('page.importUnlinked', { count: unlinked })}`}
             </p>
@@ -295,7 +297,7 @@ export function ImportPages({ parentId, projectId, onClose }: {
             <div className="flex items-center gap-2 py-1.5 border-t border-line" key={`${draft.title}-${at}`}>
               <span aria-hidden="true">📄</span>
               <span className="flex-1 min-w-0 truncate">{draft.title}</span>
-              <span className="text-[11.5px] text-muted mono">
+              <span className="text-caption text-muted mono font-mono">
                 {draft.format === 'html' ? 'HTML' : 'MD'} · {t('page.versionSize', { count: draft.content.length })}
               </span>
             </div>

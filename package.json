@@ -40,6 +40,7 @@
     "openapi": "node scripts/openapi.mjs --fix",
     "check:openapi": "node scripts/openapi.mjs",
     "check:ordering": "node scripts/ordering.mjs",
+    "check:tokens": "node scripts/tokens.mjs",
     "schema": "node --disable-warning=ExperimentalWarning scripts/schema.mjs --fix",
     "check:schema": "node --disable-warning=ExperimentalWarning scripts/schema.mjs",
     "check:css": "node scripts/unstyled.mjs",

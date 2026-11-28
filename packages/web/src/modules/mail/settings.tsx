@@ -30,7 +30,9 @@ import { useEffect, useState, type ComponentProps } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { defaultMailboxPort, isDefaultMailboxPort, type Mailbox, type MailboxAccessLevel }
   from '@kolibri/shared';
-import { Icon, useConfirm, useToast } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { useConfirm } from '../../kernel/design-system/ui/sheet';
+import { useToast } from '../../kernel/design-system/ui/toast';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Input, Select } from '../../kernel/design-system/ui/field';
 import { SectionHeading } from '../../kernel/design-system/ui/section';
@@ -188,7 +190,7 @@ export function MailboxSettings() {
   return (
     <>
       <SectionHeading>{t('mailbox.title')}</SectionHeading>
-      <p className="text-[12px] text-muted mb-2">{t('mailbox.hint')}</p>
+      <p className="text-label text-muted mb-2">{t('mailbox.hint')}</p>
 
       {mailboxes.map((box) => (
         <MailboxRowEditor
@@ -310,11 +312,11 @@ function MailboxRowEditor({ mailbox, credential, providers, redirectUri, onPassw
   };
 
   return (
-    <div className="rounded-[var(--radius)] border border-line bg-raised p-2 mb-2">
+    <div className="rounded border border-line bg-raised p-2 mb-2">
       <div className="flex items-center gap-2">
         <button className="flex-1 min-w-0 text-left" onClick={() => setOpen(!open)}>
           <div className="truncate">{mailbox.name || mailbox.address}</div>
-          <div className="text-[12px] text-muted truncate">
+          <div className="text-label text-muted truncate">
             {mailbox.host}:{mailbox.port} · {t(`mailbox.access${mailbox.access === 'members' ? 'Members' : 'Workspace'}`)}
             {mailbox.message_count ? ` · ${t('mailbox.messages', { count: mailbox.message_count })}` : ''}
           </div>
@@ -400,7 +402,7 @@ function MailboxRowEditor({ mailbox, credential, providers, redirectUri, onPassw
           */}
           {auth === 'oauth' ? (
             <div className="flex items-center gap-2">
-              <span className="flex-1 min-w-0 text-[12px] text-muted">
+              <span className="flex-1 min-w-0 text-label text-muted">
                 {t('mailbox.connectedTo', { provider: providerLabel(providers, credential?.provider) })}
               </span>
               <Button disabled={busy} onClick={() => void connect(credential?.provider ?? '')}>
@@ -450,14 +452,14 @@ function MailboxRowEditor({ mailbox, credential, providers, redirectUri, onPassw
                   {t('mailbox.connectWith', { provider: provider.label })}
                 </Button>
               ))}
-              <span className="text-[12px] text-muted">{t('mailbox.redirectUri', { uri: redirectUri })}</span>
+              <span className="text-label text-muted">{t('mailbox.redirectUri', { uri: redirectUri })}</span>
             </div>
           )}
 
           {/* How far back the first pass reaches. Nothing else here changes what
               is *already* stored — lowering it does not delete anything, and
               raising it makes the next poll go back further. */}
-          <label className="flex items-center gap-2 text-[12px] text-muted">
+          <label className="flex items-center gap-2 text-label text-muted">
             {t('mailbox.syncDays')}
             <FieldOnRow
               type="number" style={{ width: 100 }} aria-label={t('mailbox.syncDays')}
@@ -514,7 +516,7 @@ function MailboxRowEditor({ mailbox, credential, providers, redirectUri, onPassw
             <Button disabled={busy || !signedIn} onClick={() => run('sync')}>{t('mailbox.syncNow')}</Button>
             <Button variant="ghost" onClick={onRemove}>{t('mailbox.disconnect')}</Button>
           </div>
-          <p className="text-[12px] text-muted">{t('mailbox.disconnectHint')}</p>
+          <p className="text-label text-muted">{t('mailbox.disconnectHint')}</p>
         </div>
       )}
     </div>

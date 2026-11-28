@@ -468,7 +468,7 @@ export function VisitorChat() {
       at: line.created_at,
       pending: line.pending,
       below: line.sources?.length
-        ? <span className="mt-0.5 px-1 text-[11px] text-muted">{words.sources}: {line.sources.join(', ')}</span>
+        ? <span className="mt-0.5 px-1 text-caption text-muted">{words.sources}: {line.sources.join(', ')}</span>
         : undefined,
       failed: line.failed ? (
         <button type="button" className="underline" onClick={() => void send(line.body, line.files, line.id)}>
@@ -487,7 +487,7 @@ export function VisitorChat() {
         className="flex flex-none items-center gap-2 px-4 py-3"
         style={{ background: 'var(--thread-accent, var(--accent))', color: 'var(--thread-accent-fg, var(--accent-fg))' }}
       >
-        <strong className="min-w-0 flex-1 truncate text-[15px]">{config?.name ?? ''}</strong>
+        <strong className="min-w-0 flex-1 truncate text-title">{config?.name ?? ''}</strong>
         {stage === 'ready' && others.length > 0 && !browsing && (
           <button
             type="button"
@@ -506,7 +506,7 @@ export function VisitorChat() {
         {stage === 'ready' && !browsing && !resolved && lines.length > 0 && (
           <button
             type="button"
-            className="inline-flex h-8 items-center gap-1 rounded-full px-2.5 text-[12.5px] font-medium hover:bg-black/10"
+            className="inline-flex h-8 items-center gap-1 rounded-full px-2.5 text-label font-medium hover:bg-black/10"
             title={words.resolve}
             onClick={resolve}
           >
@@ -560,7 +560,7 @@ export function VisitorChat() {
       {stage === 'ready' && !browsing && (
         <>
           {assistant.answers && !handedOver && (
-            <p className="m-0 px-4 pt-2 text-center text-[12px] text-muted" role="note">
+            <p className="m-0 px-4 pt-2 text-center text-label text-muted" role="note">
               {words.aiNotice}
               {assistant.sees.length > 0 && ` ${words.aiSees.replace('{fields}', assistant.sees.join(', '))}`}
             </p>
@@ -572,7 +572,7 @@ export function VisitorChat() {
             <div className="flex justify-center pb-1">
               <button
                 type="button"
-                className="rounded-full border border-line px-3 py-1 text-[12.5px] text-soft hover:bg-hover"
+                className="rounded-full border border-line px-3 py-1 text-label text-soft hover:bg-hover"
                 onClick={() => {
                   setHandedOver(Date.now());
                   void call('/handover', session, { method: 'POST', body: '{}' }).catch(() => undefined);
@@ -583,16 +583,16 @@ export function VisitorChat() {
             </div>
           )}
           {!!handedOver && !lines.some((line) => line.author === 'agent' && line.created_at > handedOver) && lines.some((line) => line.author === 'bot') && (
-            <p className="m-0 px-4 pb-1 text-center text-[12px] text-muted">{words.personComing}</p>
+            <p className="m-0 px-4 pb-1 text-center text-label text-muted">{words.personComing}</p>
           )}
           {/* Resolved — by the team or by the visitor — is said, not left to be
               guessed from silence. Writing on reopens it; a new chat starts clean. */}
           {resolved && (
-            <div className="mx-3 mb-1.5 flex flex-col items-center gap-2 rounded-xl border border-line bg-raised px-3 py-2.5 text-center" role="status">
-              <p className="m-0 text-[12.5px] text-soft">{words.resolvedNotice}</p>
+            <div className="mx-3 mb-1.5 flex flex-col items-center gap-2 rounded border border-line bg-raised px-3 py-2.5 text-center" role="status">
+              <p className="m-0 text-label text-soft">{words.resolvedNotice}</p>
               <button
                 type="button"
-                className="rounded-full px-3 py-1 text-[12.5px] font-medium"
+                className="rounded-full px-3 py-1 text-label font-medium"
                 style={{ background: 'var(--thread-accent, var(--accent))', color: 'var(--thread-accent-fg, var(--accent-fg))' }}
                 onClick={() => void startOver()}
               >
@@ -600,7 +600,7 @@ export function VisitorChat() {
               </button>
             </div>
           )}
-          {notice && <p className="m-0 px-4 pb-1 text-[12px] text-danger">{notice}</p>}
+          {notice && <p className="m-0 px-4 pb-1 text-label text-danger">{notice}</p>}
           <Composer
             words={words}
             autoFocus
@@ -608,7 +608,7 @@ export function VisitorChat() {
             onAttach={(file) => void attach(file)}
             onTyping={(typing) => void call('/typing', session, { method: 'POST', body: JSON.stringify({ typing }) }).catch(() => undefined)}
             attached={attached.length ? (
-              <div className="flex flex-wrap gap-1.5 text-[12px] text-muted">
+              <div className="flex flex-wrap gap-1.5 text-label text-muted">
                 {attached.map((file) => (
                   <span key={file.hash} className="inline-flex items-center gap-1 rounded-full border border-line px-2 py-0.5">
                     <Icon name="image" size={12} /> <span className="max-w-[160px] truncate">{file.name}</span>
@@ -628,7 +628,7 @@ export function VisitorChat() {
 function Chats({ chats, onBack, onOpen }: { chats: Summary[]; onBack: () => void; onOpen: (chat: Summary) => void }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <button type="button" className="flex flex-none items-center gap-1.5 border-b border-line px-4 py-2.5 text-left text-[13px] text-soft hover:bg-hover" onClick={onBack}>
+      <button type="button" className="flex flex-none items-center gap-1.5 border-b border-line px-4 py-2.5 text-left text-body text-soft hover:bg-hover" onClick={onBack}>
         <Icon name="chevronLeft" size={14} /> {words.back}
       </button>
       <ul className="m-0 flex-1 list-none overflow-y-auto p-2">
@@ -641,11 +641,11 @@ function Chats({ chats, onBack, onOpen }: { chats: Summary[]; onBack: () => void
               onClick={() => onOpen(chat)}
             >
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="flex items-center gap-2 text-[12px] text-muted">
+                <span className="flex items-center gap-2 text-label text-muted">
                   <span className="min-w-0 flex-1 truncate">{chat.current ? words.thisChat : words.exact(chat.last_message_at ?? chat.created_at)}</span>
                   <span className="flex-none">{chat.status === 'resolved' ? words.done : words.stillOpen}</span>
                 </span>
-                <span className={chat.unread ? 'truncate text-[13.5px] font-semibold text-fg' : 'truncate text-[13.5px] text-soft'}>
+                <span className={chat.unread ? 'truncate text-body font-semibold text-fg' : 'truncate text-body text-soft'}>
                   {chat.said || words.noMessages}
                 </span>
               </span>
@@ -661,7 +661,7 @@ function Chats({ chats, onBack, onOpen }: { chats: Summary[]; onBack: () => void
 }
 
 function Middle({ children }: { children: ReactNode }) {
-  return <div className="flex flex-1 items-center justify-center p-6 text-center text-[13.5px] text-muted">{children}</div>;
+  return <div className="flex flex-1 items-center justify-center p-6 text-center text-body text-muted">{children}</div>;
 }
 
 /** The team's face on its lines: the widget's colour, a chat mark. */
@@ -703,8 +703,8 @@ function Introduce({ greeting, onStart }: { greeting: string; onStart: (values: 
         }
       }}
     >
-      <p className="m-0 rounded-2xl border border-line bg-raised px-3 py-2 text-[14px]">{greeting}</p>
-      <p className="m-0 text-[12.5px] text-muted">{words.introduce}</p>
+      <p className="m-0 rounded-lg border border-line bg-raised px-3 py-2 text-body">{greeting}</p>
+      <p className="m-0 text-label text-muted">{words.introduce}</p>
       <Input value={name} autoComplete="name" placeholder={words.name} aria-label={words.name} onChange={(event) => setName(event.target.value)} />
       <Input type="email" value={email} autoComplete="email" placeholder={words.email} aria-label={words.email} onChange={(event) => setEmail(event.target.value)} />
       <input
@@ -717,7 +717,7 @@ function Introduce({ greeting, onStart }: { greeting: string; onStart: (values: 
         onChange={(event) => setWebsite(event.target.value)}
         style={{ position: 'absolute', left: '-10000px', width: 200 }}
       />
-      {failed && <p className="m-0 text-[12px] text-danger">{words.unavailable}</p>}
+      {failed && <p className="m-0 text-label text-danger">{words.unavailable}</p>}
       <Button
         type="submit"
         variant="primary"
@@ -726,7 +726,7 @@ function Introduce({ greeting, onStart }: { greeting: string; onStart: (values: 
       >
         {words.start}
       </Button>
-      <p className="m-0 text-center text-[11.5px] text-muted">{words.replyByEmail}</p>
+      <p className="m-0 text-center text-caption text-muted">{words.replyByEmail}</p>
     </form>
   );
 }

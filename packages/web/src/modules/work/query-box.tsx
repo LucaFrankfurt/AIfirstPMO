@@ -33,7 +33,8 @@ import { useT } from '../../kernel/i18n/i18n';
 import { readQuery } from '../../kernel/search/search-query';
 import { SearchBox, useFacetOptions, useVocabulary } from '../../kernel/search/search-box';
 import { Button } from '../../kernel/design-system/ui/button';
-import { Icon, Sheet } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { Sheet } from '../../kernel/design-system/ui/sheet';
 
 /** How long a line rests before it becomes the filter. */
 const SETTLE_MS = 300;
@@ -105,7 +106,7 @@ export function QueryBox({
 
   /** What the field says about itself: what is wrong, or what may be typed. */
   const hint = parsed.errors.length > 0 ? (
-    <ul className="m-0 list-none p-1 text-[12.5px] text-danger">
+    <ul className="m-0 list-none p-1 text-label text-danger">
       {parsed.errors.map((error) => (
         <li key={`${error.at}-${error.message}`} className="mb-1 flex items-start gap-1.5">
           <Icon name="bolt" size={13} />
@@ -114,9 +115,9 @@ export function QueryBox({
       ))}
     </ul>
   ) : hasUnprintable(filters) ? (
-    <p className="m-0 p-1.5 text-[12.5px] text-muted">{t('query.fieldsKept')}</p>
+    <p className="m-0 p-1.5 text-label text-muted">{t('query.fieldsKept')}</p>
   ) : !text.trim() ? (
-    <p className="m-0 p-1.5 text-[12.5px] text-muted">{t('query.hint')}</p>
+    <p className="m-0 p-1.5 text-label text-muted">{t('query.hint')}</p>
   ) : null;
 
   /**
@@ -176,8 +177,8 @@ export function QueryBox({
         >
           {box(false)}
           {hint}
-          <p className="mt-3 text-[12.5px] text-muted">{t('query.help')}</p>
-          <pre className="md text-[12px] mt-1" style={{ background: 'var(--bg-sunken)', border: '1px solid var(--line)', padding: 10, borderRadius: 8, overflowX: 'auto' }}>
+          <p className="mt-3 text-label text-muted">{t('query.help')}</p>
+          <pre className="md text-label mt-1 rounded-sm" style={{ background: 'var(--bg-sunken)', border: '1px solid var(--line)', padding: 10, overflowX: 'auto' }}>
 {`@Anna #Design is: open
 assignee = me AND state != Done
 priority in (urgent, high) AND due = overdue

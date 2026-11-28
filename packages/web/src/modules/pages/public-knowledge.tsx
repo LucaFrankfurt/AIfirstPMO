@@ -8,7 +8,7 @@
  * widgets this person can see.
  */
 import type { Page } from '@kolibri/shared';
-import { Icon } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
 import { Chip } from '../../kernel/design-system/ui/chip';
 import { useT } from '../../kernel/i18n/i18n';
 import { list, useQuery } from '../../kernel/sync/store';
@@ -57,7 +57,7 @@ export function PublicKnowledgeNotice({ page }: { page: Marked }) {
   const t = useT();
   if (!isPublicKnowledge(page)) return null;
   return (
-    <p className="m-0 mb-2 flex items-center gap-1.5 text-[12px] text-muted">
+    <p className="m-0 mb-2 flex items-center gap-1.5 text-label text-muted">
       <Icon name="globe" size={13} />
       {t('page.publicKnowledgeEditing')}
     </p>

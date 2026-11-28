@@ -20,45 +20,16 @@ import { shortDate, today } from '../../kernel/design-system/format';
 import { useT } from '../../kernel/i18n/i18n';
 import { byId, list, useQuery } from '../../kernel/sync/store';
 import { useFeature, useMemberMap, useSeesMoney } from '../../kernel/identity/session';
-import { Empty } from '../../kernel/design-system/ui';
+import { Empty } from '../../kernel/design-system/ui/empty';
 import { asMoney } from '../../kernel/design-system/ui/money';
 import { Table } from '../../kernel/design-system/ui/table';
+import { pageBody } from '../../kernel/design-system/ui/page';
+import { Stat, statRow } from '../../kernel/design-system/ui/stat';
 
 const DAY = 86_400_000;
 const isDone = (task: Task): boolean => isDoneGroup(byId('state', task.state_id)?.group_key);
 
 /* ------------------------------------------------------------- primitives */
-
-/**
- * A headline number. Not a one-bar bar chart.
- *
- * With `onSelect` it is also the way into what it counted, and becomes a real
- * button rather than a div that listens for clicks — so it is tabbable, says
- * `aria-pressed`, and answers the space bar. Without one it stays a figure: a
- * tile that reads as pressable and shows a different set than the number on it
- * is worse than a tile that does nothing.
- */
-export function Stat({ label, value, hint, onSelect, active }: {
-  label: string;
-  value: string;
-  hint?: string;
-  onSelect?: () => void;
-  active?: boolean;
-}) {
-  const body = (
-    <>
-      <span className="stat-label">{label}</span>
-      <strong className="stat-value">{value}</strong>
-      {hint && <span className="stat-hint">{hint}</span>}
-    </>
-  );
-  if (!onSelect) return <div className="stat">{body}</div>;
-  return (
-    <button type="button" className="stat" aria-pressed={!!active} onClick={onSelect}>
-      {body}
-    </button>
-  );
-}
 
 export interface Column {
   key: string;
@@ -373,8 +344,8 @@ export function ProjectInsights({ projectId }: { projectId: string }) {
   }
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
-      <div className="kpi-row">
+    <div className={pageBody}>
+      <div className={statRow}>
         <Stat label={t('insights.open')} value={String(stats.open)} hint={t('insights.ofTotal', { count: tasks.length })} />
         <Stat label={t('insights.completed30')} value={String(stats.recent)} hint={t('insights.last30')} />
         <Stat
@@ -402,16 +373,16 @@ export function ProjectInsights({ projectId }: { projectId: string }) {
         )}
       </div>
 
-      <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
+      <div className="rounded border border-line bg-raised p-3.5">
         <h2 className="chart-title">{t('insights.throughput')}</h2>
-        <p className="text-[12px] text-muted">{t('insights.throughputHint')}</p>
+        <p className="text-label text-muted">{t('insights.throughputHint')}</p>
         <Columns data={throughput} caption={t('insights.throughputCaption')} />
       </div>
 
       {burnUp && (
-        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
+        <div className="rounded border border-line bg-raised p-3.5">
           <h2 className="chart-title">{t('insights.burnUp', { name: burnUp.name })}</h2>
-          <p className="text-[12px] text-muted">{t('insights.burnUpHint')}</p>
+          <p className="text-label text-muted">{t('insights.burnUpHint')}</p>
           <Lines
             labels={burnUp.labels}
             caption={t('insights.burnUpCaption', { name: burnUp.name })}
@@ -425,16 +396,16 @@ export function ProjectInsights({ projectId }: { projectId: string }) {
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {byLabel.length > 0 && (
-          <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
+          <div className="rounded border border-line bg-raised p-3.5">
             <h2 className="chart-title">{t('insights.byLabel')}</h2>
-            <p className="text-[12px] text-muted">{t('insights.byLabelHint')}</p>
+            <p className="text-label text-muted">{t('insights.byLabelHint')}</p>
             <Bars data={byLabel} caption={t('insights.byLabel')} />
           </div>
         )}
         {byPerson.length > 0 && (
-          <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
+          <div className="rounded border border-line bg-raised p-3.5">
             <h2 className="chart-title">{t('insights.byPerson')}</h2>
-            <p className="text-[12px] text-muted">{t('insights.byPersonHint')}</p>
+            <p className="text-label text-muted">{t('insights.byPersonHint')}</p>
             <Bars data={byPerson} caption={t('insights.byPerson')} />
           </div>
         )}

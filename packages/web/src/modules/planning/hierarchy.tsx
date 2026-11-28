@@ -14,7 +14,7 @@ import { useState } from 'react';
 import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
 import { cn } from '../../kernel/design-system/cn';
 import { chipVariants } from '../../kernel/design-system/ui/chip';
-import { Icon } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
 
 interface Node {
   id: string;

@@ -29,12 +29,15 @@ import {
   Variance, categoryKey, confidenceKey, recurrenceKey, stageKey,
   useProjectNames, useRollUp,
 } from '../budget';
-import { Stat } from '../../planning/insights';
+import { Stat } from '../../../kernel/design-system/ui/stat';
 import { MoneyInput, asMoney } from '../../../kernel/design-system/ui/money';
-import { Empty, Icon, Sheet, useConfirm, useDirty, useToast } from '../../../kernel/design-system/ui';
+import { Empty } from '../../../kernel/design-system/ui/empty';
+import { Icon } from '../../../kernel/design-system/ui/icon';
+import { Sheet, useConfirm, useDirty } from '../../../kernel/design-system/ui/sheet';
+import { useToast } from '../../../kernel/design-system/ui/toast';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { Chip } from '../../../kernel/design-system/ui/chip';
-import { Input, Select, Textarea } from '../../../kernel/design-system/ui/field';
+import { Input, Select, Textarea, checkRow, formField, formRow } from '../../../kernel/design-system/ui/field';
 import { SectionHeading } from '../../../kernel/design-system/ui/section';
 import { Attachments } from '../../../kernel/files/Attachments';
 import { monthName, shortDate, today } from '../../../kernel/design-system/format';
@@ -45,6 +48,9 @@ import { useTabStrip } from '../../../kernel/design-system/tab-strip';
 import { TabButton, TabList } from '../../../kernel/design-system/ui/tabs';
 import { useSaveChanges } from '../../../kernel/design-system/row-form';
 import { useCanWrite, useFeature } from '../../../kernel/identity/session';
+import { pageBody } from '../../../kernel/design-system/ui/page';
+import { statRow } from '../../../kernel/design-system/ui/stat';
+import { cn } from '../../../kernel/design-system/cn';
 
 /* A tick on a cumulative axis: the point in time the running total is read
    at, so a day is the honest label. Prose wants `monthName` instead. */
@@ -186,7 +192,7 @@ export function BudgetIndex() {
       {!budgets.length ? (
         <Empty emoji="💶" title={t('budget.emptyTitle')} hint={t('budget.emptyHint')} />
       ) : (
-        <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+        <div className={pageBody}>
           {/* The list first, then what it adds up to.
               The other way round is how this page shipped, and it reads fine on
               a desktop where the tiles are one compact row — on a phone they
@@ -243,9 +249,9 @@ export function BudgetIndex() {
 
           {/* `mt-5` rather than `tight`: this is no longer the top of the page. */}
           <SectionHeading>{t('budget.portfolioTitle')}</SectionHeading>
-          <p className="text-[12px] text-muted">{t('budget.portfolioHint')}</p>
+          <p className="text-label text-muted">{t('budget.portfolioHint')}</p>
           {perCurrency.map((row) => (
-            <div className="kpi-row" key={row.currency}>
+            <div className={statRow} key={row.currency}>
               <Stat
                 label={t('budget.approved')}
                 value={asMoney(row.approved, row.currency, true)}
@@ -263,16 +269,16 @@ export function BudgetIndex() {
 
           <div className="grid gap-3 sm:grid-cols-2">
             {byProject.length > 0 && (
-              <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
+              <div className="rounded border border-line bg-raised p-3.5">
                 <h2 className="chart-title">{t('budget.byProject')}</h2>
-                <p className="text-[12px] text-muted">{t('budget.byProjectHint')}</p>
+                <p className="text-label text-muted">{t('budget.byProjectHint')}</p>
                 <SplitBars rows={byProject} currency={main} caption={t('budget.byProjectCaption')} unit={t('budget.project')} />
               </div>
             )}
             {byCategory.length > 0 && (
-              <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
+              <div className="rounded border border-line bg-raised p-3.5">
                 <h2 className="chart-title">{t('budget.byCategory')}</h2>
-                <p className="text-[12px] text-muted">{t('budget.byCategoryHint')}</p>
+                <p className="text-label text-muted">{t('budget.byCategoryHint')}</p>
                 <SplitBars rows={byCategory} currency={main} caption={t('budget.byCategoryCaption')} unit={t('budget.category')} />
               </div>
             )}
@@ -393,8 +399,8 @@ function Dashboard({ budget, totals }: { budget: Budget; totals: ReturnType<type
   }
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
-      <div className="kpi-row">
+    <div className={pageBody}>
+      <div className={statRow}>
         <Stat
           label={t('budget.approved')}
           value={budget.approved ? asMoney(budget.approved, currency, true) : '—'}
@@ -424,9 +430,9 @@ function Dashboard({ budget, totals }: { budget: Budget; totals: ReturnType<type
       </div>
       {/* The sentence the tile has no room for. A hint long enough to explain
           a figure is a hint that stretches every tile in the row to match it. */}
-      {totals.runRate !== null && <p className="mb-4 text-[12px] text-muted">{t('budget.runRateAside')}</p>}
+      {totals.runRate !== null && <p className="mb-4 text-label text-muted">{t('budget.runRateAside')}</p>}
 
-      <div className="kpi-row">
+      <div className={statRow}>
         <Stat label={t('budget.committed')} value={asMoney(totals.committed, currency, true)} />
         <Stat label={t('budget.invoiced')} value={asMoney(totals.invoiced, currency, true)} />
         <Stat label={t('budget.paid')} value={asMoney(totals.paid, currency, true)} />
@@ -440,9 +446,9 @@ function Dashboard({ budget, totals }: { budget: Budget; totals: ReturnType<type
         )}
       </div>
 
-      <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
+      <div className="rounded border border-line bg-raised p-3.5">
         <h2 className="chart-title">{t('budget.burn')}</h2>
-        <p className="text-[12px] text-muted">{t('budget.burnHint')}</p>
+        <p className="text-label text-muted">{t('budget.burnHint')}</p>
         <BurnChart
           labels={totals.byMonth.map((row) => monthLabel(row.month))}
           currency={currency}
@@ -462,9 +468,9 @@ function Dashboard({ budget, totals }: { budget: Budget; totals: ReturnType<type
         />
       </div>
 
-      <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
+      <div className="rounded border border-line bg-raised p-3.5">
         <h2 className="chart-title">{t('budget.monthly')}</h2>
-        <p className="text-[12px] text-muted">{t('budget.monthlyHint')}</p>
+        <p className="text-label text-muted">{t('budget.monthlyHint')}</p>
         <PlanVsActual
           currency={currency}
           caption={t('budget.monthlyCaption')}
@@ -475,9 +481,9 @@ function Dashboard({ budget, totals }: { budget: Budget; totals: ReturnType<type
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
+        <div className="rounded border border-line bg-raised p-3.5">
           <h2 className="chart-title">{t('budget.byCategory')}</h2>
-          <p className="text-[12px] text-muted">{t('budget.byCategoryHint')}</p>
+          <p className="text-label text-muted">{t('budget.byCategoryHint')}</p>
           <SplitBars
             currency={currency}
             caption={t('budget.byCategoryCaption')}
@@ -487,9 +493,9 @@ function Dashboard({ budget, totals }: { budget: Budget; totals: ReturnType<type
             }))}
           />
         </div>
-        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
+        <div className="rounded border border-line bg-raised p-3.5">
           <h2 className="chart-title">{t('budget.byProject')}</h2>
-          <p className="text-[12px] text-muted">{t('budget.byProjectHint')}</p>
+          <p className="text-label text-muted">{t('budget.byProjectHint')}</p>
           <SplitBars
             currency={currency}
             caption={t('budget.byProjectCaption')}
@@ -502,7 +508,7 @@ function Dashboard({ budget, totals }: { budget: Budget; totals: ReturnType<type
             }))}
           />
         </div>
-        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
+        <div className="rounded border border-line bg-raised p-3.5">
           <h2 className="chart-title">{t('budget.byConfidence')}</h2>
           <SplitBars
             currency={currency}
@@ -513,7 +519,7 @@ function Dashboard({ budget, totals }: { budget: Budget; totals: ReturnType<type
             })).filter((row) => row.planned)}
           />
         </div>
-        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
+        <div className="rounded border border-line bg-raised p-3.5">
           <h2 className="chart-title">{t('budget.byKind')}</h2>
           <SplitBars
             currency={currency}
@@ -580,7 +586,7 @@ function Plan({ budget }: { budget: Budget }) {
   const anyRegistered = fromRegister.size > 0;
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+    <div className={pageBody}>
       {canWrite && (
         <div className="mb-3 flex justify-end">
           <Button variant="primary" size="sm" onClick={() => setEditing('new')}>
@@ -664,7 +670,7 @@ function Plan({ budget }: { budget: Budget }) {
         </div>
       )}
 
-      {anyRegistered && <p className="mt-2 text-[12px] text-muted">{t('estate.fromRegisterHint')}</p>}
+      {anyRegistered && <p className="mt-2 text-label text-muted">{t('estate.fromRegisterHint')}</p>}
 
       {editing && (
         <LineForm
@@ -730,7 +736,7 @@ function LineForm({ budget, line, last, onClose }: {
       dirty={dirty}
       footer={<Button variant="primary" onClick={save} disabled={!form.name.trim()}>{t('action.save')}</Button>}
     >
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="bl-name">{t('budget.lineName')}</label>
         <Input
           id="bl-name"
@@ -741,8 +747,8 @@ function LineForm({ budget, line, last, onClose }: {
         />
       </div>
 
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="bl-amount">{t('budget.amount')} ({budget.currency})</label>
           <MoneyInput
             id="bl-amount"
@@ -750,9 +756,9 @@ function LineForm({ budget, line, last, onClose }: {
             value={form.amount}
             onChange={(amount) => setForm({ ...form, amount })}
           />
-          <span className="text-[12px] text-muted">{t('budget.amountHint')}</span>
+          <span className="text-label text-muted">{t('budget.amountHint')}</span>
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="bl-every">{t('budget.recurrence')}</label>
           <Select
             id="bl-every"
@@ -766,8 +772,8 @@ function LineForm({ budget, line, last, onClose }: {
         </div>
       </div>
 
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="bl-category">{t('budget.category')}</label>
           <Select
             id="bl-category"
@@ -779,7 +785,7 @@ function LineForm({ budget, line, last, onClose }: {
             ))}
           </Select>
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="bl-kind">{t('budget.kind')}</label>
           <Select
             id="bl-kind"
@@ -791,7 +797,7 @@ function LineForm({ budget, line, last, onClose }: {
             ))}
           </Select>
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="bl-confidence">{t('budget.confidence')}</label>
           <Select
             id="bl-confidence"
@@ -805,28 +811,28 @@ function LineForm({ budget, line, last, onClose }: {
         </div>
       </div>
 
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="bl-from">{t('budget.periodStart')}</label>
           <Input id="bl-from" type="date" value={form.starts_on} onChange={(event) => setForm({ ...form, starts_on: event.target.value })} />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="bl-to">{t('budget.periodEnd')}</label>
           <Input id="bl-to" type="date" value={form.ends_on} onChange={(event) => setForm({ ...form, ends_on: event.target.value })} />
         </div>
       </div>
 
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="bl-vendor">{t('budget.vendor')}</label>
         <Input id="bl-vendor" value={form.vendor} onChange={(event) => setForm({ ...form, vendor: event.target.value })} />
       </div>
 
-      <div className="field" role="group" aria-labelledby="bl-charges">
+      <div className={formField} role="group" aria-labelledby="bl-charges">
         <label id="bl-charges">{t('budget.charges')}</label>
         <AllocationEditor value={allocations} projects={projects} onChange={setAllocations} />
       </div>
 
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="bl-note">{t('budget.adjNote')}</label>
         <Textarea id="bl-note" rows={2} value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} />
       </div>
@@ -850,7 +856,7 @@ function Actuals({ budget }: { budget: Budget }) {
   );
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+    <div className={pageBody}>
       {canWrite && <ConfirmPlanned budget={budget} lines={lines} actuals={actuals} />}
 
       {canWrite && (
@@ -1056,7 +1062,7 @@ function ConfirmPlanned({ budget, lines, actuals }: {
             {planned.map((row) => (
               <li key={row.line.id} className={row.confirmed ? 'done' : ''}>
                 <span className="flex-1 min-w-0 truncate">{row.line.name}</span>
-                <span className="text-[12px] text-muted">{shortDate(row.on)}</span>
+                <span className="text-label text-muted">{shortDate(row.on)}</span>
                 <span className="tabular-nums">{asMoney(row.amount, budget.currency)}</span>
                 {row.confirmed ? (
                   /* Already recorded, so no button — and the figure that is
@@ -1077,7 +1083,7 @@ function ConfirmPlanned({ budget, lines, actuals }: {
               <Button variant="primary" size="sm" onClick={() => take(open)}>
                 {t('budget.confirmAll', { count: open.length, amount: asMoney(outstanding, budget.currency) })}
               </Button>
-              <span className="text-[12px] text-muted">{t('budget.confirmHint')}</span>
+              <span className="text-label text-muted">{t('budget.confirmHint')}</span>
             </div>
           )}
         </>
@@ -1155,7 +1161,7 @@ function ActualForm({ budget, entry, lines, onClose }: {
       dirty={dirty}
       footer={<Button variant="primary" onClick={save} disabled={!form.description.trim()}>{t('action.save')}</Button>}
     >
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="ba-what">{t('budget.actualDescription')}</label>
         <Input
           id="ba-what"
@@ -1166,8 +1172,8 @@ function ActualForm({ budget, entry, lines, onClose }: {
         />
       </div>
 
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="ba-amount">{t('budget.amount')} ({budget.currency})</label>
           <MoneyInput
             id="ba-amount"
@@ -1176,13 +1182,13 @@ function ActualForm({ budget, entry, lines, onClose }: {
             onChange={(amount) => setForm({ ...form, amount })}
           />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="ba-date">{t('budget.spentOn')}</label>
           <Input id="ba-date" type="date" value={form.spent_on} onChange={(event) => setForm({ ...form, spent_on: event.target.value })} />
         </div>
       </div>
 
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="ba-line">{t('budget.against')}</label>
         <Select id="ba-line" value={form.line_id} onChange={(event) => pickLine(event.target.value)}>
           <option value="">{t('budget.noLine')}</option>
@@ -1190,8 +1196,8 @@ function ActualForm({ budget, entry, lines, onClose }: {
         </Select>
       </div>
 
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="ba-category">{t('budget.category')}</label>
           <Select
             id="ba-category"
@@ -1203,7 +1209,7 @@ function ActualForm({ budget, entry, lines, onClose }: {
             ))}
           </Select>
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="ba-stage">{t('budget.stage')}</label>
           <Select
             id="ba-stage"
@@ -1212,22 +1218,22 @@ function ActualForm({ budget, entry, lines, onClose }: {
           >
             {SPEND_STAGES.map((stage) => <option key={stage} value={stage}>{t(stageKey(stage))}</option>)}
           </Select>
-          <span className="text-[12px] text-muted">{t('budget.stageHint')}</span>
+          <span className="text-label text-muted">{t('budget.stageHint')}</span>
         </div>
       </div>
 
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="ba-vendor">{t('budget.vendor')}</label>
           <Input id="ba-vendor" value={form.vendor} onChange={(event) => setForm({ ...form, vendor: event.target.value })} />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="ba-ref">{t('budget.reference')}</label>
           <Input id="ba-ref" value={form.reference} onChange={(event) => setForm({ ...form, reference: event.target.value })} />
         </div>
       </div>
 
-      <div className="field" role="group" aria-labelledby="ba-charges">
+      <div className={formField} role="group" aria-labelledby="ba-charges">
         <label id="ba-charges">{t('budget.charges')}</label>
         <AllocationEditor value={allocations} projects={projects} onChange={setAllocations} />
       </div>
@@ -1252,8 +1258,8 @@ function Scenarios({ budget, showing, onShow }: {
   const plan = useMemo(() => rollUp({ budget, lines, actuals }), [budget, lines, actuals]);
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
-      <p className="text-[12px] text-muted">{t('budget.scenarioHint')}</p>
+    <div className={pageBody}>
+      <p className="text-label text-muted">{t('budget.scenarioHint')}</p>
       {canWrite && (
         <div className="mb-3 flex justify-end">
           <Button variant="primary" size="sm" onClick={() => setEditing('new')}>
@@ -1372,7 +1378,7 @@ function ScenarioForm({ budget, scenario, lines, onClose }: {
       onClose={onClose}
       footer={<Button variant="primary" onClick={save} disabled={!name.trim()}>{t('action.save')}</Button>}
     >
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="bs-name">{t('budget.scenarioName')}</label>
         <Input
           id="bs-name"
@@ -1382,16 +1388,16 @@ function ScenarioForm({ budget, scenario, lines, onClose }: {
           onChange={(event) => setName(event.target.value)}
         />
       </div>
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="bs-desc">{t('budget.description')}</label>
         <Textarea id="bs-desc" rows={2} value={description} onChange={(event) => setDescription(event.target.value)} />
       </div>
 
       <SectionHeading tight>{t('budget.weights')}</SectionHeading>
-      <p className="text-[12px] text-muted">{t('budget.weightsHint')}</p>
-      <div className="field-row">
+      <p className="text-label text-muted">{t('budget.weightsHint')}</p>
+      <div className={formRow}>
         {COST_CONFIDENCE.map((level) => (
-          <div className="field flex-1 min-w-0" key={level}>
+          <div className={cn(formField, 'flex-1 min-w-0')} key={level}>
             <label htmlFor={`bs-w-${level}`}>{t(confidenceKey(level))}</label>
             <Input
               id={`bs-w-${level}`}
@@ -1408,8 +1414,8 @@ function ScenarioForm({ budget, scenario, lines, onClose }: {
       <SectionHeading tight>{t('budget.adjustment')}</SectionHeading>
       {adjustments.map((adjustment, index) => (
         <div className="adjustment" key={index}>
-          <div className="field-row">
-            <div className="field flex-1 min-w-0">
+          <div className={formRow}>
+            <div className={cn(formField, 'flex-1 min-w-0')}>
               <label htmlFor={`bs-a-${index}`}>{t('budget.adjApplies')}</label>
               <Select
                 id={`bs-a-${index}`}
@@ -1427,7 +1433,7 @@ function ScenarioForm({ budget, scenario, lines, onClose }: {
                 {lines.map((line) => <option key={line.id} value={line.id}>{line.name}</option>)}
               </Select>
             </div>
-            <div className="field flex-1 min-w-0">
+            <div className={cn(formField, 'flex-1 min-w-0')}>
               <label htmlFor={`bs-f-${index}`}>{t('budget.adjFactor')} %</label>
               <Input
                 id={`bs-f-${index}`}
@@ -1437,7 +1443,7 @@ function ScenarioForm({ budget, scenario, lines, onClose }: {
                 onChange={(event) => set(index, { factor: Math.max(0, Number(event.target.value) || 0) * 100 })}
               />
             </div>
-            <div className="field flex-1 min-w-0">
+            <div className={cn(formField, 'flex-1 min-w-0')}>
               <label htmlFor={`bs-s-${index}`}>{t('budget.adjShift')}</label>
               <Input
                 id={`bs-s-${index}`}
@@ -1447,8 +1453,8 @@ function ScenarioForm({ budget, scenario, lines, onClose }: {
               />
             </div>
           </div>
-          <div className="field-row items-center">
-            <label className="check-row flex-1 min-w-0">
+          <div className={cn(formRow, 'items-center')}>
+            <label className={cn(checkRow, 'flex-1 min-w-0')}>
               <input
                 type="checkbox"
                 checked={!!adjustment.drop}
@@ -1529,7 +1535,7 @@ function BudgetFields({ budget, onChange, disabled }: {
 
   return (
     <>
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="b-name">{t('budget.name')}</label>
         <Input
           id="b-name"
@@ -1539,7 +1545,7 @@ function BudgetFields({ budget, onChange, disabled }: {
           onChange={(event) => onChange({ name: event.target.value })}
         />
       </div>
-      <div className="field">
+      <div className={formField}>
         <label htmlFor="b-desc">{t('budget.description')}</label>
         <Textarea
           id="b-desc"
@@ -1549,8 +1555,8 @@ function BudgetFields({ budget, onChange, disabled }: {
           onChange={(event) => onChange({ description: event.target.value })}
         />
       </div>
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="b-currency">{t('budget.currency')}</label>
           <Input
             id="b-currency"
@@ -1559,9 +1565,9 @@ function BudgetFields({ budget, onChange, disabled }: {
             value={budget.currency ?? 'EUR'}
             onChange={(event) => onChange({ currency: event.target.value.toUpperCase() })}
           />
-          <span className="text-[12px] text-muted">{t('budget.currencyHint')}</span>
+          <span className="text-label text-muted">{t('budget.currencyHint')}</span>
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="b-approved">{t('budget.approved')}</label>
           <MoneyInput
             id="b-approved"
@@ -1569,11 +1575,11 @@ function BudgetFields({ budget, onChange, disabled }: {
             value={budget.approved ?? 0}
             onChange={(approved) => onChange({ approved })}
           />
-          <span className="text-[12px] text-muted">{t('budget.approvedHint')}</span>
+          <span className="text-label text-muted">{t('budget.approvedHint')}</span>
         </div>
       </div>
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
+      <div className={formRow}>
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="b-from">{t('budget.periodStart')}</label>
           <Input
             id="b-from"
@@ -1583,7 +1589,7 @@ function BudgetFields({ budget, onChange, disabled }: {
             onChange={(event) => onChange({ period_start: event.target.value || null })}
           />
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="b-to">{t('budget.periodEnd')}</label>
           <Input
             id="b-to"
@@ -1595,9 +1601,9 @@ function BudgetFields({ budget, onChange, disabled }: {
           {/* What an empty field does, said out loud. It used to mean a period
               one month long, which nobody would have guessed and nothing said
               — the budget simply came out an order of magnitude small. */}
-          <span className="text-[12px] text-muted">{t('budget.periodEndHint')}</span>
+          <span className="text-label text-muted">{t('budget.periodEndHint')}</span>
         </div>
-        <div className="field flex-1 min-w-0">
+        <div className={cn(formField, 'flex-1 min-w-0')}>
           <label htmlFor="b-status">{t('budget.status')}</label>
           <Select
             id="b-status"
@@ -1612,11 +1618,11 @@ function BudgetFields({ budget, onChange, disabled }: {
         </div>
       </div>
 
-      <div className="field" role="group" aria-labelledby="b-scope">
+      <div className={formField} role="group" aria-labelledby="b-scope">
         <label id="b-scope">{t('budget.scope')}</label>
-        <span className="text-[12px] text-muted">{t('budget.scopeHint')}</span>
+        <span className="text-label text-muted">{t('budget.scopeHint')}</span>
         <div className="scope-picker">
-          <label className="check-row">
+          <label className={checkRow}>
             <input
               type="checkbox"
               disabled={disabled}
@@ -1626,7 +1632,7 @@ function BudgetFields({ budget, onChange, disabled }: {
             <span><span>{t('budget.scopeWorkspace')}</span></span>
           </label>
           {projects.map((project) => (
-            <label className="check-row" key={project.id}>
+            <label className={checkRow} key={project.id}>
               <input
                 type="checkbox"
                 disabled={disabled}

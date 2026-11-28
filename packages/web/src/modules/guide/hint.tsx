@@ -7,7 +7,8 @@
  * to compile, and the design system is back to knowing only about itself.
  */
 import { Link } from 'react-router-dom';
-import { Icon, provideGuideHint } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { provideGuideHint } from '../../kernel/design-system/ui/empty';
 import { useT } from '../../kernel/i18n/i18n';
 import { guideHref, type GuideTarget } from './guide';
 

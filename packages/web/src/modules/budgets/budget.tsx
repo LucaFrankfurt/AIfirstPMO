@@ -20,12 +20,14 @@ import {
 } from '@kolibri/shared';
 import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
 import { list, useQuery } from '../../kernel/sync/store';
-import { Icon } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
 import { Chip } from '../../kernel/design-system/ui/chip';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Input } from '../../kernel/design-system/ui/field';
 import { Table } from '../../kernel/design-system/ui/table';
 import { asMoney } from '../../kernel/design-system/ui/money';
+import { pageBody } from '../../kernel/design-system/ui/page';
+import { statHint, statLabel, statRow, statTile, statValue } from '../../kernel/design-system/ui/stat';
 
 /* ------------------------------------------------------------------ money */
 
@@ -478,20 +480,20 @@ export function ProjectBudget({ projectId }: { projectId: string }) {
 
   if (!charged.length) {
     return (
-      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
-        <p className="text-[13px] text-muted">{t('budget.projectNone')}</p>
+      <div className={pageBody}>
+        <p className="text-body text-muted">{t('budget.projectNone')}</p>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
-      <div className="kpi-row">
+    <div className={pageBody}>
+      <div className={statRow}>
         {totals.map((row) => (
-          <div className="stat" key={row.currency}>
-            <span className="stat-label">{t('budget.projectPlanned')}</span>
-            <strong className="stat-value">{asMoney(row.planned, row.currency, true)}</strong>
-            <span className="stat-hint">
+          <div className={statTile} key={row.currency}>
+            <span className={statLabel}>{t('budget.projectPlanned')}</span>
+            <strong className={statValue}>{asMoney(row.planned, row.currency, true)}</strong>
+            <span className={statHint}>
               {t('budget.projectActualHint', { amount: asMoney(row.actual, row.currency, true), count: row.budgets })}
             </span>
           </div>
@@ -522,7 +524,7 @@ export function ProjectBudget({ projectId }: { projectId: string }) {
           </tbody>
         </table>
       </div>
-      <p className="mt-2 text-[12px] text-muted">{t('budget.projectHint')}</p>
+      <p className="mt-2 text-label text-muted">{t('budget.projectHint')}</p>
     </div>
   );
 }

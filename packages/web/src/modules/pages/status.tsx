@@ -23,12 +23,15 @@ import {
 import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
 import { list, useQuery } from '../../kernel/sync/store';
 import { create, remove, update } from '../../kernel/sync/mutations';
-import { Icon, useConfirm, type MenuGroup } from '../../kernel/design-system/ui';
+import { Icon } from '../../kernel/design-system/ui/icon';
+import { useConfirm } from '../../kernel/design-system/ui/sheet';
+import { type MenuGroup } from '../../kernel/design-system/ui/menu-button';
 import { Button } from '../../kernel/design-system/ui/button';
-import { Input, Select } from '../../kernel/design-system/ui/field';
+import { Input, Select, formField, formRow } from '../../kernel/design-system/ui/field';
 import { SectionHeading } from '../../kernel/design-system/ui/section';
 import { useCanWrite, useSession } from '../../kernel/identity/session';
 import { Chip, chipDot } from '../../kernel/design-system/ui/chip';
+import { cn } from '../../kernel/design-system/cn';
 
 /** What each kind is called where a workspace is choosing one. */
 export const KIND_KEY: Record<PageStatusKind, TranslationKey> = {
@@ -166,7 +169,7 @@ export function PageStatusSettings() {
       <div className="flex items-center gap-2" style={{ margin: '18px 0 8px' }}>
         <SectionHeading tight>{t('page.statuses')}</SectionHeading>
       </div>
-      <p className="mt-0 mb-2.5 text-[12.5px] text-muted">{t('page.statusesHint')}</p>
+      <p className="mt-0 mb-2.5 text-label text-muted">{t('page.statusesHint')}</p>
 
       {statuses.map((status, at) => (
         <div className="stack-card" key={status.id}>
@@ -209,8 +212,8 @@ export function PageStatusSettings() {
               <Icon name="trash" size={14} />
             </Button>
           </div>
-          <div className="field-row mt-2">
-            <div className="field">
+          <div className={cn(formRow, 'mt-2')}>
+            <div className={formField}>
               <label htmlFor={`ps-kind-${status.id}`}>{t('page.statusKind')}</label>
               <Select
                 id={`ps-kind-${status.id}`} value={status.kind}

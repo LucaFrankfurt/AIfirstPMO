@@ -39,6 +39,12 @@ const MARKERS = new Set([
   'gx-planbar',
   'lines',        // marks which chart a .chart-plot is, for the SVG inside it
   'menu',         // the palette borrows the name; the Radix menu carries the styles
+  'empty',        // an empty state: `Empty` draws itself; the walkthrough counts guide links in one
+  'toast',        // a snackbar: `ToastHost` draws it; the walkthrough clicks its undo by it
+  // Replaced by class strings in code; the walkthrough still finds things by them.
+  'check-row',    // a checkbox row (`checkRow`)
+  'kpi-row', 'stat', 'stat-label', 'stat-value', 'stat-hint', // My work's figures (`ui/stat.ts`)
+  'mono',         // a task's key, which the walkthrough reads to know which task it has
   // Table columns name themselves so a column-visibility setting can address
   // them. The widths come from `.narrow` and from the table, not from these.
   'type', 'state', 'assignees', 'priority', 'due_date', 'estimate', 'labels', 'created_by', 'updated_at',

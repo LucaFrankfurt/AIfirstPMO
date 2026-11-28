@@ -20,7 +20,7 @@
  * repeat it.
  */
 import type { WorkspaceFeatures } from '@kolibri/shared';
-import type { IconName } from './ui';
+import type { IconName } from './ui/icon';
 import type { TranslationKey } from '../i18n/i18n';
 
 export interface Destination {
