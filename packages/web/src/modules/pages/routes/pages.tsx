@@ -378,161 +378,179 @@ export function PagesIndex() {
     <>
       <Header title={t('page.listTitle')}>
         {/*
-          * The way to everything this screen does not draw: the archive, the
-          * trash, and what `tidy.ts` found.
+          * Making a page, and nothing else.
           *
-          * It carried a count, and the count was wrong twice. It summed the
-          * findings *and* the archive while the screen it opens reports the
-          * findings alone and puts the archive in a tile of its own — two
-          * numbers for one thing, which is the one duplication this repository
-          * will not keep. And it was computed over `pages`, already narrowed by
-          * the label filter above, so picking a label made it drop as though
-          * something had been tidied.
+          * This header held up to eight controls — tidy, the knowledge base, the
+          * filter, templates, import, canvas, board and the new page — in a row
+          * 52px tall that scrolls sideways. In German at 1020px it ran 347px
+          * past its room, the title was squeezed to its 72px floor, and the
+          * button that makes a page, the one this screen exists for, had
+          * scrolled out of sight. Still 87px too wide at 1280.
           *
-          * Getting it right would also have meant a third full parse of every
-          * page body on this screen: `tidyPages` builds a `linkGraph`, and
-          * `usePageGraph` and `useUnwritten` below each build one already. For
-          * a badge. So the number lives where it can be checked against what is
-          * under it, and the button is a label.
+          * So the four ways of starting something less usual than a page hang
+          * from the page button as a split, and what works on the pages that
+          * exist stands in a row above them, in the body.
           */}
-        <Button variant="secondary" size="sm" onClick={() => navigate('/pages/tidy')}>
-          <Icon name="archive" size={14} />
-          <span className="hide-sm">{t('page.tidy')}</span>
-        </Button>
-        {/* The same pages, gathered: those marked for people outside. */}
-        <Button
-          variant="secondary" size="sm" title={t('page.publicKnowledge')} aria-label={t('page.publicKnowledge')}
-          onClick={() => navigate('/pages/knowledge')}
-        >
-          <Icon name="globe" size={14} />
-          <span className="hide-sm">{t('page.publicKnowledge')}</span>
-        </Button>
-        {/* One filter button with drawers rather than three buttons. This
-            header is one row 52px tall and scrolls sideways when it does not
-            fit; a control per question costs more than the questions are worth,
-            and all of them narrow the same tree. Drawers, because labels and
-            types are lists that grow with the workspace — see `check:menus`. */}
-        {(inUse.length > 0 || statuses.length > 0 || types.length > 0 || knowledge) && (
-          <MenuButton
-            variant="secondary" size="sm"
-            items={[
-              { id: 'all', label: t('page.allPages'), hint: filtering ? undefined : '✓',
-                onSelect: () => { setLabelsOn([]); setRung(''); setTypeOn(''); setHideKnowledge(false); } },
-              // A switch rather than a list, so a row of its own and not a drawer.
-              ...(knowledge ? [{
-                id: 'hide-knowledge',
-                label: t('page.hideKnowledge'),
-                icon: <Icon name="globe" size={14} />,
-                hint: hideKnowledge ? '✓' : undefined,
-                onSelect: () => setHideKnowledge(!hideKnowledge),
-              }] : []),
-              ...(inUse.length ? [{
-                id: 'labels',
-                label: t('page.labels'),
-                icon: <Icon name="tag" size={14} />,
-                hint: labelsOn.length ? String(labelsOn.length) : undefined,
-                search: inUse.length > 8,
-                items: inUse.map((label) => ({
-                  id: `label-${label.id}`,
-                  label: label.name,
-                  icon: <span className={chipDot} style={{ background: label.color }} />,
-                  // Which project's: eight projects each seeded a `Bug`, and the
-                  // name alone names none of them.
-                  hint: [labelsOn.includes(label.id) ? '✓' : null,
-                    label.project_id ? byId('project', label.project_id)?.name : null].filter(Boolean).join(' ') || undefined,
-                  keepOpen: true,
-                  onSelect: () => toggleLabel(label.id),
-                })),
-              }] : []),
-              ...(statuses.length ? [{
-                id: 'status',
-                label: t('page.status'),
-                icon: <Icon name="check" size={14} />,
-                hint: statuses.find((status) => status.id === rung)?.name,
-                items: statuses.map((status) => ({
-                  id: `status-${status.id}`,
-                  label: status.name,
-                  icon: <span className={chipDot} style={{ background: status.color }} />,
-                  hint: rung === status.id ? '✓' : undefined,
-                  onSelect: () => setRung(rung === status.id ? '' : status.id),
-                })),
-              }] : []),
-              ...(types.length ? [{
-                id: 'type',
-                label: t('page.type'),
-                icon: <Icon name="page" size={14} />,
-                hint: typeOn === NO_TYPE ? t('page.typeNone') : types.find((type) => type.id === typeOn)?.name,
-                items: [
-                  ...types.map((type) => ({
-                    id: `type-${type.id}`,
-                    label: type.name,
-                    icon: <span aria-hidden="true">{type.icon ?? '•'}</span>,
-                    hint: typeOn === type.id ? '✓' : undefined,
-                    onSelect: () => setTypeOn(typeOn === type.id ? '' : type.id),
+        {canWrite && (
+          // `gap-px`: the header's own surface, showing through between the
+          // two halves, is the line that says they are two buttons.
+          <div className="flex gap-px">
+            <Button
+              variant="primary" size="sm" className="rounded-e-none"
+              onClick={() => navigate(`/pages/${createPage({ title: t('common.untitled') }, me)}`)}
+            >
+              <Icon name="plus" size={14} /> <span className="hide-sm">{t('page.new')}</span>
+            </Button>
+            <MenuButton
+              variant="primary" size="sm" className="rounded-s-none px-2" align="end"
+              label={t('page.newKinds')} title={t('page.newKinds')}
+              items={[
+                {
+                  id: 'canvas', label: t('canvas.new'), icon: <Icon name="canvas" size={14} />,
+                  onSelect: () => navigate(`/pages/${createPage({ title: t('common.untitled'), format: 'canvas', icon: CANVAS_ICON }, me)}`),
+                },
+                {
+                  id: 'board', label: t('board.new'), icon: <Icon name="page" size={14} />,
+                  onSelect: () => navigate(`/pages/${createPage({ title: t('common.untitled'), format: 'board', icon: BOARD_ICON }, me)}`),
+                },
+                // A drawer, because templates are a list that grows with the
+                // workspace — `check:menus` keeps those out of the top level.
+                ...(templates.length ? [{
+                  id: 'templates', label: t('page.newFromTemplate'), icon: <Icon name="copy" size={14} />,
+                  search: templates.length > 8,
+                  items: templates.map((template) => ({
+                    id: template.id,
+                    label: `${template.icon ?? '📄'} ${template.title}`,
+                    // A copy, not a link: a template is a starting point, and editing
+                    // the new page must not edit the template. In the template's own
+                    // format, with its icon and its type — an HTML template used to
+                    // become a markdown page showing its tags — and with copies of
+                    // its boards when it is a canvas or a board page.
+                    onSelect: () => {
+                      const made = createPage({
+                        title: template.title, content: template.content, project_id: template.project_id,
+                        format: template.format ?? 'markdown', icon: template.icon ?? undefined, type_id: template.type_id ?? null,
+                      }, me);
+                      copyBoards(template, { id: made, title: template.title, format: template.format ?? 'markdown' });
+                      navigate(`/pages/${made}`);
+                    },
                   })),
-                  { id: 'type-none', label: t('page.typeNone'), hint: typeOn === NO_TYPE ? '✓' : undefined,
-                    onSelect: () => setTypeOn(typeOn === NO_TYPE ? '' : NO_TYPE) },
-                ],
-              }] : []),
-            ]}
-          >
-            <Icon name="filter" size={14} />
-            <span className="hide-sm">{filtering ? t('page.filters', { count: filtering }) : t('page.filterByLabel')}</span>
-          </MenuButton>
-        )}
-        {templates.length > 0 && (
-          <MenuButton
-            variant="secondary" size="sm"
-            items={templates.map((template) => ({
-              id: template.id,
-              label: `${template.icon ?? '📄'} ${template.title}`,
-              // A copy, not a link: a template is a starting point, and editing
-              // the new page must not edit the template. In the template's own
-              // format, with its icon and its type — an HTML template used to
-              // become a markdown page showing its tags — and with copies of
-              // its boards when it is a canvas or a board page.
-              onSelect: () => {
-                const made = createPage({
-                  title: template.title, content: template.content, project_id: template.project_id,
-                  format: template.format ?? 'markdown', icon: template.icon ?? undefined, type_id: template.type_id ?? null,
-                }, me);
-                copyBoards(template, { id: made, title: template.title, format: template.format ?? 'markdown' });
-                navigate(`/pages/${made}`);
-              },
-            }))}
-          >
-            <Icon name="copy" size={14} />
-            <span className="hide-sm">{t('page.newFromTemplate')}</span>
-          </MenuButton>
-        )}
-        {canWrite && (
-          <Button variant="secondary" size="sm" onClick={() => setImporting(true)}>
-            <Icon name="attach" size={14} /> <span className="hide-sm">{t('page.import')}</span>
-          </Button>
-        )}
-        {canWrite && (
-          <Button
-            variant="secondary" size="sm" title={t('canvas.new')} aria-label={t('canvas.new')}
-            onClick={() => navigate(`/pages/${createPage({ title: t('common.untitled'), format: 'canvas', icon: CANVAS_ICON }, me)}`)}
-          >
-            <Icon name="canvas" size={14} /> <span className="hide-sm">{t('canvas.new')}</span>
-          </Button>
-        )}
-        {canWrite && (
-          <Button
-            variant="secondary" size="sm" title={t('board.new')} aria-label={t('board.new')}
-            onClick={() => navigate(`/pages/${createPage({ title: t('common.untitled'), format: 'board', icon: BOARD_ICON }, me)}`)}
-          >
-            <Icon name="page" size={14} /> <span className="hide-sm">{t('board.new')}</span>
-          </Button>
-        )}
-        {canWrite && (
-          <Button variant="primary" size="sm" onClick={() => navigate(`/pages/${createPage({ title: t('common.untitled') }, me)}`)}>
-            <Icon name="plus" size={14} /> <span className="hide-sm">{t('page.new')}</span>
-          </Button>
+                }] : []),
+                { id: 'import', label: t('page.import'), icon: <Icon name="attach" size={14} />, onSelect: () => setImporting(true) },
+              ]}
+            >
+              <Icon name="chevronDown" size={14} />
+            </MenuButton>
+          </div>
         )}
       </Header>
       <div className={pageBody}>
+        {/* `list-tools`, the same row a task list has: what narrows these
+            pages, and the two screens that show them another way. */}
+        <div className="list-tools mb-4 flex flex-wrap items-center gap-1.5">
+          {/* One filter button with drawers rather than three buttons: a control
+              per question costs more than the questions are worth, and all of
+              them narrow the same tree. Drawers, because labels and types are
+              lists that grow with the workspace — see `check:menus`. */}
+          {(inUse.length > 0 || statuses.length > 0 || types.length > 0 || knowledge) && (
+            <MenuButton
+              variant="secondary" size="sm"
+              items={[
+                { id: 'all', label: t('page.allPages'), hint: filtering ? undefined : '✓',
+                  onSelect: () => { setLabelsOn([]); setRung(''); setTypeOn(''); setHideKnowledge(false); } },
+                // A switch rather than a list, so a row of its own and not a drawer.
+                ...(knowledge ? [{
+                  id: 'hide-knowledge',
+                  label: t('page.hideKnowledge'),
+                  icon: <Icon name="globe" size={14} />,
+                  hint: hideKnowledge ? '✓' : undefined,
+                  onSelect: () => setHideKnowledge(!hideKnowledge),
+                }] : []),
+                ...(inUse.length ? [{
+                  id: 'labels',
+                  label: t('page.labels'),
+                  icon: <Icon name="tag" size={14} />,
+                  hint: labelsOn.length ? String(labelsOn.length) : undefined,
+                  search: inUse.length > 8,
+                  items: inUse.map((label) => ({
+                    id: `label-${label.id}`,
+                    label: label.name,
+                    icon: <span className={chipDot} style={{ background: label.color }} />,
+                    // Which project's: eight projects each seeded a `Bug`, and the
+                    // name alone names none of them.
+                    hint: [labelsOn.includes(label.id) ? '✓' : null,
+                      label.project_id ? byId('project', label.project_id)?.name : null].filter(Boolean).join(' ') || undefined,
+                    keepOpen: true,
+                    onSelect: () => toggleLabel(label.id),
+                  })),
+                }] : []),
+                ...(statuses.length ? [{
+                  id: 'status',
+                  label: t('page.status'),
+                  icon: <Icon name="check" size={14} />,
+                  hint: statuses.find((status) => status.id === rung)?.name,
+                  items: statuses.map((status) => ({
+                    id: `status-${status.id}`,
+                    label: status.name,
+                    icon: <span className={chipDot} style={{ background: status.color }} />,
+                    hint: rung === status.id ? '✓' : undefined,
+                    onSelect: () => setRung(rung === status.id ? '' : status.id),
+                  })),
+                }] : []),
+                ...(types.length ? [{
+                  id: 'type',
+                  label: t('page.type'),
+                  icon: <Icon name="page" size={14} />,
+                  hint: typeOn === NO_TYPE ? t('page.typeNone') : types.find((type) => type.id === typeOn)?.name,
+                  items: [
+                    ...types.map((type) => ({
+                      id: `type-${type.id}`,
+                      label: type.name,
+                      icon: <span aria-hidden="true">{type.icon ?? '•'}</span>,
+                      hint: typeOn === type.id ? '✓' : undefined,
+                      onSelect: () => setTypeOn(typeOn === type.id ? '' : type.id),
+                    })),
+                    { id: 'type-none', label: t('page.typeNone'), hint: typeOn === NO_TYPE ? '✓' : undefined,
+                      onSelect: () => setTypeOn(typeOn === NO_TYPE ? '' : NO_TYPE) },
+                  ],
+                }] : []),
+              ]}
+            >
+              <Icon name="filter" size={14} />
+              <span className="hide-sm">{filtering ? t('page.filters', { count: filtering }) : t('page.filterByLabel')}</span>
+            </MenuButton>
+          )}
+          {/*
+            * The way to everything this screen does not draw: the archive, the
+            * trash, and what `tidy.ts` found.
+            *
+            * It carried a count, and the count was wrong twice. It summed the
+            * findings *and* the archive while the screen it opens reports the
+            * findings alone and puts the archive in a tile of its own — two
+            * numbers for one thing, which is the one duplication this repository
+            * will not keep. And it was computed over `pages`, already narrowed by
+            * the label filter above, so picking a label made it drop as though
+            * something had been tidied.
+            *
+            * Getting it right would also have meant a third full parse of every
+            * page body on this screen: `tidyPages` builds a `linkGraph`, and
+            * `usePageGraph` and `useUnwritten` below each build one already. For
+            * a badge. So the number lives where it can be checked against what is
+            * under it, and the button is a label.
+            */}
+          <Button variant="secondary" size="sm" className="ms-auto" onClick={() => navigate('/pages/tidy')}>
+            <Icon name="archive" size={14} />
+            <span className="hide-sm">{t('page.tidy')}</span>
+          </Button>
+          {/* The same pages, gathered: those marked for people outside. */}
+          <Button
+            variant="secondary" size="sm" title={t('page.publicKnowledge')} aria-label={t('page.publicKnowledge')}
+            onClick={() => navigate('/pages/knowledge')}
+          >
+            <Icon name="globe" size={14} />
+            <span className="hide-sm">{t('page.publicKnowledge')}</span>
+          </Button>
+        </div>
         {!pages.length ? (
           <Empty
             emoji="📓" title={t('page.emptyTitle')}

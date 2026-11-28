@@ -93,9 +93,12 @@ header rendered into that and did not fit: its controls wrapped onto a second ro
 strip below, and squeezed the title to nothing. The band was 900–940px, which is a laptop with the
 window not quite maximised, and nobody finds that by looking at one screenshot.
 
-- **The threshold is 764px of content**, which is what the busiest bar in the app needs — a project
-  header carrying saved views, five layout buttons, filter, display and the add button. Measured,
-  not guessed.
+- **The threshold is 764px of content**, which is what the busiest bar in the app needs — the row of
+  tools above a task list, carrying saved views, the query field, five layout buttons, filter and
+  display. Measured, not guessed: at 764px of content it is one line in German, the longest of the
+  three languages. That row used to be the project header, with the title and the add button in it
+  as well; at 1024px in German it ran 284px past its room and squeezed the title to six letters.
+  The header now carries only what belongs to the page, and the row stands above the list.
 - **Every use of the three must be inside `.main`.** A container query with no container never
   matches, so a label moved into the sidebar, or into a dialog (Radix portals those to `<body>`),
   would not turn compact — it would vanish.

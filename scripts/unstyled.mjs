@@ -52,6 +52,9 @@ const MARKERS = new Set([
   // The team chat's composer: the walkthrough finds its field and its send
   // button inside it. `Composer` draws itself with utilities.
   'chat-composer',
+  // The row of tools above a task list: the walkthrough finds the query field
+  // in it, where it used to find "the input in the header".
+  'list-tools',
 ]);
 
 /** Every class the stylesheet defines, including inside compound selectors. */

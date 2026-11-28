@@ -251,7 +251,12 @@ export function SavedViews({
     <>
       <MenuButton variant="secondary" size="sm" items={items} search={views.length > 6}>
         <Icon name={active?.icon ?? 'bookmark'} size={14} />
-        <span className={`truncate saved-view-name${active ? '' : ' hide-sm'}`} style={{ maxWidth: 140 }}>
+        {/* Capped for a long view name, and at a width the button's own
+            words fit under: at 140px "Gespeicherte Ansichten" was cut off on
+            every screen in German, the name of the menu shortened to make room
+            for nothing. Narrower on a phone, where the active view's name is
+            shown and the rest of the row still has to fit beside it. */}
+        <span className={cn('truncate max-w-36 sm:max-w-60', !active && 'hide-sm')}>
           {active ? active.name : t('view.saved')}
         </span>
         {/* A dot rather than a word: it says "not saved" without taking a line. */}

@@ -842,12 +842,6 @@ p { margin: 0 0 0.75em; }
 }
 .selection-bar .count { font-size: 12.5px; font-weight: 600; margin-inline-end: 4px; }
 
-/* The header carries a lot on a phone: saved views, four layouts, filter,
-   display and the add button. The view name is the first thing to shorten. */
-@media (max-width: 700px) {
-  .saved-view-name { max-width: 84px; }
-}
-
 @media (min-width: 600px) {
   /* No tab bar to clear, and the sidebar is a column rather than an overlay.
      The sidebar's width is in the inset because this bar is `position: fixed`

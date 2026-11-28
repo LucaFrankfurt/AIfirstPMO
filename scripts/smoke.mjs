@@ -2808,7 +2808,9 @@ await step('a page says how finished it is, and the word can be changed', async 
   await page.goto(`${base}/pages`, { waitUntil: 'networkidle' });
   await closeTour(page);
   await page.waitForSelector('.page-row', { timeout: 8000 });
-  await page.locator('.header button')
+  // In the row above the pages, where it moved from a header too crowded to
+  // show the page's own title.
+  await page.locator('.list-tools button')
     .filter({ hasText: new RegExp(`${LABELS.filterPages}|${RUNGS.final}`) }).first().click();
   await page.waitForTimeout(350);
   // The rungs are a drawer of the filter, beside the labels and the types —
@@ -2837,7 +2839,7 @@ await step('a page says how finished it is, and the word can be changed', async 
   await page.waitForTimeout(700);
 });
 
-await step('one box, two places: the header filters and the search finds', async () => {
+await step('one box, two places: the list filters and the search finds', async () => {
   await page.goto(`${base}/`, { waitUntil: 'networkidle' });
   await closeTour(page);
   // `.my-work-list` and not `.task-row` anywhere: the overdue bucket above the
@@ -2854,7 +2856,10 @@ await step('one box, two places: the header filters and the search finds', async
   const phrase = first.replace(/^\S+\s+/, '').match(/^[\p{L}\p{N}]+ [\p{L}\p{N}]+/u)?.[0];
   if (!identifier || !phrase) throw new Error(`could not read a task out of "${first}"`);
 
-  const field = page.locator('.header input[type=text]').first();
+  // Above the list, in the row of tools that used to be squeezed into the
+  // header — where, in German at 1024px, it pushed the page's title down to
+  // six letters and the sync status out of sight.
+  const field = page.locator('.list-tools input[type=text]').first();
   await field.waitFor({ timeout: 5000 });
 
   const apply = async (query) => {
@@ -2887,9 +2892,9 @@ await step('one box, two places: the header filters and the search finds', async
   /*
    * The half that only a browser can be asked: a name is *picked*, not typed.
    *
-   * The list hangs in a portal, because the header is `overflow-x: auto` and
-   * would otherwise clip it — and the first version of that portal broke
-   * picking outright. The box closes its list when a pointer goes down outside
+   * The list hangs in a portal, because the field stood in the header, which
+   * is `overflow-x: auto` and would otherwise have clipped it — and the first
+   * version of that portal broke picking outright. The box closes its list when a pointer goes down outside
    * itself, and once the list is portalled out it *is* outside itself: every
    * click dismissed the list under the pointer and the field kept the bare `@`.
    * Nothing static could see it. This is what sees it.
@@ -2898,9 +2903,9 @@ await step('one box, two places: the header filters and the search finds', async
   await page.waitForSelector('[role=option]', { timeout: 5000 });
   const offered = await page.locator('[role=option]').count();
   const panel = await page.locator('[role=listbox]').first().boundingBox();
-  const header = await page.locator('.header').first().boundingBox();
-  if (!(panel.y + panel.height > header.y + header.height)) {
-    throw new Error('the list of names is drawn inside the header, which clips it');
+  const tools = await page.locator('.list-tools').first().boundingBox();
+  if (!(panel.y + panel.height > tools.y + tools.height)) {
+    throw new Error('the list of names is drawn inside the row it hangs from, which clips it');
   }
   await page.locator('[role=option]').first().click();
   await page.waitForTimeout(500);

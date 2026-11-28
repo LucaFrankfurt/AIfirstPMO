@@ -198,12 +198,30 @@ function fieldFilterGroup(
   };
 }
 
+/**
+ * The tools a task list is worked with, as one row standing directly above it.
+ *
+ * They used to live in the page header — one row 52px tall that scrolls
+ * sideways when its contents do not fit, shared with the page's title, its
+ * main action and the sync status. Measured at 1024px in German, the project
+ * header was 284px wider than its room: the title had shrunk to its 72px floor
+ * and read "Websit", "Gespeicherte Ansichten" was cut off, and the sync status
+ * had scrolled out of sight. At 1280px it still overflowed by 28px. Every
+ * control was there and the screen had no name.
+ *
+ * So the header keeps what belongs to the page, and what belongs to the list
+ * stands where the list is. Here a row may wrap, which the header could never
+ * do: a second line of tools pushes the list down instead of drawing over the
+ * tab strip.
+ */
 export function ViewControls({
-  view, onChange, projectId, saveable,
+  view, onChange, projectId, saveable, className,
 }: {
   view: ViewConfig;
   onChange: (next: ViewConfig) => void;
   projectId?: string;
+  /** Where the row sits on its screen: padding, mostly. */
+  className?: string;
   /**
    * Offer saved views. Off for a cycle or a module: those screens already show
    * one slice of the project, and a view saved there would be a filter set that
@@ -370,21 +388,20 @@ export function ViewControls({
   const activeFilters = countFilters(view.filters);
 
   return (
-    // Emphatically not `flex-wrap`. Every one of these lives in the header,
-    // which is one row 52px tall and scrolls sideways when its contents do not
-    // fit — see `.header` in `app.css`. Allowed to wrap, the second row had
-    // nowhere to go and drew itself straight over the tab strip below.
-    <div className="flex items-center gap-1.5">
+    // `list-tools` carries no style. It is the name the walkthrough finds the
+    // query field by, which it used to find as "the input in the header".
+    <div className={cn('list-tools flex flex-wrap items-center gap-1.5', className)}>
       {saveable && <SavedViews view={view} onChange={onChange} projectId={projectId} />}
       <QueryBox
         filters={view.filters}
         projectId={projectId}
         onChange={(filters) => onChange({ ...view, filters })}
       />
-      {/* Four buttons side by side are right where there is room and too many
-          on a phone, where the header also carries saved views, filter, display
-          and the add button. Same choice, one button. */}
-      <Segmented className="not-sm">
+      {/* Five buttons side by side are right where there is room and too many
+          on a phone. Same choice, one button. `ms-auto` on both, since only one
+          of them is ever drawn: the layout, the filter and the display stand at
+          the far end, where the eye looks for what changes the list. */}
+      <Segmented className="not-sm ms-auto">
         {BUILT_LAYOUTS.map((layout) => (
           <SegmentedItem
             key={layout}
@@ -399,7 +416,7 @@ export function ViewControls({
         ))}
       </Segmented>
       <MenuButton
-        className={cn(buttonVariants({ size: 'sm' }), 'only-sm')}
+        className={cn(buttonVariants({ size: 'sm' }), 'only-sm ms-auto')}
         title={t(LAYOUT_KEY[view.layout])}
         items={BUILT_LAYOUTS.map((layout) => ({
           id: layout,

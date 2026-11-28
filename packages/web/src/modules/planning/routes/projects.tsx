@@ -452,7 +452,6 @@ export function ProjectPage() {
   return (
     <>
       <Header title={<span className="flex items-center gap-2" style={{ gap: 7 }}><span>{project.icon}</span> {project.name}</span>}>
-        {tab === 'tasks' && !isContainer && <ViewControls view={view} onChange={setView} projectId={id} saveable />}
         {canWrite && (isContainer ? (
           // The button a container needs. "New task" on a screen with no board
           // is a button that files work where nobody will look for it.
@@ -521,6 +520,14 @@ export function ProjectPage() {
         </div>
       )}
       {tab === 'tasks' && isContainer && <ContainerChildren projectId={id} />}
+      {/* Against the board's own 12px inset for a board, which runs the width
+          of the screen; inside the reading column for everything else. */}
+      {tab === 'tasks' && !isContainer && (
+        <ViewControls
+          view={view} onChange={setView} projectId={id} saveable
+          className={view.layout === 'board' ? 'px-3 pt-3' : 'mx-auto max-w-[1180px] px-3 pt-4 sm:px-6'}
+        />
+      )}
       {tab === 'tasks' && !isContainer && (
         view.layout === 'board'
           ? <div className="board-screen">
@@ -932,7 +939,6 @@ export function CyclePage() {
             project to scope a view to or to file a new task into. QuickAdd
             already offers a picker when it is not told one, which is exactly
             the right question to ask here. */}
-        <ViewControls view={view} onChange={setView} projectId={cycle.project_id ?? undefined} />
         {canWrite && <Button variant="primary" size="sm" title={t('nav.newTask')} onClick={() => setAdding(true)}><Icon name="plus" size={14} /></Button>}
       </Header>
       <div className={pageBody}>
@@ -954,6 +960,7 @@ export function CyclePage() {
             capacity sheet somebody built it from. Above the tasks, because it
             is about the cycle and the list below is about the work. */}
         <Attachments on={{ kind: 'cycle', id: cycle.id }} className="mb-3.5" />
+        <ViewControls view={view} onChange={setView} projectId={cycle.project_id ?? undefined} className="mb-3" />
         <TaskViews tasks={visible} view={view} projectId={cycle.project_id ?? undefined} onOpen={openTask} implied={{ cycleId: cycle.id }} />
       </div>
       {adding && <QuickAdd projectId={cycle.project_id ?? undefined} cycleId={id} onClose={() => setAdding(false)} />}
@@ -1100,9 +1107,6 @@ export function ModulePage() {
             {editing ? <><Icon name="check" size={14} /> {t('action.done')}</> : t('action.edit')}
           </Button>
         )}
-        {/* `?? undefined` for the same reason the cycle page does it: a module
-            several projects work on has no single project to scope a view to. */}
-        <ViewControls view={view} onChange={setView} projectId={module.project_id ?? undefined} />
       </Header>
       <div className={pageBody}>
         <Trail parts={planningCrumbs(module.project_id, 'modules', t('nav.projects'))} />
@@ -1120,6 +1124,9 @@ export function ModulePage() {
         {/* What the milestone is being judged against: the spec, the signed
             acceptance criteria, the screenshots from the review. */}
         <Attachments on={{ kind: 'module', id: module.id }} className="mb-3.5" />
+        {/* `?? undefined` for the same reason the cycle page does it: a module
+            several projects work on has no single project to scope a view to. */}
+        <ViewControls view={view} onChange={setView} projectId={module.project_id ?? undefined} className="mb-3" />
         <TaskViews tasks={visible} view={view} projectId={module.project_id ?? undefined} onOpen={openTask} implied={{ moduleId: module.id }} />
         {/* A milestone is described by what gets built; this is what has to be
             *true* by the time it lands. Renders nothing when nothing has been

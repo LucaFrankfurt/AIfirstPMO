@@ -115,9 +115,7 @@ export function MyWork() {
 
   return (
     <>
-      <Header title={t('myWork.title')}>
-        <ViewControls view={view} onChange={setView} saveable />
-      </Header>
+      <Header title={t('myWork.title')} />
       <div className={pageBody}>
         {name && <h2 className="greeting mb-3.5">{t(greetingKey(new Date().getHours()), { name })}</h2>}
 
@@ -193,6 +191,7 @@ export function MyWork() {
         )}
 
         <div ref={listTop} className="my-work-list">
+          <ViewControls view={view} onChange={setView} saveable className="mb-3" />
           {visible.length === 0 ? (
             <Empty emoji="🎉" title={t('myWork.emptyTitle')} hint={t('myWork.emptyHint')} guide="capture" />
           ) : (
